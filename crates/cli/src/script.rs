@@ -16,8 +16,10 @@ use std::time::{Duration, Instant};
 
 use rustix::process::{Pid, Signal, kill_process_group};
 
-/// How often Retros checks whether a script has exited.
-const POLL: Duration = Duration::from_millis(5);
+/// How often Retros checks whether a script has exited. Checks start fast, so a short script is
+/// not timed at the polling interval, and slow down to the longest interval.
+const FIRST_POLL: Duration = Duration::from_micros(50);
+const LONGEST_POLL: Duration = Duration::from_millis(10);
 
 /// The most standard error that a failed run keeps, in lines and in bytes.
 const TAIL_LINES: usize = 20;
@@ -69,6 +71,7 @@ pub(crate) fn run(command: &str, root: &Path, timeout: Duration) -> io::Result<R
         .spawn()?;
     let group = Pid::from_child(&child);
     let started = Instant::now();
+    let mut poll = FIRST_POLL;
 
     let outcome = loop {
         if let Some(status) = child.try_wait()? {
@@ -84,7 +87,8 @@ pub(crate) fn run(command: &str, root: &Path, timeout: Duration) -> io::Result<R
             break Outcome::TimedOut;
         }
 
-        thread::sleep(POLL);
+        thread::sleep(poll);
+        poll = (poll * 2).min(LONGEST_POLL);
     };
 
     // Stop processes the script started and left running. The group is usually empty by now.
