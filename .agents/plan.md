@@ -189,14 +189,14 @@ Remember accepted values, name the next step, and score each item against the ta
 
 Show what a rich, Lighthouse-level setup looks like for common kinds of projects, and describe Retros plainly.
 
-- [ ] Ban Python in AGENTS.md: scripts are shell or TypeScript on Bun. Replace the dogfood `metrics/speed.py` with `metrics/speed.ts`, and install Bun in the verify workflow.
-- [ ] `examples/typescript-library`: footprint (install size, dependencies, entry size with a larger target for the root entry, and export size), speed (import time per entry point and call time per function), and quality (tests, coverage per file, TSDoc per export, `sideEffects`, and resolvable entry points).
-- [ ] `examples/web-app`: performance (page weight, render-blocking resources, image bytes, and requests, with targets by kind of page), accessibility (alt text, labels, headings in order, page language, and link names), best practices (console calls, insecure links, and deprecated elements), and SEO (titles, descriptions, canonical links, and one `h1` per page). Bun's `HTMLRewriter` reads the pages.
-- [ ] `examples/rust-api`: footprint (binary size and dependencies), latency (per endpoint, with a smaller target for the health check than for search), and reliability (status codes, error rate under load, and malformed requests rejected).
-- [ ] Each example misses a few targets on purpose, so its report shows misses, opportunities, and contextual targets.
-- [ ] README: the tagline "Continuous metrics and hill climbing", a Features section in the style of zyzz's README, "any project" under Philosophy, target-only scoring, and baseline and opportunity usage.
+- [x] Ban Python in AGENTS.md: scripts are shell or TypeScript on Bun. The dogfood `metrics/speed.py` is now `metrics/speed.ts`, and the verify workflow installs Bun 1.4.4.
+- [x] `examples/typescript-library`: footprint (install size, dependencies, entry size, export size, bytes tree-shaking fails to drop, and an unscored export count the lock tracks), speed (import time per entry point and call time per function), and quality (tests, coverage per file, TSDoc per export, `sideEffects`, and resolvable entry points). The root entry's target is the sum of its subpaths and 10% more, and formatters that call `Intl` get a larger call-time target by pattern.
+- [x] `examples/web-app`: performance (page weight, requests, render-blocking resources, image bytes, script and style size, and unused style rules), accessibility (alt text, button and link names, field labels, heading order, page language, and contrast), best practices (doctype, charset, secure links, sized images, console calls, and deprecated APIs), and SEO (title length, description, canonical link, viewport, one `h1`, and crawlable links). Bun's `HTMLRewriter` reads the pages. The landing page gets a larger page-weight target by pattern, and each image's target comes from the screen area it covers.
+- [x] `examples/rust-api`: footprint (binary size, dependencies, and an unscored count of panic sites), latency (median and 95th percentile per endpoint, and throughput), and reliability (status codes, a malformed request, surviving a panic, and the error rate under load). Each endpoint's target comes from the work it does, and its tail may take three times as long.
+- [x] Each example misses a few targets on purpose, so its report shows misses, opportunities, and contextual targets.
+- [x] README: the tagline "Continuous metrics and hill climbing", a Features section in the style of zyzz's README, "any project" under Philosophy, target-only scoring, targets, baselines, and usage.
 
-**Gate:** CI runs `retros check` in every example. Each example's terminal report and `report.md` are reviewed for detail: every miss names its item, its value, and its target. The README is reviewed.
+**Gate:** CI runs `retros check` in every example through the CLI tests. Every miss in each example's report names its item, its value, and its target. Waiting on review of the README and the example reports.
 
 ## Phase 5: viem
 
