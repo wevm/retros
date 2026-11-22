@@ -6,8 +6,8 @@ run = "python3 metrics.py"
 rounds = 3
 timeout = "1m"
 # Median latency of each route. The route at the p90 is scored.
-latency = { target = "1ms", limit = "10ms" }
-# Requests per second to one route. Higher is better, so the target is above the limit.
-throughput = { target = 2000, limit = 500, better = "higher" }
+latency = { target = "1ms" }
+# Requests per second to one route. Higher is better, so half the target scores 50.
+throughput = { target = 2000, better = "higher" }
 # Whether `/health` answers with status 200.
 health = {}

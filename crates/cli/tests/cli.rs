@@ -159,9 +159,9 @@ fn scores_every_category_and_writes_reports() {
 
     assert_eq!(output.status.code(), Some(0));
     insta::assert_snapshot!(stdout(&output), @"
-    ■  71  footprint
-      ■  63  bundle       27.5 kB      target 5 kB, limit 50 kB
-      ■  83  export-size  p90 9 kB     target 5 kB, limit 50 kB
+    ▲  43  footprint
+      ▲   3  bundle       27.5 kB      target 5 kB
+      ■  58  export-size  p90 9 kB     target 5 kB
                           10 kB  viem/chains
                           9 kB   viem/op-stack
                           8 kB   viem/utils
@@ -169,11 +169,11 @@ fn scores_every_category_and_writes_reports() {
       ■  67  links        2 of 3 pass
                           fail  about.html
 
-    ■  89  speed  median of 5 rounds
-      ■  78  render      p90 5 ms  target 2 ms, limit 20 ms
+    ■  75  speed  median of 5 rounds
+      ▲  34  render      p90 5 ms  target 2 ms
                          5 ms  parse
                          2 ms  encode
-      ●  94  throughput  2588      target 2000, limit 500, weight 2
+      ●  96  throughput  2588      target 2000, weight 2
 
     Reports: .retros/report.json, .retros/report.md
     ");
@@ -185,7 +185,7 @@ fn scores_every_category_and_writes_reports() {
       "categories": [
         {
           "name": "footprint",
-          "score": 71,
+          "score": 43,
           "rounds": 1,
           "metrics": [
             {
@@ -193,9 +193,8 @@ fn scores_every_category_and_writes_reports() {
               "kind": "size",
               "unit": "B",
               "value": 27500,
-              "score": 63,
+              "score": 3,
               "target": 5000,
-              "limit": 50000,
               "better": "lower",
               "weight": 1,
               "rollup": "p90",
@@ -206,9 +205,8 @@ fn scores_every_category_and_writes_reports() {
               "kind": "size",
               "unit": "B",
               "value": 9000,
-              "score": 83,
+              "score": 58,
               "target": 5000,
-              "limit": 50000,
               "better": "lower",
               "weight": 1,
               "rollup": "p90",
@@ -262,7 +260,6 @@ fn scores_every_category_and_writes_reports() {
               "value": 412,
               "score": null,
               "target": null,
-              "limit": null,
               "better": "lower",
               "weight": 1,
               "rollup": "p90",
@@ -275,7 +272,6 @@ fn scores_every_category_and_writes_reports() {
               "value": 0.6666666666666666,
               "score": 67,
               "target": null,
-              "limit": null,
               "better": "lower",
               "weight": 1,
               "rollup": null,
@@ -298,7 +294,7 @@ fn scores_every_category_and_writes_reports() {
         },
         {
           "name": "speed",
-          "score": 89,
+          "score": 75,
           "rounds": 5,
           "metrics": [
             {
@@ -306,9 +302,8 @@ fn scores_every_category_and_writes_reports() {
               "kind": "time",
               "unit": "ns",
               "value": 5000000,
-              "score": 78,
+              "score": 34,
               "target": 2000000,
-              "limit": 20000000,
               "better": "lower",
               "weight": 1,
               "rollup": "p90",
@@ -328,9 +323,8 @@ fn scores_every_category_and_writes_reports() {
               "kind": "count",
               "unit": null,
               "value": 2588,
-              "score": 94,
+              "score": 96,
               "target": 2000,
-              "limit": 500,
               "better": "higher",
               "weight": 2,
               "rollup": "p10",
@@ -348,17 +342,17 @@ fn scores_every_category_and_writes_reports() {
 
     | Category | Score |
     | --- | --- |
-    | footprint | ■ 71 |
-    | speed | ■ 89 |
+    | footprint | ▲ 43 |
+    | speed | ■ 75 |
 
     ## footprint
 
-    | Score | Metric | Value | Target | Limit |
-    | --- | --- | --- | --- | --- |
-    | ■ 63 | bundle | 27.5 kB | 5 kB | 50 kB |
-    | ■ 83 | export-size | p90 9 kB | 5 kB | 50 kB |
-    | – | modules | 412 |  |  |
-    | ■ 67 | links | 2 of 3 pass |  |  |
+    | Score | Metric | Value | Target |
+    | --- | --- | --- | --- |
+    | ▲ 3 | bundle | 27.5 kB | 5 kB |
+    | ■ 58 | export-size | p90 9 kB | 5 kB |
+    | – | modules | 412 |  |
+    | ■ 67 | links | 2 of 3 pass |  |
 
     Worst items of `export-size`:
 
@@ -378,10 +372,10 @@ fn scores_every_category_and_writes_reports() {
 
     Timings are the median of 5 rounds.
 
-    | Score | Metric | Value | Target | Limit |
-    | --- | --- | --- | --- | --- |
-    | ■ 78 | render | p90 5 ms | 2 ms | 20 ms |
-    | ● 94 | throughput | 2588 | 2000 | 500 |
+    | Score | Metric | Value | Target |
+    | --- | --- | --- | --- |
+    | ▲ 34 | render | p90 5 ms | 2 ms |
+    | ● 96 | throughput | 2588 | 2000 |
 
     Worst items of `render`:
 
@@ -401,9 +395,9 @@ fn scores_one_category_from_a_subdirectory() {
 
     assert_eq!(output.status.code(), Some(0));
     insta::assert_snapshot!(stdout(&output), @"
-    ■  71  footprint
-      ■  63  bundle       27.5 kB      target 5 kB, limit 50 kB
-      ■  83  export-size  p90 9 kB     target 5 kB, limit 50 kB
+    ▲  43  footprint
+      ▲   3  bundle       27.5 kB      target 5 kB
+      ■  58  export-size  p90 9 kB     target 5 kB
                           10 kB  viem/chains
                           9 kB   viem/op-stack
                           8 kB   viem/utils
@@ -634,7 +628,7 @@ fn check_with_an_invalid_config_names_it_relative_to_the_current_directory() {
     let dir = tempfile::tempdir().unwrap();
     fs::write(
         dir.path().join("retros.toml"),
-        "[footprint]\nrun = \"true\"\nsize = { target = \"5kB\", limit = \"50kb\" }\n",
+        "[footprint]\nrun = \"true\"\nsize = { target = \"50kb\" }\n",
     )
     .unwrap();
     fs::create_dir(dir.path().join("src")).unwrap();
@@ -643,8 +637,8 @@ fn check_with_an_invalid_config_names_it_relative_to_the_current_directory() {
 
     assert_eq!(output.status.code(), Some(2));
     insta::assert_snapshot!(stderr(&output), @r#"
-    error[unknown-unit] ../retros.toml:3:37: unknown unit `kb`, expected one of `B`, `kB`, `MB`, `GB`, `ns`, `µs`, `us`, `ms`, `s`
-      3 | size = { target = "5kB", limit = "50kb" }
-        |                                     ^
+    error[unknown-unit] ../retros.toml:3:22: unknown unit `kb`, expected one of `B`, `kB`, `MB`, `GB`, `ns`, `µs`, `us`, `ms`, `s`
+      3 | size = { target = "50kb" }
+        |                      ^
     "#);
 }

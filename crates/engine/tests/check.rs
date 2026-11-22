@@ -8,7 +8,7 @@ use engine::{config, lines};
 
 const CONFIG: &str = r#"[footprint]
 run = "node metrics/footprint.mjs"
-export-size = { target = "5kB", limit = "50kB" }
+export-size = { target = "5kB" }
 modules = {}
 "#;
 
@@ -111,12 +111,12 @@ fn reports_duplicates() {
 }
 
 #[test]
-fn reports_values_that_do_not_match_their_anchors() {
+fn reports_values_that_do_not_match_their_target() {
     let report = check("export-size 412\nmodules 412\n");
 
     insta::assert_snapshot!(report, @"
     passed: false, metrics: 2
-    error [anchor-unit] footprint metrics:1:1: metric `export-size` is written as counts, but its anchors in retros.toml are sizes
+    error [target-unit] footprint metrics:1:1: metric `export-size` is written as counts, but its `target` in retros.toml measures sizes
       1 | export-size 412
         | ^
     ");

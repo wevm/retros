@@ -1,10 +1,11 @@
 //! Scores: medians across rounds, list roll-ups, Lighthouse's log-normal curve, and the weighted
 //! mean of a category.
 //!
-//! Scores follow Lighthouse's rounding. A metric's score is a whole number from 0 to 100, and a
+//! A value at its target scores 90, a value twice the target scores 50, and a value four times
+//! the target scores 10. Scores follow Lighthouse's rounding. A metric's score is a whole number from 0 to 100, and a
 //! category's score is the weighted mean of its metric scores, rounded.
 
-use crate::config::{Anchors, Better, Category, Metric, Rollup};
+use crate::config::{Better, Category, Metric, Rollup};
 use crate::lines::Line;
 use crate::value::{Kind, Value};
 
@@ -29,7 +30,7 @@ pub struct MetricScore {
     /// The metric's configuration.
     pub metric: Metric,
     /// The score from 0 to 100. A check always has one, and other metrics have one when they set
-    /// anchors.
+    /// a target.
     pub score: Option<u8>,
     /// The collapsed value in base units. For a check, the share of items that pass, from 0 to 1.
     pub value: f64,
@@ -73,18 +74,20 @@ pub fn category(category: &Category, rounds: &[Vec<Line<'_>>]) -> CategoryScore 
     }
 }
 
-/// Lighthouse's `getLogNormalScore`, with `target` as its p10 control point and `limit` as its
-/// median. A value at `target` scores 0.9, a value at `limit` scores 0.5, and each side of a
-/// control point is clamped to its band. `target` must be greater than zero and less than
-/// `limit`.
-pub fn curve(target: f64, limit: f64, value: f64) -> f64 {
+/// Scores a value where lower is better on Lighthouse's `getLogNormalScore`, with `target` as its
+/// p10 control point and twice the target as its median. A value at `target` scores 0.9, a value
+/// at twice the target scores 0.5, and each side of a control point is clamped to its band.
+/// `target` must be greater than zero.
+pub fn curve(target: f64, value: f64) -> f64 {
     /// The closest double to `erfc⁻¹(1/5)`.
     const INVERSE_ERFC_ONE_FIFTH: f64 = 0.906_193_802_436_823_2;
     /// The largest scores below 0.9 and 0.5.
     const MAX_AVERAGE: f64 = 0.899_999_999_999_999_9;
     const MAX_POOR: f64 = 0.499_999_999_999_999_94;
 
-    debug_assert!(target > 0.0 && target < limit);
+    debug_assert!(target > 0.0);
+
+    let median = 2.0 * target;
 
     if value <= 0.0 {
         return 1.0;
@@ -92,14 +95,14 @@ pub fn curve(target: f64, limit: f64, value: f64) -> f64 {
 
     // Lighthouse guards both logarithms with JavaScript's `Number.MIN_VALUE`.
     let smallest = f64::from_bits(1);
-    let x_log_ratio = (value / limit).max(smallest).ln();
-    let target_log_ratio = -(target / limit).max(smallest).ln();
+    let x_log_ratio = (value / median).max(smallest).ln();
+    let target_log_ratio = -(target / median).max(smallest).ln();
     let standardized = x_log_ratio * INVERSE_ERFC_ONE_FIFTH / target_log_ratio;
     let complementary = (1.0 - erf(standardized)) / 2.0;
 
     if value <= target {
         complementary.clamp(0.9, 1.0)
-    } else if value <= limit {
+    } else if value <= median {
         complementary.clamp(0.5, MAX_AVERAGE)
     } else {
         complementary.clamp(0.0, MAX_POOR)
@@ -160,8 +163,9 @@ fn metric(metric: &Metric, rounds: &[Vec<Line<'_>>]) -> Option<MetricScore> {
             .collect();
         let value = collapse(&mut amounts, metric.score);
         let score = metric
-            .anchors
-            .map(|anchors| whole(scaled(anchors, metric.better, value) * 100.0));
+            .target
+            .and_then(Value::amount)
+            .map(|target| whole(scaled(target, metric.better, value) * 100.0));
         (value, score)
     };
 
@@ -198,15 +202,13 @@ fn metric(metric: &Metric, rounds: &[Vec<Line<'_>>]) -> Option<MetricScore> {
     })
 }
 
-/// Scores a value on the curve. A metric where higher is better scores the reciprocals.
-fn scaled(anchors: Anchors, better: Better, value: f64) -> f64 {
-    let target = anchors.target.amount().unwrap_or_default();
-    let limit = anchors.limit.amount().unwrap_or_default();
-
+/// Scores a value on the curve. A metric where higher is better scores the reciprocals, so half
+/// its target scores 50.
+fn scaled(target: f64, better: Better, value: f64) -> f64 {
     match better {
-        Better::Lower => curve(target, limit, value),
+        Better::Lower => curve(target, value),
         Better::Higher if value <= 0.0 => 0.0,
-        Better::Higher => curve(1.0 / target, 1.0 / limit, 1.0 / value),
+        Better::Higher => curve(1.0 / target, 1.0 / value),
     }
 }
 

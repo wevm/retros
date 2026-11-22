@@ -1,13 +1,13 @@
 # Implementation plan
 
-This plan tracks Retros from foundations to release. Retros is continuous metrics and hill climbing for any project. Each metric has a `target` to reach and a `limit` to stay inside. A project's scripts measure it, and Retros scores each metric against its anchors, compares revisions, and writes reports, so every change shows whether the project climbed toward its targets or slid back. Each phase ends with an acceptance gate, and a phase is complete only when its gate passes.
+This plan tracks Retros from foundations to release. Retros is continuous metrics and hill climbing. Each metric has one `target`, a requirement the project must meet. A project's scripts measure it, and Retros scores each metric against its target, compares revisions, and writes reports, so every change shows whether the project climbed toward its targets or slid back. Each phase ends with an acceptance gate, and a phase is complete only when its gate passes.
 
 ## Goals
 
 | Goal | Target | Evidence |
 | --- | --- | --- |
 | Any language | A project in any language takes part through scripts and one text file. | Shell fixture projects, viem (TypeScript), and zepto (Zig) |
-| Lighthouse scores | The same value and anchors produce the same score as Lighthouse. | Score tests against values from Lighthouse's JavaScript and zepto's `bench/lighthouse.zig` |
+| Lighthouse scores | The same value and target produce the same score as Lighthouse. | Score tests against values from Lighthouse's JavaScript and zepto's `bench/lighthouse.zig` |
 | Honest comparisons | Exact changes always show. Timing changes show only when repeated runs agree. | Comparison tests with planted regressions and unchanged revisions |
 | Replace zepto's lighthouse | zepto's report comes from Retros with the same scores within noise. | Phase 6 gate |
 | One binary | A single static binary with no runtime to install. | Release assets in Phase 7 |
@@ -19,25 +19,25 @@ This plan tracks Retros from foundations to release. Retros is continuous metric
 3. **TOML configuration.** Rust's TOML support is solid, TOML has no indentation traps, and Cargo and Python users already know it.
 4. **Metrics go to a file.** Scripts append lines to the file at `$RETROS_METRICS`, not to standard output. Tools that scripts call print to standard output, and a standard output protocol lets any tool inject a metric. GitHub Actions moved from standard output commands to `$GITHUB_OUTPUT` for the same reason. Decided 2026-11-22, replacing the earlier standard output proposal.
 5. **One line per measurement.** The format is `metric [item] value`. An item with a space is quoted.
-6. **Lighthouse scoring.** A value at `target` scores 90 and a value at `limit` scores 50 on the log-normal curve. Meeting `target` is a requirement met, the start of the good band. Passing `limit` is where a metric turns poor. The names replace Lighthouse's p10 and median control points, which describe the web as a whole rather than one project. Lists collapse to the p90. A category is the weighted mean of its scores. There is no overall score.
+6. **Lighthouse scoring against one target.** A value at `target` scores 90, a value twice the target scores 50, and a value four times the target scores 10. When higher is better, half the target scores 50. The target is a requirement: meeting it starts the good band, and no second anchor makes missing it acceptable. Lighthouse's p10 control point becomes the target and its median becomes twice the target. Lists collapse to the p90. A category is the weighted mean of its scores. There is no overall score. Decided 2026-11-22, replacing the `target` and `limit` pair.
 7. **Targets can gate CI.** `retros --require-targets` exits with status 1 when a metric's collapsed value is worse than its `target`, or when a metric with a target has no value because its script failed. The rule compares values, not rounded scores, so a value just past the target never passes as 90.
 8. **Pure engine, thin command line.** `crates/engine` is deterministic and has no I/O. `crates/cli` runs scripts, reads and writes files, and drives Git.
 9. **Built like Ondine and zyzz.** AGENTS.md, lints, toolchain pin, and testing rules follow those repositories. Work lands directly on `main`.
 
 ## The Contract
 
-A project adds `retros.toml`. Each table is a category, `run` is the script that measures it, and every other key is a metric the script writes. Anchors are optional. A metric with anchors gets a score, and a metric without anchors shows its value and change only.
+A project adds `retros.toml`. Each table is a category, `run` is the script that measures it, and every other key is a metric the script writes. Targets are optional. A metric with a target gets a score, and a metric without one shows its value and change only.
 
 ```toml
 # Two categories, each measured by its own script.
 [footprint]
-run = "node metrics/footprint.ts"
-export-size = { target = "5kB", limit = "50kB" }
-install-size = { target = "10MB", limit = "150MB" }
+run = "bun metrics/footprint.ts"
+export-size = { target = "5kB" }
+install-size = { target = "10MB" }
 
 [speed]
-run = "node metrics/speed.ts"
-import-time = { target = "20ms", limit = "200ms" }
+run = "bun metrics/speed.ts"
+import-time = { target = "20ms" }
 ```
 
 The script appends lines to the file at `$RETROS_METRICS`:
@@ -62,17 +62,17 @@ bench-time "ABI Decode (500 results)" 1.82ms
 
 1. **Repeat timings.** When a script's first run writes a time, Retros runs it `rounds` times and takes each timing item's median. Sizes, counts, and checks keep the first run's values.
 2. **Collapse lists.** A list metric collapses to one value, the p90 by default. Percentiles take the nearest rank, so the p90 is a value the script wrote, with at most a tenth of the list above it. The p10 mirrors it.
-3. **Score on the curve.** Lighthouse's `getLogNormalScore`, ported with its `erf` approximation. A value at `target` scores 90, a value at `limit` scores 50, smaller values approach 100, and larger values approach 0. Checks score the share of items that pass. A `better = "higher"` metric scores the reciprocal.
-4. **Average categories.** Like Lighthouse, a metric's score is rounded to a whole number, and a category is the weighted mean of those scores, rounded. Metrics without anchors are shown but not scored, and a metric with weight 0 is scored but left out of the mean. A failed metric drops out instead of counting as zero.
+3. **Score on the curve.** Lighthouse's `getLogNormalScore`, ported with its `erf` approximation. A value at `target` scores 90, a value at twice the target scores 50, smaller values approach 100, and larger values approach 0. Checks score the share of items that pass. A `better = "higher"` metric scores the reciprocal.
+4. **Average categories.** Like Lighthouse, a metric's score is rounded to a whole number, and a category is the weighted mean of those scores, rounded. Metrics without a target are shown but not scored, and a metric with weight 0 is scored but left out of the mean. A failed metric drops out instead of counting as zero.
 
-| Value with anchors 5 kB and 50 kB | Score | Band |
+| Value against a 5 kB target | Score | Band |
 | --- | --- | --- |
-| 1 kB | 99 | good |
+| 2.5 kB | 99 | good |
 | 5 kB (the target) | 90 | good |
-| 27.5 kB (viem's p90 export) | 63 | needs work |
-| 50 kB (the limit) | 50 | needs work |
-| 110.8 kB (viem's `createPublicClient`) | 33 | poor |
-| 227.7 kB (viem's `viem/tempo` `createClient`) | 20 | poor |
+| 7.5 kB | 70 | needs work |
+| 10 kB (twice the target) | 50 | needs work |
+| 20 kB (four times the target) | 10 | poor |
+| 27.5 kB (viem's p90 export) | 3 | poor |
 
 A comparison reports change separately from score:
 
@@ -183,4 +183,4 @@ These are not scheduled: built-in measures (bundle size, startup, install size),
 - **Scripts can measure wrong.** An esbuild code-splitting mistake inflated small viem exports by up to 20×. Earliest signal: a value far from what an existing tool reports for the same thing. Later fix: built-in measures and planted controls.
 - **List metrics are slow.** Export size for 1,912 viem exports took 174 s in an orb, and a comparison runs it twice. Earliest signal: a viem run over 10 minutes. Later fix: re-measure only changed items.
 - **Timings are noisy on shared runners.** Earliest signal: most timing comparisons read "within noise". Fix: more pairs, or a dedicated runner.
-- **Default anchors are guesses.** Earliest signal: every project lands in the same band. Fix: each project sets its anchors and records where they came from.
+- **Targets are guesses.** Earliest signal: every project lands in the same band. Fix: each project sets its targets and records where they came from.

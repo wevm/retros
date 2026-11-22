@@ -43,7 +43,7 @@ impl Report {
 }
 
 /// Checks that a category's script wrote every configured metric, that each metric uses one kind
-/// of unit and matches its anchors, and that no metric or item is written twice.
+/// of unit and matches its target, and that no metric or item is written twice.
 pub fn category(category: &Category, lines: &[Line<'_>]) -> Report {
     let mut groups: Vec<(&str, Vec<&Line<'_>>)> = Vec::new();
     for line in lines {
@@ -155,16 +155,16 @@ fn check_group(category: &Category, name: &str, group: &[&Line<'_>], report: &mu
             ),
         )),
         Some(metric) => {
-            if let Some(anchors) = metric.anchors
-                && anchors.target.kind() != kind
+            if let Some(target) = metric.target
+                && target.kind() != kind
             {
                 report.errors.push(error(
-                    Code::AnchorUnit,
+                    Code::TargetUnit,
                     first,
                     format!(
-                        "metric `{name}` is written as {}, but its anchors in retros.toml are {}",
+                        "metric `{name}` is written as {}, but its `target` in retros.toml measures {}",
                         kind.plural(),
-                        anchors.target.kind().plural()
+                        target.kind().plural()
                     ),
                 ));
             }

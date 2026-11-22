@@ -6,10 +6,10 @@ Sources: https://github.com/wevm/ondine/blob/main/AGENTS.md at `51ba8db369fd8b35
 
 ## Project Principles
 
-- Retros is continuous metrics and hill climbing for any project. Each metric has a `target` to reach and a `limit` to stay inside. A project's scripts measure it, and Retros scores each metric against its anchors, compares revisions, and writes reports, so every change shows whether the project climbed toward its targets or slid back. The contract is processes and text files, so any language can take part.
+- Retros is continuous metrics and hill climbing. Each metric has one `target`, a requirement the project must meet. A project's scripts measure it, and Retros scores each metric against its target, compares revisions, and writes reports, so every change shows whether the project climbed toward its targets or slid back. The contract is processes and text files, so any project in any language can take part.
 - Retros measures nothing itself. Every number comes from a project script. Built-in measures come later, only after the same script recurs across projects, and scripts remain the escape hatch.
 - Keep the contract public and small. `retros.toml` declares categories, each with a `run` command and its metrics. A script appends `metric [item] value` lines to the file at `$RETROS_METRICS`, and a non-zero exit status marks the run as failed. A change to the contract needs a decision in `.agents/plan.md`.
-- Score like Lighthouse. Port `getLogNormalScore` so that a value at `target` scores 90 and a value at `limit` scores 50, and use Lighthouse's bands: 90 to 100 good, 50 to 89 needs work, 0 to 49 poor. A metric with items collapses to its p90 unless configured. A category is the weighted mean of its metric scores. There is no overall score.
+- Score like Lighthouse. Port `getLogNormalScore` so that a value at `target` scores 90 and a value twice the target scores 50 (half the target when higher is better), and use Lighthouse's bands: 90 to 100 good, 50 to 89 needs work, 0 to 49 poor. A metric with items collapses to its p90 unless configured. A category is the weighted mean of its metric scores. There is no overall score.
 - A failed or missing metric has no score, not a score of zero. Reports name the failure and keep the end of the script's stderr.
 - Report change separately from score. Exact units (sizes, counts, checks) report any change. Timing changes need repeated, interleaved base and head runs. Per-item changes always show, even when the collapsed value does not move. Never gate on one timing sample.
 - Keep the `engine` crate pure and deterministic: the same configuration and metric lines produce the same scores and report bytes. The `cli` crate owns processes, files, Git, and the clock.
@@ -95,7 +95,7 @@ Retros is written in Rust. These conventions draw on zyzz, Ondine, oxc, ruff, an
 - Parse a unit once, at the boundary, into a base unit: bytes for sizes, nanoseconds for time, plain counts, and pass or fail for checks. Size units are decimal, so 1 kB is 1,000 B.
 - Store measured values as `f64` in base units. Round only for display.
 - Format every number that reaches a report through one formatter, with a fixed precision per unit and no negative zero. Never format an `f64` with `{}` in a report.
-- Port Lighthouse's `getLogNormalScore`, including its `erf` approximation (Abramowitz and Stegun 7.1.26), so scores match Lighthouse and zepto's `bench/lighthouse.zig` for the same inputs. `target` takes the place of Lighthouse's p10 control point, and `limit` takes the place of its median.
+- Port Lighthouse's `getLogNormalScore`, including its `erf` approximation (Abramowitz and Stegun 7.1.26), so scores match Lighthouse and zepto's `bench/lighthouse.zig` for the same inputs. `target` takes the place of Lighthouse's p10 control point, and twice the target takes the place of its median.
 
 ### Parsing and Errors
 
@@ -113,7 +113,7 @@ Retros is written in Rust. These conventions draw on zyzz, Ondine, oxc, ruff, an
 
 - Rust tests live in each crate's `tests/` directory, exercise public crate functions or the built binary end to end, and assert with inline `insta` snapshots. Unit tests of private helpers and mocks are banned.
 - Run CLI tests against the built binary (`env!("CARGO_BIN_EXE_retros")`) with fixture projects in temporary directories, real shell scripts, and real Git repositories.
-- Derive expected scores independently of the implementation, from Lighthouse's published guarantees (a value at `target` scores 0.9 and a value at `limit` scores 0.5) and from values computed by Lighthouse's own JavaScript.
+- Derive expected scores independently of the implementation, from Lighthouse's published guarantees (a value at `target` scores 0.9 and a value at twice the target scores 0.5) and from values computed by Lighthouse's own JavaScript.
 - Release builds use `opt-level = 3`, `lto = "fat"`, `codegen-units = 1`, and `strip = "symbols"`.
 
 ## Alphabetical Ordering
@@ -175,7 +175,7 @@ Applies to the documentation site, the README, and other Markdown documentation.
 ### Voice and Terms
 
 - Write for developers who maintain a project and already run tests, benchmarks, or size checks. Use Lighthouse's terms, such as score, metric, and category, without redefining them.
-- Use Retros's own terms consistently: script, metric line, item, anchor, round, and comparison. Define each one once, on the page that introduces it.
+- Use Retros's own terms consistently: script, metric line, item, target, round, and comparison. Define each one once, on the page that introduces it.
 - Explain behavior through `retros.toml`, the metric lines a script writes, and the report that results. Leave engine internals to the pages that document them.
 - Keep guides language-neutral. When setup differs by language or ecosystem, show every one, such as in tabs for shell, Node, Python, and Rust, rather than assuming one.
 - Do not state the obvious. When a feature differs by platform, state that limit directly.
@@ -228,7 +228,7 @@ Applies to documentation, comments, TSDoc, interface copy, commit messages, and 
 - Write formally, concisely, and technically. Use precise verbs such as "returns", "runs", "parses", "scores", "rejects", "writes", and "reports", not conversational ones such as "hands", "gets", "gives", "sees", "knows", "says", or "tells".
 - State an invariant or a reason the code cannot show on its own. Leave out justification the code already makes plain.
 - Write close to ASD-STE100 Simplified Technical English. Apply its writing rules below, but not its full dictionary.
-- Use the short, common word: "use", "start", "before", "about", "make sure", not "utilize", "commence", "prior to", "approximately", "ensure". Technical names and Retros terms, such as "anchor", "item", and "round", are always valid.
+- Use the short, common word: "use", "start", "before", "about", "make sure", not "utilize", "commence", "prior to", "approximately", "ensure". Technical names and Retros terms, such as "target", "item", and "round", are always valid.
 - Use one word for one thing, and give each word one meaning and one part of speech. Do not use a synonym for variety.
 - Keep an instruction to 20 words or fewer, and a descriptive sentence to 25 words or fewer. Give one instruction in each sentence, unless the actions occur at the same time.
 - Keep each paragraph to one topic and six sentences or fewer. Use a vertical list for sequential steps or several conditions.

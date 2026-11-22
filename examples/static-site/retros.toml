@@ -3,8 +3,8 @@
 [pages]
 run = "sh metrics.sh"
 # Bytes of each HTML page. The page at the p90 is scored.
-page-size = { target = "10kB", limit = "50kB" }
+page-size = { target = "10kB" }
 # Bytes of the stylesheet.
-css-size = { target = "5kB", limit = "30kB" }
+css-size = { target = "5kB" }
 # Whether every local link on a page points at a file that exists. A check scores the share of pages that pass.
 links = {}

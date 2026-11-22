@@ -2,12 +2,12 @@
 //!
 //! Each top-level table is a category. A category's `run` key is the command that measures it,
 //! `rounds` and `timeout` are optional, and every other key is a metric. A metric is a table of
-//! optional keys: `target`, `limit`, `weight`, `score`, and `better`.
+//! optional keys: `target`, `weight`, `score`, and `better`.
 //!
 //! ```toml
 //! [footprint]
 //! run = "node metrics/footprint.ts"
-//! export-size = { target = "5kB", limit = "50kB" }
+//! export-size = { target = "5kB" }
 //! ```
 
 use std::borrow::Cow;
@@ -21,7 +21,7 @@ use crate::lines::is_name;
 use crate::value::{self, Value};
 
 /// Keys a metric table accepts, in the order error messages list them.
-const METRIC_KEYS: [&str; 5] = ["better", "limit", "score", "target", "weight"];
+const METRIC_KEYS: [&str; 4] = ["better", "score", "target", "weight"];
 
 /// Rounds a timing metric runs when its category sets no `rounds`.
 const DEFAULT_ROUNDS: u32 = 5;
@@ -56,8 +56,6 @@ pub struct Category {
 /// A configured metric.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Metric {
-    /// The values that score 90 and 50, when the metric is scored.
-    pub anchors: Option<Anchors>,
     /// Which direction is better. Defaults to lower.
     pub better: Better,
     /// The position of the metric's name.
@@ -67,17 +65,11 @@ pub struct Metric {
     /// How a list of items collapses to one value. Defaults to `p90`, or `p10` when higher is
     /// better.
     pub score: Rollup,
+    /// The value the metric must meet, which scores 90. A metric without a target is shown but
+    /// not scored.
+    pub target: Option<Value>,
     /// The metric's weight in its category. Defaults to 1.
     pub weight: f64,
-}
-
-/// The two values that place a metric on the scoring curve.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Anchors {
-    /// The value that scores 50. Past it, the metric is poor.
-    pub limit: Value,
-    /// The value that scores 90. Meeting it puts the metric in the good band.
-    pub target: Value,
 }
 
 /// The direction in which a metric improves.
@@ -111,7 +103,7 @@ pub enum Rollup {
 /// # Errors
 ///
 /// Returns the first error: TOML syntax, an unknown key, a value of the wrong type, a missing
-/// `run` command, or anchors that cannot score.
+/// `run` command, or a target that cannot score.
 pub fn parse(source: &str) -> Result<Config, Error> {
     let document = DeTable::parse(source).map_err(|error| Error {
         code: Code::Toml,
@@ -185,7 +177,7 @@ fn category(
                         source,
                         value.span().start,
                         format!(
-                            "metric `{metric}` must be a table, such as `{metric} = {{ target = \"5kB\", limit = \"50kB\" }}` or `{metric} = {{}}`"
+                            "metric `{metric}` must be a table, such as `{metric} = {{ target = \"5kB\" }}` or `{metric} = {{}}`"
                         ),
                     ));
                 };
@@ -226,7 +218,6 @@ fn category(
 fn metric(source: &str, key: &Spanned<Cow<'_, str>>, table: &DeTable<'_>) -> Result<Metric, Error> {
     let name = key.get_ref().as_ref();
     let mut better = Better::Lower;
-    let mut limit = None;
     let mut score = None;
     let mut target = None;
     let mut weight = 1.0;
@@ -249,7 +240,6 @@ fn metric(source: &str, key: &Spanned<Cow<'_, str>>, table: &DeTable<'_>) -> Res
                     }
                 };
             }
-            "limit" => limit = Some((anchor(source, value, "limit")?, value.span().start)),
             "score" => {
                 score = Some(match string(source, value, "score")? {
                     "max" => Rollup::Max,
@@ -270,7 +260,7 @@ fn metric(source: &str, key: &Spanned<Cow<'_, str>>, table: &DeTable<'_>) -> Res
                     }
                 });
             }
-            "target" => target = Some((anchor(source, value, "target")?, value.span().start)),
+            "target" => target = Some(self::target(source, name, value)?),
             "weight" => weight = non_negative(source, value, "weight")?,
             other => {
                 let expected: Vec<String> = METRIC_KEYS.iter().map(|k| format!("`{k}`")).collect();
@@ -287,23 +277,7 @@ fn metric(source: &str, key: &Spanned<Cow<'_, str>>, table: &DeTable<'_>) -> Res
         }
     }
 
-    let anchors = match (target, limit) {
-        (None, None) => None,
-        (Some((target, target_at)), Some((limit, _))) => {
-            Some(anchors(source, name, better, target, limit, target_at)?)
-        }
-        (Some(_), None) | (None, Some(_)) => {
-            return Err(Error::at(
-                Code::IncompleteAnchors,
-                source,
-                key.span().start,
-                format!("metric `{name}` needs both `target` and `limit` to be scored, or neither"),
-            ));
-        }
-    };
-
     Ok(Metric {
-        anchors,
         better,
         location: Location::of(source, key.span().start),
         name: name.to_owned(),
@@ -311,90 +285,49 @@ fn metric(source: &str, key: &Spanned<Cow<'_, str>>, table: &DeTable<'_>) -> Res
             Better::Higher => Rollup::P10,
             Better::Lower => Rollup::P90,
         }),
+        target,
         weight,
     })
 }
 
-/// Checks that two anchors share a unit, are positive, and run from `target` to `limit` in the
-/// worse direction.
-fn anchors(
-    source: &str,
-    name: &str,
-    better: Better,
-    target: Value,
-    limit: Value,
-    offset: usize,
-) -> Result<Anchors, Error> {
-    let error = |code, message| Err(Error::at(code, source, offset, message));
-
-    let (target_amount, limit_amount) = match (target, limit) {
-        (Value::Count(t), Value::Count(l))
-        | (Value::Size(t), Value::Size(l))
-        | (Value::Time(t), Value::Time(l)) => (t, l),
-        (Value::Check(_), _) | (_, Value::Check(_)) => {
-            return error(
-                Code::AnchorUnit,
-                format!(
-                    "metric `{name}` cannot have check anchors. A check scores the share of items that pass"
-                ),
-            );
-        }
-        _ => {
-            return error(
-                Code::AnchorUnit,
-                format!(
-                    "the anchors of metric `{name}` mix {} and {}",
-                    target.kind().plural(),
-                    limit.kind().plural()
-                ),
-            );
-        }
-    };
-
-    if target_amount <= 0.0 || limit_amount <= 0.0 {
-        return error(
-            Code::AnchorRange,
-            format!("the anchors of metric `{name}` must be greater than zero"),
-        );
-    }
-
-    let ordered = match better {
-        Better::Higher => target_amount > limit_amount,
-        Better::Lower => target_amount < limit_amount,
-    };
-    if !ordered {
-        let (relation, hint) = match better {
-            Better::Higher => ("greater", ""),
-            Better::Lower => (
-                "smaller",
-                ". Set `better = \"higher\"` for a metric where larger is better",
-            ),
-        };
-        return error(
-            Code::AnchorOrder,
-            format!("the `target` of metric `{name}` must be {relation} than its `limit`{hint}"),
-        );
-    }
-
-    Ok(Anchors { limit, target })
-}
-
-/// Parses an anchor: a value string such as `"5kB"`, or a TOML number for a count.
-fn anchor(source: &str, value: &Spanned<DeValue<'_>>, key: &str) -> Result<Value, Error> {
-    match value.get_ref() {
-        DeValue::Integer(_) | DeValue::Float(_) => Ok(Value::Count(number(source, value, key)?)),
+/// Parses a target: a value string such as `"5kB"`, or a TOML number for a count. A target must
+/// be greater than zero, and a check cannot have one.
+fn target(source: &str, name: &str, value: &Spanned<DeValue<'_>>) -> Result<Value, Error> {
+    let at = value.span().start;
+    let target = match value.get_ref() {
+        DeValue::Integer(_) | DeValue::Float(_) => Value::Count(number(source, value, "target")?),
         DeValue::String(text) => {
-            let content = content_offset(source, value.span().start);
+            let content = content_offset(source, at);
             value::parse(text).map_err(|error| {
                 Error::at(error.code, source, content + error.offset, error.message)
-            })
+            })?
         }
-        _ => Err(Error::at(
-            Code::InvalidType,
+        _ => {
+            return Err(Error::at(
+                Code::InvalidType,
+                source,
+                at,
+                "`target` must be a value such as \"5kB\", \"20ms\", or a number".to_owned(),
+            ));
+        }
+    };
+
+    match target.amount() {
+        None => Err(Error::at(
+            Code::TargetUnit,
             source,
-            value.span().start,
-            format!("`{key}` must be a value such as \"5kB\", \"20ms\", or a number"),
+            at,
+            format!(
+                "metric `{name}` cannot have a check as its target. A check scores the share of items that pass"
+            ),
         )),
+        Some(amount) if amount <= 0.0 => Err(Error::at(
+            Code::TargetRange,
+            source,
+            at,
+            format!("the `target` of metric `{name}` must be greater than zero"),
+        )),
+        Some(_) => Ok(target),
     }
 }
 

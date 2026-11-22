@@ -33,33 +33,31 @@ fn summary(scored: &CategoryScore) -> String {
 
 #[test]
 fn curve_matches_lighthouse_and_zepto() {
-    // (target, limit, value, score) from Lighthouse's `getLogNormalScore` in
-    // shared/statistics.js at 896399bc, called as `{ p10: target, median: limit }`. zepto's
-    // `bench/metrics.zig` at c8a97f7 prints the same doubles for every case.
+    // (target, value, score) from Lighthouse's `getLogNormalScore` in shared/statistics.js at
+    // 896399bc, called as `{ p10: target, median: 2 * target }`. zepto's `bench/metrics.zig` at
+    // c8a97f7 prints the same doubles for `score(target, 2 * target, value)`.
     let cases = [
-        (5000.0, 50000.0, 0.0, 1.0),
-        (5000.0, 50000.0, 1000.0, 0.985_271_614_997_225_4),
-        (5000.0, 50000.0, 5000.0, 0.9),
-        (5000.0, 50000.0, 27500.0, 0.630_334_127_949_178_5),
-        (5000.0, 50000.0, 50000.0, 0.5),
-        (5000.0, 50000.0, 110_800.0, 0.328_931_554_368_077_3),
-        (5000.0, 50000.0, 227_700.0, 0.199_400_428_119_734_85),
-        (3785.0, 7300.0, 1000.0, 0.999_947_446_363_660_6),
-        (3785.0, 7300.0, 2500.0, 0.981_726_567_991_099_7),
-        (3785.0, 7300.0, 5000.0, 0.769_856_810_071_505_7),
-        (3785.0, 7300.0, 7500.0, 0.478_970_979_540_147_56),
-        (3785.0, 7300.0, 10000.0, 0.269_594_847_843_008_86),
-        (3785.0, 7300.0, 30000.0, 0.002_911_749_265_972_152_2),
-        (3785.0, 7300.0, 1_000_000.0, 0.0),
-        (30.0, 300.0, 31.0, 0.896_759_544_989_582_9),
-        (30.0, 300.0, 3000.0, 0.100_000_068_596_147_52),
+        (5000.0, 0.0, 1.0),
+        (5000.0, 1000.0, 0.999_989_643_866_174_4),
+        (5000.0, 2500.0, 0.994_812_911_341_374_8),
+        (5000.0, 5000.0, 0.9),
+        (5000.0, 7500.0, 0.702_599_604_029_262_8),
+        (5000.0, 10000.0, 0.5),
+        (5000.0, 20000.0, 0.100_000_068_596_147_52),
+        (5000.0, 27500.0, 0.030_718_462_957_005_088),
+        (5000.0, 110_800.0, 4.360_941_909_142_824e-6),
+        (5000.0, 227_700.0, 3.777_852_308_761_709e-9),
+        (30.0, 31.0, 0.888_943_074_909_612_1),
+        (30.0, 45.0, 0.702_599_604_029_262_8),
+        (30.0, 60.0, 0.5),
+        (30.0, 3000.0, 2.381_428_387_820_961e-13),
     ];
 
-    for (target, limit, value, expected) in cases {
-        let actual = score::curve(target, limit, value);
+    for (target, value, expected) in cases {
+        let actual = score::curve(target, value);
         assert!(
             (actual - expected).abs() < 1e-12,
-            "curve({target}, {limit}, {value}) = {actual}, expected {expected}"
+            "curve({target}, {value}) = {actual}, expected {expected}"
         );
     }
 }
@@ -68,8 +66,8 @@ fn curve_matches_lighthouse_and_zepto() {
 fn scores_values_lists_checks_and_unscored_metrics() {
     let config = r#"[footprint]
 run = "true"
-bundle = { target = "5kB", limit = "50kB" }
-export-size = { target = "5kB", limit = "50kB" }
+bundle = { target = "5kB" }
+export-size = { target = "5kB" }
 modules = {}
 links = {}
 "#;
@@ -92,12 +90,12 @@ links blog.html pass
 
     let scored = scored(config, &[lines]);
 
-    // Lighthouse scores 27.5 kB as 63 and the p90, 9 kB, as 83. Two of three links pass, 67.
-    // The mean of 63, 83, and 67 is 71.
+    // Against a 5 kB target, Lighthouse scores 27.5 kB as 3 and the p90, 9 kB, as 58. Two of
+    // three links pass, 67. The mean of 3, 58, and 67 is 43.
     insta::assert_snapshot!(summary(&scored), @"
-    category Some(71)
-    bundle 27500 Some(63)
-    export-size 9000 Some(83)
+    category Some(43)
+    bundle 27500 Some(3)
+    export-size 9000 Some(58)
     modules 412 None
     links 0.6666666666666666 Some(67)
     ");
@@ -164,8 +162,8 @@ sum = { score = "sum" }
 fn takes_timing_medians_across_rounds_and_exact_values_from_the_first() {
     let config = r#"[speed]
 run = "true"
-render = { target = "2ms", limit = "20ms" }
-throughput = { target = 2000, limit = 500, better = "higher", weight = 2 }
+render = { target = "2ms" }
+throughput = { target = 2000, better = "higher", weight = 2 }
 "#;
     let rounds = [
         "render parse 9ms\nrender encode 2ms\nthroughput 2588\n",
@@ -178,13 +176,13 @@ throughput = { target = 2000, limit = 500, better = "higher", weight = 2 }
     let scored = scored(config, &rounds);
 
     // The median of `parse` is 5 ms, and the p90 of two items is the larger, 5 ms, which
-    // Lighthouse scores 78. Throughput keeps the first round's 2588, which scores 94. With weight
-    // 2 on throughput, the category is 89.
+    // Lighthouse scores 34 against a 2 ms target. Throughput keeps the first round's 2588, which
+    // scores 96 against a target of 2000. With weight 2 on throughput, the category is 75.
     assert_eq!(scored.rounds, 5);
     insta::assert_snapshot!(summary(&scored), @"
-    category Some(89)
-    render 5000000 Some(78)
-    throughput 2588 Some(94)
+    category Some(75)
+    render 5000000 Some(34)
+    throughput 2588 Some(96)
     ");
 }
 
@@ -205,7 +203,7 @@ fn takes_the_mean_of_two_middle_rounds() {
 fn leaves_weightless_and_unanchored_metrics_out_of_the_category() {
     let config = r#"[footprint]
 run = "true"
-bundle = { target = "5kB", limit = "50kB", weight = 0 }
+bundle = { target = "5kB", weight = 0 }
 modules = {}
 "#;
 
@@ -220,8 +218,7 @@ modules = {}
 
 #[test]
 fn scores_zero_when_higher_is_better_and_the_value_is_zero() {
-    let config =
-        "[api]\nrun = \"true\"\nthroughput = { target = 2000, limit = 500, better = \"higher\" }\n";
+    let config = "[api]\nrun = \"true\"\nthroughput = { target = 2000, better = \"higher\" }\n";
 
     let scored = scored(config, &["throughput 0\n"]);
 

@@ -34,16 +34,8 @@ impl Location {
 /// The kind of an error. Codes are public contract and keep their meaning across releases.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Code {
-    /// Anchors of a metric that is not ordered from `target` to `limit` in its better direction.
-    AnchorOrder,
-    /// Anchors that are not positive. The scoring curve needs positive anchors.
-    AnchorRange,
-    /// Anchors with different units, check anchors, or anchors that do not match the written unit.
-    AnchorUnit,
     /// A metric line written twice in one run, or an item written twice for one metric.
     Duplicate,
-    /// A metric with a `target` and no `limit`, or a `limit` and no `target`.
-    IncompleteAnchors,
     /// A name with characters other than ASCII letters, digits, `-`, `_`, and `.`.
     InvalidName,
     /// A number that does not parse.
@@ -68,6 +60,10 @@ pub enum Code {
     Toml,
     /// A metric the script wrote that `retros.toml` does not configure.
     UnconfiguredMetric,
+    /// A target that is not greater than zero. The scoring curve needs a positive target.
+    TargetRange,
+    /// A target that is a check, or that does not match the unit the script writes.
+    TargetUnit,
     /// A key that `retros.toml` does not define.
     UnexpectedKey,
     /// A unit that is not a size, time, or check unit.
@@ -78,11 +74,7 @@ impl Code {
     /// Returns the code as it appears in reports, such as `unknown-unit`.
     pub fn as_str(self) -> &'static str {
         match self {
-            Self::AnchorOrder => "anchor-order",
-            Self::AnchorRange => "anchor-range",
-            Self::AnchorUnit => "anchor-unit",
             Self::Duplicate => "duplicate",
-            Self::IncompleteAnchors => "incomplete-anchors",
             Self::InvalidName => "invalid-name",
             Self::InvalidNumber => "invalid-number",
             Self::InvalidType => "invalid-type",
@@ -94,6 +86,8 @@ impl Code {
             Self::NothingConfigured => "nothing-configured",
             Self::RunMissing => "run-missing",
             Self::Toml => "toml",
+            Self::TargetRange => "target-range",
+            Self::TargetUnit => "target-unit",
             Self::UnconfiguredMetric => "unconfigured-metric",
             Self::UnexpectedKey => "unexpected-key",
             Self::UnknownUnit => "unknown-unit",

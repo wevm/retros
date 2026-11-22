@@ -48,7 +48,7 @@ pub fn band(score: u8) -> char {
 }
 
 /// Renders one category for the terminal: its score, then each metric's score, value, and
-/// anchors, and the worst items of each list.
+/// target, and the worst items of each list.
 pub fn terminal(category: &CategoryReport) -> String {
     let mut out = String::new();
 
@@ -91,7 +91,7 @@ pub fn terminal(category: &CategoryReport) -> String {
             "  {}  {:name_width$}  {value:value_width$}  {}",
             cell(metric.score),
             metric.metric.name,
-            anchors(metric)
+            target(metric)
         );
         let _ = writeln!(out, "{}", line.trim_end());
 
@@ -196,22 +196,15 @@ pub fn markdown(report: &Report) -> String {
             );
         }
 
-        out.push_str(
-            "| Score | Metric | Value | Target | Limit |\n| --- | --- | --- | --- | --- |\n",
-        );
+        out.push_str("| Score | Metric | Value | Target |\n| --- | --- | --- | --- |\n");
         for metric in &scored.metrics {
-            let (target, limit) = metric.metric.anchors.map_or_else(
-                || (String::new(), String::new()),
-                |anchors| (format::value(anchors.target), format::value(anchors.limit)),
-            );
+            let target = metric.metric.target.map(format::value).unwrap_or_default();
             let _ = writeln!(
                 out,
-                "| {} | {} | {} | {} | {} |",
+                "| {} | {} | {} | {target} |",
                 compact(metric.score),
                 escape(&metric.metric.name),
                 escape(&value(metric)),
-                target,
-                limit
             );
         }
 
@@ -284,13 +277,12 @@ fn value(metric: &MetricScore) -> String {
     format!("{} {amount}", rollup(metric.metric.score))
 }
 
-/// Formats a metric's anchors and any weight other than 1, such as `target 5 kB, limit 50 kB`.
-fn anchors(metric: &MetricScore) -> String {
+/// Formats a metric's target and any weight other than 1, such as `target 5 kB, weight 2`.
+fn target(metric: &MetricScore) -> String {
     let mut parts = Vec::new();
 
-    if let Some(anchors) = metric.metric.anchors {
-        parts.push(format!("target {}", format::value(anchors.target)));
-        parts.push(format!("limit {}", format::value(anchors.limit)));
+    if let Some(target) = metric.metric.target {
+        parts.push(format!("target {}", format::value(target)));
     }
     if (metric.metric.weight - 1.0).abs() > f64::EPSILON {
         parts.push(format!(
@@ -313,14 +305,6 @@ fn worst(metric: &MetricScore) -> Vec<&crate::score::Item> {
 }
 
 fn metric_json(metric: &MetricScore) -> Json {
-    let anchor = |pick: fn(&crate::config::Anchors) -> Value| {
-        metric
-            .metric
-            .anchors
-            .as_ref()
-            .and_then(|anchors| pick(anchors).amount())
-            .map_or(Json::Null, Json::Number)
-    };
     let (kind, unit) = match metric.kind {
         Kind::Check => ("check", Json::Null),
         Kind::Count => ("count", Json::Null),
@@ -349,8 +333,14 @@ fn metric_json(metric: &MetricScore) -> Json {
                 .score
                 .map_or(Json::Null, |s| Json::Number(f64::from(s))),
         ),
-        ("target", anchor(|anchors| anchors.target)),
-        ("limit", anchor(|anchors| anchors.limit)),
+        (
+            "target",
+            metric
+                .metric
+                .target
+                .and_then(Value::amount)
+                .map_or(Json::Null, Json::Number),
+        ),
         (
             "better",
             Json::String(

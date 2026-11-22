@@ -3,13 +3,13 @@
 [footprint]
 run = "sh metrics/footprint.sh"
 # Bytes of the stripped release binary that users download.
-binary-size = { target = "1MB", limit = "5MB" }
+binary-size = { target = "1MB" }
 # Third-party crates compiled into the binary.
-dependencies = { target = 10, limit = 40 }
+dependencies = { target = 10 }
 
 [speed]
 run = "python3 metrics/speed.py"
 # Time from launch to exit of `retros --version`.
-startup = { target = "1ms", limit = "10ms" }
+startup = { target = "1ms" }
 # Time `retros check` takes for one category whose script writes one line.
-check = { target = "5ms", limit = "50ms" }
+check = { target = "5ms" }

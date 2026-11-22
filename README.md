@@ -16,8 +16,8 @@ Set a target for each metric that matters, measure every change, and climb. A pr
 # retros.toml: each table is a category, and `run` is the script that measures it.
 [footprint]
 run = "node metrics/footprint.ts"
-export-size = { target = "5kB", limit = "50kB" }
-install-size = { target = "10MB", limit = "150MB" }
+export-size = { target = "5kB" }
+install-size = { target = "10MB" }
 ```
 
 ```sh
@@ -28,15 +28,15 @@ echo 'export-size viem/actions:readContract 31.7kB' >> "$RETROS_METRICS"
 
 ## Philosophy
 
-- **Targeted.** Each metric has a `target` to reach and a `limit` to stay inside. Every change shows whether the project climbed toward its targets or slid back.
+- **Targeted.** Each metric has one `target`, a requirement the project must meet. Every change shows whether the project climbed toward its targets or slid back.
 - **Scripted.** Projects measure themselves with scripts in any language. Retros runs them and reads one line per measurement.
-- **Scored.** Every metric with anchors scores from 0 to 100 on Lighthouse's curve, and each category averages its metrics.
+- **Scored.** Every metric with a target scores from 0 to 100 on Lighthouse's curve, and each category averages its metrics.
 - **Comparable.** Sizes and counts report every change. Timings report a change only when repeated, interleaved runs agree.
 - **Portable.** One static binary, with no runtime to install.
 
 ## Scoring
 
-A value at the `target` anchor scores 90, the start of the good band, and a value at the `limit` anchor scores 50, the start of the poor band. A metric that covers a list of items, such as every export, scores its p90. Bands follow Lighthouse: 90 to 100 is good, 50 to 89 needs work, and 0 to 49 is poor.
+A value at its `target` scores 90, the start of the good band. A value twice the target scores 50, and four times the target scores 10. When `better = "higher"`, half the target scores 50. A metric that covers a list of items, such as every export, scores its p90. Bands follow Lighthouse: 90 to 100 is good, 50 to 89 needs work, and 0 to 49 is poor.
 
 ## Status
 
@@ -58,13 +58,13 @@ retros check
 
 ```text
 ●  95  footprint
-  ●  95  entry-size  p90 525 B  target 1 kB, limit 10 kB
+  ●  95  entry-size  p90 525 B  target 1 kB
                      525 B  .
                      314 B  ./number
                      274 B  ./date
 
 ■  61  speed  median of 3 rounds
-  ■  61  import-time  p90 6.1 ms  target 1 ms, limit 10 ms
+  ■  61  import-time  p90 6.1 ms  target 1 ms
                       6.1 ms  ./number
                       5.1 ms  .
                       4 ms    ./date

@@ -3,11 +3,11 @@
 [footprint]
 run = "node metrics/footprint.mjs"
 # Gzipped bytes of each entry point and the modules it imports.
-entry-size = { target = "1kB", limit = "10kB" }
+entry-size = { target = "1kB" }
 
 [speed]
 run = "node metrics/speed.mjs"
 # Retros runs this script 3 times and takes the median of each entry point.
 rounds = 3
 # Time to import each entry point in a fresh process.
-import-time = { target = "1ms", limit = "10ms" }
+import-time = { target = "1ms" }

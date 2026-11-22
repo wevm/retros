@@ -20,12 +20,13 @@ fn parses_categories_in_order_with_defaults() {
 run = "node metrics/speed.mjs"
 rounds = 8
 timeout = "1.5s"
-throughput = { target = 2000, limit = 500, better = "higher", weight = 2 }
+throughput = { target = 2000, better = "higher", weight = 2 }
 decode = { score = "median" }
 
 [footprint]
 run = "node metrics/footprint.mjs"
-export-size = { target = "1.1kB", limit = "45.6MB" }
+export-size = { target = "1.1kB" }
+bundle = { target = "45.6MB" }
 modules = {}
 "#;
 
@@ -41,16 +42,6 @@ modules = {}
                 },
                 metrics: [
                     Metric {
-                        anchors: Some(
-                            Anchors {
-                                limit: Count(
-                                    500.0,
-                                ),
-                                target: Count(
-                                    2000.0,
-                                ),
-                            },
-                        ),
                         better: Higher,
                         location: Location {
                             column: 1,
@@ -58,10 +49,14 @@ modules = {}
                         },
                         name: "throughput",
                         score: P10,
+                        target: Some(
+                            Count(
+                                2000.0,
+                            ),
+                        ),
                         weight: 2.0,
                     },
                     Metric {
-                        anchors: None,
                         better: Lower,
                         location: Location {
                             column: 1,
@@ -69,6 +64,7 @@ modules = {}
                         },
                         name: "decode",
                         score: Median,
+                        target: None,
                         weight: 1.0,
                     },
                 ],
@@ -84,16 +80,6 @@ modules = {}
                 },
                 metrics: [
                     Metric {
-                        anchors: Some(
-                            Anchors {
-                                limit: Size(
-                                    45600000.0,
-                                ),
-                                target: Size(
-                                    1100.0,
-                                ),
-                            },
-                        ),
                         better: Lower,
                         location: Location {
                             column: 1,
@@ -101,17 +87,37 @@ modules = {}
                         },
                         name: "export-size",
                         score: P90,
+                        target: Some(
+                            Size(
+                                1100.0,
+                            ),
+                        ),
                         weight: 1.0,
                     },
                     Metric {
-                        anchors: None,
                         better: Lower,
                         location: Location {
                             column: 1,
                             line: 12,
                         },
+                        name: "bundle",
+                        score: P90,
+                        target: Some(
+                            Size(
+                                45600000.0,
+                            ),
+                        ),
+                        weight: 1.0,
+                    },
+                    Metric {
+                        better: Lower,
+                        location: Location {
+                            column: 1,
+                            line: 13,
+                        },
                         name: "modules",
                         score: P90,
+                        target: None,
                         weight: 1.0,
                     },
                 ],
@@ -206,7 +212,7 @@ fn rejects_invalid_toml_and_structure() {
     "#);
 
     insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nexport-size = \"5kB\"\n"), @r#"
-    [invalid-type] retros.toml:3:15: metric `export-size` must be a table, such as `export-size = { target = "5kB", limit = "50kB" }` or `export-size = {}`
+    [invalid-type] retros.toml:3:15: metric `export-size` must be a table, such as `export-size = { target = "5kB" }` or `export-size = {}`
       3 | export-size = "5kB"
         |               ^
     "#);
@@ -235,16 +241,16 @@ fn rejects_invalid_category_settings() {
 
 #[test]
 fn rejects_invalid_metric_settings() {
-    insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { target = \"5kB\", limit = \"50kB\", goal = 1 }\n"), @r#"
-    [unexpected-key] retros.toml:3:42: unknown key `goal` in metric `size`, expected one of `better`, `limit`, `score`, `target`, `weight`
-      3 | size = { target = "5kB", limit = "50kB", goal = 1 }
-        |                                          ^
+    insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { target = \"5kB\", goal = 1 }\n"), @r#"
+    [unexpected-key] retros.toml:3:26: unknown key `goal` in metric `size`, expected one of `better`, `score`, `target`, `weight`
+      3 | size = { target = "5kB", goal = 1 }
+        |                          ^
     "#);
 
-    insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { target = \"5kB\" }\n"), @r#"
-    [incomplete-anchors] retros.toml:3:1: metric `size` needs both `target` and `limit` to be scored, or neither
-      3 | size = { target = "5kB" }
-        | ^
+    insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { target = \"5kB\", limit = \"50kB\" }\n"), @r#"
+    [unexpected-key] retros.toml:3:26: unknown key `limit` in metric `size`, expected one of `better`, `score`, `target`, `weight`
+      3 | size = { target = "5kB", limit = "50kB" }
+        |                          ^
     "#);
 
     insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { better = \"smaller\" }\n"), @r#"
@@ -273,46 +279,34 @@ fn rejects_invalid_metric_settings() {
 }
 
 #[test]
-fn rejects_anchors_that_cannot_score() {
-    insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { target = \"5kb\", limit = \"50kB\" }\n"), @r#"
+fn rejects_targets_that_cannot_score() {
+    insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { target = \"5kb\" }\n"), @r#"
     [unknown-unit] retros.toml:3:21: unknown unit `kb`, expected one of `B`, `kB`, `MB`, `GB`, `ns`, `µs`, `us`, `ms`, `s`
-      3 | size = { target = "5kb", limit = "50kB" }
+      3 | size = { target = "5kb" }
         |                     ^
     "#);
 
-    insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { target = \"5kB\", limit = \"20ms\" }\n"), @r#"
-    [anchor-unit] retros.toml:3:19: the anchors of metric `size` mix sizes and times
-      3 | size = { target = "5kB", limit = "20ms" }
-        |                   ^
-    "#);
-
-    insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { target = \"50kB\", limit = \"5kB\" }\n"), @r#"
-    [anchor-order] retros.toml:3:19: the `target` of metric `size` must be smaller than its `limit`. Set `better = "higher"` for a metric where larger is better
-      3 | size = { target = "50kB", limit = "5kB" }
-        |                   ^
-    "#);
-
-    insta::assert_snapshot!(error("[speed]\nrun = \"true\"\nops = { target = 500, limit = 2000, better = \"higher\" }\n"), @r#"
-    [anchor-order] retros.toml:3:18: the `target` of metric `ops` must be greater than its `limit`
-      3 | ops = { target = 500, limit = 2000, better = "higher" }
-        |                  ^
-    "#);
-
-    insta::assert_snapshot!(error("[speed]\nrun = \"true\"\nerrors = { target = 0, limit = 5 }\n"), @"
-    [anchor-range] retros.toml:3:21: the anchors of metric `errors` must be greater than zero
-      3 | errors = { target = 0, limit = 5 }
+    insta::assert_snapshot!(error("[speed]\nrun = \"true\"\nerrors = { target = 0 }\n"), @"
+    [target-range] retros.toml:3:21: the `target` of metric `errors` must be greater than zero
+      3 | errors = { target = 0 }
         |                     ^
     ");
 
-    insta::assert_snapshot!(error("[tests]\nrun = \"true\"\npassing = { target = \"pass\", limit = \"fail\" }\n"), @r#"
-    [anchor-unit] retros.toml:3:22: metric `passing` cannot have check anchors. A check scores the share of items that pass
-      3 | passing = { target = "pass", limit = "fail" }
+    insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { target = \"-5kB\" }\n"), @r#"
+    [invalid-number] retros.toml:3:20: sizes cannot be negative
+      3 | size = { target = "-5kB" }
+        |                    ^
+    "#);
+
+    insta::assert_snapshot!(error("[tests]\nrun = \"true\"\npassing = { target = \"pass\" }\n"), @r#"
+    [target-unit] retros.toml:3:22: metric `passing` cannot have a check as its target. A check scores the share of items that pass
+      3 | passing = { target = "pass" }
         |                      ^
     "#);
 
-    insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { target = [\"5kB\"], limit = \"50kB\" }\n"), @r#"
+    insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { target = [\"5kB\"] }\n"), @r#"
     [invalid-type] retros.toml:3:19: `target` must be a value such as "5kB", "20ms", or a number
-      3 | size = { target = ["5kB"], limit = "50kB" }
+      3 | size = { target = ["5kB"] }
         |                   ^
     "#);
 }
