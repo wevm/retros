@@ -1,0 +1,13 @@
+# A Python HTTP API, measured by a script that starts the server itself.
+
+[api]
+run = "python3 metrics.py"
+# Retros runs this script 3 times and takes the median of each timing.
+rounds = 3
+timeout = "1m"
+# Median latency of each route. The route at the p90 is scored.
+latency = { target = "1ms", limit = "10ms" }
+# Requests per second to one route. Higher is better, so the target is above the limit.
+throughput = { target = 2000, limit = 500, better = "higher" }
+# Whether `/health` answers with status 200.
+health = {}

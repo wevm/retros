@@ -286,6 +286,8 @@ Applies to documentation, comments, TSDoc, interface copy, commit messages, and 
 ## Repository Layout
 
 - `crates/engine/`: the pure engine. `crates/cli/`: the `retros` binary and its integration tests.
+- `examples/`: small projects in different languages, each with a `retros.toml` and the scripts it runs. CLI tests run `retros check` on each one.
+- `retros.toml` and `metrics/`: Retros measuring itself.
 - `.agents/plan.md` tracks phases, decisions, and acceptance gates.
 - Later phases add the documentation site, the npm package, and the GitHub Action. Each one gets its layout entry here when it lands.
 
@@ -300,3 +302,4 @@ Applies to documentation, comments, TSDoc, interface copy, commit messages, and 
 - `cargo test --workspace` runs every integration test.
 - `cargo fmt --all --check` and `cargo clippy --workspace --all-targets -- -D warnings` check formatting and lints.
 - `cargo build --release` builds the release binary at `target/release/retros`.
+- `cargo run -p cli -- check` runs Retros on itself with the root `retros.toml`.

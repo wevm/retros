@@ -27,13 +27,25 @@ fn check(cwd: &Path, envs: &[(&str, &Path)]) -> Output {
 
 /// Copies the fixture project `name` into a new temporary directory.
 fn fixture(name: &str) -> TempDir {
-    let dir = tempfile::tempdir().unwrap();
-    copy(
+    copied(
         &Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures")
             .join(name),
-        dir.path(),
-    );
+    )
+}
+
+/// Copies the project `name` from the repository's `examples/` into a new temporary directory.
+fn example(name: &str) -> TempDir {
+    copied(
+        &Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples")
+            .join(name),
+    )
+}
+
+fn copied(project: &Path) -> TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    copy(project, dir.path());
     dir
 }
 
@@ -284,6 +296,35 @@ fn check_kills_a_script_that_times_out() {
         !alive,
         "the script's background process {pid} is still running"
     );
+}
+
+#[test]
+fn check_passes_every_example() {
+    let static_site = check(example("static-site").path(), &[]);
+    let node_library = check(example("node-library").path(), &[]);
+    let python_api = check(example("python-api").path(), &[]);
+
+    assert_eq!(static_site.status.code(), Some(0));
+    insta::assert_snapshot!(stdout(&static_site), @"
+    ✓ pages  3 metrics
+
+    1 passed
+    ");
+
+    assert_eq!(node_library.status.code(), Some(0));
+    insta::assert_snapshot!(stdout(&node_library), @"
+    ✓ footprint  1 metric
+    ✓ speed      1 metric
+
+    2 passed
+    ");
+
+    assert_eq!(python_api.status.code(), Some(0));
+    insta::assert_snapshot!(stdout(&python_api), @"
+    ✓ api  3 metrics
+
+    1 passed
+    ");
 }
 
 #[test]

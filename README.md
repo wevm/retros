@@ -50,6 +50,8 @@ A value at the `target` anchor scores 90, the start of the good band, and a valu
 retros check
 ```
 
+[`examples/`](examples) has small projects measured with shell, Node, and Python scripts. Retros also measures itself with the root [`retros.toml`](retros.toml).
+
 ## License
 
 [MIT](LICENSE)

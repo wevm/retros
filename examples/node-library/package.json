@@ -1,0 +1,10 @@
+{
+  "name": "tiny-format",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js",
+    "./date": "./src/date.js",
+    "./number": "./src/number.js"
+  }
+}
