@@ -11,4 +11,6 @@ pub mod config;
 pub mod error;
 pub mod format;
 pub mod lines;
+pub mod report;
+pub mod score;
 pub mod value;

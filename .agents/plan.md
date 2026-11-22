@@ -60,10 +60,10 @@ bench-time "ABI Decode (500 results)" 1.82ms
 
 ## Scoring
 
-1. **Repeat timings.** Sizes, counts, and checks run once. Timing metrics run `rounds` times, and Retros takes each item's median.
-2. **Collapse lists.** A list metric collapses to one value, the p90 by default.
+1. **Repeat timings.** When a script's first run writes a time, Retros runs it `rounds` times and takes each timing item's median. Sizes, counts, and checks keep the first run's values.
+2. **Collapse lists.** A list metric collapses to one value, the p90 by default. Percentiles take the nearest rank, so the p90 is a value the script wrote, with at most a tenth of the list above it. The p10 mirrors it.
 3. **Score on the curve.** Lighthouse's `getLogNormalScore`, ported with its `erf` approximation. A value at `target` scores 90, a value at `limit` scores 50, smaller values approach 100, and larger values approach 0. Checks score the share of items that pass. A `better = "higher"` metric scores the reciprocal.
-4. **Average categories.** A category is the weighted mean of its scored metrics, rounded. Metrics without anchors are shown but not scored. A failed metric drops out instead of counting as zero.
+4. **Average categories.** Like Lighthouse, a metric's score is rounded to a whole number, and a category is the weighted mean of those scores, rounded. Metrics without anchors are shown but not scored, and a metric with weight 0 is scored but left out of the mean. A failed metric drops out instead of counting as zero.
 
 | Value with anchors 5 kB and 50 kB | Score | Band |
 | --- | --- | --- |
@@ -91,7 +91,7 @@ Set up the repository, conventions, and checks that every later phase builds on.
 - [x] README, MIT LICENSE, `.gitignore`, and this plan.
 - [x] Integration test harness: `insta` inline snapshots and binary tests for `--version`, `--help`, and argument errors.
 - [x] Verify workflow (format, Clippy, tests) on pushes to `main` and on pull requests.
-- [ ] `wevm/retros` on GitHub with the first commit on `main`.
+- [x] `wevm/retros` on GitHub with the first commit on `main`.
 - [ ] `.agents/setup` that installs the pinned toolchain in Amp orbs.
 
 **Gate:** `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo test --workspace` pass locally and in CI on `main`.
@@ -112,11 +112,11 @@ Read the configuration, run each script once, and read what it wrote.
 
 Turn metric lines into scores and write the first reports.
 
-- [ ] Rounds and medians for timing metrics.
-- [ ] List roll-ups: `p90`, `median`, `max`, `min`, and `sum`.
-- [ ] The scoring curve, checks, `better = "higher"`, weights, and categories.
-- [ ] `retros` runs every category and `retros <category>` runs one.
-- [ ] Terminal summary, `.retros/report.json`, and `.retros/report.md`.
+- [x] Rounds and medians for timing metrics.
+- [x] List roll-ups: `p90`, `median`, `max`, `min`, and `sum`.
+- [x] The scoring curve, checks, `better = "higher"`, weights, and categories.
+- [x] `retros` runs every category and `retros <category>` runs one.
+- [x] Terminal summary, `.retros/report.json`, and `.retros/report.md`.
 
 **Gate:** curve tests match values computed by Lighthouse's JavaScript and zepto's `bench/lighthouse.zig` for the same inputs. Report snapshots for a fixture project are reviewed.
 

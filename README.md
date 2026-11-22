@@ -43,11 +43,31 @@ A value at the `target` anchor scores 90, the start of the good band, and a valu
 > [!NOTE]
 > Retros is in development. The [implementation plan](.agents/plan.md) lists each phase and its acceptance gate.
 
-`retros check` works today. It runs each script once and checks that every configured metric was written with one kind of unit.
+Scoring and reports work today. Run Retros from the project or any directory below it, and add `.retros/` to `.gitignore`.
 
 ```sh
-# Run from the project or any directory below it.
+# Score every category and write .retros/report.json and .retros/report.md.
+retros
+
+# Score one category.
+retros speed
+
+# Run each script once and check what it writes, without scoring.
 retros check
+```
+
+```text
+●  95  footprint
+  ●  95  entry-size  p90 525 B  target 1 kB, limit 10 kB
+                     525 B  .
+                     314 B  ./number
+                     274 B  ./date
+
+■  61  speed  median of 3 rounds
+  ■  61  import-time  p90 6.1 ms  target 1 ms, limit 10 ms
+                      6.1 ms  ./number
+                      5.1 ms  .
+                      4 ms    ./date
 ```
 
 [`examples/`](examples) has small projects measured with shell, Node, and Python scripts. Retros also measures itself with the root [`retros.toml`](retros.toml).

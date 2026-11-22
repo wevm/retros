@@ -57,6 +57,14 @@ pub enum Value {
 }
 
 impl Value {
+    /// Returns the number in base units, or `None` for a check.
+    pub fn amount(self) -> Option<f64> {
+        match self {
+            Self::Check(_) => None,
+            Self::Count(amount) | Self::Size(amount) | Self::Time(amount) => Some(amount),
+        }
+    }
+
     /// Returns the kind of quantity the value measures.
     pub fn kind(self) -> Kind {
         match self {

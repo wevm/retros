@@ -1,0 +1,15 @@
+# Scores one value, a list, an unscored count, and a list of checks, then timings over rounds
+# and a count where higher is better.
+
+[footprint]
+run = "sh footprint.sh"
+bundle = { target = "5kB", limit = "50kB" }
+export-size = { target = "5kB", limit = "50kB" }
+modules = {}
+links = {}
+
+[speed]
+run = "sh speed.sh"
+rounds = 5
+render = { target = "2ms", limit = "20ms" }
+throughput = { target = 2000, limit = 500, better = "higher", weight = 2 }

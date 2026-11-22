@@ -1,12 +1,14 @@
 //! The `retros` command line.
 //!
 //! The command line is a thin adapter around the engine. It finds `retros.toml`, runs measurement
-//! scripts, reads the files they write, and prints what the engine reports. It exits with status
-//! 0 on success, 1 when a check fails, and 2 when it cannot run, such as for an unknown argument
-//! or an invalid `retros.toml`. Commands land in the phases of `.agents/plan.md`.
+//! scripts, reads the files they write, prints what the engine reports, and writes the report
+//! files. It exits with status 0 on success, 1 when a category fails, and 2 when it cannot run,
+//! such as for an unknown argument or an invalid `retros.toml`.
 
 mod check;
+mod measure;
 mod project;
+mod score;
 mod script;
 
 use std::io::Write;
@@ -15,7 +17,11 @@ use std::process::ExitCode;
 use engine::error::Error;
 
 const USAGE: &str = "\
-Usage: retros <command>
+Usage: retros [category]
+       retros check
+
+Run each category's script, score its metrics, and write .retros/report.json and
+.retros/report.md. Name a category to run only that one.
 
 Commands:
   check  Run each script once and check the metric lines it writes
@@ -37,22 +43,26 @@ fn main() -> ExitCode {
             let _ = writeln!(std::io::stdout(), "retros {}", env!("CARGO_PKG_VERSION"));
             ExitCode::SUCCESS
         }
-        [command] if command == "check" => {
-            let result = std::env::current_dir()
-                .map_err(|error| format!("error: could not read the current directory: {error}"))
-                .and_then(|cwd| project::find(&cwd))
-                .and_then(|project| check::run(&project));
-
-            result.unwrap_or_else(|message| {
-                let _ = writeln!(std::io::stderr(), "{message}");
-                ExitCode::from(2)
-            })
-        }
-        [] => usage("expected a command"),
-        [command, arg, ..] if command == "check" => usage(&format!("unknown argument '{arg}'")),
-        [arg, ..] if arg.starts_with('-') => usage(&format!("unknown argument '{arg}'")),
-        [command, ..] => usage(&format!("unknown command '{command}'")),
+        [command] if command == "check" => with_project(check::run),
+        [arg] if arg.starts_with('-') => usage(&format!("unknown argument '{arg}'")),
+        [] => with_project(|project| score::run(project, None)),
+        [category] => with_project(|project| score::run(project, Some(category))),
+        [_, arg, ..] => usage(&format!("unknown argument '{arg}'")),
     }
+}
+
+/// Finds the project and runs `command` on it. A message from either goes to standard error with
+/// exit status 2.
+fn with_project(command: impl FnOnce(&project::Project) -> Result<ExitCode, String>) -> ExitCode {
+    let result = std::env::current_dir()
+        .map_err(|error| format!("error: could not read the current directory: {error}"))
+        .and_then(|cwd| project::find(&cwd))
+        .and_then(|project| command(&project));
+
+    result.unwrap_or_else(|message| {
+        let _ = writeln!(std::io::stderr(), "{message}");
+        ExitCode::from(2)
+    })
 }
 
 /// Renders an engine error with its severity and code, such as
