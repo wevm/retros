@@ -116,8 +116,20 @@ fn reports_values_that_do_not_match_their_target() {
 
     insta::assert_snapshot!(report, @"
     passed: false, metrics: 2
-    error [target-unit] footprint metrics:1:1: metric `export-size` is written as counts, but its `target` in retros.toml measures sizes
+    error [target-unit] footprint metrics:1:1: metric `export-size` is written as counts, but its `target` in retros.toml is a size
       1 | export-size 412
+        | ^
+    ");
+}
+
+#[test]
+fn reports_targets_on_some_lines_only() {
+    let report = check("export-size 4.2kB\nmodules viem 412 target 500\nmodules ox 120\n");
+
+    insta::assert_snapshot!(report, @"
+    passed: false, metrics: 2
+    error [mixed-targets] footprint metrics:3:1: metric `modules` sets a target on some lines but not this one. Set a target on every line, or a default `target` in retros.toml
+      3 | modules ox 120
         | ^
     ");
 }

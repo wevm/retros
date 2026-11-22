@@ -50,6 +50,8 @@ pub enum Code {
     MetricMissing,
     /// A metric written both with and without items.
     MixedItems,
+    /// A metric that sets a target on some lines but not others, with no default target.
+    MixedTargets,
     /// A metric written with more than one kind of unit.
     MixedUnits,
     /// A category without metrics, or a configuration without categories.
@@ -82,6 +84,7 @@ impl Code {
             Self::LineSyntax => "line-syntax",
             Self::MetricMissing => "metric-missing",
             Self::MixedItems => "mixed-items",
+            Self::MixedTargets => "mixed-targets",
             Self::MixedUnits => "mixed-units",
             Self::NothingConfigured => "nothing-configured",
             Self::RunMissing => "run-missing",

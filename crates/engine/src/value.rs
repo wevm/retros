@@ -32,6 +32,17 @@ pub enum Kind {
 }
 
 impl Kind {
+    /// Returns the singular noun with its article that messages use for the kind, such as
+    /// `a size`.
+    pub fn singular(self) -> &'static str {
+        match self {
+            Self::Check => "a check",
+            Self::Count => "a count",
+            Self::Size => "a size",
+            Self::Time => "a time",
+        }
+    }
+
     /// Returns the plural noun that messages use for the kind, such as `sizes`.
     pub fn plural(self) -> &'static str {
         match self {
@@ -57,6 +68,17 @@ pub enum Value {
 }
 
 impl Value {
+    /// Returns a value of `kind` with `amount` in base units. A check passes when `amount` is
+    /// positive.
+    pub fn of(kind: Kind, amount: f64) -> Self {
+        match kind {
+            Kind::Check => Self::Check(amount > 0.0),
+            Kind::Count => Self::Count(amount),
+            Kind::Size => Self::Size(amount),
+            Kind::Time => Self::Time(amount),
+        }
+    }
+
     /// Returns the number in base units, or `None` for a check.
     pub fn amount(self) -> Option<f64> {
         match self {

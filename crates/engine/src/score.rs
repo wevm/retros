@@ -1,13 +1,21 @@
-//! Scores: medians across rounds, list roll-ups, Lighthouse's log-normal curve, and the weighted
-//! mean of a category.
+//! Scores: medians across rounds, list roll-ups, Lighthouse's log-normal curve, the weighted
+//! mean of a category, and the opportunities that would raise it.
 //!
-//! A value at its target scores 90, a value twice the target scores 50, and a value four times
-//! the target scores 10. Scores follow Lighthouse's rounding. A metric's score is a whole number from 0 to 100, and a
-//! category's score is the weighted mean of its metric scores, rounded.
+//! Each measurement is scored against its own target: the target its line sets, or the metric's
+//! target in `retros.toml`. A value at its target scores 90, a value twice the target scores 50,
+//! and a value four times the target scores 10. A list collapses to the item furthest past its
+//! own target at the configured rank, so the p90 of a list is the item with at most a tenth of the
+//! list further past its target. Scores follow Lighthouse's rounding: a metric's score is a whole
+//! number from 0 to 100, and a category's score is the weighted mean of its metric scores,
+//! rounded.
 
 use crate::config::{Better, Category, Metric, Rollup};
 use crate::lines::Line;
 use crate::value::{Kind, Value};
+
+/// The smallest gain, in category points, that counts as an opportunity. Smaller gains round to
+/// zero.
+const MIN_GAIN: f64 = 0.5;
 
 /// The result of one category run.
 #[derive(Clone, Debug, PartialEq)]
@@ -23,15 +31,21 @@ pub struct CategoryScore {
 /// One configured metric's result.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MetricScore {
-    /// Each item and its value, worst first. Empty for a metric written without items.
+    /// The item the roll-up selected from a list, whose value and target the metric reports.
+    /// `None` for a metric without items, a check, or a `sum`.
+    pub at: Option<String>,
+    /// Each item, worst first. Empty for a metric written without items.
     pub items: Vec<Item>,
     /// The kind of value the script wrote.
     pub kind: Kind,
     /// The metric's configuration.
     pub metric: Metric,
-    /// The score from 0 to 100. A check always has one, and other metrics have one when they set
-    /// a target.
+    /// The score from 0 to 100. A check always has one, and other metrics have one when every
+    /// measurement has a target.
     pub score: Option<u8>,
+    /// The target the metric is scored against: the selected item's target, or the total of the
+    /// targets for a `sum`.
+    pub target: Option<Value>,
     /// The collapsed value in base units. For a check, the share of items that pass, from 0 to 1.
     pub value: f64,
 }
@@ -41,14 +55,51 @@ pub struct MetricScore {
 pub struct Item {
     /// The item name, such as `viem/chains`.
     pub name: String,
+    /// The target the item's line sets, when it sets one.
+    pub target: Option<Value>,
     /// The item's value. A timing item holds its median across rounds.
     pub value: Value,
 }
 
+/// A change that would raise a category's score: one item, one metric, or every item of a list
+/// meeting its target.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Opportunity {
+    /// How many items must meet their targets: 1 for one item or a metric without items.
+    pub count: usize,
+    /// The category points the change would add, before rounding.
+    pub gain: f64,
+    /// The item to change, or `None` for the whole metric.
+    pub item: Option<String>,
+    /// The metric name.
+    pub metric: String,
+    /// The value to reach. For a check, `pass`.
+    pub target: Value,
+    /// The current value.
+    pub value: Value,
+}
+
+/// One measurement as scoring sees it: its value and the target it is scored against.
+#[derive(Clone, Debug)]
+struct Measure {
+    name: Option<String>,
+    own: Option<Value>,
+    target: Option<f64>,
+    value: Value,
+}
+
+/// A metric's collapsed result.
+struct Evaluated {
+    at: Option<usize>,
+    score: Option<u8>,
+    target: Option<f64>,
+    value: f64,
+}
+
 /// Scores one category from the metric lines of each round, in the order the rounds ran.
 ///
-/// Each round must already pass [`crate::check::category`]. Sizes, counts, and checks come from
-/// the first round. A metric that `retros.toml` does not configure is left out.
+/// Each round must already pass [`crate::check::category`]. Sizes, counts, checks, and targets
+/// come from the first round. A metric that `retros.toml` does not configure is left out.
 pub fn category(category: &Category, rounds: &[Vec<Line<'_>>]) -> CategoryScore {
     let metrics: Vec<MetricScore> = category
         .metrics
@@ -56,22 +107,94 @@ pub fn category(category: &Category, rounds: &[Vec<Line<'_>>]) -> CategoryScore 
         .filter_map(|metric| self::metric(metric, rounds))
         .collect();
 
-    let mut total = 0.0;
-    let mut weights = 0.0;
-    for metric in &metrics {
-        if let Some(score) = metric.score
-            && metric.metric.weight > 0.0
-        {
-            total += f64::from(score) * metric.metric.weight;
-            weights += metric.metric.weight;
+    CategoryScore {
+        score: mean(&metrics).map(whole),
+        metrics,
+        rounds: rounds.len(),
+    }
+}
+
+/// Returns the changes that would raise the category's score, largest gain first.
+///
+/// Each item that misses its target, and each metric without items that misses its target, is
+/// one opportunity. When no single item of a list moves the score, the list as a whole is one
+/// opportunity: every item that misses its target meeting it.
+pub fn opportunities(scored: &CategoryScore) -> Vec<Opportunity> {
+    let Some(base) = mean(&scored.metrics) else {
+        return Vec::new();
+    };
+    let mut found = Vec::new();
+
+    for (index, metric) in scored.metrics.iter().enumerate() {
+        if metric.score.is_none() || metric.metric.weight <= 0.0 {
+            continue;
+        }
+
+        let measures = measures(metric);
+        let gain = |changed: &[Measure]| {
+            let score = evaluate(&metric.metric, metric.kind, changed).score;
+            let mut metrics = scored.metrics.clone();
+            if let Some(changed) = metrics.get_mut(index) {
+                changed.score = score;
+            }
+            mean(&metrics).unwrap_or(base) - base
+        };
+
+        let misses: Vec<usize> = (0..measures.len())
+            .filter(|&at| {
+                measures
+                    .get(at)
+                    .is_some_and(|m| misses(m, metric.metric.better))
+            })
+            .collect();
+        let before = found.len();
+
+        for &at in &misses {
+            let mut changed = measures.clone();
+            let Some(measure) = changed.get_mut(at) else {
+                continue;
+            };
+            let current = measure.value;
+            let target = met(measure, metric.kind);
+            measure.value = target;
+
+            let gain = gain(&changed);
+            if gain >= MIN_GAIN {
+                found.push(Opportunity {
+                    count: 1,
+                    gain,
+                    item: measures.get(at).and_then(|m| m.name.clone()),
+                    metric: metric.metric.name.clone(),
+                    target,
+                    value: current,
+                });
+            }
+        }
+
+        if found.len() == before && misses.len() > 1 {
+            let mut changed = measures.clone();
+            for &at in &misses {
+                if let Some(measure) = changed.get_mut(at) {
+                    measure.value = met(measure, metric.kind);
+                }
+            }
+
+            let gain = gain(&changed);
+            if gain >= MIN_GAIN {
+                found.push(Opportunity {
+                    count: misses.len(),
+                    gain,
+                    item: None,
+                    metric: metric.metric.name.clone(),
+                    target: metric.target.unwrap_or(Value::Check(true)),
+                    value: Value::of(metric.kind, metric.value),
+                });
+            }
         }
     }
 
-    CategoryScore {
-        metrics,
-        rounds: rounds.len(),
-        score: (weights > 0.0).then(|| whole(total / weights)),
-    }
+    found.sort_by(|a, b| b.gain.total_cmp(&a.gain));
+    found
 }
 
 /// Scores a value where lower is better on Lighthouse's `getLogNormalScore`, with `target` as its
@@ -130,8 +253,9 @@ fn metric(metric: &Metric, rounds: &[Vec<Line<'_>>]) -> Option<MetricScore> {
         .filter(|line| line.metric == metric.name)
         .collect();
     let kind = lines.first()?.value.kind();
+    let default = metric.target.and_then(Value::amount);
 
-    let mut items: Vec<(Option<&str>, Value)> = lines
+    let mut measures: Vec<Measure> = lines
         .iter()
         .map(|line| {
             let value = if kind == Kind::Time && rounds.len() > 1 {
@@ -145,40 +269,29 @@ fn metric(metric: &Metric, rounds: &[Vec<Line<'_>>]) -> Option<MetricScore> {
             } else {
                 line.value
             };
-            (line.item.as_deref(), value)
+
+            Measure {
+                name: line.item.as_deref().map(str::to_owned),
+                own: line.target,
+                target: line.target.and_then(Value::amount).or(default),
+                value,
+            }
         })
         .collect();
 
-    let (value, score) = if kind == Kind::Check {
-        let passed = items
-            .iter()
-            .filter(|(_, value)| *value == Value::Check(true))
-            .count();
-        let share = count(passed) / count(items.len());
-        (share, Some(whole(share * 100.0)))
-    } else {
-        let mut amounts: Vec<f64> = items
-            .iter()
-            .filter_map(|(_, value)| value.amount())
-            .collect();
-        let value = collapse(&mut amounts, metric.score);
-        let score = metric
-            .target
-            .and_then(Value::amount)
-            .map(|target| whole(scaled(target, metric.better, value) * 100.0));
-        (value, score)
-    };
+    let evaluated = evaluate(metric, kind, &measures);
+    let at = evaluated
+        .at
+        .and_then(|at| measures.get(at))
+        .and_then(|measure| measure.name.clone());
 
-    // Worst first: failed checks, then the values furthest in the worse direction.
-    items.sort_by(|(_, a), (_, b)| {
-        if let (Value::Check(a), Value::Check(b)) = (a, b) {
-            return a.cmp(b);
+    // Worst first: failed checks, then the values furthest past their targets.
+    measures.sort_by(|a, b| {
+        if let (Value::Check(a), Value::Check(b)) = (a.value, b.value) {
+            return a.cmp(&b);
         }
 
-        let order = a
-            .amount()
-            .unwrap_or_default()
-            .total_cmp(&b.amount().unwrap_or_default());
+        let order = ratio(a).total_cmp(&ratio(b));
         match metric.better {
             Better::Higher => order,
             Better::Lower => order.reverse(),
@@ -186,20 +299,164 @@ fn metric(metric: &Metric, rounds: &[Vec<Line<'_>>]) -> Option<MetricScore> {
     });
 
     Some(MetricScore {
-        items: items
+        at,
+        items: measures
             .into_iter()
-            .filter_map(|(name, value)| {
-                name.map(|name| Item {
-                    name: name.to_owned(),
-                    value,
+            .filter_map(|measure| {
+                Some(Item {
+                    name: measure.name?,
+                    target: measure.own,
+                    value: measure.value,
                 })
             })
             .collect(),
         kind,
         metric: metric.clone(),
-        score,
-        value,
+        score: evaluated.score,
+        target: evaluated.target.map(|target| Value::of(kind, target)),
+        value: evaluated.value,
     })
+}
+
+/// Collapses a metric's measurements and scores the result.
+fn evaluate(metric: &Metric, kind: Kind, measures: &[Measure]) -> Evaluated {
+    if kind == Kind::Check {
+        let passed = measures
+            .iter()
+            .filter(|measure| measure.value == Value::Check(true))
+            .count();
+        let share = count(passed) / count(measures.len().max(1));
+
+        return Evaluated {
+            at: None,
+            score: Some(whole(share * 100.0)),
+            target: None,
+            value: share,
+        };
+    }
+
+    let targets: Option<Vec<f64>> = measures.iter().map(|measure| measure.target).collect();
+    let amount = |measure: &Measure| measure.value.amount().unwrap_or_default();
+
+    let (at, value, target) = if metric.score == Rollup::Sum {
+        let value = measures.iter().map(amount).sum();
+        (
+            None,
+            value,
+            targets.as_ref().map(|targets| targets.iter().sum()),
+        )
+    } else {
+        // Rank by the value relative to its target, so each item is judged by its own target.
+        let mut order: Vec<usize> = (0..measures.len()).collect();
+        order.sort_by(|&a, &b| {
+            let ratio = |at: usize| measures.get(at).map_or(0.0, ratio);
+            ratio(a).total_cmp(&ratio(b))
+        });
+
+        let n = order.len();
+        let rank = (n * 9).div_ceil(10).max(1);
+        let index = match metric.score {
+            Rollup::Max => n.saturating_sub(1),
+            Rollup::Median => n / 2,
+            Rollup::Min => 0,
+            Rollup::P10 => n.saturating_sub(rank),
+            Rollup::P90 | Rollup::Sum => rank - 1,
+        };
+
+        let at = order.get(index).copied();
+        let selected = at.and_then(|at| measures.get(at));
+        let named = measures.iter().any(|measure| measure.name.is_some());
+
+        (
+            at.filter(|_| named),
+            selected.map(amount).unwrap_or_default(),
+            selected.and_then(|measure| measure.target),
+        )
+    };
+
+    let target = target.filter(|_| targets.is_some());
+    Evaluated {
+        at,
+        score: target.map(|target| whole(scaled(target, metric.better, value) * 100.0)),
+        target,
+        value,
+    }
+}
+
+/// Returns the measurements of a scored metric, so a changed copy can be scored again.
+fn measures(metric: &MetricScore) -> Vec<Measure> {
+    let default = metric.metric.target.and_then(Value::amount);
+
+    if metric.items.is_empty() {
+        let value = if metric.kind == Kind::Check {
+            Value::Check(metric.value >= 1.0)
+        } else {
+            Value::of(metric.kind, metric.value)
+        };
+        return vec![Measure {
+            name: None,
+            own: None,
+            target: default,
+            value,
+        }];
+    }
+
+    metric
+        .items
+        .iter()
+        .map(|item| Measure {
+            name: Some(item.name.clone()),
+            own: item.target,
+            target: item.target.and_then(Value::amount).or(default),
+            value: item.value,
+        })
+        .collect()
+}
+
+/// Returns whether a measurement misses its target: a failed check, or a value past its target.
+fn misses(measure: &Measure, better: Better) -> bool {
+    match (measure.value, measure.target) {
+        (Value::Check(passed), _) => !passed,
+        (value, Some(target)) => {
+            let amount = value.amount().unwrap_or_default();
+            match better {
+                Better::Higher => amount < target,
+                Better::Lower => amount > target,
+            }
+        }
+        (_, None) => false,
+    }
+}
+
+/// Returns the value a measurement has when it meets its target.
+fn met(measure: &Measure, kind: Kind) -> Value {
+    match (kind, measure.target) {
+        (Kind::Check, _) | (_, None) => Value::Check(true),
+        (kind, Some(target)) => Value::of(kind, target),
+    }
+}
+
+/// Returns a measurement's value relative to its target, or its value without a target.
+fn ratio(measure: &Measure) -> f64 {
+    measure.value.amount().unwrap_or_default() / measure.target.unwrap_or(1.0)
+}
+
+/// Returns the weighted mean of the metric scores, before rounding, or `None` when no metric with
+/// weight has a score.
+fn mean(metrics: &[MetricScore]) -> Option<f64> {
+    let mut total = 0.0;
+    let mut weights = 0.0;
+
+    for metric in metrics {
+        if let Some(score) = metric.score
+            && metric.metric.weight > 0.0
+        {
+            total += f64::from(score) * metric.metric.weight;
+            weights += metric.metric.weight;
+        }
+    }
+
+    (weights > 0.0).then(|| total / weights)
 }
 
 /// Scores a value on the curve. A metric where higher is better scores the reciprocals, so half
@@ -210,25 +467,6 @@ fn scaled(target: f64, better: Better, value: f64) -> f64 {
         Better::Higher if value <= 0.0 => 0.0,
         Better::Higher => curve(1.0 / target, 1.0 / value),
     }
-}
-
-/// Collapses a list to one value. Percentiles take the nearest rank in the worse direction, so
-/// the p90 is a written value with at most a tenth of the list above it, and the p10 mirrors it.
-fn collapse(values: &mut [f64], rollup: Rollup) -> f64 {
-    values.sort_by(f64::total_cmp);
-    let n = values.len();
-    let rank = (n * 9).div_ceil(10).max(1);
-
-    let index = match rollup {
-        Rollup::Max => n.saturating_sub(1),
-        Rollup::Median => return median(values),
-        Rollup::Min => 0,
-        Rollup::P10 => n - rank,
-        Rollup::P90 => rank - 1,
-        Rollup::Sum => return values.iter().sum(),
-    };
-
-    values.get(index).copied().unwrap_or_default()
 }
 
 /// Returns the middle value, or the mean of the two middle values of an even list.

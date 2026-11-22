@@ -146,12 +146,13 @@ sum = { score = "sum" }
 
     let scored = scored(config, &[&list]);
 
-    // Ten items from 1 to 10: the p90 has one item above it and the p10 one item below it.
+    // Ten items from 1 to 10: the p90 has one item above it, the p10 one item below it, and the
+    // median is the upper middle item, so each one is a value the script wrote.
     insta::assert_snapshot!(summary(&scored), @"
     category None
     p90 9 None
     p10 2 None
-    median 5.5 None
+    median 6 None
     max 10 None
     min 1 None
     sum 55 None
@@ -226,4 +227,110 @@ fn scores_zero_when_higher_is_better_and_the_value_is_zero() {
     category Some(0)
     throughput 0 Some(0)
     ");
+}
+
+#[test]
+fn scores_each_item_against_its_own_target() {
+    let config = r#"[footprint]
+run = "true"
+entry-size = { target = "1kB" }
+"#;
+    // The root entry is 4 kB against its own 5 kB target, so `./number`, 1.6 times its 1 kB
+    // default, is the item furthest past its target. Lighthouse scores 1.6 kB against 1 kB as 66.
+    let lines = "entry-size . 4kB target 5kB
+entry-size ./date 900B
+entry-size ./number 1.6kB
+";
+
+    let scored = scored(config, &[lines]);
+    let metric = &scored.metrics[0];
+
+    insta::assert_snapshot!(summary(&scored), @"
+    category Some(66)
+    entry-size 1600 Some(66)
+    ");
+    insta::assert_debug_snapshot!((&metric.at, metric.target), @r#"
+    (
+        Some(
+            "./number",
+        ),
+        Some(
+            Size(
+                1000.0,
+            ),
+        ),
+    )
+    "#);
+}
+
+#[test]
+fn finds_opportunities_largest_gain_first() {
+    let config = r#"[footprint]
+run = "true"
+bundle = { target = "5kB" }
+export-size = { target = "5kB" }
+links = {}
+"#;
+    let lines = "bundle 27.5kB
+export-size a 9kB
+export-size b 3kB
+links index.html pass
+links about.html fail
+";
+
+    let scored = scored(config, &[lines]);
+    let opportunities: Vec<String> = score::opportunities(&scored)
+        .iter()
+        .map(|o| {
+            format!(
+                "{:.2} {} {:?} {:?} -> {:?} ({})",
+                o.gain, o.metric, o.item, o.value, o.target, o.count
+            )
+        })
+        .collect();
+
+    // Category 37 is the mean of bundle 3, export-size 58 (9 kB, the p90 of two items), and links
+    // 50. Meeting a target lifts a metric to 90, or a check list to 100: bundle adds 29,
+    // `about.html` adds 16.67, and `a` adds 10.67.
+    insta::assert_snapshot!(summary(&scored), @"
+    category Some(37)
+    bundle 27500 Some(3)
+    export-size 9000 Some(58)
+    links 0.5 Some(50)
+    ");
+    insta::assert_debug_snapshot!(opportunities, @r#"
+    [
+        "29.00 bundle None Size(27500.0) -> Size(5000.0) (1)",
+        "16.67 links Some(\"about.html\") Check(false) -> Check(true) (1)",
+        "10.67 export-size Some(\"a\") Size(9000.0) -> Size(5000.0) (1)",
+    ]
+    "#);
+}
+
+#[test]
+fn groups_a_list_when_no_single_item_moves_its_score() {
+    let config = "[footprint]\nrun = \"true\"\nexport-size = { target = \"1kB\" }\n";
+    let lines = (1..=20).fold(String::new(), |mut lines, n| {
+        let _ = writeln!(lines, "export-size item-{n} 3kB");
+        lines
+    });
+
+    // Twenty items at 3 kB score 23 against 1 kB. Fixing one leaves the p90 at 3 kB, so the only
+    // opportunity is all twenty, which lifts the metric to 90: 67 points.
+    let scored = scored(config, &[&lines]);
+    let opportunities: Vec<String> = score::opportunities(&scored)
+        .iter()
+        .map(|o| {
+            format!(
+                "{:.2} {} {:?} {:?} -> {:?} ({})",
+                o.gain, o.metric, o.item, o.value, o.target, o.count
+            )
+        })
+        .collect();
+
+    insta::assert_debug_snapshot!(opportunities, @r#"
+    [
+        "67.00 export-size None Size(3000.0) -> Size(1000.0) (20)",
+    ]
+    "#);
 }

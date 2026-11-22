@@ -90,18 +90,21 @@ fn help() {
 
     assert!(output.status.success());
     insta::assert_snapshot!(stdout(&output), @"
-    Usage: retros [category]
+    Usage: retros [category] [--update] [--require-baseline]
            retros check
 
-    Run each category's script, score its metrics, and write .retros/report.json and
-    .retros/report.md. Name a category to run only that one.
+    Run each category's script, score its metrics, list the opportunities that would raise the
+    scores most, and compare sizes, counts, and checks with retros.lock. Reports go to
+    .retros/report.json and .retros/report.md. Name a category to run only that one.
 
     Commands:
       check  Run each script once and check the metric lines it writes
 
     Options:
-      -h, --help     Print help
-      -V, --version  Print version
+      --update            Record this run's sizes, counts, and checks in retros.lock
+      --require-baseline  Exit with status 1 when a size, count, or check is worse than retros.lock
+      -h, --help          Print help
+      -V, --version       Print version
     ");
 }
 
@@ -113,18 +116,21 @@ fn unknown_argument() {
     insta::assert_snapshot!(stderr(&output), @"
     error: unknown argument '--nope'
 
-    Usage: retros [category]
+    Usage: retros [category] [--update] [--require-baseline]
            retros check
 
-    Run each category's script, score its metrics, and write .retros/report.json and
-    .retros/report.md. Name a category to run only that one.
+    Run each category's script, score its metrics, list the opportunities that would raise the
+    scores most, and compare sizes, counts, and checks with retros.lock. Reports go to
+    .retros/report.json and .retros/report.md. Name a category to run only that one.
 
     Commands:
       check  Run each script once and check the metric lines it writes
 
     Options:
-      -h, --help     Print help
-      -V, --version  Print version
+      --update            Record this run's sizes, counts, and checks in retros.lock
+      --require-baseline  Exit with status 1 when a size, count, or check is worse than retros.lock
+      -h, --help          Print help
+      -V, --version       Print version
     ");
 }
 
@@ -136,18 +142,21 @@ fn unknown_check_argument() {
     insta::assert_snapshot!(stderr(&output), @"
     error: unknown argument '--fast'
 
-    Usage: retros [category]
+    Usage: retros [category] [--update] [--require-baseline]
            retros check
 
-    Run each category's script, score its metrics, and write .retros/report.json and
-    .retros/report.md. Name a category to run only that one.
+    Run each category's script, score its metrics, list the opportunities that would raise the
+    scores most, and compare sizes, counts, and checks with retros.lock. Reports go to
+    .retros/report.json and .retros/report.md. Name a category to run only that one.
 
     Commands:
       check  Run each script once and check the metric lines it writes
 
     Options:
-      -h, --help     Print help
-      -V, --version  Print version
+      --update            Record this run's sizes, counts, and checks in retros.lock
+      --require-baseline  Exit with status 1 when a size, count, or check is worse than retros.lock
+      -h, --help          Print help
+      -V, --version       Print version
     ");
 }
 
@@ -160,8 +169,8 @@ fn scores_every_category_and_writes_reports() {
     assert_eq!(output.status.code(), Some(0));
     insta::assert_snapshot!(stdout(&output), @"
     ▲  43  footprint
-      ▲   3  bundle       27.5 kB      target 5 kB
-      ■  58  export-size  p90 9 kB     target 5 kB
+      ▲   3  bundle       27.5 kB                   target 5 kB
+      ■  58  export-size  p90 9 kB (viem/op-stack)  target 5 kB
                           10 kB  viem/chains
                           9 kB   viem/op-stack
                           8 kB   viem/utils
@@ -170,12 +179,21 @@ fn scores_every_category_and_writes_reports() {
                           fail  about.html
 
     ■  75  speed  median of 5 rounds
-      ▲  34  render      p90 5 ms  target 2 ms
+      ▲  34  render      p90 5 ms (parse)  target 2 ms
                          5 ms  parse
                          2 ms  encode
-      ●  96  throughput  2588      target 2000, weight 2
+      ●  96  throughput  2588              target 2000, weight 2
 
-    Reports: .retros/report.json, .retros/report.md
+    Opportunities
+      +29  footprint  bundle                     27.5 kB → 5 kB
+      +19  speed      render parse               5 ms → 2 ms
+      +11  footprint  links about.html           fail → pass
+      +3   footprint  export-size viem/chains    10 kB → 5 kB
+      +3   footprint  export-size viem/op-stack  9 kB → 5 kB
+
+    No retros.lock yet. Run `retros --update` to record these values as the baseline.
+
+    Wrote .retros/report.json, .retros/report.md
     ");
 
     let json = fs::read_to_string(project.path().join(".retros/report.json")).unwrap();
@@ -193,6 +211,7 @@ fn scores_every_category_and_writes_reports() {
               "kind": "size",
               "unit": "B",
               "value": 27500,
+              "item": null,
               "score": 3,
               "target": 5000,
               "better": "lower",
@@ -205,6 +224,7 @@ fn scores_every_category_and_writes_reports() {
               "kind": "size",
               "unit": "B",
               "value": 9000,
+              "item": "viem/op-stack",
               "score": 58,
               "target": 5000,
               "better": "lower",
@@ -213,43 +233,53 @@ fn scores_every_category_and_writes_reports() {
               "items": [
                 {
                   "name": "viem/chains",
-                  "value": 10000
+                  "value": 10000,
+                  "target": null
                 },
                 {
                   "name": "viem/op-stack",
-                  "value": 9000
+                  "value": 9000,
+                  "target": null
                 },
                 {
                   "name": "viem/utils",
-                  "value": 8000
+                  "value": 8000,
+                  "target": null
                 },
                 {
                   "name": "viem/zksync",
-                  "value": 7000
+                  "value": 7000,
+                  "target": null
                 },
                 {
                   "name": "viem/window",
-                  "value": 6000
+                  "value": 6000,
+                  "target": null
                 },
                 {
                   "name": "viem/siwe",
-                  "value": 5000
+                  "value": 5000,
+                  "target": null
                 },
                 {
                   "name": "viem/ens",
-                  "value": 4000
+                  "value": 4000,
+                  "target": null
                 },
                 {
                   "name": "viem/actions",
-                  "value": 3000
+                  "value": 3000,
+                  "target": null
                 },
                 {
                   "name": "viem/accounts",
-                  "value": 2000
+                  "value": 2000,
+                  "target": null
                 },
                 {
                   "name": "viem",
-                  "value": 1000
+                  "value": 1000,
+                  "target": null
                 }
               ]
             },
@@ -258,6 +288,7 @@ fn scores_every_category_and_writes_reports() {
               "kind": "count",
               "unit": null,
               "value": 412,
+              "item": null,
               "score": null,
               "target": null,
               "better": "lower",
@@ -270,6 +301,7 @@ fn scores_every_category_and_writes_reports() {
               "kind": "check",
               "unit": null,
               "value": 0.6666666666666666,
+              "item": null,
               "score": 67,
               "target": null,
               "better": "lower",
@@ -278,15 +310,18 @@ fn scores_every_category_and_writes_reports() {
               "items": [
                 {
                   "name": "about.html",
-                  "value": false
+                  "value": false,
+                  "target": null
                 },
                 {
                   "name": "index.html",
-                  "value": true
+                  "value": true,
+                  "target": null
                 },
                 {
                   "name": "blog/first post.html",
-                  "value": true
+                  "value": true,
+                  "target": null
                 }
               ]
             }
@@ -302,6 +337,7 @@ fn scores_every_category_and_writes_reports() {
               "kind": "time",
               "unit": "ns",
               "value": 5000000,
+              "item": "parse",
               "score": 34,
               "target": 2000000,
               "better": "lower",
@@ -310,11 +346,13 @@ fn scores_every_category_and_writes_reports() {
               "items": [
                 {
                   "name": "parse",
-                  "value": 5000000
+                  "value": 5000000,
+                  "target": null
                 },
                 {
                   "name": "encode",
-                  "value": 2000000
+                  "value": 2000000,
+                  "target": null
                 }
               ]
             },
@@ -323,6 +361,7 @@ fn scores_every_category_and_writes_reports() {
               "kind": "count",
               "unit": null,
               "value": 2588,
+              "item": null,
               "score": 96,
               "target": 2000,
               "better": "higher",
@@ -332,7 +371,55 @@ fn scores_every_category_and_writes_reports() {
             }
           ]
         }
-      ]
+      ],
+      "opportunities": [
+        {
+          "category": "footprint",
+          "metric": "bundle",
+          "item": null,
+          "items": 1,
+          "value": 27500,
+          "target": 5000,
+          "gain": 29
+        },
+        {
+          "category": "speed",
+          "metric": "render",
+          "item": "parse",
+          "items": 1,
+          "value": 5000000,
+          "target": 2000000,
+          "gain": 19
+        },
+        {
+          "category": "footprint",
+          "metric": "links",
+          "item": "about.html",
+          "items": 1,
+          "value": false,
+          "target": true,
+          "gain": 11
+        },
+        {
+          "category": "footprint",
+          "metric": "export-size",
+          "item": "viem/chains",
+          "items": 1,
+          "value": 10000,
+          "target": 5000,
+          "gain": 3
+        },
+        {
+          "category": "footprint",
+          "metric": "export-size",
+          "item": "viem/op-stack",
+          "items": 1,
+          "value": 9000,
+          "target": 5000,
+          "gain": 3
+        }
+      ],
+      "changes": null
     }
     "#);
 
@@ -345,28 +432,38 @@ fn scores_every_category_and_writes_reports() {
     | footprint | ▲ 43 |
     | speed | ■ 75 |
 
+    ## Opportunities
+
+    | Gain | Category | Change | Value | Target |
+    | --- | --- | --- | --- | --- |
+    | +29 | footprint | bundle | 27.5 kB | 5 kB |
+    | +19 | speed | render parse | 5 ms | 2 ms |
+    | +11 | footprint | links about.html | fail | pass |
+    | +3 | footprint | export-size viem/chains | 10 kB | 5 kB |
+    | +3 | footprint | export-size viem/op-stack | 9 kB | 5 kB |
+
     ## footprint
 
     | Score | Metric | Value | Target |
     | --- | --- | --- | --- |
     | ▲ 3 | bundle | 27.5 kB | 5 kB |
-    | ■ 58 | export-size | p90 9 kB | 5 kB |
+    | ■ 58 | export-size | p90 9 kB (viem/op-stack) | 5 kB |
     | – | modules | 412 |  |
     | ■ 67 | links | 2 of 3 pass |  |
 
     Worst items of `export-size`:
 
-    | Item | Value |
-    | --- | --- |
-    | viem/chains | 10 kB |
-    | viem/op-stack | 9 kB |
-    | viem/utils | 8 kB |
+    | Item | Value | Target |
+    | --- | --- | --- |
+    | viem/chains | 10 kB | 5 kB |
+    | viem/op-stack | 9 kB | 5 kB |
+    | viem/utils | 8 kB | 5 kB |
 
     Failed items of `links`:
 
-    | Item | Value |
-    | --- | --- |
-    | about.html | fail |
+    | Item | Value | Target |
+    | --- | --- | --- |
+    | about.html | fail |  |
 
     ## speed
 
@@ -374,15 +471,15 @@ fn scores_every_category_and_writes_reports() {
 
     | Score | Metric | Value | Target |
     | --- | --- | --- | --- |
-    | ▲ 34 | render | p90 5 ms | 2 ms |
+    | ▲ 34 | render | p90 5 ms (parse) | 2 ms |
     | ● 96 | throughput | 2588 | 2000 |
 
     Worst items of `render`:
 
-    | Item | Value |
-    | --- | --- |
-    | parse | 5 ms |
-    | encode | 2 ms |
+    | Item | Value | Target |
+    | --- | --- | --- |
+    | parse | 5 ms | 2 ms |
+    | encode | 2 ms | 2 ms |
     ");
 }
 
@@ -396,8 +493,8 @@ fn scores_one_category_from_a_subdirectory() {
     assert_eq!(output.status.code(), Some(0));
     insta::assert_snapshot!(stdout(&output), @"
     ▲  43  footprint
-      ▲   3  bundle       27.5 kB      target 5 kB
-      ■  58  export-size  p90 9 kB     target 5 kB
+      ▲   3  bundle       27.5 kB                   target 5 kB
+      ■  58  export-size  p90 9 kB (viem/op-stack)  target 5 kB
                           10 kB  viem/chains
                           9 kB   viem/op-stack
                           8 kB   viem/utils
@@ -405,7 +502,15 @@ fn scores_one_category_from_a_subdirectory() {
       ■  67  links        2 of 3 pass
                           fail  about.html
 
-    Reports: ../.retros/report.json, ../.retros/report.md
+    Opportunities
+      +29  footprint  bundle                     27.5 kB → 5 kB
+      +11  footprint  links about.html           fail → pass
+      +3   footprint  export-size viem/chains    10 kB → 5 kB
+      +3   footprint  export-size viem/op-stack  9 kB → 5 kB
+
+    No retros.lock yet. Run `retros --update` to record these values as the baseline.
+
+    Wrote ../.retros/report.json, ../.retros/report.md
     ");
 }
 
@@ -444,8 +549,110 @@ fn scoring_reports_failed_categories() {
 
     ✗ crash  script was stopped by signal 9
 
-    Reports: .retros/report.json, .retros/report.md
+    No retros.lock yet. Run `retros --update` to record these values as the baseline.
+
+    Wrote .retros/report.json, .retros/report.md
     ");
+}
+
+#[test]
+fn baselines_report_changes_and_gate_regressions() {
+    let project = fixture("scored");
+    let footprint = project.path().join("footprint.sh");
+
+    let recorded = retros_in(project.path(), &["--update"], &[]);
+
+    assert_eq!(recorded.status.code(), Some(0));
+    let lock = fs::read_to_string(project.path().join("retros.lock")).unwrap();
+    insta::assert_snapshot!(lock, @r#"
+    # The accepted value of every size, count, and check. `retros --update` writes this file.
+    # Commit it, so each run reports what changed since.
+
+    [footprint]
+    bundle = "27500B"
+    modules = 412
+
+    [footprint.export-size]
+    "viem" = "1000B"
+    "viem/accounts" = "2000B"
+    "viem/actions" = "3000B"
+    "viem/chains" = "10000B"
+    "viem/ens" = "4000B"
+    "viem/op-stack" = "9000B"
+    "viem/siwe" = "5000B"
+    "viem/utils" = "8000B"
+    "viem/window" = "6000B"
+    "viem/zksync" = "7000B"
+
+    [footprint.links]
+    "about.html" = "fail"
+    "blog/first post.html" = "pass"
+    "index.html" = "pass"
+
+    [speed]
+    throughput = 2588
+    "#);
+
+    let script = fs::read_to_string(&footprint)
+        .unwrap()
+        .replace(
+            "export-size viem/chains 10kB",
+            "export-size viem/chains 12kB",
+        )
+        .replace("links about.html fail", "links about.html pass")
+        .replace(
+            "export-size viem/window 6kB\n",
+            "export-size viem/tempo 4kB\n",
+        );
+    fs::write(&footprint, script).unwrap();
+
+    let gated = retros_in(project.path(), &["footprint", "--require-baseline"], &[]);
+
+    assert_eq!(gated.status.code(), Some(1));
+    insta::assert_snapshot!(stdout(&gated), @"
+    ■  54  footprint
+      ▲   3  bundle       27.5 kB                   target 5 kB
+      ■  58  export-size  p90 9 kB (viem/op-stack)  target 5 kB
+                          12 kB  viem/chains
+                          9 kB   viem/op-stack
+                          8 kB   viem/utils
+          –  modules      412
+      ● 100  links        3 of 3 pass
+
+    Opportunities
+      +29  footprint  bundle                     27.5 kB → 5 kB
+      +3   footprint  export-size viem/chains    12 kB → 5 kB
+      +3   footprint  export-size viem/op-stack  9 kB → 5 kB
+
+    Since retros.lock
+      worse   footprint  export-size viem/chains  10 kB → 12 kB
+      new     footprint  export-size viem/tempo   4 kB
+      gone    footprint  export-size viem/window  6 kB
+      better  footprint  links about.html         fail → pass
+
+    Wrote .retros/report.json, .retros/report.md
+
+    1 value worse than retros.lock
+    ");
+}
+
+#[test]
+fn rejects_an_invalid_lock() {
+    let project = fixture("scored");
+    fs::write(
+        project.path().join("retros.lock"),
+        "[footprint]\nbundle = \"27.5 kilobytes\"\n",
+    )
+    .unwrap();
+
+    let output = retros_in(project.path(), &["footprint"], &[]);
+
+    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(stderr(&output), @r#"
+    error[invalid-value] retros.lock:2:10: expected a size, count, or check. Run `retros --update` to rewrite retros.lock
+      2 | bundle = "27.5 kilobytes"
+        |          ^
+    "#);
 }
 
 #[test]

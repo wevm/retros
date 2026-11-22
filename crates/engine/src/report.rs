@@ -1,22 +1,33 @@
-//! Reports rendered from scored categories: the terminal summary, `report.json`, and
-//! `report.md`. Rendering is deterministic, with no timestamps or paths, so the same scores always
-//! produce the same bytes.
+//! Reports rendered from scored categories: the terminal output, `report.json`, and `report.md`.
+//! Each report shows the scores, the opportunities that would raise them most, and the changes
+//! since `retros.lock`. Rendering is deterministic, with no timestamps or paths, so the same
+//! scores always produce the same bytes.
 
 use std::fmt::Write;
 
 use crate::config::{Better, Rollup};
 use crate::format;
-use crate::score::{CategoryScore, MetricScore};
+use crate::lock::{Change, Direction};
+use crate::score::{self, CategoryScore, MetricScore, Opportunity};
 use crate::value::{Kind, Value};
 
 /// How many of a list metric's worst items the terminal and Markdown reports show.
 const WORST: usize = 3;
+
+/// How many opportunities the terminal shows, and the Markdown report.
+const TERMINAL_OPPORTUNITIES: usize = 5;
+const MARKDOWN_OPPORTUNITIES: usize = 10;
+
+/// How many changes the terminal shows. The Markdown and JSON reports list every change.
+const TERMINAL_CHANGES: usize = 10;
 
 /// Everything one run measured.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Report {
     /// Categories in the order they ran.
     pub categories: Vec<CategoryReport>,
+    /// The changes since `retros.lock`, or `None` when the project has no lock.
+    pub changes: Option<Vec<Change>>,
 }
 
 /// One category's scores, or the reason it has none.
@@ -75,16 +86,8 @@ pub fn terminal(category: &CategoryReport) -> String {
         .iter()
         .map(|metric| (metric, value(metric)))
         .collect();
-    let name_width = rows
-        .iter()
-        .map(|(metric, _)| metric.metric.name.chars().count())
-        .max()
-        .unwrap_or_default();
-    let value_width = rows
-        .iter()
-        .map(|(_, value)| value.chars().count())
-        .max()
-        .unwrap_or_default();
+    let name_width = width(rows.iter().map(|(metric, _)| metric.metric.name.as_str()));
+    let value_width = width(rows.iter().map(|(_, value)| value.as_str()));
 
     for (metric, value) in &rows {
         let line = format!(
@@ -95,21 +98,85 @@ pub fn terminal(category: &CategoryReport) -> String {
         );
         let _ = writeln!(out, "{}", line.trim_end());
 
-        let items: Vec<(String, &str)> = worst(metric)
+        let items: Vec<(String, String)> = worst(metric)
             .into_iter()
-            .map(|item| (format::value(item.value), item.name.as_str()))
+            .map(|item| {
+                let target = item
+                    .target
+                    .map(|target| format!("  target {}", format::value(target)))
+                    .unwrap_or_default();
+                (format::value(item.value), format!("{}{target}", item.name))
+            })
             .collect();
-        let item_width = items
-            .iter()
-            .map(|(value, _)| value.chars().count())
-            .max()
-            .unwrap_or_default();
+        let item_width = width(items.iter().map(|(value, _)| value.as_str()));
         for (value, name) in items {
             let _ = writeln!(
                 out,
                 "  {:5}  {:name_width$}  {value:item_width$}  {name}",
                 "", ""
             );
+        }
+    }
+
+    out
+}
+
+/// Renders the end of the terminal output: the opportunities that would raise scores most, and
+/// the changes since `retros.lock`.
+pub fn summary(report: &Report) -> String {
+    let mut out = String::new();
+
+    let opportunities = opportunities(report);
+    if !opportunities.is_empty() {
+        out.push_str("\nOpportunities\n");
+        let rows: Vec<[String; 4]> = opportunities
+            .iter()
+            .take(TERMINAL_OPPORTUNITIES)
+            .map(|(category, opportunity)| {
+                [
+                    gain(opportunity),
+                    (*category).to_owned(),
+                    subject(opportunity),
+                    format!(
+                        "{} → {}",
+                        format::value(opportunity.value),
+                        format::value(opportunity.target)
+                    ),
+                ]
+            })
+            .collect();
+        table(&mut out, &rows);
+    }
+
+    match &report.changes {
+        None => out.push_str(
+            "\nNo retros.lock yet. Run `retros --update` to record these values as the baseline.\n",
+        ),
+        Some(changes) if changes.is_empty() => out.push_str("\nNo changes since retros.lock\n"),
+        Some(changes) => {
+            out.push_str("\nSince retros.lock\n");
+            let sorted = sorted(changes);
+            let rows: Vec<[String; 4]> = sorted
+                .iter()
+                .take(TERMINAL_CHANGES)
+                .map(|change| {
+                    [
+                        change.direction.as_str().to_owned(),
+                        change.category.clone(),
+                        changed(change),
+                        values(change),
+                    ]
+                })
+                .collect();
+            table(&mut out, &rows);
+
+            if sorted.len() > TERMINAL_CHANGES {
+                let _ = writeln!(
+                    out,
+                    "  and {} more in report.md",
+                    sorted.len() - TERMINAL_CHANGES
+                );
+            }
         }
     }
 
@@ -136,12 +203,7 @@ pub fn json(report: &Report) -> String {
             ]),
             Ok(scored) => Json::Object(vec![
                 name,
-                (
-                    "score",
-                    scored
-                        .score
-                        .map_or(Json::Null, |s| Json::Number(f64::from(s))),
-                ),
+                ("score", score_json(scored.score)),
                 ("rounds", Json::Number(count(scored.rounds))),
                 (
                     "metrics",
@@ -151,18 +213,53 @@ pub fn json(report: &Report) -> String {
         }
     });
 
+    let opportunities = opportunities(report)
+        .into_iter()
+        .map(|(category, opportunity)| {
+            Json::Object(vec![
+                ("category", Json::String(category.to_owned())),
+                ("metric", Json::String(opportunity.metric.clone())),
+                ("item", optional(opportunity.item.as_deref())),
+                ("items", Json::Number(count(opportunity.count))),
+                ("value", value_json(opportunity.value)),
+                ("target", value_json(opportunity.target)),
+                ("gain", Json::Number(opportunity.gain.round())),
+            ])
+        });
+
+    let changes = report.changes.as_ref().map_or(Json::Null, |changes| {
+        Json::Array(
+            sorted(changes)
+                .into_iter()
+                .map(|change| {
+                    Json::Object(vec![
+                        ("category", Json::String(change.category.clone())),
+                        ("metric", Json::String(change.metric.clone())),
+                        ("item", optional(change.item.as_deref())),
+                        ("change", Json::String(change.direction.as_str().to_owned())),
+                        ("before", change.before.map_or(Json::Null, value_json)),
+                        ("after", change.after.map_or(Json::Null, value_json)),
+                    ])
+                })
+                .collect(),
+        )
+    });
+
     let mut out = String::new();
     Json::Object(vec![
         ("version", Json::Number(1.0)),
         ("categories", Json::Array(categories.collect())),
+        ("opportunities", Json::Array(opportunities.collect())),
+        ("changes", changes),
     ])
     .write(&mut out, 0);
     out.push('\n');
     out
 }
 
-/// Renders the report as Markdown: a summary table of categories, then a section per category
-/// with a table of metrics and the worst items of each list.
+/// Renders the report as Markdown: a summary table of categories, the top opportunities, the
+/// changes since `retros.lock`, then a section per category with a table of metrics and the worst
+/// items of each list.
 pub fn markdown(report: &Report) -> String {
     let mut out = String::from("# Retros report\n\n| Category | Score |\n| --- | --- |\n");
 
@@ -172,6 +269,45 @@ pub fn markdown(report: &Report) -> String {
             Err(failure) => format!("✗ {}", failure.message),
         };
         let _ = writeln!(out, "| {} | {} |", escape(&category.name), escape(&score));
+    }
+
+    let opportunities = opportunities(report);
+    if !opportunities.is_empty() {
+        out.push_str(
+            "\n## Opportunities\n\n| Gain | Category | Change | Value | Target |\n| --- | --- | --- | --- | --- |\n",
+        );
+        for (category, opportunity) in opportunities.iter().take(MARKDOWN_OPPORTUNITIES) {
+            let _ = writeln!(
+                out,
+                "| {} | {} | {} | {} | {} |",
+                gain(opportunity),
+                escape(category),
+                escape(&subject(opportunity)),
+                format::value(opportunity.value),
+                format::value(opportunity.target)
+            );
+        }
+    }
+
+    if let Some(changes) = report
+        .changes
+        .as_ref()
+        .filter(|changes| !changes.is_empty())
+    {
+        out.push_str(
+            "\n## Changes since retros.lock\n\n| Change | Category | Metric | Before | After |\n| --- | --- | --- | --- | --- |\n",
+        );
+        for change in sorted(changes) {
+            let _ = writeln!(
+                out,
+                "| {} | {} | {} | {} | {} |",
+                change.direction.as_str(),
+                escape(&change.category),
+                escape(&changed(change)),
+                change.before.map(format::value).unwrap_or_default(),
+                change.after.map(format::value).unwrap_or_default()
+            );
+        }
     }
 
     for category in &report.categories {
@@ -198,13 +334,13 @@ pub fn markdown(report: &Report) -> String {
 
         out.push_str("| Score | Metric | Value | Target |\n| --- | --- | --- | --- |\n");
         for metric in &scored.metrics {
-            let target = metric.metric.target.map(format::value).unwrap_or_default();
             let _ = writeln!(
                 out,
-                "| {} | {} | {} | {target} |",
+                "| {} | {} | {} | {} |",
                 compact(metric.score),
                 escape(&metric.metric.name),
                 escape(&value(metric)),
+                metric.target.map(format::value).unwrap_or_default()
             );
         }
 
@@ -221,21 +357,116 @@ pub fn markdown(report: &Report) -> String {
             };
             let _ = write!(
                 out,
-                "\n{heading} of `{}`:\n\n| Item | Value |\n| --- | --- |\n",
+                "\n{heading} of `{}`:\n\n| Item | Value | Target |\n| --- | --- | --- |\n",
                 metric.metric.name
             );
             for item in items {
                 let _ = writeln!(
                     out,
-                    "| {} | {} |",
+                    "| {} | {} | {} |",
                     escape(&item.name),
-                    format::value(item.value)
+                    format::value(item.value),
+                    item.target
+                        .or(metric.metric.target)
+                        .map(format::value)
+                        .unwrap_or_default()
                 );
             }
         }
     }
 
     out
+}
+
+/// Returns every category's opportunities, largest gain first.
+fn opportunities(report: &Report) -> Vec<(&str, Opportunity)> {
+    let mut all: Vec<(&str, Opportunity)> = report
+        .categories
+        .iter()
+        .filter_map(|category| Some((category.name.as_str(), category.result.as_ref().ok()?)))
+        .flat_map(|(name, scored)| {
+            score::opportunities(scored)
+                .into_iter()
+                .map(move |opportunity| (name, opportunity))
+        })
+        .collect();
+    all.sort_by(|(_, a), (_, b)| b.gain.total_cmp(&a.gain));
+    all
+}
+
+/// Orders changes worst first: worse, then new, gone, and better.
+fn sorted(changes: &[Change]) -> Vec<&Change> {
+    let rank = |change: &&Change| match change.direction {
+        Direction::Worse => 0,
+        Direction::New => 1,
+        Direction::Gone => 2,
+        Direction::Better => 3,
+    };
+    let mut sorted: Vec<&Change> = changes.iter().collect();
+    sorted.sort_by_key(rank);
+    sorted
+}
+
+/// Formats an opportunity's gain in category points, such as `+29`.
+fn gain(opportunity: &Opportunity) -> String {
+    format!("+{}", opportunity.gain.round())
+}
+
+/// Names what an opportunity changes, such as `bundle`, `export-size viem/chains`, or
+/// `export-size, 4 items`.
+fn subject(opportunity: &Opportunity) -> String {
+    match (&opportunity.item, opportunity.count) {
+        (Some(item), _) => format!("{} {item}", opportunity.metric),
+        (None, 1) => opportunity.metric.clone(),
+        (None, count) => format!("{}, {count} items", opportunity.metric),
+    }
+}
+
+/// Names what a change concerns, such as `export-size viem/chains`.
+fn changed(change: &Change) -> String {
+    match &change.item {
+        Some(item) => format!("{} {item}", change.metric),
+        None => change.metric.clone(),
+    }
+}
+
+/// Formats a change's values, such as `61 kB → 64 kB`, or one value for a new or gone item.
+fn values(change: &Change) -> String {
+    match (change.before, change.after) {
+        (Some(before), Some(after)) => {
+            format!("{} → {}", format::value(before), format::value(after))
+        }
+        (Some(value), None) | (None, Some(value)) => format::value(value),
+        (None, None) => String::new(),
+    }
+}
+
+/// Writes rows as aligned columns, each line indented by two spaces.
+fn table<const N: usize>(out: &mut String, rows: &[[String; N]]) {
+    let widths: Vec<usize> = (0..N)
+        .map(|column| {
+            width(
+                rows.iter()
+                    .filter_map(|row| row.get(column).map(String::as_str)),
+            )
+        })
+        .collect();
+
+    for row in rows {
+        let mut line = String::from(" ");
+        for (cell, width) in row.iter().zip(&widths) {
+            let _ = write!(line, " {cell:width$} ");
+        }
+        let _ = writeln!(out, "{}", line.trim_end());
+    }
+}
+
+/// Returns the widest text in characters.
+fn width<'a>(texts: impl Iterator<Item = &'a str>) -> usize {
+    texts
+        .map(|text| text.chars().count())
+        .max()
+        .unwrap_or_default()
 }
 
 /// Formats a score with its band, such as `● 100` or `■  63`, or `    –` without a score.
@@ -254,7 +485,8 @@ fn compact(score: Option<u8>) -> String {
     )
 }
 
-/// Formats a metric's collapsed value, such as `27.5 kB`, `p90 9 kB`, or `2 of 3 pass`.
+/// Formats a metric's collapsed value, such as `27.5 kB`, `p90 9 kB (viem/op-stack)`, or
+/// `2 of 3 pass`.
 fn value(metric: &MetricScore) -> String {
     if metric.kind == Kind::Check {
         let passed = metric
@@ -274,14 +506,17 @@ fn value(metric: &MetricScore) -> String {
         return amount;
     }
 
-    format!("{} {amount}", rollup(metric.metric.score))
+    match &metric.at {
+        Some(item) => format!("{} {amount} ({item})", rollup(metric.metric.score)),
+        None => format!("{} {amount}", rollup(metric.metric.score)),
+    }
 }
 
 /// Formats a metric's target and any weight other than 1, such as `target 5 kB, weight 2`.
 fn target(metric: &MetricScore) -> String {
     let mut parts = Vec::new();
 
-    if let Some(target) = metric.metric.target {
+    if let Some(target) = metric.target.or(metric.metric.target) {
         parts.push(format!("target {}", format::value(target)));
     }
     if (metric.metric.weight - 1.0).abs() > f64::EPSILON {
@@ -295,7 +530,7 @@ fn target(metric: &MetricScore) -> String {
 }
 
 /// Returns the items a report lists: the worst numbers of a list, or the failed checks.
-fn worst(metric: &MetricScore) -> Vec<&crate::score::Item> {
+fn worst(metric: &MetricScore) -> Vec<&score::Item> {
     metric
         .items
         .iter()
@@ -312,13 +547,10 @@ fn metric_json(metric: &MetricScore) -> Json {
         Kind::Time => ("time", Json::String("ns".to_owned())),
     };
     let items = metric.items.iter().map(|item| {
-        let value = match item.value {
-            Value::Check(passed) => Json::Bool(passed),
-            other => Json::Number(other.amount().unwrap_or_default()),
-        };
         Json::Object(vec![
             ("name", Json::String(item.name.clone())),
-            ("value", value),
+            ("value", value_json(item.value)),
+            ("target", item.target.map_or(Json::Null, value_json)),
         ])
     });
 
@@ -327,20 +559,9 @@ fn metric_json(metric: &MetricScore) -> Json {
         ("kind", Json::String(kind.to_owned())),
         ("unit", unit),
         ("value", Json::Number(metric.value)),
-        (
-            "score",
-            metric
-                .score
-                .map_or(Json::Null, |s| Json::Number(f64::from(s))),
-        ),
-        (
-            "target",
-            metric
-                .metric
-                .target
-                .and_then(Value::amount)
-                .map_or(Json::Null, Json::Number),
-        ),
+        ("item", optional(metric.at.as_deref())),
+        ("score", score_json(metric.score)),
+        ("target", metric.target.map_or(Json::Null, value_json)),
         (
             "better",
             Json::String(
@@ -364,6 +585,22 @@ fn metric_json(metric: &MetricScore) -> Json {
     ])
 }
 
+/// Returns a value as JSON: a number in base units, or a boolean for a check.
+fn value_json(value: Value) -> Json {
+    match value {
+        Value::Check(passed) => Json::Bool(passed),
+        other => Json::Number(other.amount().unwrap_or_default()),
+    }
+}
+
+fn score_json(score: Option<u8>) -> Json {
+    score.map_or(Json::Null, |score| Json::Number(f64::from(score)))
+}
+
+fn optional(text: Option<&str>) -> Json {
+    text.map_or(Json::Null, |text| Json::String(text.to_owned()))
+}
+
 fn rollup(rollup: Rollup) -> &'static str {
     match rollup {
         Rollup::Max => "max",
@@ -380,7 +617,7 @@ fn escape(text: &str) -> String {
     text.replace('|', "\\|").replace(['\n', '\r'], " ")
 }
 
-#[expect(clippy::cast_precision_loss, reason = "round counts never reach 2^53")]
+#[expect(clippy::cast_precision_loss, reason = "counts never reach 2^53")]
 fn count(n: usize) -> f64 {
     n as f64
 }

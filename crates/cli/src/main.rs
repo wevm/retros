@@ -17,18 +17,21 @@ use std::process::ExitCode;
 use engine::error::Error;
 
 const USAGE: &str = "\
-Usage: retros [category]
+Usage: retros [category] [--update] [--require-baseline]
        retros check
 
-Run each category's script, score its metrics, and write .retros/report.json and
-.retros/report.md. Name a category to run only that one.
+Run each category's script, score its metrics, list the opportunities that would raise the
+scores most, and compare sizes, counts, and checks with retros.lock. Reports go to
+.retros/report.json and .retros/report.md. Name a category to run only that one.
 
 Commands:
   check  Run each script once and check the metric lines it writes
 
 Options:
-  -h, --help     Print help
-  -V, --version  Print version
+  --update            Record this run's sizes, counts, and checks in retros.lock
+  --require-baseline  Exit with status 1 when a size, count, or check is worse than retros.lock
+  -h, --help          Print help
+  -V, --version       Print version
 ";
 
 fn main() -> ExitCode {
@@ -44,10 +47,24 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         [command] if command == "check" => with_project(check::run),
-        [arg] if arg.starts_with('-') => usage(&format!("unknown argument '{arg}'")),
-        [] => with_project(|project| score::run(project, None)),
-        [category] => with_project(|project| score::run(project, Some(category))),
-        [_, arg, ..] => usage(&format!("unknown argument '{arg}'")),
+        [command, arg, ..] if command == "check" => usage(&format!("unknown argument '{arg}'")),
+        _ => {
+            let mut options = score::Options::default();
+
+            for arg in &args {
+                match arg.as_str() {
+                    "--update" => options.update = true,
+                    "--require-baseline" => options.require_baseline = true,
+                    flag if flag.starts_with('-') => {
+                        return usage(&format!("unknown argument '{flag}'"));
+                    }
+                    name if options.category.is_none() => options.category = Some(name.to_owned()),
+                    extra => return usage(&format!("unexpected argument '{extra}'")),
+                }
+            }
+
+            with_project(|project| score::run(project, &options))
+        }
     }
 }
 

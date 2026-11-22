@@ -28,6 +28,7 @@ fn parses_values_in_base_units() {
                 line: 1,
             },
             metric: "export-size",
+            target: None,
             value: Size(
                 1100.0,
             ),
@@ -39,6 +40,7 @@ fn parses_values_in_base_units() {
                 line: 2,
             },
             metric: "bundle",
+            target: None,
             value: Size(
                 45600000.0,
             ),
@@ -50,6 +52,7 @@ fn parses_values_in_base_units() {
                 line: 3,
             },
             metric: "boot",
+            target: None,
             value: Time(
                 236000.0,
             ),
@@ -61,6 +64,7 @@ fn parses_values_in_base_units() {
                 line: 4,
             },
             metric: "request",
+            target: None,
             value: Time(
                 1820000.0,
             ),
@@ -72,6 +76,7 @@ fn parses_values_in_base_units() {
                 line: 5,
             },
             metric: "idle",
+            target: None,
             value: Time(
                 2000000000.0,
             ),
@@ -83,6 +88,7 @@ fn parses_values_in_base_units() {
                 line: 6,
             },
             metric: "retries",
+            target: None,
             value: Count(
                 3.0,
             ),
@@ -94,6 +100,7 @@ fn parses_values_in_base_units() {
                 line: 7,
             },
             metric: "ratio",
+            target: None,
             value: Count(
                 0.25,
             ),
@@ -105,6 +112,7 @@ fn parses_values_in_base_units() {
                 line: 8,
             },
             metric: "lint",
+            target: None,
             value: Check(
                 true,
             ),
@@ -130,6 +138,7 @@ fn parses_items_quotes_tabs_and_blank_lines() {
                 line: 1,
             },
             metric: "render",
+            target: None,
             value: Time(
                 1820000.0,
             ),
@@ -143,6 +152,7 @@ fn parses_items_quotes_tabs_and_blank_lines() {
                 line: 3,
             },
             metric: "render",
+            target: None,
             value: Time(
                 236000.0,
             ),
@@ -156,6 +166,7 @@ fn parses_items_quotes_tabs_and_blank_lines() {
                 line: 5,
             },
             metric: "lint",
+            target: None,
             value: Check(
                 false,
             ),
@@ -173,7 +184,7 @@ fn rejects_malformed_lines() {
     ");
 
     insta::assert_snapshot!(error("render ABI Decode 1.82ms\n"), @"
-    [line-syntax] footprint metrics:1:19: expected `metric [item] value`, found more fields. Quote an item that contains spaces
+    [line-syntax] footprint metrics:1:19: expected `metric [item] value [target <value>]`, found more fields. Quote an item that contains spaces
       1 | render ABI Decode 1.82ms
         |                   ^
     ");
@@ -240,4 +251,62 @@ fn rejects_invalid_values() {
       1 | boot 1e3ms
         |       ^
     ");
+}
+
+#[test]
+fn parses_line_targets() {
+    let source = "entry-size \".\" 408B target 2kB\nentry-size ./date 247B\nboot 1.2ms target 1ms\nentry-size target 5kB target 6kB\n";
+
+    let lines = lines::parse(source).unwrap();
+    let targets: Vec<String> = lines
+        .iter()
+        .map(|line| {
+            format!(
+                "{} {:?} {:?} {:?}",
+                line.metric, line.item, line.value, line.target
+            )
+        })
+        .collect();
+
+    insta::assert_debug_snapshot!(targets, @r#"
+    [
+        "entry-size Some(\".\") Size(408.0) Some(Size(2000.0))",
+        "entry-size Some(\"./date\") Size(247.0) None",
+        "boot None Time(1200000.0) Some(Time(1000000.0))",
+        "entry-size Some(\"target\") Size(5000.0) Some(Size(6000.0))",
+    ]
+    "#);
+}
+
+#[test]
+fn rejects_invalid_line_targets() {
+    insta::assert_snapshot!(error("entry-size \".\" 408B target\n"), @r#"
+    [line-syntax] footprint metrics:1:27: expected a value after `target`
+      1 | entry-size "." 408B target
+        |                           ^
+    "#);
+
+    insta::assert_snapshot!(error("entry-size \".\" 408B target 2ms\n"), @r#"
+    [target-unit] footprint metrics:1:28: the target is a time, but the value is a size
+      1 | entry-size "." 408B target 2ms
+        |                            ^
+    "#);
+
+    insta::assert_snapshot!(error("entry-size \".\" 408B target 0B\n"), @r#"
+    [target-range] footprint metrics:1:28: a target must be greater than zero
+      1 | entry-size "." 408B target 0B
+        |                            ^
+    "#);
+
+    insta::assert_snapshot!(error("lint index.html pass target pass\n"), @"
+    [target-unit] footprint metrics:1:29: a check cannot be a target
+      1 | lint index.html pass target pass
+        |                             ^
+    ");
+
+    insta::assert_snapshot!(error("entry-size \".\" 408B target 2kb\n"), @r#"
+    [unknown-unit] footprint metrics:1:29: unknown unit `kb`, expected one of `B`, `kB`, `MB`, `GB`, `ns`, `µs`, `us`, `ms`, `s`
+      1 | entry-size "." 408B target 2kb
+        |                             ^
+    "#);
 }

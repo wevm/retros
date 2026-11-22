@@ -1,26 +1,53 @@
 //! `retros [category]`: runs each category's script, scores its metrics, prints each category as
-//! it finishes, and writes `.retros/report.json` and `.retros/report.md` beside `retros.toml`.
+//! it finishes, then the opportunities and the changes since `retros.lock`. It writes
+//! `.retros/report.json` and `.retros/report.md` beside `retros.toml`, and with `--update`
+//! records this run's sizes, counts, and checks in `retros.lock`.
 //!
 //! The command exits with status 0 when every category ran and passed its checks, and with
-//! status 1 when any category failed. Scores do not change the exit status.
+//! status 1 when any category failed. With `--require-baseline`, it also exits with status 1 when
+//! a size, count, or check is worse than `retros.lock`. Scores do not change the exit status.
 
 use std::io::{self, Write as _};
 use std::process::ExitCode;
 
 use engine::config::Category;
+use engine::lock::{self, Direction};
 use engine::report::{CategoryReport, Report};
 
 use crate::measure;
 use crate::project::Project;
 
-/// Runs every category of `project`, or only the category named `only`.
+/// What `retros [category]` was asked to do.
+#[derive(Default)]
+pub(crate) struct Options {
+    /// The category to run, or `None` for every category.
+    pub(crate) category: Option<String>,
+    /// Whether a size, count, or check worse than `retros.lock` fails the run.
+    pub(crate) require_baseline: bool,
+    /// Whether to record this run in `retros.lock`.
+    pub(crate) update: bool,
+}
+
+/// Runs every category of `project`, or only the category `options` names.
 ///
 /// # Errors
 ///
-/// Returns a message for the terminal when `only` names no category, when Retros cannot run a
-/// script at all, or when it cannot write the reports.
-pub(crate) fn run(project: &Project, only: Option<&str>) -> Result<ExitCode, String> {
-    let categories: Vec<&Category> = match only {
+/// Returns a message for the terminal when the category is unknown, when `retros.lock` is
+/// invalid, when Retros cannot run a script at all, or when it cannot write a file.
+pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, String> {
+    let prefix = project.name.trim_end_matches("retros.toml");
+    let lock_name = format!("{prefix}retros.lock");
+    let lock_path = project.root.join("retros.lock");
+    let previous = match std::fs::read_to_string(&lock_path) {
+        Ok(source) => Some(
+            lock::parse(&source)
+                .map_err(|error| crate::diagnostic("error", &error, &lock_name, &source))?,
+        ),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+        Err(error) => return Err(format!("error: could not read {lock_name}: {error}")),
+    };
+
+    let categories: Vec<&Category> = match options.category.as_deref() {
         None => project.config.categories.iter().collect(),
         Some(name) => {
             let category = project
@@ -47,6 +74,7 @@ pub(crate) fn run(project: &Project, only: Option<&str>) -> Result<ExitCode, Str
 
     let mut report = Report {
         categories: Vec::new(),
+        changes: None,
     };
 
     for category in categories {
@@ -91,6 +119,14 @@ pub(crate) fn run(project: &Project, only: Option<&str>) -> Result<ExitCode, Str
         report.categories.push(entry);
     }
 
+    // A first `--update` compares with an empty lock, so it lists every metric it records as new.
+    report.changes = match (&previous, options.update) {
+        (Some(lock), _) => Some(lock::compare(lock, &report)),
+        (None, true) => Some(lock::compare(&lock::Lock::default(), &report)),
+        (None, false) => None,
+    };
+    let _ = io::stdout().write_all(engine::report::summary(&report).as_bytes());
+
     let dir = project.root.join(".retros");
     let write = |file: &str, contents: String| {
         std::fs::write(dir.join(file), contents)
@@ -101,16 +137,36 @@ pub(crate) fn run(project: &Project, only: Option<&str>) -> Result<ExitCode, Str
     write("report.json", engine::report::json(&report))?;
     write("report.md", engine::report::markdown(&report))?;
 
-    let prefix = project.name.trim_end_matches("retros.toml");
-    let _ = writeln!(
-        io::stdout(),
-        "\nReports: {prefix}.retros/report.json, {prefix}.retros/report.md"
-    );
+    let mut written = format!("{prefix}.retros/report.json, {prefix}.retros/report.md");
+    if options.update {
+        let updated = lock::update(previous.as_ref(), &project.config, &report);
+        std::fs::write(&lock_path, lock::render(&updated))
+            .map_err(|error| format!("error: could not write {lock_name}: {error}"))?;
+        written.push_str(", ");
+        written.push_str(&lock_name);
+    }
+    let _ = writeln!(io::stdout(), "\nWrote {written}");
 
     let failed = report
         .categories
         .iter()
         .any(|category| category.result.is_err());
+    let worse = report
+        .changes
+        .iter()
+        .flatten()
+        .filter(|change| change.direction == Direction::Worse)
+        .count();
+
+    if options.require_baseline && !options.update && worse > 0 {
+        let _ = writeln!(
+            io::stdout(),
+            "\n{} worse than {lock_name}",
+            measure::count(worse, "value")
+        );
+        return Ok(ExitCode::FAILURE);
+    }
+
     Ok(if failed {
         ExitCode::FAILURE
     } else {

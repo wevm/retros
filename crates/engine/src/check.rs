@@ -155,6 +155,19 @@ fn check_group(category: &Category, name: &str, group: &[&Line<'_>], report: &mu
             ),
         )),
         Some(metric) => {
+            if metric.target.is_none()
+                && group.iter().any(|line| line.target.is_some())
+                && let Some(line) = group.iter().find(|line| line.target.is_none())
+            {
+                report.errors.push(error(
+                    Code::MixedTargets,
+                    line,
+                    format!(
+                        "metric `{name}` sets a target on some lines but not this one. Set a target on every line, or a default `target` in retros.toml"
+                    ),
+                ));
+            }
+
             if let Some(target) = metric.target
                 && target.kind() != kind
             {
@@ -162,9 +175,9 @@ fn check_group(category: &Category, name: &str, group: &[&Line<'_>], report: &mu
                     Code::TargetUnit,
                     first,
                     format!(
-                        "metric `{name}` is written as {}, but its `target` in retros.toml measures {}",
+                        "metric `{name}` is written as {}, but its `target` in retros.toml is {}",
                         kind.plural(),
-                        target.kind().plural()
+                        target.kind().singular()
                     ),
                 ));
             }
