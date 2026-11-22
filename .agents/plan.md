@@ -29,7 +29,7 @@ Retros keeps Lighthouse's scoring and depth, and replaces its fixed browser gath
 | Audit descriptions and help text | Notes on metric lines (Phase 7) |
 | Passed audits | Metrics at or better than their targets |
 | Lighthouse CI assertions | `--require-targets` and `--require-baseline` |
-| Chrome traces and DevTools protocol gatherers | Project scripts in any language |
+| Chrome traces and DevTools protocol gatherers | Project scripts in any language, which can run Lighthouse itself |
 
 ## Goals
 
@@ -47,7 +47,7 @@ Retros keeps Lighthouse's scoring and depth, and replaces its fixed browser gath
 ## Decisions
 
 1. **Name.** Retros. Repository `wevm/retros`, binary `retros`, configuration `retros.toml`, accepted values in `retros.lock`, and reports under `.retros/`. The names `retros` on npm and crates.io were free on 2026-11-22.
-2. **Scripts measure, Retros scores.** Retros has no built-in measures until the same script recurs across projects. Scripts remain the escape hatch after that.
+2. **Scripts measure with existing tools, Retros scores.** Scripts run the tools a project already uses, such as Lighthouse, test runners, type checkers, linters, formatters, and benchmark harnesses, and turn their output into metric lines. A script measures a value itself only when no tool reports it. Retros has no built-in measures until the same script recurs across projects, and scripts remain the escape hatch after that. Decided 2026-11-22, with the preference for existing tools added the same day.
 3. **TOML configuration.** Rust's TOML support is solid, TOML has no indentation traps, and Cargo users already know it.
 4. **Metrics go to a file.** Scripts append lines to the file at `$RETROS_METRICS`, not to standard output. Tools that scripts call print to standard output, and a standard output protocol lets any tool inject a metric. GitHub Actions moved from standard output commands to `$GITHUB_OUTPUT` for the same reason. Decided 2026-11-22.
 5. **One line per measurement.** The format is `metric [item] value [target <value>]`. An item with a space is quoted.
@@ -190,9 +190,10 @@ Remember accepted values, name the next step, and score each item against the ta
 Show what a rich, Lighthouse-level setup looks like for common kinds of projects, and describe Retros plainly.
 
 - [x] Ban Python in AGENTS.md: scripts are shell or TypeScript on Bun. The dogfood `metrics/speed.py` is now `metrics/speed.ts`, and the verify workflow installs Bun 1.4.4.
-- [x] `examples/typescript-library`: footprint (install size, dependencies, entry size, export size, bytes tree-shaking fails to drop, and an unscored export count the lock tracks), speed (import time per entry point and call time per function), and quality (tests, coverage per file, TSDoc per export, `sideEffects`, and resolvable entry points). The root entry's target is the sum of its subpaths and 10% more, and formatters that call `Intl` get a larger call-time target by pattern.
-- [x] `examples/web-app`: performance (page weight, requests, render-blocking resources, image bytes, script and style size, and unused style rules), accessibility (alt text, button and link names, field labels, heading order, page language, and contrast), best practices (doctype, charset, secure links, sized images, console calls, and deprecated APIs), and SEO (title length, description, canonical link, viewport, one `h1`, and crawlable links). Bun's `HTMLRewriter` reads the pages. The landing page gets a larger page-weight target by pattern, and each image's target comes from the screen area it covers.
-- [x] `examples/rust-api`: footprint (binary size, dependencies, and an unscored count of panic sites), latency (median and 95th percentile per endpoint, and throughput), and reliability (status codes, a malformed request, surviving a panic, and the error rate under load). Each endpoint's target comes from the work it does, and its tail may take three times as long.
+- [x] Examples run real tools instead of hand-rolled measures: Lighthouse for the web app, TypeScript, oxlint, oxfmt, mitata, and Bun's test runner for the library, and clippy, rustfmt, and `cargo test` for the API.
+- [x] `examples/typescript-library`: footprint (install size, dependencies, entry size, export size, bytes tree-shaking fails to drop, and an unscored export count the lock tracks), speed (import time per entry point and mitata's median call time per function), and quality (tests, coverage per file, and type errors, lint, and formatting per file, and resolvable entry points). The root entry's target is the sum of its subpaths and 10% more, and formatters that call `Intl` get a larger call-time target by pattern.
+- [x] `examples/web-app`: Lighthouse 13 in its default mobile mode on each page. Performance writes Lighthouse's five metrics and total byte weight per page. Accessibility, best practices, and SEO write each audit that counts toward Lighthouse's score as a check per page. The landing page gets larger paint and byte-weight targets by pattern.
+- [x] `examples/rust-api`: footprint (binary size and dependencies), latency (median and 95th percentile per endpoint, and throughput), reliability (status codes, a malformed request, surviving a panic, and the error rate under load), and quality (clippy per file, an unscored count of panic sites from clippy's restriction lints, rustfmt per file, and each test). Each endpoint's target comes from the work it does, and its tail may take three times as long. Latency stays a fetch loop because autocannon under Bun reported inconsistent latencies and connection errors.
 - [x] Each example misses a few targets on purpose, so its report shows misses, opportunities, and contextual targets.
 - [x] README: the tagline "Continuous metrics and hill climbing", a Features section in the style of zyzz's README, "any project" under Philosophy, target-only scoring, targets, baselines, and usage.
 
@@ -236,7 +237,7 @@ Explain each miss, and write the report people open.
 
 Let the agent a person already works with set up Retros and climb.
 
-- [ ] `retros init` prints a brief for the user's agent: find the project's surfaces (entry points, pages, endpoints, or commands), write one script per category in the project's language or TypeScript on Bun, set a target per item where context differs and record the reason beside it, and run `retros check` until it passes. The brief points the agent at the closest example from Phase 4.
+- [ ] `retros init` prints a brief for the user's agent: find the project's surfaces (entry points, pages, endpoints, or commands), write one script per category in the project's language or TypeScript on Bun that runs the tools the project already uses, set a target per item where context differs and record the reason beside it, and run `retros check` until it passes. The brief points the agent at the closest example from Phase 4.
 - [ ] A compact report for agent loops: scores, misses, and the top opportunities in a few lines. Whether this is a flag or `report.md` is decided at the start of this phase.
 - [ ] A skill that runs the loop: score, take the top opportunity, change the code, score again, and keep the change only when the category rose and nothing got worse.
 
@@ -280,7 +281,7 @@ These are not scheduled: built-in measures, such as `retros time` and `retros si
 
 ## Risks
 
-- **Scripts can measure wrong.** An esbuild code-splitting mistake inflated small viem exports by up to 20×. Earliest signal: a value far from what an existing tool reports for the same thing. Fix: planted controls in examples, then built-in measures.
+- **Scripts can measure wrong.** An esbuild code-splitting mistake inflated small viem exports by up to 20×. Earliest signal: a value far from what an existing tool reports for the same thing. Fix: scripts run established tools instead of hand-rolled measures, examples plant controls, and built-in measures come later.
 - **Contextual targets can be loosened to pass.** Earliest signal: a pull request that raises a target in a script. Fix: done. `retros.lock` records line targets, so a loosened one is a reviewed change.
 - **List metrics are slow.** Export size for 1,912 viem exports took 174 s in an orb. Earliest signal: a viem run over 10 minutes. Fix: compare exact metrics with the lock instead of measuring `<ref>`, then re-measure only changed items.
 - **Timings are noisy on shared runners.** Earliest signal: most timing comparisons read "within noise". Fix: more pairs, or a dedicated runner.

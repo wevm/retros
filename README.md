@@ -5,111 +5,126 @@
 </p>
 
 <p align="center">
-  <a href="#overview">Overview</a> · <a href="#philosophy">Philosophy</a> · <a href="#features">Features</a> · <a href="#scoring">Scoring</a> · <a href="#usage">Usage</a> · <a href="#status">Status</a>
+  <a href="#overview">Overview</a> · <a href="#philosophy">Philosophy</a> · <a href="#features">Features</a> · <a href="#scoring">Scoring</a> · <a href="#targets">Targets</a> · <a href="#baselines">Baselines</a> · <a href="#usage">Usage</a>
 </p>
 
 ## Overview
 
-Set a target for each metric that matters, measure every change, and climb. A project's scripts measure it, and Retros scores each measurement against its target, records what the project has reached, and names the next step.
+Retros tracks the numbers a project cares about, such as bundle size, page weight, or request latency. Each number has a target. On every change, Retros shows which numbers improved, which regressed, and what to fix next.
+
+A project lists its metrics in `retros.toml` and measures them with scripts in any language. Each script writes one line per measurement. Retros runs the scripts, scores each metric from 0 to 100, and compares the results with the last accepted run.
 
 ```toml
-# retros.toml: each table is a category, and `run` is the script that measures it.
-[speed]
-run = "bun metrics/speed.ts"
-# Time to import each entry point. The root loads every module, so it gets more room.
-import-time = { target = "2ms", targets = { "." = "3ms" } }
-# Time per call of each formatter. Formatters that call `Intl` get more room than arithmetic.
-call-time = { target = "500ns", targets = { "grouped" = "2µs", "weekday" = "2µs" } }
+# retros.toml: the `footprint` category runs one script and expects one metric.
+[footprint]
+run = "sh footprint.sh"
+entry-size = { target = "1kB" }
 ```
 
 ```sh
-# A script appends one line per measurement to the file at $RETROS_METRICS.
-echo 'call-time weekday 48.9µs' >> "$RETROS_METRICS"
+# footprint.sh: one line per entry point, appended to the file Retros provides.
+echo 'entry-size ./date 247B' >> "$RETROS_METRICS"
+echo 'entry-size ./number 1.6kB' >> "$RETROS_METRICS"
 ```
 
 ```text
-▲  49  speed  median of 5 rounds
-  ●  98  import-time  p90 2 ms (.)           target 3 ms
-                      2 ms    .  target 3 ms
-                      1.3 ms  ./number
-                      1.2 ms  ./date
-  ▲   0  call-time    p90 48.9 µs (weekday)  target 2 µs
-                      48.9 µs   weekday  target 2 µs
-                      429.9 ns  bytes
-                      408.4 ns  isoDate
+■  66  footprint
+  ■  66  entry-size  p90 1.6 kB (./number)  target 1 kB
+                     1.6 kB  ./number
+                     247 B   ./date
 
 Opportunities
-  +45  speed  call-time weekday  48.9 µs → 2 µs
+  +24  footprint  entry-size ./number  1.6 kB → 1 kB
 ```
 
 ## Philosophy
 
-- **Targeted.** Each metric has one `target`, a requirement the project must meet. Every change shows whether the project climbed toward its targets or slid back.
-- **Contextual.** A root entry point, a landing page, and a health check need different requirements than their neighbors. Each item is scored against the target that fits it.
-- **Any project.** Projects measure themselves with scripts in any language. Retros runs them and reads one line per measurement, so a library, a website, and an API all take part the same way.
-- **Ratcheted.** Every improvement is recorded and becomes the new floor. With `--require-baseline` in CI, nothing changes without a reviewed change to `retros.lock`.
-- **Honest.** Sizes, counts, and checks report every change. Timings take the median of 5 runs and stay out of the lock, because they differ between machines.
-- **Portable.** One static binary, with no runtime to install.
+- **A target is a requirement:** A value at its target scores 90, and anything worse costs points. No second threshold makes a miss acceptable.
+- **Items differ:** A root entry point, a landing page, and a health check each need their own target. Retros scores every item against the target that fits it.
+- **Any project:** Retros measures nothing itself. Scripts run the tools a project already trusts, such as Lighthouse, a test runner, or a linter, and write what they report. A TypeScript library, a website, and a Rust server all use the same text format.
+- **Progress is kept:** Once accepted, a better value becomes the new baseline. A regression needs a reviewed change to `retros.lock`.
 
 ## Features
 
-- [**Lighthouse Scoring**](#scoring): every metric scores from 0 to 100 against its target on Lighthouse's curve, and each category averages its metrics.
-- [**Contextual Targets**](#targets): a default per metric, a target per line when the script knows the context, and item patterns in `retros.toml` with the final say.
-- [**Item Lists**](examples/web-app): any number of items per metric, each ranked against its own target, with the worst named in every report.
-- [**Opportunities**](examples/typescript-library): the changes that would raise each category most, in category points.
-- [**Baselines**](#baselines): `retros.lock` records every size, count, and check, and the targets scripts set, so any change shows in review.
-- [**Gates**](#baselines): `--require-baseline` fails CI on any change that is not accepted, better or worse.
-- [**Repeated Timings**](#scoring): timing scripts run 5 times, and each timing item takes its median.
-- [**Reports**](#usage): a terminal summary, `.retros/report.json`, and `.retros/report.md`.
+- [**Scores**](#scoring): a score from 0 to 100 for every metric, and a weighted mean for every category.
+- [**Contextual targets**](#targets): a default per metric, a target per line from the script, and item patterns that override both.
+- [**Item lists**](examples/web-app): thousands of items per metric, such as one per export or page, with the worst named in each report.
+- [**Opportunities**](examples/typescript-library): the changes that would raise each category most, with the points each adds.
+- [**Baselines**](#baselines): accepted values in `retros.lock`, and a list of every change since.
+- [**CI gate**](#baselines): `--require-baseline` fails on any change that is not accepted, better or worse.
+- [**Reports**](#usage): terminal output, `.retros/report.json`, and `.retros/report.md`.
 
 ## Scoring
 
-A value at its target scores 90, the start of the good band. A value twice the target scores 50, and four times the target scores 10. When `better = "higher"`, half the target scores 50. Bands follow Lighthouse: 90 to 100 is good, 50 to 89 needs work, and 0 to 49 is poor.
+A metric scores 90 at its target, 50 at twice the target, and 10 at four times the target. Scores follow Lighthouse's log-normal curve and bands: 90 to 100 is good, 50 to 89 needs work, and 0 to 49 is poor.
 
-A metric that covers a list of items, such as every export or every page, ranks its items by how far each is past its own target and scores the item at its p90, the item with at most a tenth of the list further past its target. A check scores the share of items that pass. A category is the weighted mean of its metric scores, and there is no overall score.
+| Value, against a 5 kB target | Score |
+| --- | --- |
+| 2.5 kB | 99 |
+| 5 kB | 90 |
+| 10 kB | 50 |
+| 20 kB | 10 |
 
-When a script's first run writes a time, Retros runs it 5 times and scores each timing item's median. Sizes, counts, and checks come from the first run.
+A metric with many items scores one of them. Retros ranks the items by how far each is past its own target, then scores the item at the 90th percentile. A check scores the share of items that pass.
 
-### Targets
+A category score is the weighted mean of its metric scores. When a script writes a time, Retros runs the script 5 times and scores the median of each item.
 
-A target comes from one of three places, and the later ones override the earlier ones:
+## Targets
 
-1. `target` in `retros.toml` is the default for every item of the metric.
-2. A script writes its own target at the end of a line when it knows the context, such as `latency /health 0.29ms target 500µs`.
-3. `targets` in `retros.toml` sets targets by item pattern, such as `targets = { "viem/chains/*" = "1kB" }`. `*` matches any run of characters.
+A target comes from one of three places. Each one overrides the one before it.
 
-### Baselines
+- **`target`:** The default in `retros.toml` for every item of the metric.
+- **Line target:** A script ends a line with `target <value>` when it knows that item needs a different requirement.
+- **`targets`:** Item patterns in `retros.toml`. `*` matches any run of characters.
 
-`retros --update` writes `retros.lock`: the accepted value of every size, count, and check, and each target a script set on a line. Commit it. Every run then lists what got worse, what got better, what is new or gone, and which targets got looser or tighter. Timing values stay out of the lock because they differ between machines.
+```toml
+# Entry points default to 1 kB. The root re-exports every module, so it gets 3 kB.
+entry-size = { target = "1kB", targets = { "." = "3kB" } }
 
-`retros --require-baseline` exits with status 1 when anything differs from `retros.lock`, like a snapshot test. Accepting a change, even an improvement, is a reviewed change to the lock, so the lock on `main` always matches the code.
+# Higher is better for throughput, so half the target scores 50.
+throughput = { target = 5000, better = "higher" }
+```
+
+## Baselines
+
+`retros --update` writes `retros.lock`. The lock records every size, count, and check, and each target a script wrote on a line. Commit it. Later runs list what got worse or better, what is new or gone, and which targets changed.
+
+```toml
+# retros.lock: a line target follows its value, so loosening one shows in review.
+[footprint.export-size]
+"viem" = "1000B target 2000B"
+"viem/chains" = "10000B"
+```
+
+`retros --require-baseline` exits with status 1 when anything differs from the lock, improvements included. To accept a change, commit the updated lock. Timings stay out of the lock because they vary between machines.
 
 ## Usage
 
 Run Retros from the project or any directory below it, and add `.retros/` to `.gitignore`.
 
 ```sh
-# Score every category, list the opportunities, and compare with retros.lock.
+# Score every category, list opportunities, and compare with retros.lock.
 retros
 
 # Score one category.
 retros speed
 
-# Record this run's sizes, counts, checks, and line targets in retros.lock.
+# Accept this run: record its values and line targets in retros.lock.
 retros --update
 
-# Exit with status 1 when anything differs from retros.lock.
+# Fail when anything differs from retros.lock.
 retros --require-baseline
 
-# Run each script once and check what it writes, without scoring.
+# Run each script once and check its lines, without scoring.
 retros check
 ```
 
-A metric line is `metric [item] value [target <value>]`. Values are sizes (`B`, `kB`, `MB`, `GB`), times (`ns`, `µs`, `ms`, `s`), counts with no unit, or checks (`pass` or `fail`). An item with a space is quoted. Each metric in `retros.toml` takes optional `target`, `targets`, `weight`, `score` (`p90`, `p10`, `median`, `max`, `min`, or `sum`), and `better = "higher"`. Each category takes `run` and an optional `timeout`.
+- **Metric line:** `metric [item] value [target <value>]`. Quote an item that contains a space.
+- **Values:** sizes in `B`, `kB`, `MB`, or `GB`, times in `ns`, `µs`, `ms`, or `s`, counts without a unit, and checks as `pass` or `fail`.
+- **Category keys:** `run`, and `timeout` (default `10m`).
+- **Metric keys:** `target`, `targets`, `weight` (default 1), `score` (`p90` by default, or `p10`, `median`, `max`, `min`, `sum`), and `better`.
 
-[`examples/`](examples) has a TypeScript library, a web app measured like Lighthouse, and a Rust API. Retros also measures itself with the root [`retros.toml`](retros.toml).
-
-## Status
+[`examples/`](examples) has a TypeScript library, a website measured by Lighthouse, and a Rust API measured with Cargo's tools. Retros measures itself with the root [`retros.toml`](retros.toml).
 
 > [!NOTE]
 > Retros is in development. The [implementation plan](.agents/plan.md) lists each phase and its acceptance gate.
