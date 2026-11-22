@@ -8,7 +8,7 @@ Sources: https://github.com/wevm/ondine/blob/main/AGENTS.md at `51ba8db369fd8b35
 
 - Retros is continuous metrics and hill climbing. Each metric has one `target`, a requirement the project must meet. A project's scripts measure it, and Retros scores each metric against its target, compares revisions, and writes reports, so every change shows whether the project climbed toward its targets or slid back. The contract is processes and text files, so any project in any language can take part.
 - Retros measures nothing itself. Every number comes from a project script. Built-in measures come later, only after the same script recurs across projects, and scripts remain the escape hatch.
-- Keep the contract public and small. `retros.toml` declares categories, each with a `run` command and its metrics. A script appends `metric [item] value [target <value>]` lines to the file at `$RETROS_METRICS`, and a non-zero exit status marks the run as failed. `retros.lock` records the accepted sizes, counts, and checks. A change to the contract needs a decision in `.agents/plan.md`.
+- Keep the contract public and small. `retros.toml` declares categories, each with a `run` command and its metrics. A script appends `metric [item] value [target <value>]` lines to the file at `$RETROS_METRICS`, and a non-zero exit status marks the run as failed. `retros.lock` records the accepted sizes, counts, checks, and line targets. A change to the contract needs a decision in `.agents/plan.md`.
 - Score like Lighthouse. Port `getLogNormalScore` so that a value at `target` scores 90 and a value twice the target scores 50 (half the target when higher is better), and use Lighthouse's bands: 90 to 100 good, 50 to 89 needs work, 0 to 49 poor. A metric with items collapses to its p90 unless configured. A category is the weighted mean of its metric scores. There is no overall score.
 - A failed or missing metric has no score, not a score of zero. Reports name the failure and keep the end of the script's stderr.
 - Report change separately from score. Exact units (sizes, counts, checks) report any change. Timing changes need repeated, interleaved base and head runs. Per-item changes always show, even when the collapsed value does not move. Never gate on one timing sample.
@@ -24,7 +24,7 @@ These apply to the documentation site, scripts, examples, the npm package, and t
 - Use `readonly T[]` for array types. Preserve mutable arrays only when mutation is part of the contract.
 - Use `type` for project-owned shapes. Use `interface` only when declaration merging or an external ambient contract requires it.
 - Include `.js` extensions on relative imports and exports so source remains valid under NodeNext ESM.
-- Author every source file and script in TypeScript. `.js` files are banned. Node runs TypeScript natively (`node script.ts`), so scripts need no build step.
+- Author every source file and script in TypeScript or shell. Python and `.js` files are banned. When a script needs an interpreter, write TypeScript and run it with Bun (`bun script.ts`), so scripts need no build step.
 - Import module-shaped internal files as namespaces (`import * as Store from './Store.js'`) and access members through the module name. Named imports are fine for types, leaf helpers, command handlers, and third-party APIs that are not module namespaces.
 - Import Node built-ins as namespaces unless the neighboring code or API is clearer with a named import.
 - Re-export public module files as namespaces (`export * as Store from './Store.js'`). Avoid flattening sibling-module symbols into a barrel.
@@ -177,7 +177,7 @@ Applies to the documentation site, the README, and other Markdown documentation.
 - Write for developers who maintain a project and already run tests, benchmarks, or size checks. Use Lighthouse's terms, such as score, metric, and category, without redefining them.
 - Use Retros's own terms consistently: script, metric line, item, target, round, and comparison. Define each one once, on the page that introduces it.
 - Explain behavior through `retros.toml`, the metric lines a script writes, and the report that results. Leave engine internals to the pages that document them.
-- Keep guides language-neutral. When setup differs by language or ecosystem, show every one, such as in tabs for shell, Node, Python, and Rust, rather than assuming one.
+- Keep guides language-neutral. When setup differs by language or ecosystem, show every one, such as in tabs for shell, TypeScript, and Rust, rather than assuming one.
 - Do not state the obvious. When a feature differs by platform, state that limit directly.
 - Do not mention other measurement tools in guides. Name them only on a Comparisons page and in migration guides.
 

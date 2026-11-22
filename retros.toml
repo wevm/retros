@@ -8,7 +8,7 @@ binary-size = { target = "1MB" }
 dependencies = { target = 10 }
 
 [speed]
-run = "python3 metrics/speed.py"
+run = "bun metrics/speed.ts"
 # Time from launch to exit of `retros --version`.
 startup = { target = "1ms" }
 # Time `retros check` takes for one category whose script writes one line.
