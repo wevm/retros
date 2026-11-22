@@ -1,0 +1,19 @@
+# The engine is pure: its output depends only on its inputs. The CLI owns files, processes,
+# the environment, and the clock. Clippy reads only the nearest clippy.toml, so this file repeats
+# the workspace entries.
+doc-valid-idents = ["JavaScript", "TypeScript", ".."]
+disallowed-methods = [
+  { path = "std::env::var", reason = "The engine reads no environment. The CLI passes options." },
+  { path = "std::env::var_os", reason = "The engine reads no environment. The CLI passes options." },
+  { path = "std::fs::read", reason = "The engine reads no files. The CLI supplies their contents." },
+  { path = "std::fs::read_to_string", reason = "The engine reads no files. The CLI supplies their contents." },
+  { path = "std::fs::write", reason = "The engine writes no files. The CLI writes reports." },
+  { path = "std::process::Command::new", reason = "The engine runs no processes. The CLI runs scripts." },
+  { path = "std::thread::spawn", reason = "The engine spawns no threads." },
+  { path = "std::time::Instant::now", reason = "Output never depends on the clock." },
+  { path = "std::time::SystemTime::now", reason = "Output never depends on the clock." },
+]
+disallowed-types = [
+  { path = "std::collections::HashMap", reason = "Iteration order can reach output. Use a Vec or BTreeMap." },
+  { path = "std::collections::HashSet", reason = "Iteration order can reach output. Use a Vec or BTreeSet." },
+]

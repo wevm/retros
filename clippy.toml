@@ -1,0 +1,7 @@
+# Applies to every crate without its own clippy.toml. `crates/engine/clippy.toml` adds the purity
+# bans, and Clippy reads only the nearest file, so shared entries are repeated there.
+doc-valid-idents = ["JavaScript", "TypeScript", ".."]
+disallowed-types = [
+  { path = "std::collections::HashMap", reason = "Iteration order can reach output. Use a Vec or BTreeMap." },
+  { path = "std::collections::HashSet", reason = "Iteration order can reach output. Use a Vec or BTreeSet." },
+]

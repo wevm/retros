@@ -1,0 +1,15 @@
+[package]
+name = "engine"
+description = "Pure Retros engine: configuration, metric lines, scoring, comparison, and reports."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+
+[lints]
+workspace = true
