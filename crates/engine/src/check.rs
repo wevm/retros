@@ -155,15 +155,23 @@ fn check_group(category: &Category, name: &str, group: &[&Line<'_>], report: &mu
             ),
         )),
         Some(metric) => {
+            // An item has its own target from a pattern in `targets` or from its line.
+            let own = |line: &Line<'_>| {
+                line.target.is_some()
+                    || line
+                        .item
+                        .as_deref()
+                        .is_some_and(|item| metric.pattern(item).is_some())
+            };
             if metric.target.is_none()
-                && group.iter().any(|line| line.target.is_some())
-                && let Some(line) = group.iter().find(|line| line.target.is_none())
+                && group.iter().any(|line| own(line))
+                && let Some(line) = group.iter().find(|line| !own(line))
             {
                 report.errors.push(error(
                     Code::MixedTargets,
                     line,
                     format!(
-                        "metric `{name}` sets a target on some lines but not this one. Set a target on every line, or a default `target` in retros.toml"
+                        "metric `{name}` sets a target on some items but not this one. Set a target on every line, or a default `target` in retros.toml"
                     ),
                 ));
             }
@@ -180,6 +188,41 @@ fn check_group(category: &Category, name: &str, group: &[&Line<'_>], report: &mu
                         target.kind().singular()
                     ),
                 ));
+            }
+
+            for pattern in &metric.targets {
+                let finding = |code, message| Finding {
+                    error: Error {
+                        code,
+                        location: Some(pattern.location),
+                        message,
+                    },
+                    source: Source::Config,
+                };
+
+                if pattern.target.kind() != kind {
+                    report.errors.push(finding(
+                        Code::TargetUnit,
+                        format!(
+                            "metric `{name}` is written as {}, but its target for `{}` is {}",
+                            kind.plural(),
+                            pattern.pattern,
+                            pattern.target.kind().singular()
+                        ),
+                    ));
+                } else if !group.iter().any(|line| {
+                    line.item
+                        .as_deref()
+                        .is_some_and(|item| pattern.matches(item))
+                }) {
+                    report.warnings.push(finding(
+                        Code::UnmatchedPattern,
+                        format!(
+                            "pattern `{}` in the `targets` of metric `{name}` matches no item",
+                            pattern.pattern
+                        ),
+                    ));
+                }
             }
         }
     }

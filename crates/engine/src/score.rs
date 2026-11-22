@@ -1,17 +1,21 @@
 //! Scores: medians across rounds, list roll-ups, Lighthouse's log-normal curve, the weighted
 //! mean of a category, and the opportunities that would raise it.
 //!
-//! Each measurement is scored against its own target: the target its line sets, or the metric's
-//! target in `retros.toml`. A value at its target scores 90, a value twice the target scores 50,
-//! and a value four times the target scores 10. A list collapses to the item furthest past its
-//! own target at the configured rank, so the p90 of a list is the item with at most a tenth of the
-//! list further past its target. Scores follow Lighthouse's rounding: a metric's score is a whole
-//! number from 0 to 100, and a category's score is the weighted mean of its metric scores,
-//! rounded.
+//! Each measurement is scored against its own target: the first pattern in the metric's `targets`
+//! that matches its item, else the target its line sets, else the metric's `target`. A value at
+//! its target scores 90, a value twice the target scores 50, and a value four times the target
+//! scores 10. A list collapses to the item furthest past its own target at the configured rank,
+//! so the p90 of a list is the item with at most a tenth of the list further past its target.
+//! Scores follow Lighthouse's rounding: a metric's score is a whole number from 0 to 100, and a
+//! category's score is the weighted mean of its metric scores, rounded.
 
 use crate::config::{Better, Category, Metric, Rollup};
 use crate::lines::Line;
 use crate::value::{Kind, Value};
+
+/// How many times a category's script runs when its first run writes a time. Timing items take
+/// their median across the runs.
+pub const ROUNDS: usize = 5;
 
 /// The smallest gain, in category points, that counts as an opportunity. Smaller gains round to
 /// zero.
@@ -38,6 +42,8 @@ pub struct MetricScore {
     pub items: Vec<Item>,
     /// The kind of value the script wrote.
     pub kind: Kind,
+    /// The target the line sets, for a metric written without items.
+    pub line_target: Option<Value>,
     /// The metric's configuration.
     pub metric: Metric,
     /// The score from 0 to 100. A check always has one, and other metrics have one when every
@@ -55,7 +61,8 @@ pub struct MetricScore {
 pub struct Item {
     /// The item name, such as `viem/chains`.
     pub name: String,
-    /// The target the item's line sets, when it sets one.
+    /// The item's own target instead of the metric's default: from the first pattern in
+    /// `targets` that matches it, or else from its line.
     pub target: Option<Value>,
     /// The item's value. A timing item holds its median across rounds.
     pub value: Value,
@@ -270,14 +277,26 @@ fn metric(metric: &Metric, rounds: &[Vec<Line<'_>>]) -> Option<MetricScore> {
                 line.value
             };
 
+            // A pattern in `targets` has the final say, then the line's own target.
+            let own = line
+                .item
+                .as_deref()
+                .and_then(|item| metric.pattern(item))
+                .map(|pattern| pattern.target)
+                .or(line.target);
+
             Measure {
                 name: line.item.as_deref().map(str::to_owned),
-                own: line.target,
-                target: line.target.and_then(Value::amount).or(default),
+                own,
+                target: own.and_then(Value::amount).or(default),
                 value,
             }
         })
         .collect();
+    let line_target = lines
+        .first()
+        .filter(|line| line.item.is_none())
+        .and_then(|line| line.target);
 
     let evaluated = evaluate(metric, kind, &measures);
     let at = evaluated
@@ -311,6 +330,7 @@ fn metric(metric: &Metric, rounds: &[Vec<Line<'_>>]) -> Option<MetricScore> {
             })
             .collect(),
         kind,
+        line_target,
         metric: metric.clone(),
         score: evaluated.score,
         target: evaluated.target.map(|target| Value::of(kind, target)),
@@ -395,8 +415,8 @@ fn measures(metric: &MetricScore) -> Vec<Measure> {
         };
         return vec![Measure {
             name: None,
-            own: None,
-            target: default,
+            own: metric.line_target,
+            target: metric.line_target.and_then(Value::amount).or(default),
             value,
         }];
     }

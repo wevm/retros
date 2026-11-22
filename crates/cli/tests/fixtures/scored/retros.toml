@@ -1,4 +1,4 @@
-# Scores one value, a list, an unscored count, and a list of checks, then timings over rounds
+# Scores one value, a list, an unscored count, and a list of checks, then timings over 5 rounds
 # and a count where higher is better.
 
 [footprint]
@@ -10,6 +10,5 @@ links = {}
 
 [speed]
 run = "sh speed.sh"
-rounds = 5
 render = { target = "2ms" }
 throughput = { target = 2000, better = "higher", weight = 2 }

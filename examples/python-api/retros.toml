@@ -2,8 +2,6 @@
 
 [api]
 run = "python3 metrics.py"
-# Retros runs this script 3 times and takes the median of each timing.
-rounds = 3
 timeout = "1m"
 # Median latency of each route. The route at the p90 is scored.
 latency = { target = "1ms" }

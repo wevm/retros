@@ -18,14 +18,13 @@ fn parses_categories_in_order_with_defaults() {
     let source = r#"
 [speed]
 run = "node metrics/speed.mjs"
-rounds = 8
 timeout = "1.5s"
 throughput = { target = 2000, better = "higher", weight = 2 }
 decode = { score = "median" }
 
 [footprint]
 run = "node metrics/footprint.mjs"
-export-size = { target = "1.1kB" }
+export-size = { target = "1.1kB", targets = { "viem" = "60kB", "viem/chains/*" = "1kB" } }
 bundle = { target = "45.6MB" }
 modules = {}
 "#;
@@ -45,7 +44,7 @@ modules = {}
                         better: Higher,
                         location: Location {
                             column: 1,
-                            line: 6,
+                            line: 5,
                         },
                         name: "throughput",
                         score: P10,
@@ -54,36 +53,37 @@ modules = {}
                                 2000.0,
                             ),
                         ),
+                        targets: [],
                         weight: 2.0,
                     },
                     Metric {
                         better: Lower,
                         location: Location {
                             column: 1,
-                            line: 7,
+                            line: 6,
                         },
                         name: "decode",
                         score: Median,
                         target: None,
+                        targets: [],
                         weight: 1.0,
                     },
                 ],
                 name: "speed",
-                rounds: 8,
                 run: "node metrics/speed.mjs",
                 timeout: 1.5s,
             },
             Category {
                 location: Location {
                     column: 2,
-                    line: 9,
+                    line: 8,
                 },
                 metrics: [
                     Metric {
                         better: Lower,
                         location: Location {
                             column: 1,
-                            line: 11,
+                            line: 10,
                         },
                         name: "export-size",
                         score: P90,
@@ -92,13 +92,35 @@ modules = {}
                                 1100.0,
                             ),
                         ),
+                        targets: [
+                            Pattern {
+                                location: Location {
+                                    column: 47,
+                                    line: 10,
+                                },
+                                pattern: "viem",
+                                target: Size(
+                                    60000.0,
+                                ),
+                            },
+                            Pattern {
+                                location: Location {
+                                    column: 64,
+                                    line: 10,
+                                },
+                                pattern: "viem/chains/*",
+                                target: Size(
+                                    1000.0,
+                                ),
+                            },
+                        ],
                         weight: 1.0,
                     },
                     Metric {
                         better: Lower,
                         location: Location {
                             column: 1,
-                            line: 12,
+                            line: 11,
                         },
                         name: "bundle",
                         score: P90,
@@ -107,22 +129,23 @@ modules = {}
                                 45600000.0,
                             ),
                         ),
+                        targets: [],
                         weight: 1.0,
                     },
                     Metric {
                         better: Lower,
                         location: Location {
                             column: 1,
-                            line: 13,
+                            line: 12,
                         },
                         name: "modules",
                         score: P90,
                         target: None,
+                        targets: [],
                         weight: 1.0,
                     },
                 ],
                 name: "footprint",
-                rounds: 5,
                 run: "node metrics/footprint.mjs",
                 timeout: 600s,
             },
@@ -220,12 +243,6 @@ fn rejects_invalid_toml_and_structure() {
 
 #[test]
 fn rejects_invalid_category_settings() {
-    insta::assert_snapshot!(error("[speed]\nrun = \"true\"\nrounds = 0\nm = {}\n"), @"
-    [invalid-value] retros.toml:3:10: `rounds` must be a whole number greater than zero
-      3 | rounds = 0
-        |          ^
-    ");
-
     insta::assert_snapshot!(error("[speed]\nrun = \"true\"\ntimeout = \"10 minutes\"\nm = {}\n"), @r#"
     [invalid-value] retros.toml:3:11: invalid `timeout` `10 minutes`, expected a duration such as "30s", "10m", or "500ms"
       3 | timeout = "10 minutes"
@@ -242,13 +259,13 @@ fn rejects_invalid_category_settings() {
 #[test]
 fn rejects_invalid_metric_settings() {
     insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { target = \"5kB\", goal = 1 }\n"), @r#"
-    [unexpected-key] retros.toml:3:26: unknown key `goal` in metric `size`, expected one of `better`, `score`, `target`, `weight`
+    [unexpected-key] retros.toml:3:26: unknown key `goal` in metric `size`, expected one of `better`, `score`, `target`, `targets`, `weight`
       3 | size = { target = "5kB", goal = 1 }
         |                          ^
     "#);
 
     insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { target = \"5kB\", limit = \"50kB\" }\n"), @r#"
-    [unexpected-key] retros.toml:3:26: unknown key `limit` in metric `size`, expected one of `better`, `score`, `target`, `weight`
+    [unexpected-key] retros.toml:3:26: unknown key `limit` in metric `size`, expected one of `better`, `score`, `target`, `targets`, `weight`
       3 | size = { target = "5kB", limit = "50kB" }
         |                          ^
     "#);
@@ -308,5 +325,17 @@ fn rejects_targets_that_cannot_score() {
     [invalid-type] retros.toml:3:19: `target` must be a value such as "5kB", "20ms", or a number
       3 | size = { target = ["5kB"] }
         |                   ^
+    "#);
+
+    insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { targets = \"5kB\" }\n"), @r#"
+    [invalid-type] retros.toml:3:20: `targets` must be a table of item patterns and their targets, such as `targets = { "viem/chains/*" = "1kB" }`
+      3 | size = { targets = "5kB" }
+        |                    ^
+    "#);
+
+    insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { targets = { \"viem/*\" = 0 } }\n"), @r#"
+    [target-range] retros.toml:3:33: the `target` of metric `size` must be greater than zero
+      3 | size = { targets = { "viem/*" = 0 } }
+        |                                 ^
     "#);
 }

@@ -1,10 +1,13 @@
-//! `retros.lock`: the accepted values of every size, count, and check, and the changes since.
+//! `retros.lock`: the accepted value of every size, count, and check, the targets scripts set on
+//! their lines, and the changes since.
 //!
 //! The lock is TOML. Each category is a table, a metric without items is a key, and a metric
-//! with items is a table of items sorted by name, so a change shows as one line in a diff.
-//! Timings are left out: they differ between machines, and comparing them needs interleaved runs
-//! on one machine. Without timings, updating the lock twice from the same code writes the same
-//! file.
+//! with items is a table of items sorted by name, so a change shows as one line in a diff. A line
+//! that sets its own target records it after the value, as metric lines write it, so a script
+//! that loosens its own target changes the lock like a regression does. Timing values are left
+//! out: they differ between machines, and comparing them needs interleaved runs on one machine.
+//! A timing item appears only to record its line's target. Updating the lock twice from the same
+//! code writes the same file.
 //!
 //! ```toml
 //! [footprint]
@@ -13,7 +16,10 @@
 //!
 //! [footprint.export-size]
 //! "viem" = "1000B"
-//! "viem/chains" = "61000B"
+//! "viem/chains" = "61000B target 80000B"
+//!
+//! [speed.import-time]
+//! "viem" = "target 20000000ns"
 //! ```
 
 use std::borrow::Cow;
@@ -22,7 +28,7 @@ use std::fmt::Write;
 use toml::Spanned;
 use toml::de::{DeTable, DeValue};
 
-use crate::config::{Better, Config};
+use crate::config::{Better, Config, Metric};
 use crate::error::{Code, Error, Location};
 use crate::report::Report;
 use crate::score::MetricScore;
@@ -35,25 +41,36 @@ pub struct Lock {
     pub categories: Vec<(String, Vec<(String, Entry)>)>,
 }
 
-/// One metric's recorded value.
+/// One metric's recorded entry.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Entry {
-    /// Each item and its value, sorted by name.
-    Items(Vec<(String, Value)>),
-    /// The value of a metric without items.
-    Value(Value),
+    /// Each item's record, sorted by name.
+    Items(Vec<(String, Record)>),
+    /// The record of a metric without items.
+    Single(Record),
+}
+
+/// What the lock records for one measurement.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Record {
+    /// The target the measurement's line sets, unless a pattern in `targets` overrides it.
+    pub target: Option<Value>,
+    /// The size, count, or check, or `None` for a timing.
+    pub value: Option<Value>,
 }
 
 /// One difference between a run and the lock.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Change {
-    /// The value in this run, or `None` for a metric or item that is gone.
+    /// The value in this run, or `None` for a metric or item that is gone. For a target change,
+    /// the target in this run.
     pub after: Option<Value>,
-    /// The recorded value, or `None` for a new metric or item.
+    /// The recorded value, or `None` for a new metric or item. For a target change, the recorded
+    /// target.
     pub before: Option<Value>,
     /// The category name.
     pub category: String,
-    /// Whether the change is better, worse, new, or gone.
+    /// What changed: a value, a target, or whether the metric or item exists.
     pub direction: Direction,
     /// The item that changed, or `None` for the whole metric.
     pub item: Option<String>,
@@ -68,8 +85,12 @@ pub enum Direction {
     Better,
     /// The metric or item is in the lock but not in this run.
     Gone,
+    /// The target is easier to meet than the recorded one, or was removed.
+    Looser,
     /// The metric or item is in this run but not in the lock.
     New,
+    /// The target is harder to meet than the recorded one, or is new.
+    Tighter,
     /// The value moved in its worse direction, or a check now fails.
     Worse,
 }
@@ -80,9 +101,16 @@ impl Direction {
         match self {
             Self::Better => "better",
             Self::Gone => "gone",
+            Self::Looser => "looser",
             Self::New => "new",
+            Self::Tighter => "tighter",
             Self::Worse => "worse",
         }
+    }
+
+    /// Returns whether the change is to a target rather than a value.
+    pub fn is_target(self) -> bool {
+        matches!(self, Self::Looser | Self::Tighter)
     }
 }
 
@@ -90,8 +118,8 @@ impl Direction {
 ///
 /// # Errors
 ///
-/// Returns the first error: TOML syntax, a value that is not a size, count, or check, or a
-/// table where a value belongs.
+/// Returns the first error: TOML syntax, a record that is not a size, count, or check with an
+/// optional target, or a table where a record belongs.
 pub fn parse(source: &str) -> Result<Lock, Error> {
     let document = DeTable::parse(source).map_err(|error| Error {
         code: Code::Toml,
@@ -112,11 +140,11 @@ pub fn parse(source: &str) -> Result<Lock, Error> {
                 DeValue::Table(items) => {
                     let mut recorded = Vec::new();
                     for (item, value) in items {
-                        recorded.push((item.get_ref().to_string(), self::value(source, value)?));
+                        recorded.push((item.get_ref().to_string(), record(source, value)?));
                     }
                     Entry::Items(recorded)
                 }
-                _ => Entry::Value(self::value(source, value)?),
+                _ => Entry::Single(record(source, value)?),
             };
             entries.push((metric.get_ref().to_string(), entry));
         }
@@ -131,22 +159,22 @@ pub fn parse(source: &str) -> Result<Lock, Error> {
 /// Renders a lock as TOML.
 pub fn render(lock: &Lock) -> String {
     let mut out = String::from(
-        "# The accepted value of every size, count, and check. `retros --update` writes this file.\n# Commit it, so each run reports what changed since.\n",
+        "# The accepted value of every size, count, and check, and the targets scripts set on their\n# lines. `retros --update` writes this file. Commit it, so each run reports what changed since.\n",
     );
 
     for (category, entries) in &lock.categories {
         let _ = write!(out, "\n[{}]\n", key(category));
         for (metric, entry) in entries {
-            if let Entry::Value(value) = entry {
-                let _ = writeln!(out, "{} = {}", key(metric), literal(*value));
+            if let Entry::Single(record) = entry {
+                let _ = writeln!(out, "{} = {}", key(metric), literal(*record));
             }
         }
 
         for (metric, entry) in entries {
             if let Entry::Items(items) = entry {
                 let _ = write!(out, "\n[{}.{}]\n", key(category), key(metric));
-                for (item, value) in items {
-                    let _ = writeln!(out, "{} = {}", quoted(item), literal(*value));
+                for (item, record) in items {
+                    let _ = writeln!(out, "{} = {}", quoted(item), literal(*record));
                 }
             }
         }
@@ -155,9 +183,9 @@ pub fn render(lock: &Lock) -> String {
     out
 }
 
-/// Returns the lock after a run: categories that ran record their sizes, counts, and checks, and
-/// categories that did not run or failed keep their previous entries. Categories follow the order
-/// of `retros.toml`, and categories it no longer declares are dropped.
+/// Returns the lock after a run: categories that ran record their sizes, counts, checks, and line
+/// targets, and categories that did not run or failed keep their previous entries. Categories
+/// follow the order of `retros.toml`, and categories it no longer declares are dropped.
 pub fn update(previous: Option<&Lock>, config: &Config, report: &Report) -> Lock {
     let mut lock = Lock::default();
 
@@ -193,77 +221,74 @@ pub fn compare(lock: &Lock, report: &Report) -> Vec<Change> {
             continue;
         };
         let recorded = entries(lock, &category.name).unwrap_or_default();
-        let change = |metric: &str, item: Option<&str>, before, after, direction| Change {
-            after,
-            before,
-            category: category.name.clone(),
-            direction,
-            item: item.map(str::to_owned),
-            metric: metric.to_owned(),
+        let mut push = |metric: &str, item: Option<&str>, before, after, direction| {
+            changes.push(Change {
+                after,
+                before,
+                category: category.name.clone(),
+                direction,
+                item: item.map(str::to_owned),
+                metric: metric.to_owned(),
+            });
         };
 
         for metric in &scored.metrics {
-            let Some(current) = entry(metric) else {
+            let name = metric.metric.name.as_str();
+            let before = recorded.iter().find(|(m, _)| m == name).map(|(_, e)| e);
+            let after = entry(metric).map(|(_, entry)| entry);
+
+            // A timing has no recorded value, so a missing record means no line target.
+            if metric.kind == Kind::Time {
+                let none = Entry::Items(Vec::new());
+                let records = pair(before.unwrap_or(&none), after.as_ref().unwrap_or(&none));
+                for (item, before, after) in records {
+                    let (before, after) = (before.unwrap_or_default(), after.unwrap_or_default());
+                    if let Some((before, after, direction)) =
+                        target_change(&metric.metric, item, before.target, after.target)
+                    {
+                        push(name, item, before, after, direction);
+                    }
+                }
+                continue;
+            }
+
+            let (Some(before), Some(after)) = (before, after) else {
+                push(name, None, None, None, Direction::New);
                 continue;
             };
-            let name = metric.metric.name.as_str();
-            let better = metric.metric.better;
+            if matches!(before, Entry::Single(_)) != matches!(after, Entry::Single(_)) {
+                push(name, None, None, None, Direction::New);
+                continue;
+            }
 
-            match (
-                recorded.iter().find(|(m, _)| m == name).map(|(_, e)| e),
-                current.1,
-            ) {
-                (Some(Entry::Value(before)), Entry::Value(after)) => {
-                    if let Some(direction) = direction(*before, after, better) {
-                        changes.push(change(name, None, Some(*before), Some(after), direction));
-                    }
-                }
-                (Some(Entry::Items(before)), Entry::Items(after)) => {
-                    for (item, value) in &after {
-                        match before.iter().find(|(name, _)| name == item) {
-                            Some((_, old)) => {
-                                if let Some(direction) = direction(*old, *value, better) {
-                                    changes.push(change(
-                                        name,
-                                        Some(item),
-                                        Some(*old),
-                                        Some(*value),
-                                        direction,
-                                    ));
-                                }
-                            }
-                            None => changes.push(change(
-                                name,
-                                Some(item),
-                                None,
-                                Some(*value),
-                                Direction::New,
-                            )),
+            for (item, before, after) in pair(before, &after) {
+                match (before, after) {
+                    (Some(before), Some(after)) => {
+                        if let (Some(old), Some(new)) = (before.value, after.value)
+                            && let Some(direction) = direction(old, new, metric.metric.better)
+                        {
+                            push(name, item, Some(old), Some(new), direction);
+                        }
+                        if let Some((old, new, direction)) =
+                            target_change(&metric.metric, item, before.target, after.target)
+                        {
+                            push(name, item, old, new, direction);
                         }
                     }
-                    for (item, value) in before {
-                        if !after.iter().any(|(name, _)| name == item) {
-                            changes.push(change(
-                                name,
-                                Some(item),
-                                Some(*value),
-                                None,
-                                Direction::Gone,
-                            ));
-                        }
-                    }
+                    (None, Some(after)) => push(name, item, None, after.value, Direction::New),
+                    (Some(before), None) => push(name, item, before.value, None, Direction::Gone),
+                    (None, None) => {}
                 }
-                _ => changes.push(change(name, None, None, None, Direction::New)),
             }
         }
 
         for (metric, _) in recorded {
-            let reported = scored
+            if !scored
                 .metrics
                 .iter()
-                .any(|scored| scored.metric.name == *metric && scored.kind != Kind::Time);
-            if !reported {
-                changes.push(change(metric, None, None, None, Direction::Gone));
+                .any(|scored| scored.metric.name == *metric)
+            {
+                push(metric, None, None, None, Direction::Gone);
             }
         }
     }
@@ -278,24 +303,72 @@ fn entries<'a>(lock: &'a Lock, category: &str) -> Option<&'a [(String, Entry)]> 
         .map(|(_, entries)| entries.as_slice())
 }
 
-/// Returns the entry a scored metric records, or `None` for a timing.
-fn entry(metric: &MetricScore) -> Option<(String, Entry)> {
-    if metric.kind == Kind::Time {
-        return None;
+/// Pairs the records of two entries by item: each item in either, with its record on each side.
+/// Two entries without items pair as one record with no item.
+fn pair<'a>(
+    before: &'a Entry,
+    after: &'a Entry,
+) -> Vec<(Option<&'a str>, Option<Record>, Option<Record>)> {
+    match (before, after) {
+        (Entry::Single(before), Entry::Single(after)) => vec![(None, Some(*before), Some(*after))],
+        (Entry::Items(before), Entry::Items(after)) => {
+            let find = |items: &[(String, Record)], name: &str| {
+                items.iter().find(|(item, _)| item == name).map(|(_, r)| *r)
+            };
+            let mut pairs: Vec<_> = after
+                .iter()
+                .map(|(item, record)| (Some(item.as_str()), find(before, item), Some(*record)))
+                .collect();
+            pairs.extend(
+                before
+                    .iter()
+                    .filter(|(item, _)| find(after, item).is_none())
+                    .map(|(item, record)| (Some(item.as_str()), Some(*record), None)),
+            );
+            pairs
+        }
+        (Entry::Single(before), Entry::Items(_)) => vec![(None, Some(*before), None)],
+        (Entry::Items(_), Entry::Single(after)) => vec![(None, None, Some(*after))],
     }
+}
+
+/// Returns the entry a scored metric records, or `None` for a timing without line targets.
+fn entry(metric: &MetricScore) -> Option<(String, Entry)> {
+    let timing = metric.kind == Kind::Time;
 
     let entry = if metric.items.is_empty() {
         let value = match metric.kind {
-            Kind::Check => Value::Check(metric.value >= 1.0),
-            kind => Value::of(kind, metric.value),
+            Kind::Check => Some(Value::Check(metric.value >= 1.0)),
+            Kind::Time => None,
+            kind => Some(Value::of(kind, metric.value)),
         };
-        Entry::Value(value)
+        if value.is_none() && metric.line_target.is_none() {
+            return None;
+        }
+        Entry::Single(Record {
+            target: metric.line_target,
+            value,
+        })
     } else {
-        let mut items: Vec<(String, Value)> = metric
+        // An item's own target is its line's, unless a pattern in `targets` overrides it.
+        let mut items: Vec<(String, Record)> = metric
             .items
             .iter()
-            .map(|item| (item.name.clone(), item.value))
+            .map(|item| {
+                let line = item
+                    .target
+                    .filter(|_| metric.metric.pattern(&item.name).is_none());
+                let record = Record {
+                    target: line,
+                    value: (!timing).then_some(item.value),
+                };
+                (item.name.clone(), record)
+            })
+            .filter(|(_, record)| record.value.is_some() || record.target.is_some())
             .collect();
+        if items.is_empty() {
+            return None;
+        }
         items.sort_by(|(a, _), (b, _)| a.cmp(b));
         Entry::Items(items)
     };
@@ -314,7 +387,7 @@ fn direction(before: Value, after: Value, better: Better) -> Option<Direction> {
     }
 
     let (before, after) = (before.amount()?, after.amount()?);
-    if (after - before).abs() <= f64::EPSILON * before.abs().max(after.abs()) {
+    if same(before, after) {
         return None;
     }
 
@@ -329,28 +402,114 @@ fn direction(before: Value, after: Value, better: Better) -> Option<Direction> {
     })
 }
 
-fn value(source: &str, value: &Spanned<DeValue<'_>>) -> Result<Value, Error> {
+/// Returns the change between a recorded line target and this run's, as the targets the item is
+/// scored against. Without a line target, an item falls back to the first matching pattern in
+/// `targets`, then the metric's `target`, so removing a line target that equals its fallback
+/// changes nothing.
+fn target_change(
+    metric: &Metric,
+    item: Option<&str>,
+    before: Option<Value>,
+    after: Option<Value>,
+) -> Option<(Option<Value>, Option<Value>, Direction)> {
+    if before == after {
+        return None;
+    }
+
+    let fallback = item
+        .and_then(|item| metric.pattern(item))
+        .map(|pattern| pattern.target)
+        .or(metric.target);
+    let (before, after) = (before.or(fallback), after.or(fallback));
+
+    let direction = match (
+        before.and_then(Value::amount),
+        after.and_then(Value::amount),
+    ) {
+        (Some(old), Some(new)) if same(old, new) => return None,
+        (Some(old), Some(new)) => {
+            let easier = match metric.better {
+                Better::Higher => new < old,
+                Better::Lower => new > old,
+            };
+            if easier {
+                Direction::Looser
+            } else {
+                Direction::Tighter
+            }
+        }
+        (Some(_), None) => Direction::Looser,
+        (None, Some(_)) => Direction::Tighter,
+        (None, None) => return None,
+    };
+
+    Some((before, after, direction))
+}
+
+/// Returns whether two amounts are equal within rounding.
+fn same(a: f64, b: f64) -> bool {
+    (a - b).abs() <= f64::EPSILON * a.abs().max(b.abs())
+}
+
+/// Parses a record: a value, a value followed by `target <value>`, or `target <value>` alone for a
+/// timing.
+fn record(source: &str, value: &Spanned<DeValue<'_>>) -> Result<Record, Error> {
+    const EXPECTED: &str = "a size, count, or check, optionally followed by `target <value>`";
     let at = value.span().start;
 
-    match value.get_ref() {
-        DeValue::Integer(integer) if integer.radix() == 10 => integer
-            .as_str()
-            .replace('_', "")
-            .parse()
-            .map(Value::Count)
-            .map_err(|_| invalid(source, at, "a number")),
-        DeValue::Float(float) => float
-            .as_str()
-            .replace('_', "")
-            .parse()
-            .map(Value::Count)
-            .map_err(|_| invalid(source, at, "a number")),
-        DeValue::String(text) => value::parse(text)
-            .ok()
-            .filter(|value| value.kind() != Kind::Time)
-            .ok_or_else(|| invalid(source, at, "a size, count, or check")),
-        _ => Err(invalid(source, at, "a size, count, or check")),
-    }
+    let text = match value.get_ref() {
+        DeValue::Integer(integer) if integer.radix() == 10 => {
+            return integer
+                .as_str()
+                .replace('_', "")
+                .parse()
+                .map(|n| Record {
+                    target: None,
+                    value: Some(Value::Count(n)),
+                })
+                .map_err(|_| invalid(source, at, "a number"));
+        }
+        DeValue::Float(float) => {
+            return float
+                .as_str()
+                .replace('_', "")
+                .parse()
+                .map(|n| Record {
+                    target: None,
+                    value: Some(Value::Count(n)),
+                })
+                .map_err(|_| invalid(source, at, "a number"));
+        }
+        DeValue::String(text) => text,
+        _ => return Err(invalid(source, at, EXPECTED)),
+    };
+
+    let (recorded, target) = match text.strip_prefix("target ") {
+        Some(target) => (None, Some(target)),
+        None => match text.split_once(" target ") {
+            Some((recorded, target)) => (Some(recorded), Some(target)),
+            None => (Some(text.as_ref()), None),
+        },
+    };
+
+    let value = recorded
+        .map(|recorded| {
+            value::parse(recorded)
+                .ok()
+                .filter(|value| value.kind() != Kind::Time)
+        })
+        .map(|value| value.ok_or_else(|| invalid(source, at, EXPECTED)))
+        .transpose()?;
+    let target = target
+        .map(|target| {
+            value::parse(target)
+                .ok()
+                .filter(|target| target.amount().is_some())
+        })
+        .map(|target| target.ok_or_else(|| invalid(source, at, EXPECTED)))
+        .transpose()?;
+
+    Ok(Record { target, value })
 }
 
 #[cold]
@@ -363,15 +522,31 @@ fn invalid(source: &str, offset: usize, expected: &str) -> Error {
     )
 }
 
-/// Formats a value as a TOML literal: a string for sizes and checks, a number for counts.
-fn literal(value: Value) -> String {
-    match value {
-        Value::Check(true) => "\"pass\"".to_owned(),
-        Value::Check(false) => "\"fail\"".to_owned(),
+/// Formats a record as a TOML literal: a number for a count without a target, and otherwise a
+/// string in base units, such as `"61000B target 80000B"`.
+fn literal(record: Record) -> String {
+    let unit = |value: Value| match value {
+        Value::Check(true) => "pass".to_owned(),
+        Value::Check(false) => "fail".to_owned(),
         Value::Count(n) => format!("{n}"),
-        Value::Size(bytes) => format!("\"{bytes}B\""),
-        Value::Time(nanos) => format!("\"{nanos}ns\""),
+        Value::Size(bytes) => format!("{bytes}B"),
+        Value::Time(nanos) => format!("{nanos}ns"),
+    };
+
+    if let (Some(Value::Count(n)), None) = (record.value, record.target) {
+        return format!("{n}");
     }
+
+    let parts: Vec<String> = [
+        record.value.map(unit),
+        record
+            .target
+            .map(|target| format!("target {}", unit(target))),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    format!("\"{}\"", parts.join(" "))
 }
 
 /// Formats a key, bare when TOML allows it.

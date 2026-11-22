@@ -1,17 +1,18 @@
 //! `retros [category]`: runs each category's script, scores its metrics, prints each category as
 //! it finishes, then the opportunities and the changes since `retros.lock`. It writes
 //! `.retros/report.json` and `.retros/report.md` beside `retros.toml`, and with `--update`
-//! records this run's sizes, counts, and checks in `retros.lock`.
+//! records this run's sizes, counts, checks, and line targets in `retros.lock`.
 //!
 //! The command exits with status 0 when every category ran and passed its checks, and with
 //! status 1 when any category failed. With `--require-baseline`, it also exits with status 1 when
-//! a size, count, or check is worse than `retros.lock`. Scores do not change the exit status.
+//! anything differs from `retros.lock`, or when there is no lock. Scores do not change the exit
+//! status.
 
 use std::io::{self, Write as _};
 use std::process::ExitCode;
 
 use engine::config::Category;
-use engine::lock::{self, Direction};
+use engine::lock;
 use engine::report::{CategoryReport, Report};
 
 use crate::measure;
@@ -22,7 +23,7 @@ use crate::project::Project;
 pub(crate) struct Options {
     /// The category to run, or `None` for every category.
     pub(crate) category: Option<String>,
-    /// Whether a size, count, or check worse than `retros.lock` fails the run.
+    /// Whether any difference from `retros.lock` fails the run.
     pub(crate) require_baseline: bool,
     /// Whether to record this run in `retros.lock`.
     pub(crate) update: bool,
@@ -151,20 +152,25 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
         .categories
         .iter()
         .any(|category| category.result.is_err());
-    let worse = report
-        .changes
-        .iter()
-        .flatten()
-        .filter(|change| change.direction == Direction::Worse)
-        .count();
 
-    if options.require_baseline && !options.update && worse > 0 {
-        let _ = writeln!(
-            io::stdout(),
-            "\n{} worse than {lock_name}",
-            measure::count(worse, "value")
-        );
-        return Ok(ExitCode::FAILURE);
+    // Like a snapshot test, the baseline gate fails on any difference, so improvements are
+    // recorded and become the new floor.
+    if options.require_baseline && !options.update {
+        let message = match &report.changes {
+            None => Some(format!(
+                "--require-baseline needs {lock_name}. Run `retros --update` to record one"
+            )),
+            Some(changes) if !changes.is_empty() => Some(format!(
+                "{} since {lock_name}. Run `retros --update` to accept {}",
+                measure::count(changes.len(), "change"),
+                if changes.len() == 1 { "it" } else { "them" }
+            )),
+            Some(_) => None,
+        };
+        if let Some(message) = message {
+            let _ = writeln!(io::stdout(), "\n{message}");
+            return Ok(ExitCode::FAILURE);
+        }
     }
 
     Ok(if failed {

@@ -14,14 +14,19 @@ modules = {}
 
 /// Checks `metrics` against the `[footprint]` category and renders every finding.
 fn check(metrics: &str) -> String {
-    let config = config::parse(CONFIG).unwrap();
-    let category = config.categories.first().unwrap();
-    let lines = lines::parse(metrics).unwrap();
-
-    render(&check::category(category, &lines), metrics)
+    check_in(CONFIG, metrics)
 }
 
-fn render(report: &Report, metrics: &str) -> String {
+/// Checks `metrics` against the first category of `config` and renders every finding.
+fn check_in(config: &str, metrics: &str) -> String {
+    let parsed = config::parse(config).unwrap();
+    let category = parsed.categories.first().unwrap();
+    let lines = lines::parse(metrics).unwrap();
+
+    render(&check::category(category, &lines), config, metrics)
+}
+
+fn render(report: &Report, config: &str, metrics: &str) -> String {
     let findings = report
         .errors
         .iter()
@@ -31,7 +36,7 @@ fn render(report: &Report, metrics: &str) -> String {
 
     for (severity, finding) in findings {
         let (name, source) = match finding.source {
-            Source::Config => ("retros.toml", CONFIG),
+            Source::Config => ("retros.toml", config),
             Source::Metrics => ("footprint metrics", metrics),
         };
         let _ = write!(
@@ -128,8 +133,34 @@ fn reports_targets_on_some_lines_only() {
 
     insta::assert_snapshot!(report, @"
     passed: false, metrics: 2
-    error [mixed-targets] footprint metrics:3:1: metric `modules` sets a target on some lines but not this one. Set a target on every line, or a default `target` in retros.toml
+    error [mixed-targets] footprint metrics:3:1: metric `modules` sets a target on some items but not this one. Set a target on every line, or a default `target` in retros.toml
       3 | modules ox 120
         | ^
     ");
+}
+
+#[test]
+fn checks_target_patterns() {
+    let config = r#"[footprint]
+run = "true"
+modules = { targets = { "viem*" = 500, "ox" = "1kB", "abitype" = 50 } }
+"#;
+    // Patterns give `viem` and `viem/chains` their targets, so only `zod` lacks one.
+    let report = check_in(
+        config,
+        "modules viem 412\nmodules viem/chains 30\nmodules ox 120 target 200\nmodules zod 9\n",
+    );
+
+    insta::assert_snapshot!(report, @r#"
+    passed: false, metrics: 1
+    error [mixed-targets] footprint metrics:4:1: metric `modules` sets a target on some items but not this one. Set a target on every line, or a default `target` in retros.toml
+      4 | modules zod 9
+        | ^
+    error [target-unit] retros.toml:3:40: metric `modules` is written as counts, but its target for `ox` is a size
+      3 | modules = { targets = { "viem*" = 500, "ox" = "1kB", "abitype" = 50 } }
+        |                                        ^
+    warning [unmatched-pattern] retros.toml:3:54: pattern `abitype` in the `targets` of metric `modules` matches no item
+      3 | modules = { targets = { "viem*" = 500, "ox" = "1kB", "abitype" = 50 } }
+        |                                                      ^
+    "#);
 }

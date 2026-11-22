@@ -1,6 +1,6 @@
 //! Measures one category: runs its script, reads the metric lines, and checks them against the
-//! category's configuration. With rounds, a category whose first run writes a time runs again
-//! until it has run `rounds` times.
+//! category's configuration. A category whose first run writes a time runs again until it has
+//! run [`engine::score::ROUNDS`] times.
 
 use engine::config::Category;
 use engine::report::Failure;
@@ -19,7 +19,8 @@ pub(crate) struct Measured {
     pub(crate) warnings: Vec<String>,
 }
 
-/// Runs `category` once, or `rounds` times when `repeat` is set and the first run writes a time.
+/// Runs `category` once, or [`engine::score::ROUNDS`] times when `repeat` is set and the first run
+/// writes a time.
 ///
 /// # Errors
 ///
@@ -121,7 +122,7 @@ pub(crate) fn category(
 
             let timed = lines.iter().any(|line| line.value.kind() == Kind::Time);
             if repeat && timed {
-                rounds = usize::try_from(category.rounds).unwrap_or(usize::MAX);
+                rounds = engine::score::ROUNDS;
             }
         }
 

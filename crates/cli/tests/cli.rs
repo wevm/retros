@@ -94,15 +94,15 @@ fn help() {
            retros check
 
     Run each category's script, score its metrics, list the opportunities that would raise the
-    scores most, and compare sizes, counts, and checks with retros.lock. Reports go to
-    .retros/report.json and .retros/report.md. Name a category to run only that one.
+    scores most, and compare sizes, counts, checks, and line targets with retros.lock. Reports go
+    to .retros/report.json and .retros/report.md. Name a category to run only that one.
 
     Commands:
       check  Run each script once and check the metric lines it writes
 
     Options:
-      --update            Record this run's sizes, counts, and checks in retros.lock
-      --require-baseline  Exit with status 1 when a size, count, or check is worse than retros.lock
+      --update            Record this run's sizes, counts, checks, and line targets in retros.lock
+      --require-baseline  Exit with status 1 when anything differs from retros.lock
       -h, --help          Print help
       -V, --version       Print version
     ");
@@ -120,15 +120,15 @@ fn unknown_argument() {
            retros check
 
     Run each category's script, score its metrics, list the opportunities that would raise the
-    scores most, and compare sizes, counts, and checks with retros.lock. Reports go to
-    .retros/report.json and .retros/report.md. Name a category to run only that one.
+    scores most, and compare sizes, counts, checks, and line targets with retros.lock. Reports go
+    to .retros/report.json and .retros/report.md. Name a category to run only that one.
 
     Commands:
       check  Run each script once and check the metric lines it writes
 
     Options:
-      --update            Record this run's sizes, counts, and checks in retros.lock
-      --require-baseline  Exit with status 1 when a size, count, or check is worse than retros.lock
+      --update            Record this run's sizes, counts, checks, and line targets in retros.lock
+      --require-baseline  Exit with status 1 when anything differs from retros.lock
       -h, --help          Print help
       -V, --version       Print version
     ");
@@ -146,15 +146,15 @@ fn unknown_check_argument() {
            retros check
 
     Run each category's script, score its metrics, list the opportunities that would raise the
-    scores most, and compare sizes, counts, and checks with retros.lock. Reports go to
-    .retros/report.json and .retros/report.md. Name a category to run only that one.
+    scores most, and compare sizes, counts, checks, and line targets with retros.lock. Reports go
+    to .retros/report.json and .retros/report.md. Name a category to run only that one.
 
     Commands:
       check  Run each script once and check the metric lines it writes
 
     Options:
-      --update            Record this run's sizes, counts, and checks in retros.lock
-      --require-baseline  Exit with status 1 when a size, count, or check is worse than retros.lock
+      --update            Record this run's sizes, counts, checks, and line targets in retros.lock
+      --require-baseline  Exit with status 1 when anything differs from retros.lock
       -h, --help          Print help
       -V, --version       Print version
     ");
@@ -556,24 +556,46 @@ fn scoring_reports_failed_categories() {
 }
 
 #[test]
-fn baselines_report_changes_and_gate_regressions() {
+fn baselines_record_line_targets_and_gate_every_change() {
     let project = fixture("scored");
-    let footprint = project.path().join("footprint.sh");
+    let edit = |file: &str, from: &str, to: &str| {
+        let path = project.path().join(file);
+        let script = fs::read_to_string(&path).unwrap();
+        assert!(script.contains(from), "{file} writes `{from}`");
+        fs::write(&path, script.replace(from, to)).unwrap();
+    };
 
+    let missing = retros_in(project.path(), &["footprint", "--require-baseline"], &[]);
+    assert_eq!(missing.status.code(), Some(1));
+    assert!(stdout(&missing).ends_with(
+        "\n--require-baseline needs retros.lock. Run `retros --update` to record one\n"
+    ));
+
+    // The lock records the targets lines set, including a timing's, whose value it leaves out.
+    edit(
+        "footprint.sh",
+        "export-size viem 1kB\n",
+        "export-size viem 1kB target 2kB\n",
+    );
+    edit(
+        "speed.sh",
+        "render encode 2ms",
+        "render encode 2ms target 3ms",
+    );
     let recorded = retros_in(project.path(), &["--update"], &[]);
 
     assert_eq!(recorded.status.code(), Some(0));
     let lock = fs::read_to_string(project.path().join("retros.lock")).unwrap();
     insta::assert_snapshot!(lock, @r#"
-    # The accepted value of every size, count, and check. `retros --update` writes this file.
-    # Commit it, so each run reports what changed since.
+    # The accepted value of every size, count, and check, and the targets scripts set on their
+    # lines. `retros --update` writes this file. Commit it, so each run reports what changed since.
 
     [footprint]
     bundle = "27500B"
     modules = 412
 
     [footprint.export-size]
-    "viem" = "1000B"
+    "viem" = "1000B target 2000B"
     "viem/accounts" = "2000B"
     "viem/actions" = "3000B"
     "viem/chains" = "10000B"
@@ -591,21 +613,48 @@ fn baselines_report_changes_and_gate_regressions() {
 
     [speed]
     throughput = 2588
+
+    [speed.render]
+    "encode" = "target 3000000ns"
     "#);
 
-    let script = fs::read_to_string(&footprint)
-        .unwrap()
-        .replace(
-            "export-size viem/chains 10kB",
-            "export-size viem/chains 12kB",
-        )
-        .replace("links about.html fail", "links about.html pass")
-        .replace(
-            "export-size viem/window 6kB\n",
-            "export-size viem/tempo 4kB\n",
-        );
-    fs::write(&footprint, script).unwrap();
+    // An improvement alone fails the gate until it is accepted, so it becomes the new floor.
+    edit(
+        "footprint.sh",
+        "links about.html fail",
+        "links about.html pass",
+    );
+    let improved = retros_in(project.path(), &["footprint", "--require-baseline"], &[]);
 
+    assert_eq!(improved.status.code(), Some(1));
+    assert!(stdout(&improved).ends_with(
+        "
+Since retros.lock
+  better  footprint  links about.html  fail → pass
+
+Wrote .retros/report.json, .retros/report.md
+
+1 change since retros.lock. Run `retros --update` to accept it
+"
+    ));
+    let accepted = retros_in(project.path(), &["footprint", "--update"], &[]);
+    assert_eq!(accepted.status.code(), Some(0));
+
+    edit(
+        "footprint.sh",
+        "export-size viem/chains 10kB",
+        "export-size viem/chains 12kB",
+    );
+    edit(
+        "footprint.sh",
+        "export-size viem/window 6kB\n",
+        "export-size viem/tempo 4kB\n",
+    );
+    edit(
+        "footprint.sh",
+        "export-size viem 1kB target 2kB",
+        "export-size viem 1kB target 3kB",
+    );
     let gated = retros_in(project.path(), &["footprint", "--require-baseline"], &[]);
 
     assert_eq!(gated.status.code(), Some(1));
@@ -626,13 +675,13 @@ fn baselines_report_changes_and_gate_regressions() {
 
     Since retros.lock
       worse   footprint  export-size viem/chains  10 kB → 12 kB
+      looser  footprint  export-size viem         target 2 kB → 3 kB
       new     footprint  export-size viem/tempo   4 kB
       gone    footprint  export-size viem/window  6 kB
-      better  footprint  links about.html         fail → pass
 
     Wrote .retros/report.json, .retros/report.md
 
-    1 value worse than retros.lock
+    4 changes since retros.lock. Run `retros --update` to accept them
     ");
 }
 
@@ -649,7 +698,7 @@ fn rejects_an_invalid_lock() {
 
     assert_eq!(output.status.code(), Some(2));
     insta::assert_snapshot!(stderr(&output), @r#"
-    error[invalid-value] retros.lock:2:10: expected a size, count, or check. Run `retros --update` to rewrite retros.lock
+    error[invalid-value] retros.lock:2:10: expected a size, count, or check, optionally followed by `target <value>`. Run `retros --update` to rewrite retros.lock
       2 | bundle = "27.5 kilobytes"
         |          ^
     "#);

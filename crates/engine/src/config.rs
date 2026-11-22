@@ -1,13 +1,15 @@
 //! The `retros.toml` configuration.
 //!
 //! Each top-level table is a category. A category's `run` key is the command that measures it,
-//! `rounds` and `timeout` are optional, and every other key is a metric. A metric is a table of
-//! optional keys: `target`, `weight`, `score`, and `better`.
+//! `timeout` is optional, and every other key is a metric. A metric is a table of optional keys:
+//! `target`, `targets`, `weight`, `score`, and `better`. `target` is the default for every item,
+//! a metric line can set its own, and `targets` sets targets by item pattern and has the final
+//! say.
 //!
 //! ```toml
 //! [footprint]
-//! run = "node metrics/footprint.ts"
-//! export-size = { target = "5kB" }
+//! run = "bun metrics/footprint.ts"
+//! export-size = { target = "5kB", targets = { "viem" = "60kB", "viem/chains/*" = "1kB" } }
 //! ```
 
 use std::borrow::Cow;
@@ -21,10 +23,7 @@ use crate::lines::is_name;
 use crate::value::{self, Value};
 
 /// Keys a metric table accepts, in the order error messages list them.
-const METRIC_KEYS: [&str; 4] = ["better", "score", "target", "weight"];
-
-/// Rounds a timing metric runs when its category sets no `rounds`.
-const DEFAULT_ROUNDS: u32 = 5;
+const METRIC_KEYS: [&str; 5] = ["better", "score", "target", "targets", "weight"];
 
 /// Time a script may run when its category sets no `timeout`.
 const DEFAULT_TIMEOUT: Duration = Duration::from_mins(10);
@@ -45,8 +44,6 @@ pub struct Category {
     pub metrics: Vec<Metric>,
     /// The category name, such as `footprint`.
     pub name: String,
-    /// How many times timing metrics run. Defaults to 5.
-    pub rounds: u32,
     /// The shell command that runs the script.
     pub run: String,
     /// How long one run may take before Retros stops it. Defaults to 10 minutes.
@@ -65,11 +62,57 @@ pub struct Metric {
     /// How a list of items collapses to one value. Defaults to `p90`, or `p10` when higher is
     /// better.
     pub score: Rollup,
-    /// The value the metric must meet, which scores 90. A metric without a target is shown but
-    /// not scored.
+    /// The value each item must meet, which scores 90, unless its line or `targets` sets another.
+    /// A metric without any target is shown but not scored.
     pub target: Option<Value>,
+    /// Targets by item pattern, in the order the file declares them. The first pattern that
+    /// matches an item sets its target, over the item's line and the default.
+    pub targets: Vec<Pattern>,
     /// The metric's weight in its category. Defaults to 1.
     pub weight: f64,
+}
+
+impl Metric {
+    /// Returns the first pattern in `targets` that matches `item`.
+    pub fn pattern(&self, item: &str) -> Option<&Pattern> {
+        self.targets.iter().find(|pattern| pattern.matches(item))
+    }
+}
+
+/// An item pattern and the target it sets, such as `"viem/chains/*" = "1kB"`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Pattern {
+    /// The position of the pattern.
+    pub location: Location,
+    /// The pattern. `*` matches any run of characters, and every other character matches itself.
+    pub pattern: String,
+    /// The target of every item the pattern matches.
+    pub target: Value,
+}
+
+impl Pattern {
+    /// Returns whether the pattern matches an item name.
+    pub fn matches(&self, item: &str) -> bool {
+        let mut parts = self.pattern.split('*');
+        let Some(mut rest) = item.strip_prefix(parts.next().unwrap_or_default()) else {
+            return false;
+        };
+        let parts: Vec<&str> = parts.collect();
+        let Some((last, middle)) = parts.split_last() else {
+            return rest.is_empty();
+        };
+
+        // Each middle part matches at its first occurrence, which leaves the most room for the
+        // parts after it.
+        for part in middle {
+            match rest.find(part) {
+                Some(at) => rest = &rest[at + part.len()..],
+                None => return false,
+            }
+        }
+
+        rest.ends_with(last)
+    }
 }
 
 /// The direction in which a metric improves.
@@ -148,13 +191,11 @@ fn category(
 ) -> Result<Category, Error> {
     let name = key.get_ref().as_ref();
     let mut metrics = Vec::new();
-    let mut rounds = DEFAULT_ROUNDS;
     let mut run = None;
     let mut timeout = DEFAULT_TIMEOUT;
 
     for (field, value) in table {
         match field.get_ref().as_ref() {
-            "rounds" => rounds = positive_integer(source, value, "rounds")?,
             "run" => {
                 let command = string(source, value, "run")?;
                 if command.trim().is_empty() {
@@ -209,7 +250,6 @@ fn category(
         location: Location::of(source, key.span().start),
         metrics,
         name: name.to_owned(),
-        rounds,
         run,
         timeout,
     })
@@ -220,6 +260,7 @@ fn metric(source: &str, key: &Spanned<Cow<'_, str>>, table: &DeTable<'_>) -> Res
     let mut better = Better::Lower;
     let mut score = None;
     let mut target = None;
+    let mut targets = Vec::new();
     let mut weight = 1.0;
 
     for (field, value) in table {
@@ -261,6 +302,24 @@ fn metric(source: &str, key: &Spanned<Cow<'_, str>>, table: &DeTable<'_>) -> Res
                 });
             }
             "target" => target = Some(self::target(source, name, value)?),
+            "targets" => {
+                let DeValue::Table(patterns) = value.get_ref() else {
+                    return Err(Error::at(
+                        Code::InvalidType,
+                        source,
+                        value.span().start,
+                        "`targets` must be a table of item patterns and their targets, such as `targets = { \"viem/chains/*\" = \"1kB\" }`".to_owned(),
+                    ));
+                };
+
+                for (pattern, value) in patterns {
+                    targets.push(Pattern {
+                        location: Location::of(source, pattern.span().start),
+                        pattern: pattern.get_ref().to_string(),
+                        target: self::target(source, name, value)?,
+                    });
+                }
+            }
             "weight" => weight = non_negative(source, value, "weight")?,
             other => {
                 let expected: Vec<String> = METRIC_KEYS.iter().map(|k| format!("`{k}`")).collect();
@@ -286,6 +345,7 @@ fn metric(source: &str, key: &Spanned<Cow<'_, str>>, table: &DeTable<'_>) -> Res
             Better::Lower => Rollup::P90,
         }),
         target,
+        targets,
         weight,
     })
 }
@@ -420,24 +480,6 @@ fn number(source: &str, value: &Spanned<DeValue<'_>>, key: &str) -> Result<f64, 
             source,
             value.span().start,
             format!("`{key}` must be a finite number"),
-        )
-    })
-}
-
-fn positive_integer(source: &str, value: &Spanned<DeValue<'_>>, key: &str) -> Result<u32, Error> {
-    let parsed = match value.get_ref() {
-        DeValue::Integer(integer) => {
-            u32::from_str_radix(&integer.as_str().replace('_', ""), integer.radix()).ok()
-        }
-        _ => None,
-    };
-
-    parsed.filter(|n| *n > 0).ok_or_else(|| {
-        Error::at(
-            Code::InvalidValue,
-            source,
-            value.span().start,
-            format!("`{key}` must be a whole number greater than zero"),
         )
     })
 }

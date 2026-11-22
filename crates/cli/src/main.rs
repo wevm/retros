@@ -21,15 +21,15 @@ Usage: retros [category] [--update] [--require-baseline]
        retros check
 
 Run each category's script, score its metrics, list the opportunities that would raise the
-scores most, and compare sizes, counts, and checks with retros.lock. Reports go to
-.retros/report.json and .retros/report.md. Name a category to run only that one.
+scores most, and compare sizes, counts, checks, and line targets with retros.lock. Reports go
+to .retros/report.json and .retros/report.md. Name a category to run only that one.
 
 Commands:
   check  Run each script once and check the metric lines it writes
 
 Options:
-  --update            Record this run's sizes, counts, and checks in retros.lock
-  --require-baseline  Exit with status 1 when a size, count, or check is worse than retros.lock
+  --update            Record this run's sizes, counts, checks, and line targets in retros.lock
+  --require-baseline  Exit with status 1 when anything differs from retros.lock
   -h, --help          Print help
   -V, --version       Print version
 ";

@@ -264,6 +264,49 @@ entry-size ./number 1.6kB
 }
 
 #[test]
+fn patterns_in_targets_have_the_final_say() {
+    let config = r#"[footprint]
+run = "true"
+entry-size = { target = "1kB", targets = { "./chains/*" = "500B", "." = "8kB" } }
+"#;
+    // The pattern `.` overrides the root's line target, so the root is 6 kB against 8 kB, not
+    // 4 kB. `./chains/*` matches `./chains/mainnet` but not `./chains`, which keeps the 1 kB
+    // default. `./chains/mainnet`, 600 B against 500 B, is furthest past its target, and
+    // Lighthouse scores it 83.
+    let lines = "entry-size . 6kB target 4kB
+entry-size ./chains/mainnet 600B
+entry-size ./chains 900B
+entry-size ./actions 1.1kB target 2kB
+";
+
+    let scored = scored(config, &[lines]);
+    let metric = &scored.metrics[0];
+    let targets: Vec<String> = metric
+        .items
+        .iter()
+        .map(|item| format!("{} {:?}", item.name, item.target))
+        .collect();
+
+    insta::assert_snapshot!(summary(&scored), @"
+    category Some(83)
+    entry-size 600 Some(83)
+    ");
+    insta::assert_debug_snapshot!((&metric.at, targets), @r#"
+    (
+        Some(
+            "./chains/mainnet",
+        ),
+        [
+            "./chains/mainnet Some(Size(500.0))",
+            "./chains None",
+            ". Some(Size(8000.0))",
+            "./actions Some(Size(2000.0))",
+        ],
+    )
+    "#);
+}
+
+#[test]
 fn finds_opportunities_largest_gain_first() {
     let config = r#"[footprint]
 run = "true"

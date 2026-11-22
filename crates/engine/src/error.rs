@@ -68,6 +68,8 @@ pub enum Code {
     TargetUnit,
     /// A key that `retros.toml` does not define.
     UnexpectedKey,
+    /// A pattern in a metric's `targets` that matches no item the script wrote.
+    UnmatchedPattern,
     /// A unit that is not a size, time, or check unit.
     UnknownUnit,
 }
@@ -93,6 +95,7 @@ impl Code {
             Self::TargetUnit => "target-unit",
             Self::UnconfiguredMetric => "unconfigured-metric",
             Self::UnexpectedKey => "unexpected-key",
+            Self::UnmatchedPattern => "unmatched-pattern",
             Self::UnknownUnit => "unknown-unit",
         }
     }

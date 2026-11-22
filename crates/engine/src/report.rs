@@ -304,8 +304,8 @@ pub fn markdown(report: &Report) -> String {
                 change.direction.as_str(),
                 escape(&change.category),
                 escape(&changed(change)),
-                change.before.map(format::value).unwrap_or_default(),
-                change.after.map(format::value).unwrap_or_default()
+                side_cell(change, change.before),
+                side_cell(change, change.after)
             );
         }
     }
@@ -394,13 +394,16 @@ fn opportunities(report: &Report) -> Vec<(&str, Opportunity)> {
     all
 }
 
-/// Orders changes worst first: worse, then new, gone, and better.
+/// Orders changes worst first: worse values, looser targets, new and gone metrics or items,
+/// tighter targets, then better values.
 fn sorted(changes: &[Change]) -> Vec<&Change> {
     let rank = |change: &&Change| match change.direction {
         Direction::Worse => 0,
-        Direction::New => 1,
-        Direction::Gone => 2,
-        Direction::Better => 3,
+        Direction::Looser => 1,
+        Direction::New => 2,
+        Direction::Gone => 3,
+        Direction::Tighter => 4,
+        Direction::Better => 5,
     };
     let mut sorted: Vec<&Change> = changes.iter().collect();
     sorted.sort_by_key(rank);
@@ -430,8 +433,13 @@ fn changed(change: &Change) -> String {
     }
 }
 
-/// Formats a change's values, such as `61 kB → 64 kB`, or one value for a new or gone item.
+/// Formats a change's values, such as `61 kB → 64 kB`, one value for a new or gone item, or the
+/// targets of a target change, such as `target 5 kB → 8 kB`.
 fn values(change: &Change) -> String {
+    if change.direction.is_target() {
+        return format!("target {} → {}", side(change.before), side(change.after));
+    }
+
     match (change.before, change.after) {
         (Some(before), Some(after)) => {
             format!("{} → {}", format::value(before), format::value(after))
@@ -439,6 +447,21 @@ fn values(change: &Change) -> String {
         (Some(value), None) | (None, Some(value)) => format::value(value),
         (None, None) => String::new(),
     }
+}
+
+/// Formats one side of a change for a Markdown cell: a value, a target such as `target 5 kB`, or
+/// `none` for a target change to or from no target.
+fn side_cell(change: &Change, value: Option<Value>) -> String {
+    if change.direction.is_target() {
+        format!("target {}", side(value))
+    } else {
+        value.map(format::value).unwrap_or_default()
+    }
+}
+
+/// Formats a target, or `none` without one.
+fn side(target: Option<Value>) -> String {
+    target.map_or_else(|| "none".to_owned(), format::value)
 }
 
 /// Writes rows as aligned columns, each line indented by two spaces.
