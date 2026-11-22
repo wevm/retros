@@ -8,8 +8,12 @@ repository.workspace = true
 rust-version.workspace = true
 version.workspace = true
 
+[dependencies]
+toml.workspace = true
+
 [dev-dependencies]
 insta.workspace = true
 
 [lints]
 workspace = true
+

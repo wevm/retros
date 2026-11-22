@@ -13,6 +13,10 @@ version = "0.0.0"
 [workspace.dependencies]
 engine = { path = "crates/engine" }
 insta = "1"
+rustix = { version = "1", features = ["process"] }
+tempfile = "3"
+# preserve_order keeps categories and metrics in the order retros.toml declares them.
+toml = { version = "1", default-features = false, features = ["parse", "preserve_order", "std"] }
 
 [workspace.lints.rust]
 missing_docs = "warn"
