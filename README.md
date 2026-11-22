@@ -1,7 +1,7 @@
 <h1 align="center">Retros</h1>
 
 <p align="center">
-  Lighthouse scores for any project
+  Continuous metrics and hill climbing for any project
 </p>
 
 <p align="center">
@@ -10,7 +10,7 @@
 
 ## Overview
 
-A project's scripts measure it. Retros scores the metrics they write, compares revisions, and writes reports.
+Set a target for each metric that matters, measure every change, and climb. A project's scripts measure it, and Retros scores each metric against its target, compares revisions, and reports what moved.
 
 ```toml
 # retros.toml: each table is a category, and `run` is the script that measures it.
@@ -28,6 +28,7 @@ echo 'export-size viem/actions:readContract 31.7kB' >> "$RETROS_METRICS"
 
 ## Philosophy
 
+- **Targeted.** Each metric has a `target` to reach and a `limit` to stay inside. Every change shows whether the project climbed toward its targets or slid back.
 - **Scripted.** Projects measure themselves with scripts in any language. Retros runs them and reads one line per measurement.
 - **Scored.** Every metric with anchors scores from 0 to 100 on Lighthouse's curve, and each category averages its metrics.
 - **Comparable.** Sizes and counts report every change. Timings report a change only when repeated, interleaved runs agree.

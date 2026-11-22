@@ -1,6 +1,6 @@
 # Implementation plan
 
-This plan tracks Retros from foundations to release. Retros scores any project the way Lighthouse scores a web page: the project's scripts measure it, and Retros scores the metrics they write, compares revisions, and writes reports. Each phase ends with an acceptance gate, and a phase is complete only when its gate passes.
+This plan tracks Retros from foundations to release. Retros is continuous metrics and hill climbing for any project. Each metric has a `target` to reach and a `limit` to stay inside. A project's scripts measure it, and Retros scores each metric against its anchors, compares revisions, and writes reports, so every change shows whether the project climbed toward its targets or slid back. Each phase ends with an acceptance gate, and a phase is complete only when its gate passes.
 
 ## Goals
 

@@ -6,7 +6,7 @@ Sources: https://github.com/wevm/ondine/blob/main/AGENTS.md at `51ba8db369fd8b35
 
 ## Project Principles
 
-- Retros scores any project the way Lighthouse scores a web page. A project's scripts measure it, and Retros scores the metrics they write, compares revisions, and writes reports. The contract is processes and text files, so any language can take part.
+- Retros is continuous metrics and hill climbing for any project. Each metric has a `target` to reach and a `limit` to stay inside. A project's scripts measure it, and Retros scores each metric against its anchors, compares revisions, and writes reports, so every change shows whether the project climbed toward its targets or slid back. The contract is processes and text files, so any language can take part.
 - Retros measures nothing itself. Every number comes from a project script. Built-in measures come later, only after the same script recurs across projects, and scripts remain the escape hatch.
 - Keep the contract public and small. `retros.toml` declares categories, each with a `run` command and its metrics. A script appends `metric [item] value` lines to the file at `$RETROS_METRICS`, and a non-zero exit status marks the run as failed. A change to the contract needs a decision in `.agents/plan.md`.
 - Score like Lighthouse. Port `getLogNormalScore` so that a value at `target` scores 90 and a value at `limit` scores 50, and use Lighthouse's bands: 90 to 100 good, 50 to 89 needs work, 0 to 49 poor. A metric with items collapses to its p90 unless configured. A category is the weighted mean of its metric scores. There is no overall score.

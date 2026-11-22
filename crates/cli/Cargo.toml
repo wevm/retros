@@ -1,6 +1,6 @@
 [package]
 name = "cli"
-description = "The retros command line: runs measurement scripts and writes reports."
+description = "The retros command line: runs measurement scripts, scores metrics against targets, and writes reports."
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
