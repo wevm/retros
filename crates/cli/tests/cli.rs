@@ -39,13 +39,23 @@ fn fixture(name: &str) -> TempDir {
     )
 }
 
-/// Copies the project `name` from the repository's `examples/` into a new temporary directory.
+/// Copies the project `name` from the repository's `examples/` into a new temporary directory,
+/// and installs its packages from its lockfile.
 fn example(name: &str) -> TempDir {
-    copied(
+    let dir = copied(
         &Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../examples")
             .join(name),
-    )
+    );
+    if dir.path().join("package.json").exists() {
+        let install = Command::new("bun")
+            .args(["install", "--frozen-lockfile"])
+            .current_dir(dir.path())
+            .output()
+            .expect("bun runs");
+        assert!(install.status.success(), "{}", stderr(&install));
+    }
+    dir
 }
 
 fn copied(project: &Path) -> TempDir {
@@ -54,11 +64,11 @@ fn copied(project: &Path) -> TempDir {
     dir
 }
 
-/// Copies a project, leaving out build output and reports from earlier runs.
+/// Copies a project, leaving out installed packages, build output, and reports from earlier runs.
 fn copy(from: &Path, to: &Path) {
     for entry in fs::read_dir(from).unwrap() {
         let entry = entry.unwrap();
-        if [".retros", "target"].contains(&entry.file_name().to_str().unwrap()) {
+        if [".retros", "node_modules", "target"].contains(&entry.file_name().to_str().unwrap()) {
             continue;
         }
         let target = to.join(entry.file_name());
@@ -846,36 +856,40 @@ fn check_kills_a_script_that_times_out() {
 
 #[test]
 fn check_passes_every_example() {
-    let typescript_library = check(example("typescript-library").path(), &[]);
-    let web_app = check(example("web-app").path(), &[]);
-    let rust_api = check(example("rust-api").path(), &[]);
+    // Lighthouse, Cargo, and the benchmarks each take a while, so the examples run at once.
+    let [typescript_library, web_app, rust_api] = std::thread::scope(|scope| {
+        ["typescript-library", "web-app", "rust-api"]
+            .map(|name| scope.spawn(move || check(example(name).path(), &[])))
+            .map(|handle| handle.join().unwrap())
+    });
 
     assert_eq!(typescript_library.status.code(), Some(0));
     insta::assert_snapshot!(stdout(&typescript_library), @"
     ✓ footprint  6 metrics
     ✓ speed      2 metrics
-    ✓ quality    5 metrics
+    ✓ quality    6 metrics
 
     3 passed
     ");
 
     assert_eq!(web_app.status.code(), Some(0));
     insta::assert_snapshot!(stdout(&web_app), @"
-    ✓ performance     7 metrics
-    ✓ accessibility   7 metrics
-    ✓ best-practices  6 metrics
-    ✓ seo             6 metrics
+    ✓ performance     6 metrics
+    ✓ accessibility   1 metric
+    ✓ best-practices  1 metric
+    ✓ seo             1 metric
 
     4 passed
     ");
 
     assert_eq!(rust_api.status.code(), Some(0));
     insta::assert_snapshot!(stdout(&rust_api), @"
-    ✓ footprint    3 metrics
+    ✓ footprint    2 metrics
     ✓ latency      3 metrics
     ✓ reliability  4 metrics
+    ✓ quality      4 metrics
 
-    3 passed
+    4 passed
     ");
 }
 

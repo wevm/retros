@@ -1,6 +1,6 @@
 /**
- * Writes the time to import each entry point in a fresh Bun process, and the time each formatter
- * takes per call, averaged over 100,000 calls after a warm-up.
+ * Writes the time to import each entry point in a fresh Bun process, and the median time each
+ * formatter takes per call, as mitata measures it.
  *
  * @module
  */
@@ -8,9 +8,10 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
+import * as mitata from 'mitata'
+
 import * as formatters from '../src/index.js'
 
-const calls = 100_000
 const now = new Date('2026-11-22T12:00:00Z')
 
 /** Arguments for one call of each formatter. A new export needs an entry here. */
@@ -42,14 +43,13 @@ for (const [entry, file] of Object.entries<string>(pkg.exports)) {
 for (const [name, formatter] of Object.entries(formatters)) {
   const args = samples[name as keyof typeof formatters]
   const call = formatter as (...args: unknown[]) => unknown
-
-  for (let index = 0; index < calls / 10; index++) call(...args)
-
-  const start = Bun.nanoseconds()
-  for (let index = 0; index < calls; index++) call(...args)
-  lines.push(
-    `call-time ${name} ${((Bun.nanoseconds() - start) / calls).toFixed(1)}ns`,
-  )
+  mitata.bench(name, () => call(...args))
 }
+
+const { benchmarks } = await mitata.run({ format: 'quiet' })
+for (const benchmark of benchmarks)
+  lines.push(
+    `call-time ${benchmark.alias} ${benchmark.runs[0]!.stats!.p50.toFixed(1)}ns`,
+  )
 
 fs.appendFileSync(process.env.RETROS_METRICS!, `${lines.join('\n')}\n`)

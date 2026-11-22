@@ -5,6 +5,7 @@
  */
 
 const day = 86_400_000
+const week = 7 * day
 
 /** Formats a date as `YYYY-MM-DD`. */
 export function isoDate(date: Date): string {
@@ -18,6 +19,7 @@ export function relative(date: Date, now = new Date()): string {
   return days > 0 ? `${days} days ago` : `in ${-days} days`
 }
 
+/** Formats the day of the week, such as `Sunday`. */
 export function weekday(date: Date): string {
   return date.toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'long' })
 }

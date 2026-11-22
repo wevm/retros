@@ -1,53 +1,30 @@
-# Tide, a small marketing site, measured like Lighthouse by Bun scripts that read its pages. It
-# misses targets on purpose: the pricing page loads the landing page's hero image without alt text
-# and a script that blocks rendering, the about page skips a heading level and has a long title, no
-# description, an insecure link, and a "click here" link, the client script logs to the console,
-# and the stylesheet keeps a rule no page uses.
+# Tide, a small marketing site, measured by Lighthouse in its default mobile mode. The script runs
+# Lighthouse on each page and writes the results as metric lines. The site misses targets on
+# purpose: the pricing page loads the landing page's hero image without alt text and a script
+# that blocks rendering, and the about page skips a heading level, has a "click here" link, no
+# description, and no icon, so the browser logs a 404 for /favicon.ico.
 
 [performance]
-run = "bun metrics/performance.ts"
-# Gzipped bytes of each page and everything it loads. The landing page carries the hero image.
-page-weight = { target = "3kB", targets = { "index.html" = "8kB" } }
-# Files each page loads, including itself.
-requests = { target = 5 }
-# Stylesheets and classic scripts that stop the first render until they load.
-render-blocking = { target = 1 }
-# Gzipped bytes of each image. The script sets each image's target from the screen area it covers.
-image-bytes = {}
-# Gzipped bytes of the client script.
-script-size = { target = "1kB" }
-# Gzipped bytes of the stylesheet.
-style-size = { target = "2kB" }
-# Whether some page uses each style rule.
-used-styles = {}
+run = "bun metrics/lighthouse.ts performance"
+# Lighthouse's five metrics on each page, with Lighthouse's weights. The pages weigh a few
+# kilobytes, so the targets are stricter than Lighthouse's. The landing page loads a hero image.
+first-contentful-paint = { target = "800ms", weight = 10 }
+largest-contentful-paint = { target = "1s", targets = { "index.html" = "1.5s" }, weight = 25 }
+total-blocking-time = { target = "50ms", weight = 30 }
+cumulative-layout-shift = { target = 0.05, weight = 25 }
+speed-index = { target = "1s", weight = 10 }
+# Bytes each page transfers, with everything it loads.
+total-byte-weight = { target = "3kB", targets = { "index.html" = "8kB" }, weight = 10 }
 
 [accessibility]
-run = "bun metrics/accessibility.ts"
-image-alt = {}
-button-name = {}
-link-name = {}
-field-label = {}
-heading-order = {}
-page-language = {}
-# WCAG contrast ratio of each text color on its background. Higher is better, and 4.5 is the WCAG
-# minimum for body text.
-contrast = { target = 4.5, better = "higher" }
+run = "bun metrics/lighthouse.ts accessibility"
+# Whether each page passes each accessibility audit that counts toward Lighthouse's score.
+audits = {}
 
 [best-practices]
-run = "bun metrics/best-practices.ts"
-doctype = {}
-charset = {}
-secure-links = {}
-image-size = {}
-console-calls = {}
-deprecated-apis = {}
+run = "bun metrics/lighthouse.ts best-practices"
+audits = {}
 
 [seo]
-run = "bun metrics/seo.ts"
-# Characters in each page title. Search results cut titles at about 60.
-title-length = { target = 60 }
-description = {}
-canonical = {}
-viewport = {}
-one-h1 = {}
-crawlable-links = {}
+run = "bun metrics/lighthouse.ts seo"
+audits = {}

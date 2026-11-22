@@ -1,0 +1,9 @@
+{
+  "name": "tide",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "chrome-launcher": "1.2.3",
+    "lighthouse": "13.6.0"
+  }
+}

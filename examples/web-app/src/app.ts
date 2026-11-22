@@ -19,6 +19,5 @@ for (const button of document.querySelectorAll<HTMLButtonElement>(
 )) {
   button.addEventListener('click', () => {
     localStorage.setItem('plan', button.dataset.plan ?? '')
-    console.log('chose plan', button.dataset.plan)
   })
 }

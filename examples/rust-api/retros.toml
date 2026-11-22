@@ -1,6 +1,7 @@
-# Harbor, a forecast API on Rust's standard library, measured by Bun scripts that start the server
-# themselves. It misses targets on purpose: the forecast endpoint recomputes each hour from the
-# start of the week, and `/search` without `q` panics instead of answering 400.
+# Harbor, a forecast API on Rust's standard library. The scripts run Cargo's own tools, and start
+# the server themselves to time and probe it. It misses targets on purpose: the forecast endpoint
+# recomputes each hour from the start of the week, and `/search` without `q` panics instead of
+# answering 400.
 
 [footprint]
 run = "bun metrics/footprint.ts"
@@ -8,9 +9,6 @@ run = "bun metrics/footprint.ts"
 binary-size = { target = "1MB" }
 # Third-party crates the binary compiles.
 dependencies = { target = 10 }
-# Calls in the source that can panic. No target: retros.lock records the count, so a new one
-# shows in review.
-panic-sites = {}
 
 [latency]
 run = "bun metrics/latency.ts"
@@ -33,3 +31,15 @@ malformed-request = {}
 survives-panic = {}
 # Percentage of 400 concurrent requests that fail or answer 5xx.
 error-rate = { target = 1 }
+
+[quality]
+run = "bun metrics/quality.ts"
+# Whether clippy's default lints find nothing in each source file.
+clippy = {}
+# Calls that can panic, found by clippy's restriction lints such as `unwrap_used`. No target:
+# retros.lock records the count, so a new one shows in review.
+panic-sites = {}
+# Whether rustfmt leaves each source file unchanged.
+formatted = {}
+# Whether each test passes in `cargo test`.
+tests = {}

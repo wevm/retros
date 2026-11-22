@@ -1,6 +1,7 @@
-# A TypeScript library of formatters, measured by Bun scripts. It misses a few targets on purpose,
-# so the report shows how misses read: `weekday` builds an `Intl` formatter on every call and has
-# no TSDoc comment, and `percent` has no test.
+# A TypeScript library of formatters. The scripts run the tools the library already uses: Bun's
+# bundler and test runner, mitata, TypeScript, oxlint and oxfmt. It misses a few targets on purpose,
+# so the report shows how misses read: `weekday` builds an `Intl` formatter on every call,
+# `percent` has no test, and `date.ts` declares a constant it never uses.
 
 [footprint]
 run = "bun metrics/footprint.ts"
@@ -24,19 +25,22 @@ exports = {}
 run = "bun metrics/speed.ts"
 # Time to import each entry point in a fresh process. The root loads every module.
 import-time = { target = "2ms", targets = { "." = "3ms" } }
-# Time per call of each formatter. Formatters that call `Intl` get more room than arithmetic.
+# Median time per call of each formatter, measured by mitata. Formatters that call `Intl` get
+# more room than arithmetic.
 call-time = { target = "500ns", targets = { "grouped" = "2µs", "weekday" = "2µs" } }
 
 [quality]
 run = "bun metrics/quality.ts"
-# Whether each test passes.
+# Whether each test passes in `bun test`.
 tests = {}
 # Percentage of lines tests cover in each source file. Higher is better, so the least covered file
 # is scored.
 coverage = { target = 90, better = "higher" }
-# Whether each export has a TSDoc comment.
-documented = {}
-# Whether package.json declares `"sideEffects": false`, so bundlers can drop unused modules.
-side-effects = {}
+# Whether TypeScript reports no errors in each source file.
+types = {}
+# Whether oxlint reports nothing in each source file.
+lint = {}
+# Whether oxfmt leaves each source file unchanged.
+formatted = {}
 # Whether each entry point in package.json imports.
 exports-resolve = {}

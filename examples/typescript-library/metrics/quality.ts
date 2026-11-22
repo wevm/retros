@@ -1,7 +1,7 @@
 /**
- * Writes whether each test passes, the share of lines tests cover in each source file, whether
- * each export has a TSDoc comment, and two packaging checks. A failing test is a measurement, so
- * the script still exits with status 0.
+ * Runs the tools the library already uses and writes what they report: Bun's test runner for
+ * tests and coverage, TypeScript for type errors, oxlint for lint, and oxfmt for formatting. A
+ * failing check is a measurement, so the script still exits with status 0.
  *
  * @module
  */
@@ -12,10 +12,10 @@ import * as path from 'node:path'
 
 const pkg = await Bun.file('package.json').json()
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'quality-'))
+const sources = [...new Bun.Glob('src/**/*.ts').scanSync()].sort()
 const lines: string[] = []
 
-Bun.spawnSync([
-  'bun',
+run('bun', [
   'test',
   '--reporter=junit',
   `--reporter-outfile=${path.join(scratch, 'junit.xml')}`,
@@ -49,20 +49,29 @@ for (const record of lcov
   )
 }
 
-for (const file of new Bun.Glob('src/**/*.ts').scanSync()) {
-  if (file.endsWith('.test.ts')) continue
+// TypeScript prints one `file(line,column): error TS…` line per error.
+const types = run('node_modules/.bin/tsc', ['-p', '.', '--pretty', 'false'])
+for (const file of sources)
+  lines.push(`types ${file} ${types.includes(`${file}(`) ? 'fail' : 'pass'}`)
 
-  const source = fs.readFileSync(file, 'utf8')
-  for (const [, doc, name] of source.matchAll(
-    /(\/\*\*[\s\S]*?\*\/\s*)?export (?:async )?(?:function|const|class) (\w+)/g,
-  )) {
-    lines.push(
-      `documented ${path.basename(file)}:${name} ${doc ? 'pass' : 'fail'}`,
-    )
-  }
+const lint: { diagnostics: { filename: string }[] } = JSON.parse(
+  run('node_modules/.bin/oxlint', ['--format=json', 'src']),
+)
+for (const file of sources) {
+  const failed = lint.diagnostics.some(
+    (diagnostic) => diagnostic.filename === file,
+  )
+  lines.push(`lint ${file} ${failed ? 'fail' : 'pass'}`)
 }
 
-lines.push(`side-effects ${pkg.sideEffects === false ? 'pass' : 'fail'}`)
+// oxfmt lists each file whose formatting differs, one per line.
+const unformatted = run('node_modules/.bin/oxfmt', ['--list-different', 'src'])
+  .split('\n')
+  .map((line) => line.trim())
+for (const file of sources)
+  lines.push(
+    `formatted ${file} ${unformatted.includes(file) ? 'fail' : 'pass'}`,
+  )
 
 for (const [entry, file] of Object.entries<string>(pkg.exports)) {
   const resolves = await import(path.resolve(file)).then(
@@ -74,6 +83,11 @@ for (const [entry, file] of Object.entries<string>(pkg.exports)) {
 
 fs.rmSync(scratch, { force: true, recursive: true })
 fs.appendFileSync(process.env.RETROS_METRICS!, `${lines.join('\n')}\n`)
+
+/** Runs a command and returns its standard output. A failing exit status is expected. */
+function run(command: string, args: string[]): string {
+  return Bun.spawnSync([command, ...args]).stdout.toString()
+}
 
 /** Quotes an item for a metric line, escaping `"` and `\`. */
 function quote(item: string): string {

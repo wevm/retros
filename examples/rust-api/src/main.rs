@@ -193,3 +193,52 @@ fn error(status: (u16, &'static str), message: &str) -> Response {
         status,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn health_answers_ok() {
+        let response = route("/health", &harbors());
+        assert_eq!(response.status.0, 200);
+        assert_eq!(response.body, "{\"status\":\"ok\"}");
+    }
+
+    #[test]
+    fn harbor_by_id() {
+        let response = route("/harbors/12", &harbors());
+        assert_eq!(response.status.0, 200);
+        assert_eq!(
+            response.body,
+            "{\"id\":12,\"name\":\"Old Cove 12\",\"range\":2.5}"
+        );
+    }
+
+    #[test]
+    fn harbor_id_must_be_a_number() {
+        assert_eq!(route("/harbors/twelve", &harbors()).status.0, 400);
+    }
+
+    #[test]
+    fn unknown_harbor_is_not_found() {
+        assert_eq!(route("/harbors/500", &harbors()).status.0, 404);
+    }
+
+    #[test]
+    fn forecast_has_a_week_of_hours() {
+        let harbor = Harbor {
+            id: 0,
+            name: "Test".to_owned(),
+            range: 2.0,
+        };
+        assert_eq!(forecast(&harbor).len(), 7 * 24);
+    }
+
+    #[test]
+    fn search_matches_names() {
+        let response = route("/search?q=cove", &harbors());
+        assert_eq!(response.status.0, 200);
+        assert!(response.body.contains("\"name\":\"Old Cove 12\""));
+    }
+}
