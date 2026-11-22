@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tide: Weather for Sailors</title>
+    <meta name="description" content="Wind, waves, and tides for the next seven days, in one forecast built for sailors." />
+    <link rel="canonical" href="https://tide.example/" />
+    <link rel="stylesheet" href="/styles/site.css" />
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <header>
+      <img src="/images/logo.svg" alt="Tide" width="96" height="32" />
+      <nav>
+        <a href="/">Home</a>
+        <a href="/pricing.html">Pricing</a>
+        <a href="/about.html">About</a>
+      </nav>
+    </header>
+    <main>
+      <h1>Know the water before you leave the dock</h1>
+      <img src="/images/hero.svg" alt="A sailboat on rolling waves under a setting sun" width="640" height="320" />
+      <h2>Seven-day forecasts</h2>
+      <p>Wind, waves, and tides for every harbor, updated every hour.</p>
+      <form id="signup">
+        <label for="email">Email</label>
+        <input id="email" type="email" required />
+        <button type="submit">Get the forecast</button>
+      </form>
+      <p id="signup-status" role="status"></p>
+    </main>
+  </body>
+</html>

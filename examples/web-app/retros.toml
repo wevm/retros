@@ -1,0 +1,53 @@
+# Tide, a small marketing site, measured like Lighthouse by Bun scripts that read its pages. It
+# misses targets on purpose: the pricing page loads the landing page's hero image without alt text
+# and a script that blocks rendering, the about page skips a heading level and has a long title, no
+# description, an insecure link, and a "click here" link, the client script logs to the console,
+# and the stylesheet keeps a rule no page uses.
+
+[performance]
+run = "bun metrics/performance.ts"
+# Gzipped bytes of each page and everything it loads. The landing page carries the hero image.
+page-weight = { target = "3kB", targets = { "index.html" = "8kB" } }
+# Files each page loads, including itself.
+requests = { target = 5 }
+# Stylesheets and classic scripts that stop the first render until they load.
+render-blocking = { target = 1 }
+# Gzipped bytes of each image. The script sets each image's target from the screen area it covers.
+image-bytes = {}
+# Gzipped bytes of the client script.
+script-size = { target = "1kB" }
+# Gzipped bytes of the stylesheet.
+style-size = { target = "2kB" }
+# Whether some page uses each style rule.
+used-styles = {}
+
+[accessibility]
+run = "bun metrics/accessibility.ts"
+image-alt = {}
+button-name = {}
+link-name = {}
+field-label = {}
+heading-order = {}
+page-language = {}
+# WCAG contrast ratio of each text color on its background. Higher is better, and 4.5 is the WCAG
+# minimum for body text.
+contrast = { target = 4.5, better = "higher" }
+
+[best-practices]
+run = "bun metrics/best-practices.ts"
+doctype = {}
+charset = {}
+secure-links = {}
+image-size = {}
+console-calls = {}
+deprecated-apis = {}
+
+[seo]
+run = "bun metrics/seo.ts"
+# Characters in each page title. Search results cut titles at about 60.
+title-length = { target = 60 }
+description = {}
+canonical = {}
+viewport = {}
+one-h1 = {}
+crawlable-links = {}

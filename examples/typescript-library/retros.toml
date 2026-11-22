@@ -1,0 +1,42 @@
+# A TypeScript library of formatters, measured by Bun scripts. It misses a few targets on purpose,
+# so the report shows how misses read: `weekday` builds an `Intl` formatter on every call and has
+# no TSDoc comment, and `percent` has no test.
+
+[footprint]
+run = "bun metrics/footprint.ts"
+# Bytes of every file the package publishes.
+install-size = { target = "20kB" }
+# Runtime dependencies in package.json.
+dependencies = { target = 2 }
+# Gzipped bytes of each entry point, bundled and minified. The root re-exports every subpath, so
+# the script sets its target to their sum and 10% more.
+entry-size = { target = "1kB" }
+# Gzipped bytes when a consumer imports one export from the root entry point.
+export-size = { target = "200B" }
+# Bytes an export costs when imported from the root instead of its own entry point. Anything above
+# zero is code that tree-shaking failed to drop.
+unused-bytes = { target = "50B" }
+# Every export of the root entry point. No target: retros.lock records the count, so an added or
+# removed export shows in review.
+exports = {}
+
+[speed]
+run = "bun metrics/speed.ts"
+# Time to import each entry point in a fresh process. The root loads every module.
+import-time = { target = "2ms", targets = { "." = "3ms" } }
+# Time per call of each formatter. Formatters that call `Intl` get more room than arithmetic.
+call-time = { target = "500ns", targets = { "grouped" = "2µs", "weekday" = "2µs" } }
+
+[quality]
+run = "bun metrics/quality.ts"
+# Whether each test passes.
+tests = {}
+# Percentage of lines tests cover in each source file. Higher is better, so the least covered file
+# is scored.
+coverage = { target = 90, better = "higher" }
+# Whether each export has a TSDoc comment.
+documented = {}
+# Whether package.json declares `"sideEffects": false`, so bundlers can drop unused modules.
+side-effects = {}
+# Whether each entry point in package.json imports.
+exports-resolve = {}

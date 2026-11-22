@@ -1,0 +1,14 @@
+{
+  "name": "tiny-format",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "files": ["src", "!src/**/*.test.ts"],
+  "exports": {
+    ".": "./src/index.ts",
+    "./date": "./src/date.ts",
+    "./number": "./src/number.ts"
+  },
+  "dependencies": {}
+}

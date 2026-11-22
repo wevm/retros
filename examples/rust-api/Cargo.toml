@@ -1,0 +1,14 @@
+[package]
+name = "harbor"
+description = "A small harbor forecast API, measured by Retros."
+edition = "2024"
+publish = false
+version = "0.1.0"
+
+# The example builds on its own, outside the Retros workspace that contains it.
+[workspace]
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+strip = "symbols"

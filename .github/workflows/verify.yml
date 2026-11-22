@@ -15,6 +15,12 @@ jobs:
       - name: Install toolchain
         run: rustup show
 
+      # The examples' scripts and Retros' own speed script are TypeScript run by Bun.
+      - name: Install Bun
+        uses: wevm/actions/vendor/oven-sh/setup-bun/v2.2.0@b518cf981b50a4c745a8b7335fc693f34b108a75
+        with:
+          bun-version: 1.4.4
+
       - name: Check formatting
         run: cargo fmt --all --check
 

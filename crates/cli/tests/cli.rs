@@ -54,9 +54,13 @@ fn copied(project: &Path) -> TempDir {
     dir
 }
 
+/// Copies a project, leaving out build output and reports from earlier runs.
 fn copy(from: &Path, to: &Path) {
     for entry in fs::read_dir(from).unwrap() {
         let entry = entry.unwrap();
+        if [".retros", "target"].contains(&entry.file_name().to_str().unwrap()) {
+            continue;
+        }
         let target = to.join(entry.file_name());
 
         if entry.file_type().unwrap().is_dir() {
@@ -842,30 +846,36 @@ fn check_kills_a_script_that_times_out() {
 
 #[test]
 fn check_passes_every_example() {
-    let static_site = check(example("static-site").path(), &[]);
-    let node_library = check(example("node-library").path(), &[]);
-    let python_api = check(example("python-api").path(), &[]);
+    let typescript_library = check(example("typescript-library").path(), &[]);
+    let web_app = check(example("web-app").path(), &[]);
+    let rust_api = check(example("rust-api").path(), &[]);
 
-    assert_eq!(static_site.status.code(), Some(0));
-    insta::assert_snapshot!(stdout(&static_site), @"
-    ✓ pages  3 metrics
+    assert_eq!(typescript_library.status.code(), Some(0));
+    insta::assert_snapshot!(stdout(&typescript_library), @"
+    ✓ footprint  6 metrics
+    ✓ speed      2 metrics
+    ✓ quality    5 metrics
 
-    1 passed
+    3 passed
     ");
 
-    assert_eq!(node_library.status.code(), Some(0));
-    insta::assert_snapshot!(stdout(&node_library), @"
-    ✓ footprint  1 metric
-    ✓ speed      1 metric
+    assert_eq!(web_app.status.code(), Some(0));
+    insta::assert_snapshot!(stdout(&web_app), @"
+    ✓ performance     7 metrics
+    ✓ accessibility   7 metrics
+    ✓ best-practices  6 metrics
+    ✓ seo             6 metrics
 
-    2 passed
+    4 passed
     ");
 
-    assert_eq!(python_api.status.code(), Some(0));
-    insta::assert_snapshot!(stdout(&python_api), @"
-    ✓ api  3 metrics
+    assert_eq!(rust_api.status.code(), Some(0));
+    insta::assert_snapshot!(stdout(&rust_api), @"
+    ✓ footprint    3 metrics
+    ✓ latency      3 metrics
+    ✓ reliability  4 metrics
 
-    1 passed
+    3 passed
     ");
 }
 

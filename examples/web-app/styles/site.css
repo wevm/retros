@@ -1,0 +1,64 @@
+:root {
+  --ink: #0b2545;
+  --sea: #13315c;
+  --foam: #eef4ed;
+  font-family: system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--foam);
+}
+
+body {
+  margin: 0 auto;
+  max-width: 48rem;
+  padding: 1.5rem;
+  line-height: 1.5;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+nav a {
+  margin-left: 1rem;
+  color: var(--sea);
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+form {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+button {
+  padding: 0.5rem 1rem;
+  border: 0;
+  border-radius: 0.25rem;
+  color: var(--foam);
+  background: var(--sea);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid #8da9c4;
+}
+
+.banner {
+  padding: 1rem;
+  text-align: center;
+  color: var(--foam);
+  background: var(--sea);
+}

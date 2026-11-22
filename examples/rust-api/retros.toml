@@ -1,0 +1,35 @@
+# Harbor, a forecast API on Rust's standard library, measured by Bun scripts that start the server
+# themselves. It misses targets on purpose: the forecast endpoint recomputes each hour from the
+# start of the week, and `/search` without `q` panics instead of answering 400.
+
+[footprint]
+run = "bun metrics/footprint.ts"
+# Bytes of the stripped release binary.
+binary-size = { target = "1MB" }
+# Third-party crates the binary compiles.
+dependencies = { target = 10 }
+# Calls in the source that can panic. No target: retros.lock records the count, so a new one
+# shows in review.
+panic-sites = {}
+
+[latency]
+run = "bun metrics/latency.ts"
+timeout = "2m"
+# Median time per request of each endpoint. The script sets each endpoint's target from the work
+# it does, from 500 µs for `/health` to 2 ms for the forecast.
+latency = {}
+# 95th percentile time per request of each endpoint, against three times its median target.
+tail-latency = {}
+# Requests per second to `/harbors/12` from 16 concurrent clients. Higher is better.
+throughput = { target = 5000, better = "higher" }
+
+[reliability]
+run = "bun metrics/reliability.ts"
+# Whether each request gets the status it should.
+status = {}
+# Whether a request that is not HTTP gets 400.
+malformed-request = {}
+# Whether the server still answers after a handler panics.
+survives-panic = {}
+# Percentage of 400 concurrent requests that fail or answer 5xx.
+error-rate = { target = 1 }
