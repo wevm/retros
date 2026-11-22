@@ -42,6 +42,13 @@ A value at the `target` anchor scores 90, the start of the good band, and a valu
 > [!NOTE]
 > Retros is in development. The [implementation plan](.agents/plan.md) lists each phase and its acceptance gate.
 
+`retros check` works today. It runs each script once and checks that every configured metric was written with one kind of unit.
+
+```sh
+# Run from the project or any directory below it.
+retros check
+```
+
 ## License
 
 [MIT](LICENSE)

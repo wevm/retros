@@ -12,8 +12,14 @@ version.workspace = true
 name = "retros"
 path = "src/main.rs"
 
+[dependencies]
+engine.workspace = true
+rustix.workspace = true
+tempfile.workspace = true
+
 [dev-dependencies]
 insta.workspace = true
 
 [lints]
 workspace = true
+

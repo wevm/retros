@@ -53,6 +53,8 @@ bench-time "ABI Decode (500 results)" 1.82ms
 - **Items:** a line with an item adds one entry to a list metric. Retros collects the entries, scores the collapsed value, and lists the worst entries.
 - **Logs:** standard output and standard error are logs. Retros keeps the end of standard error for a failed run.
 - **Failure:** a script that exits with a non-zero status gives its category no score.
+- **Runs:** each script runs through `sh -c` from the directory that holds `retros.toml`, in its own process group. Retros kills the group when the script exits or times out, so background processes do not outlive the run.
+- **Exit status:** 0 when every category passes, 1 when a category fails, and 2 when Retros cannot run, such as for an unknown argument or an invalid `retros.toml`.
 - **Optional metric keys:** `weight` (default 1), `score` (how a list collapses: `p90` by default, or `median`, `max`, `min`, `sum`), and `better = "higher"` for metrics where more is better. A `better = "higher"` list collapses to its p10 by default, because its tail is at the low end.
 - **Optional category keys:** `rounds` for timing metrics (default 5) and `timeout` (default `10m`).
 
@@ -98,11 +100,11 @@ Set up the repository, conventions, and checks that every later phase builds on.
 
 Read the configuration, run each script once, and read what it wrote.
 
-- [ ] `engine::config`: typed `retros.toml`, unknown keys rejected, defaults applied, errors with line and column.
-- [ ] `engine::lines`: the metric line parser, with items, quoting, units, and checks.
-- [ ] `cli`: run each `run` command through `sh -c` in its own process group, from the directory that holds `retros.toml`, with a fresh `$RETROS_METRICS` file and a timeout that kills the group.
-- [ ] `retros check`: run each script once and confirm that every configured metric was written with one kind of unit. List metrics written but not configured.
-- [ ] Fixture projects under `crates/cli/tests/fixtures/`: passing, failing, malformed line, missing metric, and timeout.
+- [x] `engine::config`: typed `retros.toml`, unknown keys rejected, defaults applied, errors with line and column.
+- [x] `engine::lines`: the metric line parser, with items, quoting, units, and checks.
+- [x] `cli`: run each `run` command through `sh -c` in its own process group, from the directory that holds `retros.toml`, with a fresh `$RETROS_METRICS` file and a timeout that kills the group.
+- [x] `retros check`: run each script once and confirm that every configured metric was written with one kind of unit. List metrics written but not configured.
+- [x] Fixture projects under `crates/cli/tests/fixtures/`: passing, failing, malformed line, missing metric, and timeout.
 
 **Gate:** integration tests cover each fixture. Every error message is snapshotted and reviewed, and names its file, line, and column.
 

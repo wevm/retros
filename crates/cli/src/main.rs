@@ -1,12 +1,29 @@
 //! The `retros` command line.
 //!
-//! The command line is a thin adapter around the engine. It runs measurement scripts, reads the
-//! files they write, and writes reports. Commands land in the phases of `.agents/plan.md`.
+//! The command line is a thin adapter around the engine. It finds `retros.toml`, runs measurement
+//! scripts, reads the files they write, and prints what the engine reports. It exits with status
+//! 0 on success, 1 when a check fails, and 2 when it cannot run, such as for an unknown argument
+//! or an invalid `retros.toml`. Commands land in the phases of `.agents/plan.md`.
+
+mod check;
+mod project;
+mod script;
 
 use std::io::Write;
 use std::process::ExitCode;
 
-const USAGE: &str = "Usage: retros [--help | --version]\n";
+use engine::error::Error;
+
+const USAGE: &str = "\
+Usage: retros <command>
+
+Commands:
+  check  Run each script once and check the metric lines it writes
+
+Options:
+  -h, --help     Print help
+  -V, --version  Print version
+";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -20,14 +37,37 @@ fn main() -> ExitCode {
             let _ = writeln!(std::io::stdout(), "retros {}", env!("CARGO_PKG_VERSION"));
             ExitCode::SUCCESS
         }
-        [] => fail("expected an argument"),
-        [arg, ..] => fail(&format!("unknown argument '{arg}'")),
+        [command] if command == "check" => {
+            let result = std::env::current_dir()
+                .map_err(|error| format!("error: could not read the current directory: {error}"))
+                .and_then(|cwd| project::find(&cwd))
+                .and_then(|project| check::run(&project));
+
+            result.unwrap_or_else(|message| {
+                let _ = writeln!(std::io::stderr(), "{message}");
+                ExitCode::from(2)
+            })
+        }
+        [] => usage("expected a command"),
+        [command, arg, ..] if command == "check" => usage(&format!("unknown argument '{arg}'")),
+        [arg, ..] if arg.starts_with('-') => usage(&format!("unknown argument '{arg}'")),
+        [command, ..] => usage(&format!("unknown command '{command}'")),
     }
+}
+
+/// Renders an engine error with its severity and code, such as
+/// `error[unknown-unit] footprint metrics:3:18: unknown unit ...`, followed by the source line.
+fn diagnostic(severity: &str, error: &Error, name: &str, source: &str) -> String {
+    format!(
+        "{severity}[{}] {}",
+        error.code.as_str(),
+        error.render(name, source)
+    )
 }
 
 /// Writes an error and the usage to standard error, and returns the usage exit code.
 #[cold]
-fn fail(message: &str) -> ExitCode {
+fn usage(message: &str) -> ExitCode {
     let _ = write!(std::io::stderr(), "error: {message}\n\n{USAGE}");
     ExitCode::from(2)
 }

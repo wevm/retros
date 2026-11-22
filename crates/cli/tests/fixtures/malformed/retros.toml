@@ -1,0 +1,4 @@
+# The script writes a size with an unknown unit.
+[footprint]
+run = "sh metrics.sh"
+export-size = { target = "5kB", limit = "50kB" }

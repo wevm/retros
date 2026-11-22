@@ -1,0 +1,12 @@
+# One category passes, one script exits with an error, and one is killed by a signal.
+[footprint]
+run = "echo 'size 1kB' >> \"$RETROS_METRICS\""
+size = {}
+
+[build]
+run = "sh build.sh"
+size = {}
+
+[crash]
+run = "kill -KILL $$"
+size = {}
