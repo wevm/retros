@@ -148,8 +148,10 @@ fn help() {
 
     assert!(output.status.success());
     insta::assert_snapshot!(stdout(&output), @"
-    Usage: retros [category] [--compare <ref>] [--update] [--require-baseline] [--require-targets]
+    Usage: retros [category] [--compare <ref>] [--compact] [--update] [--require-baseline]
+                  [--require-targets]
            retros check
+           retros init
 
     Run each category's script, score its metrics, list the opportunities that would raise the
     scores most, and compare sizes, counts, checks, and line targets with each metric's baseline.
@@ -159,10 +161,12 @@ fn help() {
 
     Commands:
       check  Run each script once and check the metric lines it writes
+      init   Print a brief for an agent to set up Retros in this project
 
     Options:
       --compare <ref>     Compare with another revision: timings in interleaved pairs, and sizes,
                           counts, and checks with its baselines
+      --compact           Print the scores, missed targets, and opportunities in a few lines
       --update            Write this run's sizes, counts, checks, and line targets as baselines
       --require-baseline  Exit with status 1 when anything differs from the baselines
       --require-targets   Exit with status 1 when a metric misses its target or a script fails
@@ -179,8 +183,10 @@ fn unknown_argument() {
     insta::assert_snapshot!(stderr(&output), @"
     error: unknown argument '--nope'
 
-    Usage: retros [category] [--compare <ref>] [--update] [--require-baseline] [--require-targets]
+    Usage: retros [category] [--compare <ref>] [--compact] [--update] [--require-baseline]
+                  [--require-targets]
            retros check
+           retros init
 
     Run each category's script, score its metrics, list the opportunities that would raise the
     scores most, and compare sizes, counts, checks, and line targets with each metric's baseline.
@@ -190,10 +196,12 @@ fn unknown_argument() {
 
     Commands:
       check  Run each script once and check the metric lines it writes
+      init   Print a brief for an agent to set up Retros in this project
 
     Options:
       --compare <ref>     Compare with another revision: timings in interleaved pairs, and sizes,
                           counts, and checks with its baselines
+      --compact           Print the scores, missed targets, and opportunities in a few lines
       --update            Write this run's sizes, counts, checks, and line targets as baselines
       --require-baseline  Exit with status 1 when anything differs from the baselines
       --require-targets   Exit with status 1 when a metric misses its target or a script fails
@@ -210,8 +218,10 @@ fn unknown_check_argument() {
     insta::assert_snapshot!(stderr(&output), @"
     error: unknown argument '--fast'
 
-    Usage: retros [category] [--compare <ref>] [--update] [--require-baseline] [--require-targets]
+    Usage: retros [category] [--compare <ref>] [--compact] [--update] [--require-baseline]
+                  [--require-targets]
            retros check
+           retros init
 
     Run each category's script, score its metrics, list the opportunities that would raise the
     scores most, and compare sizes, counts, checks, and line targets with each metric's baseline.
@@ -221,10 +231,12 @@ fn unknown_check_argument() {
 
     Commands:
       check  Run each script once and check the metric lines it writes
+      init   Print a brief for an agent to set up Retros in this project
 
     Options:
       --compare <ref>     Compare with another revision: timings in interleaved pairs, and sizes,
                           counts, and checks with its baselines
+      --compact           Print the scores, missed targets, and opportunities in a few lines
       --update            Write this run's sizes, counts, checks, and line targets as baselines
       --require-baseline  Exit with status 1 when anything differs from the baselines
       --require-targets   Exit with status 1 when a metric misses its target or a script fails
@@ -1026,16 +1038,17 @@ Missed targets
 "
     ));
 
-    // A list misses at the item its roll-up selects, and each failing check item is a miss.
+    // A list misses at the item its roll-up selects, each failing check item is a miss, and each
+    // miss shows its note.
     let scored = fixture("scored");
     let output = retros_in(scored.path(), &["--require-targets"], &[]);
     assert_eq!(output.status.code(), Some(1));
     assert!(stdout(&output).ends_with(
         "
 Missed targets
-  footprint  bundle                     27.5 kB  target 5 kB
+  footprint  bundle                     27.5 kB  target 5 kB  includes all of lodash
   footprint  export-size viem/op-stack  9 kB     target 5 kB
-  footprint  links about.html           fail
+  footprint  links about.html           fail                  links to /team, which is gone
   speed      render parse               5 ms     target 2 ms
 
 4 targets missed
@@ -1257,6 +1270,64 @@ fn compare_uses_the_revision_baselines_and_always_removes_its_checkout() {
     let output = retros_in(dir, &["--compare", "no-such-branch"], &[]);
     assert_eq!(output.status.code(), Some(2));
     insta::assert_snapshot!(stderr(&output), @"error: unknown revision 'no-such-branch'");
+}
+
+#[test]
+fn compact_prints_scores_misses_and_opportunities_in_a_few_lines() {
+    let project = fixture("scored");
+
+    // Each miss shows once, with its note, even when --require-targets fails the run.
+    let output = retros_in(project.path(), &["--compact", "--require-targets"], &[]);
+
+    assert_eq!(output.status.code(), Some(1));
+    insta::assert_snapshot!(stdout(&output), @"
+    footprint 43, speed 75
+
+    Missed targets
+      footprint  bundle                     27.5 kB  target 5 kB  includes all of lodash
+      footprint  export-size viem/op-stack  9 kB     target 5 kB
+      footprint  links about.html           fail                  links to /team, which is gone
+      speed      render parse               5 ms     target 2 ms
+
+    Opportunities
+      +29  footprint  bundle                     27.5 kB → 5 kB
+      +19  speed      render parse               5 ms → 2 ms
+      +11  footprint  links about.html           fail → pass
+      +3   footprint  export-size viem/chains    10 kB → 5 kB
+      +3   footprint  export-size viem/op-stack  9 kB → 5 kB
+
+    No baseline yet. Run `retros --update` to record these values as the baseline.
+
+    Wrote .retros/report.json, .retros/report.md, .retros/report.html
+
+    4 targets missed
+    ");
+}
+
+#[test]
+fn init_points_the_brief_at_the_closest_example() {
+    let brief = |files: &[(&str, &str)]| {
+        let dir = tempfile::tempdir().unwrap();
+        for (path, contents) in files {
+            let path = dir.path().join(path);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, contents).unwrap();
+        }
+        let output = retros_in(dir.path(), &["init"], &[]);
+        assert_eq!(output.status.code(), Some(0));
+        let text = stdout(&output);
+        text.lines()
+            .find(|line| line.contains("example"))
+            .unwrap()
+            .to_owned()
+    };
+
+    insta::assert_snapshot!(brief(&[("Cargo.toml", "[package]\n")]), @"The closest example is a Rust API: https://github.com/wevm/retros/tree/main/examples/rust-api. Read its `retros.yaml` and `metrics/` before writing anything.");
+    insta::assert_snapshot!(brief(&[("package.json", r#"{ "devDependencies": { "vite": "7.0.0" } }"#)]), @"The closest example is a website: https://github.com/wevm/retros/tree/main/examples/web-app. Read its `retros.yaml` and `metrics/` before writing anything.");
+    insta::assert_snapshot!(brief(&[("package.json", "{}"), ("pages/index.html", "")]), @"The closest example is a website: https://github.com/wevm/retros/tree/main/examples/web-app. Read its `retros.yaml` and `metrics/` before writing anything.");
+    insta::assert_snapshot!(brief(&[("package.json", r#"{ "name": "lib" }"#)]), @"The closest example is a TypeScript library: https://github.com/wevm/retros/tree/main/examples/typescript-library. Read its `retros.yaml` and `metrics/` before writing anything.");
+    insta::assert_snapshot!(brief(&[("README.md", "")]), @"Read the closest example before writing anything: a TypeScript library (https://github.com/wevm/retros/tree/main/examples/typescript-library), a website (https://github.com/wevm/retros/tree/main/examples/web-app), or a Rust API (https://github.com/wevm/retros/tree/main/examples/rust-api).");
+    insta::assert_snapshot!(brief(&[("package.json", "{}"), (".agents/retros.yaml", "a:\n  run: \"true\"\n  b: {}\n")]), @"The closest example is a TypeScript library: https://github.com/wevm/retros/tree/main/examples/typescript-library. Read its `retros.yaml` and `metrics/` before writing anything. This project already has `.agents/retros.yaml`. Extend it instead of starting over.");
 }
 
 #[test]

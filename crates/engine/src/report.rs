@@ -103,6 +103,8 @@ pub enum Miss {
         item: Option<String>,
         /// The metric name.
         metric: String,
+        /// Why the value is what it is, from the line of the item or metric that misses.
+        note: Option<String>,
         /// The target, or `None` for a check.
         target: Option<Value>,
         /// The value past the target, or `fail`.
@@ -131,6 +133,14 @@ pub fn misses(report: &Report) -> Vec<Miss> {
         for metric in &scored.metrics {
             let missed = |item: Option<String>, value, target| Miss::Missed {
                 category: category.label(),
+                note: match &item {
+                    Some(name) => metric
+                        .items
+                        .iter()
+                        .find(|candidate| candidate.name == *name)
+                        .and_then(|candidate| candidate.note.clone()),
+                    None => metric.note.clone(),
+                },
                 item,
                 metric: metric.metric.name.clone(),
                 target,
@@ -173,7 +183,7 @@ pub fn misses(report: &Report) -> Vec<Miss> {
 /// Renders the misses that fail `--require-targets` for the terminal, such as
 /// `footprint  bundle  27.5 kB  target 5 kB`.
 pub fn missed(misses: &[Miss]) -> String {
-    let rows: Vec<[String; 4]> = misses
+    let rows: Vec<[String; 5]> = misses
         .iter()
         .map(|miss| match miss {
             Miss::Failed { category, message } => [
@@ -181,11 +191,13 @@ pub fn missed(misses: &[Miss]) -> String {
                 message.clone(),
                 String::new(),
                 String::new(),
+                String::new(),
             ],
             Miss::Missed {
                 category,
                 item,
                 metric,
+                note,
                 target,
                 value,
             } => [
@@ -196,6 +208,7 @@ pub fn missed(misses: &[Miss]) -> String {
                 target
                     .map(|target| format!("target {}", format::value(target)))
                     .unwrap_or_default(),
+                note.clone().unwrap_or_default(),
             ],
         })
         .collect();
@@ -294,6 +307,25 @@ pub fn terminal(category: &CategoryReport) -> String {
     }
 
     out
+}
+
+/// Renders every category's score on one line for `--compact`, such as `footprint 43, speed 75`.
+/// A category whose script failed reads `failed`, and one without a scored metric reads `–`.
+pub fn scores(report: &Report) -> String {
+    let scores: Vec<String> = report
+        .categories
+        .iter()
+        .map(|category| {
+            let score = match &category.result {
+                Err(_) => "failed".to_owned(),
+                Ok(scored) => scored
+                    .score
+                    .map_or_else(|| "–".to_owned(), |score| score.to_string()),
+            };
+            format!("{} {score}", category.label())
+        })
+        .collect();
+    format!("{}\n", scores.join(", "))
 }
 
 /// Renders the end of the terminal output: the opportunities that would raise scores most, the

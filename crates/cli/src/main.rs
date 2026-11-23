@@ -6,6 +6,7 @@
 //! such as for an unknown argument or an invalid configuration.
 
 mod check;
+mod init;
 mod measure;
 mod project;
 mod score;
@@ -18,8 +19,10 @@ use std::process::ExitCode;
 use engine::error::Error;
 
 const USAGE: &str = "\
-Usage: retros [category] [--compare <ref>] [--update] [--require-baseline] [--require-targets]
+Usage: retros [category] [--compare <ref>] [--compact] [--update] [--require-baseline]
+              [--require-targets]
        retros check
+       retros init
 
 Run each category's script, score its metrics, list the opportunities that would raise the
 scores most, and compare sizes, counts, checks, and line targets with each metric's baseline.
@@ -29,10 +32,12 @@ to run only that one.
 
 Commands:
   check  Run each script once and check the metric lines it writes
+  init   Print a brief for an agent to set up Retros in this project
 
 Options:
   --compare <ref>     Compare with another revision: timings in interleaved pairs, and sizes,
                       counts, and checks with its baselines
+  --compact           Print the scores, missed targets, and opportunities in a few lines
   --update            Write this run's sizes, counts, checks, and line targets as baselines
   --require-baseline  Exit with status 1 when anything differs from the baselines
   --require-targets   Exit with status 1 when a metric misses its target or a script fails
@@ -54,6 +59,8 @@ fn main() -> ExitCode {
         }
         [command] if command == "check" => with_project(check::run),
         [command, arg, ..] if command == "check" => usage(&format!("unknown argument '{arg}'")),
+        [command] if command == "init" => init::run(),
+        [command, arg, ..] if command == "init" => usage(&format!("unknown argument '{arg}'")),
         _ => {
             let mut options = score::Options::default();
             let mut args = args.iter();
@@ -66,6 +73,7 @@ fn main() -> ExitCode {
                         }
                         _ => return usage("--compare needs a revision, such as --compare main"),
                     },
+                    "--compact" => options.compact = true,
                     "--update" => options.update = true,
                     "--require-baseline" => options.require_baseline = true,
                     "--require-targets" => options.require_targets = true,

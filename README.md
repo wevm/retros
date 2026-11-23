@@ -82,6 +82,12 @@ retros --compare main
 
 # Run each script once and check its lines, without scoring.
 retros check
+
+# Print a brief for an agent to set up Retros in this project.
+retros init
+
+# Print the scores, missed targets, and opportunities in a few lines, for agent loops.
+retros --compact
 ```
 
 - **Metric line:** `[subject:] metric [item] value [target <value>] [note <text>]`. Quote an item or note that contains a space. A note says why, such as `alt-text /pricing fail note "hero.svg has no alt text"`, and every report shows it under its item.
@@ -93,7 +99,7 @@ retros check
 - **Comparisons:** `--compare <ref>` checks out `<ref>` in a temporary Git worktree. Timings change only when the medians differ by at least 5% and 7 of 8 pairs agree.
 - **Files:** reports go to `.retros/` in the project root.
 
-[`examples/`](examples) has a TypeScript library, a website, and a Rust API. Retros measures itself with [`.agents/retros.yaml`](.agents/retros.yaml).
+The [`climbing-with-retros`](skills/climbing-with-retros/SKILL.md) skill has an agent raise scores one verified change at a time. [`examples/`](examples) has a TypeScript library, a website, and a Rust API. Retros measures itself with [`.agents/retros.yaml`](.agents/retros.yaml).
 
 > [!NOTE]
 > Retros is in development. The [implementation plan](.agents/plan.md) lists each phase and its acceptance gate.

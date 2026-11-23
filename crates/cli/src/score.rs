@@ -7,6 +7,9 @@
 //! runs timings in interleaved pairs there and here, and compares sizes, counts, and checks with
 //! the revision's baselines, or with its own run when it has none.
 //!
+//! With `--compact`, for agent loops, it prints the scores on one line and each missed target
+//! with its note instead of each category's metrics.
+//!
 //! The command exits with status 0 when every category ran and passed its checks, and with
 //! status 1 when any category failed. With `--require-baseline`, it also exits with status 1 when
 //! anything differs from the baselines, or when no metric has one. With `--require-targets`, it
@@ -30,11 +33,17 @@ use crate::worktree::{self, Worktree};
 
 /// What `retros [category]` was asked to do.
 #[derive(Default)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "each bool is an independent command-line flag"
+)]
 pub(crate) struct Options {
     /// The category to run, or `None` for every category.
     pub(crate) category: Option<String>,
     /// The revision to compare with, or `None` without `--compare`.
     pub(crate) compare: Option<String>,
+    /// Whether to print the scores and misses in a few lines instead of each category's metrics.
+    pub(crate) compact: bool,
     /// Whether any difference from the baselines fails the run.
     pub(crate) require_baseline: bool,
     /// Whether a missed target or a failed script fails the run.
@@ -173,6 +182,10 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
         entries.sort_by_key(|(entry, _)| subjects.iter().position(|s| *s == entry.subject));
 
         for (entry, warnings) in entries {
+            if options.compact {
+                report.categories.push(entry);
+                continue;
+            }
             let mut block = if report.categories.is_empty() {
                 String::new()
             } else {
@@ -217,6 +230,16 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
             timings,
         });
     }
+    let misses = engine::report::misses(&report);
+    if options.compact {
+        let mut out = engine::report::scores(&report);
+        if misses.is_empty() {
+            out.push_str("\nNo missed targets\n");
+        } else {
+            out.push_str(&engine::report::missed(&misses));
+        }
+        let _ = io::stdout().write_all(out.as_bytes());
+    }
     let _ = io::stdout().write_all(engine::report::summary(&report).as_bytes());
 
     let dir = project.root.join(".retros");
@@ -252,14 +275,16 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
         .any(|category| category.result.is_err());
 
     // Compares values, not rounded scores, so a value just past its target never passes as 90.
-    if options.require_targets {
-        let misses = engine::report::misses(&report);
-        if !misses.is_empty() {
-            let missed = engine::report::missed(&misses);
-            let count = measure::count(misses.len(), "target");
-            let _ = write!(io::stdout(), "{missed}\n{count} missed\n");
-            failed = true;
-        }
+    if options.require_targets && !misses.is_empty() {
+        // A compact run already listed the misses.
+        let missed = if options.compact {
+            String::new()
+        } else {
+            engine::report::missed(&misses)
+        };
+        let count = measure::count(misses.len(), "target");
+        let _ = write!(io::stdout(), "{missed}\n{count} missed\n");
+        failed = true;
     }
 
     // Like a snapshot test, the baseline gate fails on any difference, so improvements are
