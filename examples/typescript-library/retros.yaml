@@ -3,6 +3,9 @@
 # so the report shows how misses read: `weekday` builds an `Intl` formatter on every call,
 # `percent` has no test, and `date.ts` declares a constant it never uses.
 
+# Installs packages in each checkout that `retros --compare` and `retros blame` create.
+setup: bun install --frozen-lockfile
+
 footprint:
   run: bun metrics/footprint.ts
   # Bytes of every file the package publishes.

@@ -4,6 +4,9 @@
 # that blocks rendering, and the about page skips a heading level, has a "click here" link, no
 # description, and no icon, so the browser logs a 404 for /favicon.ico.
 
+# Installs packages in each checkout that `retros --compare` and `retros blame` create.
+setup: bun install --frozen-lockfile
+
 performance:
   run: bun metrics/lighthouse.ts performance
   # Lighthouse's five metrics on each page, with Lighthouse's weights. The pages weigh a few
