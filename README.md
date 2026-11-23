@@ -5,14 +5,28 @@
 </p>
 
 <p align="center">
-  <a href="#overview">Overview</a> · <a href="#philosophy">Philosophy</a> · <a href="#features">Features</a> · <a href="#scoring">Scoring</a> · <a href="#targets">Targets</a> · <a href="#subjects">Subjects</a> · <a href="#baselines">Baselines</a> · <a href="#usage">Usage</a>
+  <a href="#overview">Overview</a> · <a href="#problem">Problem</a> · <a href="#solution">Solution</a> · <a href="#philosophy">Philosophy</a> · <a href="#features">Features</a> · <a href="#usage">Usage</a>
 </p>
 
 ## Overview
 
-Retros tracks the numbers a project cares about, such as bundle size, page weight, or request latency. Each number has a target. On every change, Retros shows which numbers improved, which regressed, and what to fix next.
+Agents improve code fastest against a number. A prompt such as "make this 10x faster" works better than "optimize this", because the agent measures each attempt and keeps the ones that climb. This loop is hill climbing.
 
-A project lists its metrics in `retros.toml` and measures them with scripts in any language. Each script writes one line per measurement. Retros runs the scripts, scores each metric from 0 to 100, and compares the results with the last accepted run.
+Each step of the climb needs a measurement, so the metrics must run on every change, not once before a release. [Effective Swarm Riding for Engineers](https://www.paradigm.xyz/writing/swarms) expects most developer work to become "tuning swarms to do well on the metrics they care about".
+
+Retros runs that loop for a project. It tracks numbers such as bundle size, page weight, and request latency, and scores each one against a target on every change. Each report names what improved, what regressed, and what to fix next.
+
+## Problem
+
+Most projects measure speed and size in scattered places, such as a benchmark before a release or a size check in one CI job. Each tool writes its own format, and no single view shows whether the project climbed or slid back.
+
+Without that view, regressions land unnoticed and improvements erode. One limit for every item makes it worse. A root entry point that bundles the whole library cannot share a size limit with a small subpath. The shared limit is either loose or always red.
+
+Tests do not close the gap. A test passes or fails, and it says nothing about speed or size. An agent with only tests cannot tell a faster change from a slower one.
+
+## Solution
+
+Retros scores a project on the numbers it cares about. Scripts in any language run the tools the project already trusts and write one line per measurement. Retros scores each metric from 0 to 100 against its target and compares the run with the last accepted one.
 
 ```toml
 # retros.toml: the `footprint` category runs one script and expects one metric.
@@ -37,6 +51,8 @@ Opportunities
   +24  footprint  entry-size ./number  1.6 kB → 1 kB
 ```
 
+A person or an agent climbs with the same loop: run `retros`, take the top opportunity, change the code, and run `retros` again. `retros --require-baseline` fails CI on any change that `retros.lock` does not record, so each improvement becomes the new floor.
+
 ## Philosophy
 
 - **A target is a requirement:** A value at its target scores 90, and anything worse costs points. No second threshold makes a miss acceptable.
@@ -48,14 +64,14 @@ Opportunities
 
 - [**Scores**](#scoring): a score from 0 to 100 for every metric, and a weighted mean for every category.
 - [**Contextual targets**](#targets): a default per metric, a target per line from the script, and item patterns that override both.
-- [**Item lists**](examples/web-app): thousands of items per metric, such as one per export or page, with the worst named in each report.
-- [**Opportunities**](examples/typescript-library): the changes that would raise each category most, with the points each adds.
+- [**Item lists**](#scoring): thousands of items per metric, such as one per export or page, with the worst named in each report.
 - [**Subjects**](#subjects): several harnesses, packages, or builds measured by one script, each scored on its own and compared side by side.
+- [**Opportunities**](#opportunities): the changes that would raise each category most, with the points each adds.
 - [**Baselines**](#baselines): accepted values in `retros.lock`, and a list of every change since.
 - [**CI gate**](#baselines): `--require-baseline` fails on any change that is not accepted, better or worse.
-- [**Reports**](#usage): terminal output, a self-contained HTML report with a gauge per category, and JSON and Markdown beside it.
+- [**Reports**](#reports): terminal output, a self-contained HTML report, and JSON and Markdown beside it.
 
-## Scoring
+### Scoring
 
 A metric scores 90 at its target, 50 at twice the target, and 10 at four times the target. Scores follow Lighthouse's log-normal curve and bands: 90 to 100 is good, 50 to 89 needs work, and 0 to 49 is poor.
 
@@ -70,7 +86,7 @@ A metric with many items scores one of them. Retros ranks the items by how far e
 
 A category score is the weighted mean of its metric scores. When a script writes a time, Retros runs the script 5 times and scores the median of each item. A size or count marked `varies`, such as peak memory, takes its median too.
 
-## Targets
+### Targets
 
 A target comes from one of three places. Each one overrides the one before it.
 
@@ -86,7 +102,7 @@ entry-size = { target = "1kB", targets = { "." = "3kB" } }
 throughput = { target = 5000, better = "higher" }
 ```
 
-## Subjects
+### Subjects
 
 A line can start with a subject, such as a harness, a package, or a build. Retros scores each subject on its own and shows them side by side. A top-level `run` measures every category that sets none, and categories with the same `run` share one execution.
 
@@ -109,7 +125,17 @@ echo 'node: startup 31.9ms' >> "$RETROS_METRICS"
 echo 'node: peak-memory 48.4MB target 57MB' >> "$RETROS_METRICS"
 ```
 
-## Baselines
+### Opportunities
+
+Retros lists the changes that would raise each category most, in category points. Each change is one item or one metric that meets its target, or a whole list when no single item moves the score.
+
+```text
+Opportunities
+  +6  zeptocode-ts: speed  request-out  32.8 ms → 20 ms
+  +2  zc: scale            step-time    5.4 ms → 5 ms
+```
+
+### Baselines
 
 `retros --update` writes `retros.lock`. The lock records every size, count, and check, and each target a script wrote on a line. Commit it. Later runs list what got worse or better, what is new or gone, and which targets changed.
 
@@ -121,6 +147,16 @@ echo 'node: peak-memory 48.4MB target 57MB' >> "$RETROS_METRICS"
 ```
 
 `retros --require-baseline` exits with status 1 when anything differs from the lock, improvements included. To accept a change, commit the updated lock. Timings stay out of the lock because they vary between machines.
+
+### Reports
+
+Each run prints every category as it finishes and writes three files to `.retros/`. `report.html` is a self-contained page with a gauge per category and a tab per subject. `report.json` is for tools, and `report.md` is for pull requests and CI summaries.
+
+```sh
+# Show the scores in a GitHub Actions job summary.
+retros
+cat .retros/report.md >> "$GITHUB_STEP_SUMMARY"
+```
 
 ## Usage
 
@@ -147,7 +183,6 @@ retros check
 - **Values:** sizes in `B`, `kB`, `MB`, or `GB`, times in `ns`, `µs`, `ms`, or `s`, counts without a unit, and checks as `pass` or `fail`.
 - **Category keys:** `run`, `timeout` (default `10m`), and `description`. A top-level `run` and `timeout` apply to categories that set none.
 - **Metric keys:** `target`, `targets`, `weight` (default 1), `score` (`p90` by default, or `p10`, `median`, `max`, `min`, `sum`), `better`, `varies`, and `description`.
-- **Reports:** `.retros/report.html`, `report.json`, and `report.md`, written on every run.
 
 [`examples/`](examples) has a TypeScript library, a website measured by Lighthouse, and a Rust API measured with Cargo's tools. Retros measures itself with the root [`retros.toml`](retros.toml).
 
