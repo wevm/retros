@@ -8,7 +8,8 @@
 //! the revision's baselines, or with its own run when it has none.
 //!
 //! With `--compact`, for agent loops, it prints the scores on one line and each missed target
-//! with its note instead of each category's metrics.
+//! with its note instead of each category's metrics. With `--note`, it keeps the run as a Git note
+//! on `HEAD`, and `report.html` shows the trend of up to 29 noted runs before this one.
 //!
 //! The command exits with status 0 when every category ran and passed its checks, and with
 //! status 1 when any category failed. With `--require-baseline`, it also exits with status 1 when
@@ -26,10 +27,13 @@ use engine::config::{self, Category, Config};
 use engine::lines::Line;
 use engine::report::{CategoryReport, Report};
 
-use crate::measure;
 use crate::project::Project;
 use crate::script::{self, Outcome};
 use crate::worktree::{self, Worktree};
+use crate::{history, measure};
+
+/// How many past runs the HTML report's trends show, with this one.
+const TRENDS: usize = 29;
 
 /// What `retros [category]` was asked to do.
 #[derive(Default)]
@@ -44,6 +48,8 @@ pub(crate) struct Options {
     pub(crate) compare: Option<String>,
     /// Whether to print the scores and misses in a few lines instead of each category's metrics.
     pub(crate) compact: bool,
+    /// Whether to keep this run as a note on `HEAD`.
+    pub(crate) note: bool,
     /// Whether any difference from the baselines fails the run.
     pub(crate) require_baseline: bool,
     /// Whether a missed target or a failed script fails the run.
@@ -87,6 +93,10 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
         }
     };
 
+    if options.note {
+        history::clean(project)?;
+    }
+
     // Dropping the worktree removes it, so it goes away on every return from here.
     let worktree = options
         .compare
@@ -102,12 +112,14 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
         categories: Vec::new(),
         changes: None,
         comparison: None,
+        history: Vec::new(),
     };
     // The other revision's own scores, for comparing exact values when it records no baselines.
     let mut base_report = Report {
         categories: Vec::new(),
         changes: None,
         comparison: None,
+        history: Vec::new(),
     };
     let mut timings = Vec::new();
 
@@ -249,6 +261,7 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
     }
     let _ = io::stdout().write_all(engine::report::summary(&report).as_bytes());
 
+    report.history = history::runs(project, TRENDS, true);
     let dir = project.root.join(".retros");
     let write = |file: &str, contents: String| {
         std::fs::write(dir.join(file), contents)
@@ -273,6 +286,10 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
             written.push_str(", ");
             written.push_str(name);
         }
+    }
+    if options.note {
+        let commit = history::note(project, &engine::history::note(&report))?;
+        let _ = write!(written, ", a note on {commit}");
     }
     let _ = writeln!(io::stdout(), "\nWrote {written}");
 

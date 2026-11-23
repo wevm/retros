@@ -10,6 +10,7 @@ use crate::baseline::{Change, Direction};
 use crate::compare::{Comparison, Timing};
 use crate::config::{self, Better, Rollup};
 use crate::format;
+use crate::history::Run;
 use crate::score::{self, CategoryScore, MetricScore, Opportunity};
 use crate::value::{Kind, Value};
 
@@ -32,6 +33,8 @@ pub struct Report {
     pub changes: Option<Vec<Change>>,
     /// The changes against another revision, or `None` without `--compare`.
     pub comparison: Option<Comparison>,
+    /// Past runs from notes, oldest first, for the HTML report's trends. Empty without notes.
+    pub history: Vec<Run>,
 }
 
 /// One category's scores for one subject, or the reason it has none.
@@ -1006,6 +1009,15 @@ fn compact(score: Option<u8>) -> String {
 
 /// Formats a metric's collapsed value, such as `27.5 kB`, `p90 9 kB (viem/op-stack)`, or
 /// `2 of 3 pass`.
+/// Returns a metric's value as the HTML report's grid and `retros log` show it: `27.1 ms`, `pass`,
+/// or `5 of 6 pass`.
+pub fn headline(metric: &MetricScore) -> String {
+    if metric.kind == Kind::Check {
+        return value(metric);
+    }
+    format::amount(metric.kind, metric.value)
+}
+
 pub(crate) fn value(metric: &MetricScore) -> String {
     if metric.kind == Kind::Check {
         let passed = metric

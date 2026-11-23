@@ -1,7 +1,9 @@
-//! `retros log` and `retros blame`: one metric across the commits of the repository.
+//! `retros log` and `retros blame`: one metric across the commits of the repository, and the notes
+//! under `refs/notes/retros` that keep past runs.
 //!
 //! `log` reads the metric's baseline in each version of the configuration on the first-parent
-//! history, so it lists the commits that accepted a new value. `blame` names the commit that last
+//! history, so it lists the commits that accepted a new value. A metric without baselines, such as
+//! a timing, comes from the runs `retros --note` kept. `blame` names the commit that last
 //! moved the metric. It reads the same baselines when they record the metric. Otherwise it checks
 //! out commits in temporary worktrees, measures each, and bisects. Each commit runs the category's
 //! `run` command from its own configuration when that declares the category, so a script that
@@ -12,11 +14,12 @@
 use std::fmt::Write as _;
 use std::io::{self, Write as _};
 use std::path::Path;
-use std::process::ExitCode;
+use std::process::{Command, ExitCode, Stdio};
 
 use engine::baseline;
 use engine::compare::Timing;
 use engine::config::{self, Category};
+use engine::history::Run;
 use engine::lines::Line;
 use engine::value::{Kind, Value};
 
@@ -143,17 +146,22 @@ struct Point {
 ///
 /// Returns a message for the terminal when the metric is unknown or Git fails.
 pub(crate) fn log(project: &Project, selector: &Selector) -> Result<ExitCode, String> {
-    selector.category(project)?;
+    let category = selector.category(project)?;
     let points = points(project, selector)?;
     let name = selector.name();
 
     let mut out = String::new();
     if points.is_empty() {
-        let _ = writeln!(
-            out,
-            "No baseline records {name} in the history of {}. `retros blame` measures commits instead",
-            project.name
-        );
+        let rows = noted(project, category, selector);
+        if rows.is_empty() {
+            let _ = writeln!(
+                out,
+                "No baseline or note records {name}. `retros --note` keeps each run, and `retros blame` measures commits"
+            );
+        } else {
+            let _ = writeln!(out, "{name} in the runs noted in {NOTES}\n");
+            out.push_str(&table(&rows));
+        }
     } else {
         let _ = writeln!(out, "{name} in the baselines of {}\n", project.name);
         let shown = |value: Option<Value>| value.map_or("none".to_owned(), engine::format::value);
@@ -281,6 +289,129 @@ fn points(project: &Project, selector: &Selector) -> Result<Vec<Point>, String> 
         }
     }
     Ok(points)
+}
+
+/// The ref that holds the notes of past runs.
+const NOTES: &str = "refs/notes/retros";
+
+/// Reads the runs noted on the first-parent history of `HEAD`, at most `limit` of them, oldest
+/// first. With `skip_head`, it leaves out a note on `HEAD`, which the current run stands for.
+/// Returns none outside a Git repository or without notes.
+pub(crate) fn runs(project: &Project, limit: usize, skip_head: bool) -> Vec<Run> {
+    let root = &project.root;
+    if worktree::git(root, &["rev-parse", "--verify", "--quiet", NOTES]).is_err() {
+        return Vec::new();
+    }
+    let skip = if skip_head { "--skip=1" } else { "--skip=0" };
+    let notes = format!("--notes={NOTES}");
+    let Ok(log) = worktree::git(
+        root,
+        &[
+            "log",
+            "--first-parent",
+            "-n",
+            "1000",
+            skip,
+            "--date=short",
+            &notes,
+            "--format=%x1e%H%x09%h%x09%ad%x09%s%n%N",
+            "HEAD",
+        ],
+    ) else {
+        return Vec::new();
+    };
+
+    let mut runs: Vec<Run> = log
+        .split('\u{1e}')
+        .filter_map(|record| {
+            let (head, note) = record.split_once('\n')?;
+            let commit = Commit::parse(head).pop()?;
+            let categories = engine::history::parse(note);
+            (!categories.is_empty()).then_some(Run {
+                categories,
+                commit: commit.short,
+                date: commit.date,
+                title: commit.title,
+            })
+        })
+        .take(limit)
+        .collect();
+    runs.reverse();
+    runs
+}
+
+/// Returns an error unless the checkout's tracked files match `HEAD`, so that a note describes the
+/// commit it is written on.
+///
+/// # Errors
+///
+/// Returns a message for the terminal when the project is not in a Git repository, has no commit,
+/// or has changes to tracked files.
+pub(crate) fn clean(project: &Project) -> Result<(), String> {
+    worktree::repository(&project.root)?;
+    worktree::git(&project.root, &["rev-parse", "--verify", "--quiet", "HEAD"])
+        .map_err(|_| "error: --note needs a commit to write the note on".to_owned())?;
+    let status = worktree::git(
+        &project.root,
+        &["status", "--porcelain", "--untracked-files=no"],
+    )?;
+    if status.is_empty() {
+        Ok(())
+    } else {
+        Err("error: --note needs tracked files that match HEAD, so the note describes that commit. Commit or stash the changes first".to_owned())
+    }
+}
+
+/// Writes `note` as the note on `HEAD` under [`NOTES`], replacing any note there, and returns
+/// `HEAD`'s short hash.
+///
+/// # Errors
+///
+/// Returns a message for the terminal when Git cannot write the note.
+pub(crate) fn note(project: &Project, note: &str) -> Result<String, String> {
+    let failed = |error: &dyn std::fmt::Display| format!("error: could not write a note: {error}");
+    let mut child = Command::new("git")
+        .args([
+            "notes", "--ref", NOTES, "add", "--force", "--file", "-", "HEAD",
+        ])
+        .current_dir(&project.root)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| failed(&error))?;
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin
+            .write_all(note.as_bytes())
+            .map_err(|error| failed(&error))?;
+    }
+    let output = child.wait_with_output().map_err(|error| failed(&error))?;
+    if !output.status.success() {
+        return Err(failed(&String::from_utf8_lossy(&output.stderr).trim()));
+    }
+    worktree::git(&project.root, &["rev-parse", "--short", "HEAD"])
+}
+
+/// Returns a row for each noted run that measured the metric, newest first.
+fn noted(project: &Project, category: &Category, selector: &Selector) -> Vec<[String; 5]> {
+    let Some(metric) = category.metrics.iter().find(|m| m.name == selector.metric) else {
+        return Vec::new();
+    };
+    runs(project, usize::MAX, false)
+        .into_iter()
+        .rev()
+        .filter_map(|run| {
+            let ran = run.category(&category.name, selector.subject.as_deref())?;
+            let scored = ran.metric(metric)?;
+            let shown = match &selector.item {
+                Some(item) => {
+                    engine::format::value(scored.items.iter().find(|i| &i.name == item)?.value)
+                }
+                None => engine::report::headline(&scored),
+            };
+            Some([run.commit, run.date, shown, String::new(), run.title])
+        })
+        .collect()
 }
 
 /// What one commit measured for the metric.

@@ -89,7 +89,10 @@ retros init
 # Print the scores, missed targets, and opportunities in a few lines, for agent loops.
 retros --compact
 
-# List the commits that changed a metric's baseline.
+# Keep this run as a Git note on HEAD, for trends in report.html and `retros log`.
+retros --note
+
+# List the commits that changed a metric's baseline, or the runs noted for it.
 retros log footprint bundle
 
 # Name the commit that last moved a metric, bisecting commits when no baseline records it.
@@ -103,7 +106,7 @@ retros blame speed startup
 - **Metric keys:** `target`, `targets`, `weight` (default 1), `score` (`p90` by default, or `p10`, `median`, `max`, `min`, `sum`), `better`, `varies`, `title`, `description`, and `baseline`.
 - **Baselines:** `retros --update` writes each metric's `baseline` into the configuration, one line per item. Commit them, so each run reports what changed.
 - **Comparisons:** `--compare <ref>` checks out `<ref>` in a temporary Git worktree. Timings change only when the medians differ by at least 5% and 7 of 8 pairs agree.
-- **History:** `retros blame` measures commits in temporary worktrees when no baseline records the metric. Each commit runs the `run` command its own configuration declares, so a moved script still runs. `--since <ref>` limits the commits.
+- **History:** `retros --note` keeps a run under `refs/notes/retros`, and `git push origin refs/notes/retros` shares it. `report.html` draws trends from the last 30 noted runs. `retros blame` measures commits in temporary worktrees when no baseline records the metric. Each commit runs the `run` command its own configuration declares, so a moved script still runs. `--since <ref>` limits the commits.
 - **Files:** reports go to `.retros/` in the project root.
 
 [`examples/`](examples) has a TypeScript library, a website, and a Rust API. Retros measures itself with [`.agents/retros.yaml`](.agents/retros.yaml).

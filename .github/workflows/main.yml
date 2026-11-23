@@ -11,3 +11,33 @@ jobs:
   verify:
     name: Verify
     uses: ./.github/workflows/verify.yml
+
+  # Each run on main keeps Retros' own scores and values as a Git note on its commit, which the
+  # trends in report.html and `retros log` read. The workflow's concurrency runs one at a time.
+  note:
+    name: Note
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install toolchain
+        run: rustup show
+
+      - name: Install Bun
+        uses: wevm/actions/vendor/oven-sh/setup-bun/v2.2.0@b518cf981b50a4c745a8b7335fc693f34b108a75
+        with:
+          bun-version: 1.4.4
+
+      - name: Note this run
+        run: |
+          git fetch origin refs/notes/retros:refs/notes/retros || true
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          cargo run --release --locked --quiet -p retros -- --note
+          git push origin refs/notes/retros

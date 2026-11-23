@@ -465,7 +465,7 @@ pub(crate) fn text(record: Record) -> (String, bool) {
 
 /// Formats a value so it parses back to the same amount, in the largest unit that keeps the number
 /// at 1 or more with at most one decimal place, such as `27.5kB`, `300µs`, or `2523728B`.
-fn exact(value: Value) -> String {
+pub(crate) fn exact(value: Value) -> String {
     let (amount, units) = match value {
         Value::Check(true) => return "pass".to_owned(),
         Value::Check(false) => return "fail".to_owned(),

@@ -73,6 +73,7 @@ Retros keeps Lighthouse's scoring and depth, and replaces its fixed browser gath
 25. **`--compact` for agents.** `retros --compact` prints the scores on one line, each missed target with its note, the opportunities, and the changes, instead of each category's metrics. An agent reads it every pass, so it stays a few lines. `report.md` keeps the full detail for people. Decided 2026-11-23.
 26. **No skill.** Retros ships no agent skill. `retros init` sets a project up, `--compact` names the next step, and `retros --compare HEAD` judges each change, so an agent climbs with the commands alone. Decided 2026-11-23, removing the `climbing-with-retros` skill.
 27. **Log and blame.** `retros log` lists the commits that changed a metric's baseline. `retros blame` names the last, or bisects commits measured in temporary worktrees when no baseline records the metric. A time is unchanged within noise of `HEAD` in interleaved pairs. Each commit runs its own configuration's `run`. Decided 2026-11-23.
+28. **Runs live in Git notes.** `retros --note` keeps a run's scores and values as a Git note on `HEAD` under `refs/notes/retros`. Notes need no service, travel with the repository, and never expire like CI artifacts. CI on `main` writes and pushes them, with write access and a full clone. Decided 2026-11-23.
 
 ## The Contract
 
@@ -272,10 +273,10 @@ Another agent climbed the TypeScript library example from quality 95 to 99 in tw
 
 Remember where the project has been and what moved it.
 
-- [ ] Each run on `main` keeps its report. Where reports live, such as Git notes, a branch, or CI artifacts, is decided at the start of this phase. zepto publishes to GitHub Pages today.
-- [ ] `retros log <category> <metric> [item]` prints a metric's values across commits. Exact metrics come from the Git history of their baselines, so they need no stored runs (decision 27). Timings wait for stored runs.
+- [x] Each run on `main` keeps its scores and values in a Git note under `refs/notes/retros` (decision 28). `retros --note` writes it, and CI pushes it.
+- [x] `retros log <category> <metric> [item]` prints a metric's values across commits. Exact metrics come from the Git history of their baselines, so they need no stored runs (decision 27). Other metrics, such as timings, come from notes.
 - [x] `retros blame <category> <metric> [item]` names the commit that moved a metric: from baseline history for exact metrics, and by measuring and bisecting otherwise (decision 27). `--subject` picks a subject, and `--since <ref>` limits the commits.
-- [ ] Trends in the HTML report.
+- [x] Trends in the HTML report: each category and metric draws its last 30 noted runs, with each commit and value on hover.
 
 **Gate:** on Retros' own history, `retros blame footprint dependencies` names the commit that added a dependency, and `retros log` shows the change.
 

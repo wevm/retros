@@ -2,7 +2,8 @@
 //! makes no network requests. It follows Lighthouse's report: a tab per subject, a gauge per
 //! category, and for each category a grid of metrics, each with its value against its target, then
 //! a collapsible row per list of items. Opportunities and the changes
-//! since the baselines come first. Like the other reports, it has no timestamps or paths, so the
+//! since the baselines come first. With past runs from notes, each category and metric shows its
+//! trend. Like the other reports, it has no timestamps or paths, so the
 //! same scores always produce the same bytes.
 
 use std::fmt::Write;
@@ -10,6 +11,7 @@ use std::fmt::Write;
 use crate::baseline::{Change, Direction};
 use crate::config::Better;
 use crate::format;
+use crate::history::Run;
 use crate::report::{self, CategoryReport, Report};
 use crate::score::{CategoryScore, MetricScore};
 use crate::value::{Kind, Value};
@@ -229,18 +231,20 @@ fn panel(out: &mut String, report: &Report, subject: Option<&str>, index: usize)
     }
 
     for category in categories {
-        self::category(out, category, &anchor(category));
+        self::category(out, category, &anchor(category), &report.history);
     }
 }
 
 /// Writes one category: a header with its gauge, title, and description, then its metrics and
 /// its lists of items, or why it has no scores.
-fn category(out: &mut String, category: &CategoryReport, id: &str) {
+fn category(out: &mut String, category: &CategoryReport, id: &str, history: &[Run]) {
     let score = category
         .result
         .as_ref()
         .ok()
         .and_then(|scored| scored.score);
+    let subject = category.subject.as_deref();
+    let ran = |run: &Run| run.category(&category.name, subject).cloned();
 
     let _ = writeln!(
         out,
@@ -251,6 +255,24 @@ fn category(out: &mut String, category: &CategoryReport, id: &str) {
     );
     if let Some(description) = &category.description {
         let _ = writeln!(out, "<p class=\"muted\">{}</p>", inline(description));
+    }
+    if let Some(score) = score {
+        let points: Vec<(String, f64, String)> = history
+            .iter()
+            .filter_map(|run| {
+                let past = ran(run)?.score?;
+                Some((run.commit.clone(), f64::from(past), past.to_string()))
+            })
+            .chain([("this run".to_owned(), f64::from(score), score.to_string())])
+            .collect();
+        if points.len() > 1 {
+            let _ = writeln!(
+                out,
+                "<div class=\"trends\">{}<span class=\"muted\">{} runs</span></div>",
+                trend(&points, 10.0, "Score", band_class(Some(score))),
+                points.len()
+            );
+        }
     }
     out.push_str("</header>\n");
 
@@ -266,7 +288,11 @@ fn category(out: &mut String, category: &CategoryReport, id: &str) {
             }
         }
         Ok(scored) => {
-            metrics(out, scored, id);
+            let past: Vec<(String, crate::history::Ran)> = history
+                .iter()
+                .filter_map(|run| Some((run.commit.clone(), ran(run)?)))
+                .collect();
+            metrics(out, scored, id, &past);
             lists(out, scored);
         }
     }
@@ -274,7 +300,12 @@ fn category(out: &mut String, category: &CategoryReport, id: &str) {
 }
 
 /// Writes a category's metrics as a grid in the order `retros.yaml` declares them.
-fn metrics(out: &mut String, scored: &CategoryScore, id: &str) {
+fn metrics(
+    out: &mut String,
+    scored: &CategoryScore,
+    id: &str,
+    past: &[(String, crate::history::Ran)],
+) {
     out.push_str("<div class=\"group-head\"><h3>Metrics</h3>");
     if scored
         .metrics
@@ -298,15 +329,15 @@ fn metrics(out: &mut String, scored: &CategoryScore, id: &str) {
 
     let _ = writeln!(out, "<ul class=\"grid\" id=\"{id}-metrics\">");
     for metric in &scored.metrics {
-        card(out, metric);
+        card(out, metric, past);
     }
     out.push_str("</ul>\n");
 }
 
 /// Writes one metric of the grid: its band, title, and score, its value in its band's color, its
-/// value against its target, its line's note, and its description, which shows in the expanded
-/// view.
-fn card(out: &mut String, metric: &MetricScore) {
+/// trend across `past` runs of the category, its value against its target, its line's note, and
+/// its description, which shows in the expanded view.
+fn card(out: &mut String, metric: &MetricScore, past: &[(String, crate::history::Ran)]) {
     let band = band_class(metric.score);
     let _ = write!(
         out,
@@ -315,8 +346,26 @@ fn card(out: &mut String, metric: &MetricScore) {
         metric
             .score
             .map_or_else(|| "–".to_owned(), |score| score.to_string()),
-        escape(&headline(metric))
+        escape(&report::headline(metric))
     );
+
+    let points: Vec<(String, f64, String)> = past
+        .iter()
+        .filter_map(|(commit, ran)| {
+            let scored = ran.metric(&metric.metric)?;
+            (scored.kind == metric.kind)
+                .then(|| (commit.clone(), scored.value, report::headline(&scored)))
+        })
+        .chain([(
+            "this run".to_owned(),
+            metric.value,
+            report::headline(metric),
+        )])
+        .collect();
+    if points.len() > 1 {
+        let span = points.iter().map(|point| point.1.abs()).fold(0.0, f64::max) * 0.1;
+        out.push_str(&trend(&points, span, &metric.metric.title(), band));
+    }
 
     if metric.kind != Kind::Check && !metric.items.is_empty() {
         let count = metric.items.len();
@@ -365,12 +414,56 @@ fn card(out: &mut String, metric: &MetricScore) {
     out.push_str("</li>\n");
 }
 
-/// Returns a metric's value as the grid shows it: `27.1 ms`, `pass`, or `5 of 6 pass`.
-fn headline(metric: &MetricScore) -> String {
-    if metric.kind == Kind::Check {
-        return report::value(metric);
+/// Draws a trend: a line through each past run's value and this run's, oldest first, scaled to
+/// span at least `span`, with a dot on each that names its commit and value on hover. This run's
+/// dot takes `band`'s color.
+fn trend(points: &[(String, f64, String)], span: f64, label: &str, band: &str) -> String {
+    const WIDTH: f64 = 120.0;
+    const HEIGHT: f64 = 28.0;
+    const PAD: f64 = 3.0;
+
+    let low = points
+        .iter()
+        .map(|point| point.1)
+        .fold(f64::INFINITY, f64::min);
+    let high = points
+        .iter()
+        .map(|point| point.1)
+        .fold(f64::NEG_INFINITY, f64::max);
+    let range = (high - low).max(span).max(f64::MIN_POSITIVE);
+    let bottom = (high + low - range) / 2.0;
+    let last = points.len().saturating_sub(1);
+    let gaps = u32::try_from(last).map_or(1.0, f64::from).max(1.0);
+    let step = (WIDTH - 2.0 * PAD) / gaps;
+
+    let mut x = PAD;
+    let mut line = String::new();
+    let mut dots = String::new();
+    for (index, (commit, value, shown)) in points.iter().enumerate() {
+        let y = HEIGHT - PAD - (value - bottom) / range * (HEIGHT - 2.0 * PAD);
+        let _ = write!(line, "{}{x:.1},{y:.1}", if index == 0 { "" } else { " " });
+        let _ = write!(
+            dots,
+            "<circle{} cx=\"{x:.1}\" cy=\"{y:.1}\" r=\"{}\"><title>{}: {}</title></circle>",
+            if index == last { " class=\"now\"" } else { "" },
+            if index == last { "3" } else { "2" },
+            escape(commit),
+            escape(shown)
+        );
+        x += step;
     }
-    format::amount(metric.kind, metric.value)
+
+    let (first, now) = (
+        points.first().map_or("", |point| point.2.as_str()),
+        points.last().map_or("", |point| point.2.as_str()),
+    );
+    format!(
+        "<svg class=\"trend {band}\" viewBox=\"0 0 {WIDTH} {HEIGHT}\" role=\"img\" aria-label=\"{} over the last {} runs, from {} to {}\"><polyline points=\"{line}\"/>{dots}</svg>",
+        escape(label),
+        points.len(),
+        escape(first),
+        escape(now)
+    )
 }
 
 /// Writes a collapsible row for each metric with items, as Lighthouse lists its audits. Lists
@@ -682,6 +775,11 @@ th{font-weight:600}
 .poor.metric-value,.poor.metric-score,.value.poor{color:var(--poor-fg)}
 .none.metric-score{color:var(--none-fg)}
 .metric-at{font-size:13px;overflow-wrap:anywhere}
+.trends{display:flex;align-items:center;gap:8px;margin-top:8px}
+.trend{display:block;width:120px;height:28px;margin-top:4px;overflow:visible}
+.trend polyline{fill:none;stroke:var(--muted);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
+.trend circle{fill:var(--muted)}
+.trend.good circle.now{fill:var(--good)}.trend.average circle.now{fill:var(--average)}.trend.poor circle.now{fill:var(--poor)}.trend.none circle.now{fill:var(--fg)}
 .bar{position:relative;height:6px;border-radius:3px;margin:12px 7px 8px;background:linear-gradient(to right,color-mix(in srgb,var(--good) 40%,transparent) 0 33.33%,color-mix(in srgb,var(--average) 40%,transparent) 33.33% 66.67%,color-mix(in srgb,var(--poor) 40%,transparent) 66.67%)}
 .bar.higher{background:linear-gradient(to right,color-mix(in srgb,var(--poor) 40%,transparent) 0 33.33%,color-mix(in srgb,var(--average) 40%,transparent) 33.33% 66.67%,color-mix(in srgb,var(--good) 40%,transparent) 66.67%)}
 .tick{position:absolute;top:-4px;bottom:-4px;width:2px;margin-left:-1px;border-radius:1px;background:var(--fg)}

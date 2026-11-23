@@ -148,8 +148,8 @@ fn help() {
 
     assert!(output.status.success());
     insta::assert_snapshot!(stdout(&output), @"
-    Usage: retros [category] [--compare <ref>] [--compact] [--update] [--require-baseline]
-                  [--require-targets]
+    Usage: retros [category] [--compare <ref>] [--compact] [--note] [--update]
+                  [--require-baseline] [--require-targets]
            retros check
            retros init
            retros log <category> <metric> [item] [--subject <name>]
@@ -166,12 +166,13 @@ fn help() {
              since <ref>, or every commit, in temporary checkouts and bisecting
       check  Run each script once and check the metric lines it writes
       init   Print a brief for an agent to set up Retros in this project
-      log    List the commits that changed a metric's baseline
+      log    List the commits that changed a metric's baseline, or the runs noted for it
 
     Options:
       --compare <ref>     Compare with another revision: timings in interleaved pairs, and sizes,
                           counts, and checks with its baselines
       --compact           Print the scores, missed targets, and opportunities in a few lines
+      --note              Keep this run as a Git note on HEAD, for trends and `retros log`
       --update            Write this run's sizes, counts, checks, and line targets as baselines
       --require-baseline  Exit with status 1 when anything differs from the baselines
       --require-targets   Exit with status 1 when a metric misses its target or a script fails
@@ -188,8 +189,8 @@ fn unknown_argument() {
     insta::assert_snapshot!(stderr(&output), @"
     error: unknown argument '--nope'
 
-    Usage: retros [category] [--compare <ref>] [--compact] [--update] [--require-baseline]
-                  [--require-targets]
+    Usage: retros [category] [--compare <ref>] [--compact] [--note] [--update]
+                  [--require-baseline] [--require-targets]
            retros check
            retros init
            retros log <category> <metric> [item] [--subject <name>]
@@ -206,12 +207,13 @@ fn unknown_argument() {
              since <ref>, or every commit, in temporary checkouts and bisecting
       check  Run each script once and check the metric lines it writes
       init   Print a brief for an agent to set up Retros in this project
-      log    List the commits that changed a metric's baseline
+      log    List the commits that changed a metric's baseline, or the runs noted for it
 
     Options:
       --compare <ref>     Compare with another revision: timings in interleaved pairs, and sizes,
                           counts, and checks with its baselines
       --compact           Print the scores, missed targets, and opportunities in a few lines
+      --note              Keep this run as a Git note on HEAD, for trends and `retros log`
       --update            Write this run's sizes, counts, checks, and line targets as baselines
       --require-baseline  Exit with status 1 when anything differs from the baselines
       --require-targets   Exit with status 1 when a metric misses its target or a script fails
@@ -228,8 +230,8 @@ fn unknown_check_argument() {
     insta::assert_snapshot!(stderr(&output), @"
     error: unknown argument '--fast'
 
-    Usage: retros [category] [--compare <ref>] [--compact] [--update] [--require-baseline]
-                  [--require-targets]
+    Usage: retros [category] [--compare <ref>] [--compact] [--note] [--update]
+                  [--require-baseline] [--require-targets]
            retros check
            retros init
            retros log <category> <metric> [item] [--subject <name>]
@@ -246,12 +248,13 @@ fn unknown_check_argument() {
              since <ref>, or every commit, in temporary checkouts and bisecting
       check  Run each script once and check the metric lines it writes
       init   Print a brief for an agent to set up Retros in this project
-      log    List the commits that changed a metric's baseline
+      log    List the commits that changed a metric's baseline, or the runs noted for it
 
     Options:
       --compare <ref>     Compare with another revision: timings in interleaved pairs, and sizes,
                           counts, and checks with its baselines
       --compact           Print the scores, missed targets, and opportunities in a few lines
+      --note              Keep this run as a Git note on HEAD, for trends and `retros log`
       --update            Write this run's sizes, counts, checks, and line targets as baselines
       --require-baseline  Exit with status 1 when anything differs from the baselines
       --require-targets   Exit with status 1 when a metric misses its target or a script fails
@@ -1354,7 +1357,7 @@ fn blame_bisects_commits_until_baselines_record_the_metric_and_log_lists_them() 
     assert_eq!(git(dir, &["worktree", "list"]).lines().count(), 1);
 
     let output = retros_in(dir, &["log", "footprint", "bundle"], &[]);
-    insta::assert_snapshot!(stdout(&output), @"No baseline records footprint bundle in the history of retros.yaml. `retros blame` measures commits instead");
+    insta::assert_snapshot!(stdout(&output), @"No baseline or note records footprint bundle. `retros --note` keeps each run, and `retros blame` measures commits");
 
     // Once baselines record the bundle, its history comes from them.
     fs::write(dir.join(".ready"), "").unwrap();
@@ -1412,6 +1415,99 @@ fn blame_bisects_commits_until_baselines_record_the_metric_and_log_lists_them() 
     let output = retros_in(dir, &["log", "footprint"], &[]);
     assert_eq!(output.status.code(), Some(2));
     insta::assert_snapshot!(stderr(&output).lines().next().unwrap(), @"error: log needs a category, a metric, and optionally an item, such as `retros log footprint bundle`");
+}
+
+#[test]
+fn notes_keep_runs_for_log_and_the_trends_in_report_html() {
+    let project = repository("compare");
+    let dir = project.path();
+    fs::write(dir.join(".ready"), "").unwrap();
+    let mut day = 1;
+    let mut dated = |dir: &Path, args: &[&str]| {
+        let date = format!("2026-01-0{day}T12:00:00");
+        git(dir, &[args, &["--date", &date]].concat());
+        day += 1;
+    };
+    dated(
+        dir,
+        &[
+            "commit",
+            "-q",
+            "--amend",
+            "-m",
+            "feat: measure the bundle and speed",
+        ],
+    );
+    let named = |text: &str| {
+        let log = git(dir, &["log", "--reverse", "--format=%h"]);
+        log.lines()
+            .enumerate()
+            .fold(text.to_owned(), |text, (index, hash)| {
+                text.replace(hash, &format!("commit{}", index + 1))
+            })
+    };
+
+    let output = retros_in(dir, &["--note"], &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    assert!(named(&stdout(&output)).ends_with("report.html, a note on commit1\n"));
+    insta::assert_snapshot!(git(dir, &["notes", "--ref", "refs/notes/retros", "show", "HEAD"]), @"
+    [footprint 93]
+    bundle 27.5kB
+    [speed 99]
+    encode 2ms
+    parse 10ms
+    ");
+
+    // Encode slows in one commit and the bundle grows in the next, and each run is noted.
+    fs::write(dir.join("encode.txt"), "2.5ms\n").unwrap();
+    git(dir, &["add", "-A"]);
+    dated(dir, &["commit", "-q", "-m", "refactor: encode in one pass"]);
+    retros_in(dir, &["--note"], &[]);
+    fs::write(dir.join("bundle.txt"), "30kB\n").unwrap();
+    git(dir, &["add", "-A"]);
+    dated(dir, &["commit", "-q", "-m", "feat: inline the icons"]);
+    retros_in(dir, &["--note"], &[]);
+
+    let output = retros_in(dir, &["log", "speed", "encode"], &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(named(&stdout(&output)), @"
+    speed encode in the runs noted in refs/notes/retros
+
+      commit3  2026-01-03  2.5 ms  feat: inline the icons
+      commit2  2026-01-02  2.5 ms  refactor: encode in one pass
+      commit1  2026-01-01  2 ms    feat: measure the bundle and speed
+    ");
+    let output = retros_in(dir, &["log", "footprint", "bundle"], &[]);
+    insta::assert_snapshot!(named(&stdout(&output)), @"
+    footprint bundle in the runs noted in refs/notes/retros
+
+      commit3  2026-01-03  30 kB    feat: inline the icons
+      commit2  2026-01-02  27.5 kB  refactor: encode in one pass
+      commit1  2026-01-01  27.5 kB  feat: measure the bundle and speed
+    ");
+
+    // The report leaves out the note on HEAD, which this run stands for.
+    retros_in(dir, &[], &[]);
+    let html = fs::read_to_string(dir.join(".retros/report.html")).unwrap();
+    let trends: Vec<&str> = html
+        .split("<svg class=\"trend ")
+        .skip(1)
+        .filter_map(|svg| svg.split("aria-label=\"").nth(1)?.split('"').next())
+        .collect();
+    insta::assert_debug_snapshot!(trends, @r#"
+    [
+        "Score over the last 3 runs, from 93 to 90",
+        "Bundle over the last 3 runs, from 27.5 kB to 30 kB",
+        "Score over the last 3 runs, from 99 to 98",
+        "Encode over the last 3 runs, from 2 ms to 2.5 ms",
+        "Parse over the last 3 runs, from 10 ms to 10 ms",
+    ]
+    "#);
+
+    fs::write(dir.join("bundle.txt"), "31kB\n").unwrap();
+    let output = retros_in(dir, &["--note"], &[]);
+    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(stderr(&output), @"error: --note needs tracked files that match HEAD, so the note describes that commit. Commit or stash the changes first");
 }
 
 #[test]

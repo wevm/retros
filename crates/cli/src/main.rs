@@ -20,8 +20,8 @@ use std::process::ExitCode;
 use engine::error::Error;
 
 const USAGE: &str = "\
-Usage: retros [category] [--compare <ref>] [--compact] [--update] [--require-baseline]
-              [--require-targets]
+Usage: retros [category] [--compare <ref>] [--compact] [--note] [--update]
+              [--require-baseline] [--require-targets]
        retros check
        retros init
        retros log <category> <metric> [item] [--subject <name>]
@@ -38,12 +38,13 @@ Commands:
          since <ref>, or every commit, in temporary checkouts and bisecting
   check  Run each script once and check the metric lines it writes
   init   Print a brief for an agent to set up Retros in this project
-  log    List the commits that changed a metric's baseline
+  log    List the commits that changed a metric's baseline, or the runs noted for it
 
 Options:
   --compare <ref>     Compare with another revision: timings in interleaved pairs, and sizes,
                       counts, and checks with its baselines
   --compact           Print the scores, missed targets, and opportunities in a few lines
+  --note              Keep this run as a Git note on HEAD, for trends and `retros log`
   --update            Write this run's sizes, counts, checks, and line targets as baselines
   --require-baseline  Exit with status 1 when anything differs from the baselines
   --require-targets   Exit with status 1 when a metric misses its target or a script fails
@@ -81,6 +82,7 @@ fn main() -> ExitCode {
                         _ => return usage("--compare needs a revision, such as --compare main"),
                     },
                     "--compact" => options.compact = true,
+                    "--note" => options.note = true,
                     "--update" => options.update = true,
                     "--require-baseline" => options.require_baseline = true,
                     "--require-targets" => options.require_targets = true,

@@ -303,7 +303,9 @@ fn erf(x: f64) -> f64 {
     sign * (1.0 - y * (-x * x).exp())
 }
 
-fn metric(metric: &Metric, rounds: &[Vec<Line<'_>>]) -> Option<MetricScore> {
+/// Scores one metric from the metric lines of each round, or returns `None` when no line of the
+/// first round measures it.
+pub(crate) fn metric(metric: &Metric, rounds: &[Vec<Line<'_>>]) -> Option<MetricScore> {
     let lines: Vec<&Line<'_>> = rounds
         .first()?
         .iter()
