@@ -1422,6 +1422,9 @@ fn notes_keep_runs_for_log_and_the_trends_in_report_html() {
     let project = repository("compare");
     let dir = project.path();
     fs::write(dir.join(".ready"), "").unwrap();
+    // `retros --note` commits to the notes ref with the repository's identity.
+    git(dir, &["config", "user.name", "Retros"]);
+    git(dir, &["config", "user.email", "retros@example.com"]);
     let mut day = 1;
     let mut dated = |dir: &Path, args: &[&str]| {
         let date = format!("2026-01-0{day}T12:00:00");
