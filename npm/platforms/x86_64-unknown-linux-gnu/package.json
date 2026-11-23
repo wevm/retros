@@ -1,0 +1,23 @@
+{
+  "name": "@retros/linux-x64-gnu",
+  "description": "The retros binary for Linux on x64 with glibc 2.28 or later",
+  "version": "0.0.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wevm/retros.git",
+    "directory": "npm/platforms/x86_64-unknown-linux-gnu"
+  },
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "libc": [
+    "glibc"
+  ],
+  "files": [
+    "retros"
+  ]
+}

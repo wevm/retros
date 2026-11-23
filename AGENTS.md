@@ -285,11 +285,13 @@ Applies to documentation, comments, TSDoc, interface copy, commit messages, and 
 
 ## Repository Layout
 
-- `crates/engine/`: the pure engine. `crates/cli/`: the `retros` binary and its integration tests.
+- `crates/engine/`: the pure engine. `crates/cli/`: the `retros` package, which builds the `retros` binary, and its integration tests.
 - `examples/`: small projects in different languages, each with a `retros.yaml` and the scripts it runs. CLI tests run `retros check` on each one.
 - `.agents/retros.yaml` and `.agents/metrics/`: Retros measuring itself.
 - `.agents/plan.md` tracks phases, decisions, and acceptance gates.
-- Later phases add the documentation site, the npm package, and the GitHub Action. Each one gets its layout entry here when it lands.
+- `install.sh` and `.github/workflows/release.yml`: the install script, and the workflow that builds release archives and publishes the npm packages for a `v*` tag.
+- `npm/retros/`: the `retros` npm package, a launcher that runs the binary from the platform package for the machine. `npm/platforms/<target>/` holds one platform package per release target, and `npm/stage.ts` puts a release's binaries and version into them.
+- Later phases add the documentation site and the GitHub Action. Each one gets its layout entry here when it lands.
 
 ## Tooling
 
@@ -303,3 +305,4 @@ Applies to documentation, comments, TSDoc, interface copy, commit messages, and 
 - `cargo fmt --all --check` and `cargo clippy --workspace --all-targets -- -D warnings` check formatting and lints.
 - `cargo build --release` builds the release binary at `target/release/retros`.
 - `cargo run -p retros -- check` runs Retros on itself with `.agents/retros.yaml`.
+- `pnpm install` installs the TypeScript tooling. `pnpm check` formats and lints TypeScript with Vite Plus, and `pnpm check:types` checks types.

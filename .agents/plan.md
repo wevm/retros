@@ -285,8 +285,8 @@ Replace zepto's harness metrics report with Retros.
 
 Make Retros easy to install and run in CI.
 
-- [ ] Release binaries for Linux (x64 and arm64, glibc and musl) and macOS (x64 and arm64) on GitHub Releases.
-- [ ] An install script and an npm package with platform packages, so `npx retros` works.
+- [x] Release binaries for Linux (x64 and arm64, glibc and musl) and macOS (x64 and arm64) on GitHub Releases. A `v*` tag runs `.github/workflows/release.yml`, which builds each target on its own runner, checks the tag against the version in `Cargo.toml`, and attaches one `retros-<target>.tar.gz` per target and `sha256sums.txt` to a GitHub Release. glibc builds link in a manylinux_2_28 container, so they run on glibc 2.28 and later. musl builds are static. A manual run builds and checks every archive without releasing, and the first one passed on 2026-11-23.
+- [x] An install script and an npm package with platform packages, so `npx retros` works. `install.sh` picks the archive for the machine, takes the musl build on musl and on glibc older than 2.28, and checks its digest. The `retros` package on npm runs the binary from the one of `@retros/darwin-arm64`, `darwin-x64`, `linux-arm64-gnu`, `linux-arm64-musl`, `linux-x64-gnu`, and `linux-x64-musl` that npm installs for the machine's `os`, `cpu`, and `libc`. The Release workflow publishes them at the tag's version, and installs the packed packages on glibc and musl first. Through a local registry, `npx`, `pnpm dlx`, and `bunx` ran it on glibc, and `npx` on Alpine. After publishing, the workflow runs `install.sh` and `npx retros` on clean macOS and Linux runners, Alpine, AlmaLinux 8, and CentOS 7.
 - [ ] A GitHub Action that runs `retros --compare` on pull requests and keeps one updating comment.
 - [ ] The documentation site, following the Writing Documentation conventions.
 

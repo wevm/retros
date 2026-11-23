@@ -1,0 +1,21 @@
+{
+  "name": "retros",
+  "description": "Continuous metrics and hill climbing",
+  "type": "module",
+  "version": "0.0.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wevm/retros.git",
+    "directory": "npm/retros"
+  },
+  "bin": {
+    "retros": "./dist/bin.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc"
+  }
+}

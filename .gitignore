@@ -1,3 +1,5 @@
 target
 .retros
+dist
 node_modules
+npm/platforms/*/retros
