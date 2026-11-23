@@ -1,0 +1,144 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+  # A manual run builds and checks every archive without releasing anything.
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build (${{ matrix.target }})
+    env:
+      TARGET: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+    timeout-minutes: 30
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The manylinux_2_28 image has glibc 2.28, so the binary runs on Debian 10, Ubuntu 20.04,
+      # RHEL 8, and later. A build on the runner would need the runner's newer glibc.
+      - name: Build in manylinux
+        if: endsWith(matrix.target, '-linux-gnu')
+        run: |
+          docker run --rm -e TARGET -v "$PWD:/retros" -w /retros "quay.io/pypa/manylinux_2_28_$(uname -m)" sh -euc '
+            curl -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain none --profile minimal
+            . "$HOME/.cargo/env"
+            cargo build --release --locked -p retros --target "$TARGET"
+            "target/$TARGET/release/retros" --version
+          '
+
+      # musl builds link statically, so they need no C library on the machine that runs them.
+      - name: Build
+        if: ${{ !endsWith(matrix.target, '-linux-gnu') }}
+        run: |
+          rustup target add "$TARGET"
+          cargo build --release --locked -p retros --target "$TARGET"
+
+      - name: Run on Alpine
+        if: endsWith(matrix.target, '-linux-musl')
+        run: docker run --rm -v "$PWD/target/$TARGET/release:/retros:ro" alpine:3 /retros/retros --version
+
+      - name: Check version
+        run: |
+          version=$("target/$TARGET/release/retros" --version)
+          echo "$version"
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$version" != "retros ${GITHUB_REF_NAME#v}" ]; then
+            echo "::error::The tag $GITHUB_REF_NAME does not match '$version'. Set version in Cargo.toml before tagging."
+            exit 1
+          fi
+
+      - name: Package
+        run: tar -czf "retros-$TARGET.tar.gz" -C "target/$TARGET/release" retros -C "$GITHUB_WORKSPACE" LICENSE
+
+      - name: Upload archive
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          if-no-files-found: error
+          name: retros-${{ matrix.target }}
+          path: retros-${{ matrix.target }}.tar.gz
+          retention-days: 7
+
+  github:
+    name: GitHub Release
+    if: github.ref_type == 'tag'
+    needs: build
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Download archives
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          merge-multiple: true
+          path: dist
+          pattern: retros-*
+
+      - name: Write checksums
+        working-directory: dist
+        run: sha256sum retros-*.tar.gz > sha256sums.txt
+
+      # A tag with a suffix, such as v0.1.0-rc.1, makes a prerelease, which `latest` skips.
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          case "$GITHUB_REF_NAME" in *-*) prerelease=--prerelease ;; *) prerelease= ;; esac
+          gh release create "$GITHUB_REF_NAME" dist/* --generate-notes --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --verify-tag $prerelease
+
+  install:
+    name: Install (${{ matrix.os }})
+    if: github.ref_type == 'tag'
+    needs: github
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15-intel, macos-latest, ubuntu-24.04-arm, ubuntu-latest]
+    timeout-minutes: 10
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run install script
+        env:
+          RETROS_VERSION: ${{ github.ref_name }}
+        run: sh install.sh && ~/.retros/bin/retros --version
+
+      # Alpine has musl and only BusyBox wget. AlmaLinux 8 has glibc 2.28, the oldest the glibc
+      # build supports. CentOS 7 has glibc 2.17, so it gets the musl build.
+      - name: Run install script in containers
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          RETROS_VERSION: ${{ github.ref_name }}
+        run: |
+          for image in alpine:3 almalinux:8 centos:7; do
+            docker run --rm -e RETROS_VERSION -v "$PWD/install.sh:/install.sh:ro" "$image" sh -c 'sh /install.sh && ~/.retros/bin/retros --version'
+          done
+
+permissions:
+  contents: read
