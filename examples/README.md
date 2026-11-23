@@ -1,6 +1,6 @@
 # Examples
 
-Each example is a small project with a `retros.toml` and the scripts it runs. The scripts are TypeScript run by [Bun](https://bun.sh). They run the tools each project already uses and turn what those tools report into metric lines.
+Each example is a small project with a `retros.yaml` and the scripts it runs. The scripts are TypeScript run by [Bun](https://bun.sh). They run the tools each project already uses and turn what those tools report into metric lines.
 
 Every example misses a few targets on purpose, so its report shows how misses, opportunities, and contextual targets read.
 
@@ -17,8 +17,8 @@ bun install
 retros
 ```
 
-A target comes from one of three places. `target` in `retros.toml` is the default for every item. A script can write its own target on a line, such as `latency /health 0.29ms target 500µs`, when it knows the context. `targets` in `retros.toml` sets targets by item pattern, such as `{ "index.html" = "8kB" }`, and has the final say.
+A target comes from one of three places. `target` in `retros.yaml` is the default for every item. A script can write its own target on a line, such as `latency /health 0.29ms target 500µs`, when it knows the context. `targets` in `retros.yaml` sets targets by item pattern, such as `{ index.html: 8kB }`, and has the final say.
 
 The web app needs Chrome. Lighthouse finds an installed Chrome, or the one at `CHROME_PATH`. Its performance category writes times, so Retros runs it 5 times, and a full run takes about 3 minutes.
 
-Retros itself is measured the same way. Its [`retros.toml`](../retros.toml) tracks the release binary size, its dependencies, and its startup time.
+Retros itself is measured the same way. Its [`.agents/retros.yaml`](../.agents/retros.yaml) tracks the release binary size, its dependencies, and its startup time.

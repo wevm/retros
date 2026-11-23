@@ -17,6 +17,7 @@ rustix = { version = "1", features = ["process"] }
 tempfile = "3"
 # preserve_order keeps categories and metrics in the order retros.toml declares them.
 toml = { version = "1", default-features = false, features = ["parse", "preserve_order", "std"] }
+yaml-rust2 = { version = "0.13.2", default-features = false }
 
 [workspace.lints.rust]
 missing_docs = "warn"

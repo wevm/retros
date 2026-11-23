@@ -1,4 +1,4 @@
-//! Integration tests for parsing `retros.toml`: typed categories with defaults, and every
+//! Integration tests for parsing `retros.yaml`: typed categories with defaults, and every
 //! configuration error rendered with its file, line, and column.
 
 use engine::config;
@@ -9,24 +9,24 @@ fn error(source: &str) -> String {
     format!(
         "[{}] {}",
         error.code.as_str(),
-        error.render("retros.toml", source)
+        error.render("retros.yaml", source)
     )
 }
 
 #[test]
 fn parses_categories_in_order_with_defaults() {
     let source = r#"
-[speed]
-run = "node metrics/speed.mjs"
-timeout = "1.5s"
-throughput = { target = 2000, better = "higher", weight = 2 }
-decode = { score = "median" }
+speed:
+  run: node metrics/speed.mjs
+  timeout: 1.5s
+  throughput: { target: 2000, better: higher, weight: 2 }
+  decode: { score: median }
 
-[footprint]
-run = "node metrics/footprint.mjs"
-export-size = { target = "1.1kB", targets = { "viem" = "60kB", "viem/chains/*" = "1kB" } }
-bundle = { target = "45.6MB" }
-modules = {}
+footprint:
+  run: node metrics/footprint.mjs
+  export-size: { target: 1.1kB, targets: { viem: 60kB, "viem/chains/*": 1kB } }
+  bundle: { target: 45.6MB }
+  modules:
 "#;
 
     let config = config::parse(source).unwrap();
@@ -37,7 +37,7 @@ modules = {}
             Category {
                 description: None,
                 location: Location {
-                    column: 2,
+                    column: 1,
                     line: 2,
                 },
                 metrics: [
@@ -45,7 +45,7 @@ modules = {}
                         better: Higher,
                         description: None,
                         location: Location {
-                            column: 1,
+                            column: 3,
                             line: 5,
                         },
                         name: "throughput",
@@ -63,7 +63,7 @@ modules = {}
                         better: Lower,
                         description: None,
                         location: Location {
-                            column: 1,
+                            column: 3,
                             line: 6,
                         },
                         name: "decode",
@@ -81,7 +81,7 @@ modules = {}
             Category {
                 description: None,
                 location: Location {
-                    column: 2,
+                    column: 1,
                     line: 8,
                 },
                 metrics: [
@@ -89,7 +89,7 @@ modules = {}
                         better: Lower,
                         description: None,
                         location: Location {
-                            column: 1,
+                            column: 3,
                             line: 10,
                         },
                         name: "export-size",
@@ -102,7 +102,7 @@ modules = {}
                         targets: [
                             Pattern {
                                 location: Location {
-                                    column: 47,
+                                    column: 44,
                                     line: 10,
                                 },
                                 pattern: "viem",
@@ -112,7 +112,7 @@ modules = {}
                             },
                             Pattern {
                                 location: Location {
-                                    column: 64,
+                                    column: 56,
                                     line: 10,
                                 },
                                 pattern: "viem/chains/*",
@@ -128,7 +128,7 @@ modules = {}
                         better: Lower,
                         description: None,
                         location: Location {
-                            column: 1,
+                            column: 3,
                             line: 11,
                         },
                         name: "bundle",
@@ -146,7 +146,7 @@ modules = {}
                         better: Lower,
                         description: None,
                         location: Location {
-                            column: 1,
+                            column: 3,
                             line: 12,
                         },
                         name: "modules",
@@ -169,24 +169,21 @@ modules = {}
 #[test]
 fn renders_timeouts_in_their_largest_exact_unit() {
     let source = r#"
-[a]
-run = "true"
-timeout = "300ms"
-m = {}
-
-[b]
-run = "true"
-timeout = "90s"
-n = {}
-
-[c]
-run = "true"
-o = {}
-
-[d]
-run = "true"
-timeout = "2h"
-p = {}
+a:
+  run: "true"
+  timeout: 300ms
+  m: {}
+b:
+  run: "true"
+  timeout: 90s
+  n: {}
+c:
+  run: "true"
+  o: {}
+d:
+  run: "true"
+  timeout: 2h
+  p: {}
 "#;
 
     let config = config::parse(source).unwrap();
@@ -207,155 +204,170 @@ p = {}
 }
 
 #[test]
-fn rejects_invalid_toml_and_structure() {
-    insta::assert_snapshot!(error("[footprint\nrun = \"true\"\n"), @"
-    [toml] retros.toml:1:11: unclosed table, expected `]`
-      1 | [footprint
-        |           ^
+fn rejects_invalid_yaml_and_structure() {
+    insta::assert_snapshot!(error("footprint:\n  run: [true\n"), @"[yaml] retros.yaml:3:1: while parsing a flow sequence, expected ',' or ']'");
+
+    insta::assert_snapshot!(error("footprint:\n  run: \"true\"\n  m: {}\n  m: {}\n"), @"
+    [yaml] retros.yaml:4:3: duplicate key `m`
+      4 |   m: {}
+        |   ^
     ");
 
-    insta::assert_snapshot!(error("# nothing yet\n"), @"[nothing-configured] retros.toml: no categories. Add a table such as `[footprint]` with a `run` command");
+    insta::assert_snapshot!(error("# nothing yet\n"), @"[nothing-configured] retros.yaml: no categories. Add one such as `footprint:` with a `run` command and a metric");
 
-    insta::assert_snapshot!(error("size = \"5kB\"\n[footprint]\nrun = \"true\"\nm = {}\n"), @r#"
-    [invalid-type] retros.toml:1:1: top-level key `size` must be a category table, such as `[size]`
-      1 | size = "5kB"
+    insta::assert_snapshot!(error("- footprint\n"), @"
+    [invalid-type] retros.yaml:1:3: retros.yaml must map category names to categories, such as `footprint:`
+      1 | - footprint
+        |   ^
+    ");
+
+    insta::assert_snapshot!(error("size: 5kB\nfootprint:\n  run: \"true\"\n  m: {}\n"), @"
+    [invalid-type] retros.yaml:1:1: top-level key `size` must be a category: a mapping with a `run` command and metrics
+      1 | size: 5kB
         | ^
-    "#);
-
-    insta::assert_snapshot!(error("[footprint]\nexport-size = {}\n"), @"
-    [run-missing] retros.toml:1:2: category `footprint` has no `run` command. Add one, or a top-level `run` that every category shares
-      1 | [footprint]
-        |  ^
     ");
 
-    insta::assert_snapshot!(error("[footprint]\nrun = \"  \"\nexport-size = {}\n"), @r#"
-    [invalid-value] retros.toml:2:7: `run` must be a command
-      2 | run = "  "
-        |       ^
-    "#);
-
-    insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\n"), @"
-    [nothing-configured] retros.toml:1:2: category `footprint` declares no metrics
-      1 | [footprint]
-        |  ^
+    insta::assert_snapshot!(error("footprint:\n  export-size: {}\n"), @"
+    [run-missing] retros.yaml:1:1: category `footprint` has no `run` command. Add one, or a top-level `run` that every category shares
+      1 | footprint:
+        | ^
     ");
 
-    insta::assert_snapshot!(error("[\"foot print\"]\nrun = \"true\"\nm = {}\n"), @r#"
-    [invalid-name] retros.toml:1:2: invalid category name `foot print`. Names use ASCII letters, digits, `-`, `_`, and `.`
-      1 | ["foot print"]
-        |  ^
+    insta::assert_snapshot!(error("footprint:\n  run: \"  \"\n  export-size: {}\n"), @r#"
+    [invalid-value] retros.yaml:2:8: `run` must be a command
+      2 |   run: "  "
+        |        ^
     "#);
 
-    insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nexport-size = \"5kB\"\n"), @r#"
-    [invalid-type] retros.toml:3:15: metric `export-size` must be a table, such as `export-size = { target = "5kB" }` or `export-size = {}`
-      3 | export-size = "5kB"
-        |               ^
-    "#);
+    insta::assert_snapshot!(error("footprint:\n  run: \"true\"\n"), @"
+    [nothing-configured] retros.yaml:1:1: category `footprint` declares no metrics
+      1 | footprint:
+        | ^
+    ");
+
+    insta::assert_snapshot!(error("foot print:\n  run: \"true\"\n  m: {}\n"), @"
+    [invalid-name] retros.yaml:1:1: invalid category name `foot print`. Names use ASCII letters, digits, `-`, `_`, and `.`
+      1 | foot print:
+        | ^
+    ");
+
+    insta::assert_snapshot!(error("footprint:\n  run: \"true\"\n  export-size: 5kB\n"), @"
+    [invalid-type] retros.yaml:3:16: metric `export-size` must be a mapping, such as `export-size: { target: 5kB }` or `export-size: {}`
+      3 |   export-size: 5kB
+        |                ^
+    ");
 }
 
 #[test]
 fn rejects_invalid_category_settings() {
-    insta::assert_snapshot!(error("[speed]\nrun = \"true\"\ntimeout = \"10 minutes\"\nm = {}\n"), @r#"
-    [invalid-value] retros.toml:3:11: invalid `timeout` `10 minutes`, expected a duration such as "30s", "10m", or "500ms"
-      3 | timeout = "10 minutes"
-        |           ^
-    "#);
+    insta::assert_snapshot!(error("speed:\n  run: \"true\"\n  timeout: 10 minutes\n  m: {}\n"), @"
+    [invalid-value] retros.yaml:3:12: invalid `timeout` `10 minutes`, expected a duration such as `30s`, `10m`, or `500ms`
+      3 |   timeout: 10 minutes
+        |            ^
+    ");
 
-    insta::assert_snapshot!(error("[speed]\nrun = \"true\"\ntimeout = 600\nm = {}\n"), @"
-    [invalid-type] retros.toml:3:11: `timeout` must be a string
-      3 | timeout = 600
-        |           ^
+    insta::assert_snapshot!(error("speed:\n  run: \"true\"\n  timeout: [10m]\n  m: {}\n"), @"
+    [invalid-type] retros.yaml:3:13: `timeout` must be a string
+      3 |   timeout: [10m]
+        |             ^
     ");
 }
 
 #[test]
 fn rejects_invalid_metric_settings() {
-    insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { target = \"5kB\", goal = 1 }\n"), @r#"
-    [unexpected-key] retros.toml:3:26: unknown key `goal` in metric `size`, expected one of `better`, `description`, `score`, `target`, `targets`, `varies`, `weight`
-      3 | size = { target = "5kB", goal = 1 }
-        |                          ^
-    "#);
+    insta::assert_snapshot!(error("footprint:\n  run: \"true\"\n  size: { target: 5kB, goal: 1 }\n"), @"
+    [unexpected-key] retros.yaml:3:24: unknown key `goal` in metric `size`, expected one of `better`, `description`, `score`, `target`, `targets`, `varies`, `weight`
+      3 |   size: { target: 5kB, goal: 1 }
+        |                        ^
+    ");
 
-    insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { target = \"5kB\", limit = \"50kB\" }\n"), @r#"
-    [unexpected-key] retros.toml:3:26: unknown key `limit` in metric `size`, expected one of `better`, `description`, `score`, `target`, `targets`, `varies`, `weight`
-      3 | size = { target = "5kB", limit = "50kB" }
-        |                          ^
-    "#);
+    insta::assert_snapshot!(error("footprint:\n  run: \"true\"\n  size: { target: 5kB, limit: 50kB }\n"), @"
+    [unexpected-key] retros.yaml:3:24: unknown key `limit` in metric `size`, expected one of `better`, `description`, `score`, `target`, `targets`, `varies`, `weight`
+      3 |   size: { target: 5kB, limit: 50kB }
+        |                        ^
+    ");
 
-    insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { better = \"smaller\" }\n"), @r#"
-    [invalid-value] retros.toml:3:19: unknown `better` value `smaller`, expected `lower` or `higher`
-      3 | size = { better = "smaller" }
-        |                   ^
-    "#);
-
-    insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { score = \"p95\" }\n"), @r#"
-    [invalid-value] retros.toml:3:18: unknown `score` value `p95`, expected one of `p90`, `p10`, `median`, `max`, `min`, `sum`
-      3 | size = { score = "p95" }
-        |                  ^
-    "#);
-
-    insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { weight = -1 }\n"), @"
-    [invalid-value] retros.toml:3:19: `weight` cannot be negative
-      3 | size = { weight = -1 }
+    insta::assert_snapshot!(error("footprint:\n  run: \"true\"\n  size: { better: smaller }\n"), @"
+    [invalid-value] retros.yaml:3:19: unknown `better` value `smaller`, expected `lower` or `higher`
+      3 |   size: { better: smaller }
         |                   ^
     ");
 
-    insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { weight = 0x10 }\n"), @"
-    [invalid-type] retros.toml:3:19: `weight` must be a finite number
-      3 | size = { weight = 0x10 }
+    insta::assert_snapshot!(error("footprint:\n  run: \"true\"\n  size: { score: p95 }\n"), @"
+    [invalid-value] retros.yaml:3:18: unknown `score` value `p95`, expected one of `p90`, `p10`, `median`, `max`, `min`, `sum`
+      3 |   size: { score: p95 }
+        |                  ^
+    ");
+
+    insta::assert_snapshot!(error("footprint:\n  run: \"true\"\n  size: { weight: -1 }\n"), @"
+    [invalid-value] retros.yaml:3:19: `weight` cannot be negative
+      3 |   size: { weight: -1 }
+        |                   ^
+    ");
+
+    insta::assert_snapshot!(error("footprint:\n  run: \"true\"\n  size: { weight: 0x10 }\n"), @"
+    [invalid-type] retros.yaml:3:19: `weight` must be a finite number
+      3 |   size: { weight: 0x10 }
         |                   ^
     ");
 }
 
 #[test]
 fn rejects_targets_that_cannot_score() {
-    insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { target = \"5kb\" }\n"), @r#"
-    [unknown-unit] retros.toml:3:21: unknown unit `kb`, expected one of `B`, `kB`, `MB`, `GB`, `ns`, `µs`, `us`, `ms`, `s`
-      3 | size = { target = "5kb" }
+    insta::assert_snapshot!(error("footprint:\n  run: \"true\"\n  size: { target: \"5kb\" }\n"), @r#"
+    [unknown-unit] retros.yaml:3:21: unknown unit `kb`, expected one of `B`, `kB`, `MB`, `GB`, `ns`, `µs`, `us`, `ms`, `s`
+      3 |   size: { target: "5kb" }
         |                     ^
     "#);
 
-    insta::assert_snapshot!(error("[speed]\nrun = \"true\"\nerrors = { target = 0 }\n"), @"
-    [target-range] retros.toml:3:21: the `target` of metric `errors` must be greater than zero
-      3 | errors = { target = 0 }
+    // The column counts characters, so the é before it must not shift the caret.
+    insta::assert_snapshot!(error("# é\nfootprint:\n  run: \"true\"\n  size: { target: 5kb }\n"), @"
+    [unknown-unit] retros.yaml:4:20: unknown unit `kb`, expected one of `B`, `kB`, `MB`, `GB`, `ns`, `µs`, `us`, `ms`, `s`
+      4 |   size: { target: 5kb }
+        |                    ^
+    ");
+
+    insta::assert_snapshot!(error("speed:\n  run: \"true\"\n  errors: { target: 0 }\n"), @"
+    [target-range] retros.yaml:3:21: the `target` of metric `errors` must be greater than zero
+      3 |   errors: { target: 0 }
         |                     ^
     ");
 
-    insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { target = \"-5kB\" }\n"), @r#"
-    [invalid-number] retros.toml:3:20: sizes cannot be negative
-      3 | size = { target = "-5kB" }
-        |                    ^
-    "#);
-
-    insta::assert_snapshot!(error("[tests]\nrun = \"true\"\npassing = { target = \"pass\" }\n"), @r#"
-    [target-unit] retros.toml:3:22: metric `passing` cannot have a check as its target. A check scores the share of items that pass
-      3 | passing = { target = "pass" }
-        |                      ^
-    "#);
-
-    insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { target = [\"5kB\"] }\n"), @r#"
-    [invalid-type] retros.toml:3:19: `target` must be a value such as "5kB", "20ms", or a number
-      3 | size = { target = ["5kB"] }
+    insta::assert_snapshot!(error("footprint:\n  run: \"true\"\n  size: { target: -5kB }\n"), @"
+    [invalid-number] retros.yaml:3:19: sizes cannot be negative
+      3 |   size: { target: -5kB }
         |                   ^
-    "#);
+    ");
 
-    insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { targets = \"5kB\" }\n"), @r#"
-    [invalid-type] retros.toml:3:20: `targets` must be a table of item patterns and their targets, such as `targets = { "viem/chains/*" = "1kB" }`
-      3 | size = { targets = "5kB" }
+    insta::assert_snapshot!(error("tests:\n  run: \"true\"\n  passing: { target: pass }\n"), @"
+    [target-unit] retros.yaml:3:22: metric `passing` cannot have a check as its target. A check scores the share of items that pass
+      3 |   passing: { target: pass }
+        |                      ^
+    ");
+
+    insta::assert_snapshot!(error("footprint:\n  run: \"true\"\n  size: { target: [5kB] }\n"), @"
+    [invalid-type] retros.yaml:3:20: `target` must be a value such as `5kB`, `20ms`, or a number
+      3 |   size: { target: [5kB] }
+        |                    ^
+    ");
+
+    insta::assert_snapshot!(error("footprint:\n  run: \"true\"\n  size: { targets: 5kB }\n"), @r#"
+    [invalid-type] retros.yaml:3:20: `targets` must map item patterns to targets, such as `targets: { "viem/chains/*": 1kB }`
+      3 |   size: { targets: 5kB }
         |                    ^
     "#);
 
-    insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { targets = { \"viem/*\" = 0 } }\n"), @r#"
-    [target-range] retros.toml:3:33: the `target` of metric `size` must be greater than zero
-      3 | size = { targets = { "viem/*" = 0 } }
-        |                                 ^
+    insta::assert_snapshot!(error("footprint:\n  run: \"true\"\n  size: { targets: { \"viem/*\": 0 } }\n"), @r#"
+    [target-range] retros.yaml:3:32: the `target` of metric `size` must be greater than zero
+      3 |   size: { targets: { "viem/*": 0 } }
+        |                                ^
     "#);
 }
 
 #[test]
 fn shares_a_top_level_run_and_rejects_a_metric_in_two_sharing_categories() {
     let shared = config::parse(
-        "run = \"zig build metrics\"\ntimeout = \"2m\"\n\n[speed]\nstartup = { description = \"Spawn to exit\" }\n\n[footprint]\nrun = \"du -b zc\"\nturn-rss = { varies = true }\n",
+        "run: zig build metrics\ntimeout: 2m\n\nspeed:\n  startup: { description: Spawn to exit }\n\nfootprint:\n  run: du -b zc\n  turn-rss: { varies: true }\n",
     )
     .unwrap();
     let summary: Vec<String> = shared
@@ -380,14 +392,14 @@ fn shares_a_top_level_run_and_rejects_a_metric_in_two_sharing_categories() {
     ]
     "#);
 
-    insta::assert_snapshot!(error("run = \"zig build metrics\"\n\n[speed]\nstartup = {}\n\n[scale]\nstartup = {}\n"), @"
-    [duplicate-metric] retros.toml:7:1: metric `startup` is in `[speed]` and `[scale]`, which share the same `run`, so Retros cannot tell which category its lines belong to
-      7 | startup = {}
-        | ^
+    insta::assert_snapshot!(error("run: zig build metrics\n\nspeed:\n  startup: {}\n\nscale:\n  startup: {}\n"), @"
+    [duplicate-metric] retros.yaml:7:3: metric `startup` is in `speed` and `scale`, which share the same `run`, so Retros cannot tell which category its lines belong to
+      7 |   startup: {}
+        |   ^
     ");
-    insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nturn-rss = { varies = \"yes\" }\n"), @r#"
-    [invalid-type] retros.toml:3:23: `varies` must be `true` or `false`
-      3 | turn-rss = { varies = "yes" }
+    insta::assert_snapshot!(error("footprint:\n  run: \"true\"\n  turn-rss: { varies: yes }\n"), @"
+    [invalid-type] retros.yaml:3:23: `varies` must be `true` or `false`
+      3 |   turn-rss: { varies: yes }
         |                       ^
-    "#);
+    ");
 }

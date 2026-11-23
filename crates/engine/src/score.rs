@@ -24,7 +24,7 @@ const MIN_GAIN: f64 = 0.5;
 /// The result of one category run.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CategoryScore {
-    /// Configured metrics in the order `retros.toml` declares them.
+    /// Configured metrics in the order `retros.yaml` declares them.
     pub metrics: Vec<MetricScore>,
     /// How many rounds the category's times and values that vary take their median of: the runs
     /// of its script, or 1 when it has neither.
@@ -147,7 +147,7 @@ pub fn subjects(
 ///
 /// Each round must already pass [`crate::check::category`], and name one subject or none. Sizes,
 /// counts, checks, and targets come from the first round, except metrics that vary. A metric that
-/// `retros.toml` does not configure is left out.
+/// `retros.yaml` does not configure is left out.
 pub fn category(category: &Category, rounds: &[Vec<Line<'_>>]) -> CategoryScore {
     let metrics: Vec<MetricScore> = category
         .metrics

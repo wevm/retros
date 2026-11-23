@@ -1,5 +1,0 @@
-# The script skips `modules` and writes `chunks`, which is not configured.
-[footprint]
-run = "sh metrics.sh"
-export-size = { target = "5kB" }
-modules = {}

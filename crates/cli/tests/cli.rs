@@ -108,8 +108,9 @@ fn help() {
            retros check
 
     Run each category's script, score its metrics, list the opportunities that would raise the
-    scores most, and compare sizes, counts, checks, and line targets with retros.lock. Reports go
-    to .retros/report.json, report.md, and report.html. Name a category to run only that one.
+    scores most, and compare sizes, counts, checks, and line targets with retros.lock. Retros reads
+    retros.yaml or .agents/retros.yaml from this directory or the nearest parent. Reports go to
+    .retros/report.json, report.md, and report.html. Name a category to run only that one.
 
     Commands:
       check  Run each script once and check the metric lines it writes
@@ -134,8 +135,9 @@ fn unknown_argument() {
            retros check
 
     Run each category's script, score its metrics, list the opportunities that would raise the
-    scores most, and compare sizes, counts, checks, and line targets with retros.lock. Reports go
-    to .retros/report.json, report.md, and report.html. Name a category to run only that one.
+    scores most, and compare sizes, counts, checks, and line targets with retros.lock. Retros reads
+    retros.yaml or .agents/retros.yaml from this directory or the nearest parent. Reports go to
+    .retros/report.json, report.md, and report.html. Name a category to run only that one.
 
     Commands:
       check  Run each script once and check the metric lines it writes
@@ -160,8 +162,9 @@ fn unknown_check_argument() {
            retros check
 
     Run each category's script, score its metrics, list the opportunities that would raise the
-    scores most, and compare sizes, counts, checks, and line targets with retros.lock. Reports go
-    to .retros/report.json, report.md, and report.html. Name a category to run only that one.
+    scores most, and compare sizes, counts, checks, and line targets with retros.lock. Retros reads
+    retros.yaml or .agents/retros.yaml from this directory or the nearest parent. Reports go to
+    .retros/report.json, report.md, and report.html. Name a category to run only that one.
 
     Commands:
       check  Run each script once and check the metric lines it writes
@@ -865,7 +868,7 @@ fn unknown_category() {
     let output = retros_in(project.path(), &["bench"], &[]);
 
     assert_eq!(output.status.code(), Some(2));
-    insta::assert_snapshot!(stderr(&output), @"error: unknown category 'bench'. retros.toml declares footprint, speed");
+    insta::assert_snapshot!(stderr(&output), @"error: unknown category 'bench'. retros.yaml declares footprint, speed");
 }
 
 #[test]
@@ -946,10 +949,10 @@ fn check_reports_missing_and_unconfigured_metrics() {
     assert_eq!(output.status.code(), Some(1));
     insta::assert_snapshot!(stdout(&output), @"
     ✗ footprint  2 metrics, 1 error, 1 warning
-        error[metric-missing] retros.toml:5:1: metric `modules` is configured, but the script did not write it
-          5 | modules = {}
-            | ^
-        warning[unconfigured-metric] footprint metrics:2:1: metric `chunks` is written, but `[footprint]` does not configure it
+        error[metric-missing] retros.yaml:5:3: metric `modules` is configured, but the script did not write it
+          5 |   modules: {}
+            |   ^
+        warning[unconfigured-metric] footprint metrics:2:1: metric `chunks` is written, but `footprint` does not configure it
           2 | chunks 9
             | ^
 
@@ -1040,15 +1043,16 @@ fn check_without_a_config() {
     let output = check(dir.path(), &[]);
 
     assert_eq!(output.status.code(), Some(2));
-    insta::assert_snapshot!(stderr(&output), @"error: no retros.toml in this directory or any parent directory");
+    insta::assert_snapshot!(stderr(&output), @"error: no retros.yaml or .agents/retros.yaml in this directory or any parent directory");
 }
 
 #[test]
 fn check_with_an_invalid_config_names_it_relative_to_the_current_directory() {
     let dir = tempfile::tempdir().unwrap();
+    fs::create_dir_all(dir.path().join(".agents")).unwrap();
     fs::write(
-        dir.path().join("retros.toml"),
-        "[footprint]\nrun = \"true\"\nsize = { target = \"50kb\" }\n",
+        dir.path().join(".agents/retros.yaml"),
+        "footprint:\n  run: \"true\"\n  size: { target: 50kb }\n",
     )
     .unwrap();
     fs::create_dir(dir.path().join("src")).unwrap();
@@ -1056,9 +1060,57 @@ fn check_with_an_invalid_config_names_it_relative_to_the_current_directory() {
     let output = check(&dir.path().join("src"), &[]);
 
     assert_eq!(output.status.code(), Some(2));
-    insta::assert_snapshot!(stderr(&output), @r#"
-    error[unknown-unit] ../retros.toml:3:22: unknown unit `kb`, expected one of `B`, `kB`, `MB`, `GB`, `ns`, `µs`, `us`, `ms`, `s`
-      3 | size = { target = "50kb" }
-        |                      ^
-    "#);
+    insta::assert_snapshot!(stderr(&output), @"
+    error[unknown-unit] ../.agents/retros.yaml:3:21: unknown unit `kb`, expected one of `B`, `kB`, `MB`, `GB`, `ns`, `µs`, `us`, `ms`, `s`
+      3 |   size: { target: 50kb }
+        |                     ^
+    ");
+}
+
+#[test]
+fn agents_config_runs_from_the_project_root_and_keeps_its_lock_beside_it() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::create_dir_all(dir.path().join(".agents/metrics")).unwrap();
+    fs::write(
+        dir.path().join(".agents/retros.yaml"),
+        "footprint:\n  run: sh .agents/metrics/manifests.sh\n  manifests: { target: 2 }\n",
+    )
+    .unwrap();
+    // The script counts manifests in the directory it runs from, which is the project root.
+    fs::write(
+        dir.path().join(".agents/metrics/manifests.sh"),
+        "echo \"manifests $(ls *.json | wc -l)\" >> \"$RETROS_METRICS\"\n",
+    )
+    .unwrap();
+    fs::write(dir.path().join("package.json"), "{}").unwrap();
+
+    // Started inside `.agents`, Retros still runs from the directory above it.
+    let output = retros_in(&dir.path().join(".agents"), &["--update"], &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(stdout(&output), @"
+    ●  99  footprint
+      ●  99  manifests  1  target 2
+
+    Since retros.lock
+      new  footprint  manifests
+
+    Wrote ../.retros/report.json, ../.retros/report.md, ../.retros/report.html, ../.agents/retros.lock
+    ");
+    insta::assert_snapshot!(fs::read_to_string(dir.path().join(".agents/retros.lock")).unwrap(), @"
+    # The accepted value of every size, count, and check, and the targets scripts set on their
+    # lines. `retros --update` writes this file. Commit it, so each run reports what changed since.
+
+    [footprint]
+    manifests = 1
+    ");
+    assert!(dir.path().join(".retros/report.html").exists());
+
+    fs::write(
+        dir.path().join("retros.yaml"),
+        "speed:\n  run: \"true\"\n  m: {}\n",
+    )
+    .unwrap();
+    let output = check(dir.path(), &[]);
+    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(stderr(&output), @"error: retros.yaml and .agents/retros.yaml both exist. Keep one");
 }

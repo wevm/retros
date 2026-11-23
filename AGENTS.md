@@ -8,7 +8,7 @@ Sources: https://github.com/wevm/ondine/blob/main/AGENTS.md at `51ba8db369fd8b35
 
 - Retros is continuous metrics and hill climbing. Each metric has one `target`, a requirement the project must meet. A project's scripts measure it, and Retros scores each metric against its target, compares revisions, and writes reports, so each run shows whether the project climbed toward its targets or slid back. The contract is processes and text files, so any project in any language can take part.
 - Retros measures nothing itself. Every number comes from a project script. Scripts run the tools a project already uses, such as Lighthouse, test runners, type checkers, linters, formatters, and benchmark harnesses, and turn their output into metric lines. A script measures a value itself only when no tool reports it. Built-in measures come later, only after the same script recurs across projects, and scripts remain the escape hatch.
-- Keep the contract public and small. `retros.toml` declares categories, each with a `run` command and its metrics, and categories with the same `run` share one execution. A script appends `[subject:] metric [item] value [target <value>]` lines to the file at `$RETROS_METRICS`, and a non-zero exit status marks the run as failed. `retros.lock` records the accepted sizes, counts, checks, and line targets. A change to the contract needs a decision in `.agents/plan.md`.
+- Keep the contract public and small. `retros.yaml`, at the project root or in `.agents/`, declares categories, each with a `run` command and its metrics, and categories with the same `run` share one execution. A script appends `[subject:] metric [item] value [target <value>]` lines to the file at `$RETROS_METRICS`, and a non-zero exit status marks the run as failed. `retros.lock` records the accepted sizes, counts, checks, and line targets. A change to the contract needs a decision in `.agents/plan.md`.
 - Score like Lighthouse. Port `getLogNormalScore` so that a value at `target` scores 90 and a value twice the target scores 50 (half the target when higher is better), and use Lighthouse's bands: 90 to 100 good, 50 to 89 needs work, 0 to 49 poor. A metric with items collapses to its p90 unless configured. A category is the weighted mean of its metric scores. There is no overall score.
 - A failed or missing metric has no score, not a score of zero. Reports name the failure and keep the end of the script's stderr.
 - Report change separately from score. Exact units (sizes, counts, checks) report any change. Timing changes need repeated, interleaved base and head runs. Per-item changes always show, even when the collapsed value does not move. Never gate on one timing sample.
@@ -87,7 +87,7 @@ Retros is written in Rust. These conventions draw on zyzz, Ondine, oxc, ruff, an
 ### Data and Determinism
 
 - Never iterate a hash map to produce output. Use a `Vec`, a `BTreeMap`, or the declared order.
-- Keep categories and metrics in the order `retros.toml` declares them. Keep items in first-seen order, and sort them only where a report ranks them, with ties broken by first-seen order.
+- Keep categories and metrics in the order `retros.yaml` declares them. Keep items in first-seen order, and sort them only where a report ranks them, with ties broken by first-seen order.
 - Borrow input text as `&str` until output. Move values with `std::mem::take` instead of cloning.
 
 ### Numbers and Units
@@ -100,7 +100,7 @@ Retros is written in Rust. These conventions draw on zyzz, Ondine, oxc, ruff, an
 ### Parsing and Errors
 
 - Parse metric lines with a hand-written parser. Report each error with its file, line, and column.
-- Parse `retros.toml` into typed structures and reject unknown keys.
+- Parse `retros.yaml` into typed structures and reject unknown keys.
 - Return errors as typed values with a code, a message, and a location. Error messages are public contract, so tests snapshot them.
 
 ### Processes
@@ -120,7 +120,7 @@ Retros is written in Rust. These conventions draw on zyzz, Ondine, oxc, ruff, an
 
 - Alphabetize imports, named import/export specifiers, public exports, type/interface properties, object properties, enum/union members, unordered lists, configuration maps, scripts, and dependencies. Use case-insensitive lexical order consistently.
 - Keep attached documentation with the declaration or property it describes. Keep function overloads and their namespace together. Order local declarations alphabetically within dependency-compatible groups. Do not introduce use-before-initialization or reorder execution.
-- Preserve order with observable semantics: categories and metrics in `retros.toml`, metric lines as scripts write them, report sections, tuples, package file inclusions followed by exclusions, workflow steps, and regression fixtures testing those orders. Mark intentional exceptions in nearby documentation or comments.
+- Preserve order with observable semantics: categories and metrics in `retros.yaml`, metric lines as scripts write them, report sections, tuples, package file inclusions followed by exclusions, workflow steps, and regression fixtures testing those orders. Mark intentional exceptions in nearby documentation or comments.
 - Keep `name` and `on` first in GitHub workflows, and alphabetize the remaining top-level keys. Preserve the scaffold package.json group order around `[!start-pkg]`, and alphabetize entries within each group. Do not alphabetize prose sections or sequential implementation phases mechanically.
 
 ## Module and Instance Conventions
@@ -176,7 +176,7 @@ Applies to the documentation site, the README, and other Markdown documentation.
 
 - Write for developers who maintain a project and already run tests, benchmarks, or size checks. Use Lighthouse's terms, such as score, metric, and category, without redefining them.
 - Use Retros's own terms consistently: script, metric line, item, target, round, and comparison. Define each one once, on the page that introduces it.
-- Explain behavior through `retros.toml`, the metric lines a script writes, and the report that results. Leave engine internals to the pages that document them.
+- Explain behavior through `retros.yaml`, the metric lines a script writes, and the report that results. Leave engine internals to the pages that document them.
 - Keep guides language-neutral. When setup differs by language or ecosystem, show every one, such as in tabs for shell, TypeScript, and Rust, rather than assuming one.
 - Do not state the obvious. When a feature differs by platform, state that limit directly.
 - Do not mention other measurement tools in guides. Name them only on a Comparisons page and in migration guides.
@@ -185,7 +185,7 @@ Applies to the documentation site, the README, and other Markdown documentation.
 
 - Keep each paragraph to one idea in about 40 words, and never more than 50. Tighten wording rather than mechanically splitting paragraphs.
 - Write at most three paragraphs per section. When a topic needs more, split it into sections with their own headings.
-- Prefer an example in every section, such as a `retros.toml` excerpt, the metric lines a script writes, or the report output. Show the behavior rather than only describing it or deferring to another page.
+- Prefer an example in every section, such as a `retros.yaml` excerpt, the metric lines a script writes, or the report output. Show the behavior rather than only describing it or deferring to another page.
 - Use bullets for enumerable content and tables for comparisons.
 - Start each item of a topic list with a bold label that ends in a colon, such as ``- **`target`:** The value that scores 90.``
 - Mark preview or unimplemented features with GitHub Markdown `> [!NOTE]` callouts scoped to the affected content. Do not add "Available" labels or status suffixes to headings. Examples must preserve the documented contract and must not imply preview features already work.
@@ -198,7 +198,7 @@ Applies to the documentation site, the README, and other Markdown documentation.
 
 - Organize each guide into these `##` sections, in order:
   - **Overview:** Introduces the feature in at most three paragraphs and ends with a basic example. Use one code block, or tabs when the example spans files or languages.
-  - **Walkthrough:** Builds one complete example step by step, from `retros.toml` and a script to the report.
+  - **Walkthrough:** Builds one complete example step by step, from `retros.yaml` and a script to the report.
   - **Recipes:** Lists focused tasks the feature supports, each under its own `###` heading.
   - **More:** Links to related guides and reference pages as a group of cards, not a bulleted list.
 - When a guide has no recipes, hoist its sections to `##` headings between Overview and More.
@@ -208,7 +208,7 @@ Applies to the documentation site, the README, and other Markdown documentation.
 ### Navigation
 
 - Order documentation by common tasks: getting started, writing scripts, scoring, and comparing before reference pages. Preserve this reading order instead of alphabetizing navigation.
-- Maintain three sidebar groups: Introduction, Guides, and Reference. Reference covers `retros.toml` keys, the metric line format, units, scoring, report formats, and CLI commands.
+- Maintain three sidebar groups: Introduction, Guides, and Reference. Reference covers `retros.yaml` keys, the metric line format, units, scoring, report formats, and CLI commands.
 - Give each configuration key, CLI flag, and report field its own subheading, type, description, and small usage snippet. Document defaults where applicable.
 - Until the documentation site exists, the README is the documentation. Once it exists, link to its pages from Markdown outside the site.
 
@@ -246,7 +246,7 @@ Applies to documentation, comments, TSDoc, interface copy, commit messages, and 
 
 - Runtime coverage is integration-only. Do not write unit tests, private-helper tests, or per-function suites disguised as integration tests.
 - No mocking, stubbing, fake implementations, module replacements, fake timers, or stubbed globals. Use real processes, shell scripts, temporary directories, Git repositories, and browsers. Fixture projects and deterministic input data are allowed, but replacement implementations are not.
-- Keep reusable fixture projects under each crate's `tests/fixtures/`. Each fixture is a small project with a `retros.toml` and the scripts it runs.
+- Keep reusable fixture projects under each crate's `tests/fixtures/`. Each fixture is a small project with a `retros.yaml` and the scripts it runs.
 - Cover complete supported flows as they land: configuration to script runs, metric lines to scores, scores to reports, and two revisions to a comparison. Before a later stage exists, test the real available public boundary, and do not fabricate a downstream stage.
 - Snapshot values and results individually. Do not assemble unrelated values into one structure solely to combine snapshot assertions. Snapshot a structure directly when it is the actual result under test.
 - Assert observable results and public diagnostics with inline snapshots. Mask only genuinely nondeterministic fields, such as temporary paths and durations, and keep deterministic values exact. Review generated snapshots before accepting them. Never derive expected output from the implementation under test.
@@ -256,7 +256,7 @@ Applies to documentation, comments, TSDoc, interface copy, commit messages, and 
 
 ## Benchmark Conventions
 
-- Once the runner works, Retros measures itself with its own `retros.toml`: binary size, and the time to run and report the fixture projects.
+- Once the runner works, Retros measures itself with its own `.agents/retros.yaml`: binary size, and the time to run and report the fixture projects.
 - Confirm timing regressions with repeated, interleaved samples on one machine, never with a single run.
 - Keep generated reports under the ignored `.retros/` directory. Numbers committed to documentation name one run, commit, machine, and sample count, and keep every result including losses.
 
@@ -286,8 +286,8 @@ Applies to documentation, comments, TSDoc, interface copy, commit messages, and 
 ## Repository Layout
 
 - `crates/engine/`: the pure engine. `crates/cli/`: the `retros` binary and its integration tests.
-- `examples/`: small projects in different languages, each with a `retros.toml` and the scripts it runs. CLI tests run `retros check` on each one.
-- `retros.toml` and `metrics/`: Retros measuring itself.
+- `examples/`: small projects in different languages, each with a `retros.yaml` and the scripts it runs. CLI tests run `retros check` on each one.
+- `.agents/retros.yaml` and `.agents/metrics/`: Retros measuring itself.
 - `.agents/plan.md` tracks phases, decisions, and acceptance gates.
 - Later phases add the documentation site, the npm package, and the GitHub Action. Each one gets its layout entry here when it lands.
 
@@ -302,4 +302,4 @@ Applies to documentation, comments, TSDoc, interface copy, commit messages, and 
 - `cargo test --workspace` runs every integration test.
 - `cargo fmt --all --check` and `cargo clippy --workspace --all-targets -- -D warnings` check formatting and lints.
 - `cargo build --release` builds the release binary at `target/release/retros`.
-- `cargo run -p cli -- check` runs Retros on itself with the root `retros.toml`.
+- `cargo run -p cli -- check` runs Retros on itself with `.agents/retros.yaml`.

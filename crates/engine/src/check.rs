@@ -9,7 +9,7 @@ use crate::lines::Line;
 /// The text a finding points into.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Source {
-    /// `retros.toml`.
+    /// `retros.yaml`.
     Config,
     /// The metric lines the category's script wrote.
     Metrics,
@@ -94,7 +94,7 @@ pub fn category(category: &Category, lines: &[Line<'_>]) -> Report {
                 code: Code::MixedSubjects,
                 location: Some(line.location),
                 message: format!(
-                    "`[{}]` mixes lines with and without subjects. Line {} {}",
+                    "`{}` mixes lines with and without subjects. Line {} {}",
                     category.name,
                     first.location.line,
                     if first.subject.is_some() {
@@ -198,7 +198,7 @@ fn check_group(category: &Category, name: &str, group: &[&Line<'_>], report: &mu
             Code::UnconfiguredMetric,
             first,
             format!(
-                "metric `{name}` is written, but `[{}]` does not configure it",
+                "metric `{name}` is written, but `{}` does not configure it",
                 category.name
             ),
         )),
@@ -219,7 +219,7 @@ fn check_group(category: &Category, name: &str, group: &[&Line<'_>], report: &mu
                     Code::MixedTargets,
                     line,
                     format!(
-                        "metric `{name}` sets a target on some items but not this one. Set a target on every line, or a default `target` in retros.toml"
+                        "metric `{name}` sets a target on some items but not this one. Set a target on every line, or a default `target` in retros.yaml"
                     ),
                 ));
             }
@@ -231,7 +231,7 @@ fn check_group(category: &Category, name: &str, group: &[&Line<'_>], report: &mu
                     Code::TargetUnit,
                     first,
                     format!(
-                        "metric `{name}` is written as {}, but its `target` in retros.toml is {}",
+                        "metric `{name}` is written as {}, but its `target` in retros.yaml is {}",
                         kind.plural(),
                         target.kind().singular()
                     ),

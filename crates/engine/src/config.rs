@@ -1,29 +1,28 @@
-//! The `retros.toml` configuration.
+//! The `retros.yaml` configuration.
 //!
-//! Each top-level table is a category. A category's `run` key is the command that measures it,
+//! Each top-level key is a category. A category's `run` key is the command that measures it,
 //! `timeout` and `description` are optional, and every other key is a metric. A top-level `run`
 //! and `timeout` apply to every category that sets none, and categories with the same command
-//! share one run of it. A metric is a table of optional keys: `target`, `targets`, `weight`,
+//! share one run of it. A metric is a mapping of optional keys: `target`, `targets`, `weight`,
 //! `score`, `better`, `varies`, and `description`. `target` is the default for every item, a
 //! metric line can set its own, and `targets` sets targets by item pattern and has the final say.
 //!
-//! ```toml
-//! [footprint]
-//! run = "bun metrics/footprint.ts"
-//! export-size = { target = "5kB", targets = { "viem" = "60kB", "viem/chains/*" = "1kB" } }
+//! ```yaml
+//! footprint:
+//!   run: bun metrics/footprint.ts
+//!   export-size: { target: 5kB, targets: { viem: 60kB, "viem/chains/*": 1kB } }
 //! ```
 
-use std::borrow::Cow;
 use std::time::Duration;
 
-use toml::Spanned;
-use toml::de::{DeTable, DeValue};
+use yaml_rust2::Yaml;
 
 use crate::error::{Code, Error, Location};
 use crate::lines::is_name;
 use crate::value::{self, Value};
+use crate::yaml::{self, Kind, Node};
 
-/// Keys a metric table accepts, in the order error messages list them.
+/// Keys a metric accepts, in the order error messages list them.
 const METRIC_KEYS: [&str; 7] = [
     "better",
     "description",
@@ -37,7 +36,7 @@ const METRIC_KEYS: [&str; 7] = [
 /// Time a script may run when its category sets no `timeout`.
 const DEFAULT_TIMEOUT: Duration = Duration::from_mins(10);
 
-/// A parsed `retros.toml`.
+/// A parsed `retros.yaml`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Config {
     /// Categories in the order the file declares them.
@@ -95,7 +94,7 @@ impl Metric {
     }
 }
 
-/// An item pattern and the target it sets, such as `"viem/chains/*" = "1kB"`.
+/// An item pattern and the target it sets, such as `"viem/chains/*": 1kB`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Pattern {
     /// The position of the pattern.
@@ -157,26 +156,32 @@ pub enum Rollup {
     Sum,
 }
 
-/// Parses `retros.toml` source text.
+/// Parses `retros.yaml` source text.
 ///
 /// # Errors
 ///
-/// Returns the first error: TOML syntax, an unknown key, a value of the wrong type, a missing
+/// Returns the first error: YAML syntax, an unknown key, a value of the wrong type, a missing
 /// `run` command, a target that cannot score, or a metric in two categories that share a run.
 pub fn parse(source: &str) -> Result<Config, Error> {
-    let document = DeTable::parse(source).map_err(|error| Error {
-        code: Code::Toml,
-        location: error.span().map(|span| Location::of(source, span.start)),
-        message: error.message().to_owned(),
-    })?;
+    let Some(document) = yaml::parse(source)? else {
+        return Err(nothing_configured());
+    };
+    let Kind::Mapping(pairs) = &document.kind else {
+        return Err(Error::at(
+            Code::InvalidType,
+            source,
+            document.offset,
+            "retros.yaml must map category names to categories, such as `footprint:`".to_owned(),
+        ));
+    };
 
     // Top-level `run` and `timeout` are defaults for every category.
     let mut defaults = Defaults {
         run: None,
         timeout: DEFAULT_TIMEOUT,
     };
-    for (key, value) in document.get_ref() {
-        match key.get_ref().as_ref() {
+    for (key, value) in pairs {
+        match self::key(source, key)? {
             "run" => defaults.run = Some(command(source, value)?),
             "timeout" => defaults.timeout = duration(source, value)?,
             _ => {}
@@ -185,23 +190,25 @@ pub fn parse(source: &str) -> Result<Config, Error> {
 
     let mut categories: Vec<Category> = Vec::new();
 
-    for (key, value) in document.get_ref() {
-        let name = key.get_ref().as_ref();
+    for (key, value) in pairs {
+        let name = self::key(source, key)?;
         if matches!(name, "run" | "timeout") {
             continue;
         }
-        check_name(source, key, "category")?;
+        check_name(source, key, name, "category")?;
 
-        let DeValue::Table(table) = value.get_ref() else {
+        let Kind::Mapping(fields) = &value.kind else {
             return Err(Error::at(
                 Code::InvalidType,
                 source,
-                key.span().start,
-                format!("top-level key `{name}` must be a category table, such as `[{name}]`"),
+                key.offset,
+                format!(
+                    "top-level key `{name}` must be a category: a mapping with a `run` command and metrics"
+                ),
             ));
         };
 
-        let category = category(source, key, table, &defaults)?;
+        let category = category(source, key, name, fields, &defaults)?;
 
         // A shared run gives each line to the category that configures its metric, so a metric
         // name can belong to only one of the categories that share it.
@@ -215,7 +222,7 @@ pub fn parse(source: &str) -> Result<Config, Error> {
                     code: Code::DuplicateMetric,
                     location: Some(metric.location),
                     message: format!(
-                        "metric `{}` is in `[{}]` and `[{}]`, which share the same `run`, so Retros cannot tell which category its lines belong to",
+                        "metric `{}` is in `{}` and `{}`, which share the same `run`, so Retros cannot tell which category its lines belong to",
                         metric.name, other.name, category.name
                     ),
                 });
@@ -226,12 +233,7 @@ pub fn parse(source: &str) -> Result<Config, Error> {
     }
 
     if categories.is_empty() {
-        return Err(Error {
-            code: Code::NothingConfigured,
-            location: None,
-            message: "no categories. Add a table such as `[footprint]` with a `run` command"
-                .to_owned(),
-        });
+        return Err(nothing_configured());
     }
 
     Ok(Config { categories })
@@ -243,38 +245,53 @@ struct Defaults {
     timeout: Duration,
 }
 
+fn nothing_configured() -> Error {
+    Error {
+        code: Code::NothingConfigured,
+        location: None,
+        message: "no categories. Add one such as `footprint:` with a `run` command and a metric"
+            .to_owned(),
+    }
+}
+
 fn category(
     source: &str,
-    key: &Spanned<Cow<'_, str>>,
-    table: &DeTable<'_>,
+    key: &Node,
+    name: &str,
+    fields: &[(Node, Node)],
     defaults: &Defaults,
 ) -> Result<Category, Error> {
-    let name = key.get_ref().as_ref();
     let mut description = None;
     let mut metrics = Vec::new();
     let mut run = None;
     let mut timeout = defaults.timeout;
 
-    for (field, value) in table {
-        match field.get_ref().as_ref() {
+    for (field, value) in fields {
+        match self::key(source, field)? {
             "description" => description = Some(string(source, value, "description")?.to_owned()),
             "run" => run = Some(command(source, value)?),
             "timeout" => timeout = duration(source, value)?,
             metric => {
-                check_name(source, field, "metric")?;
+                check_name(source, field, metric, "metric")?;
 
-                let DeValue::Table(fields) = value.get_ref() else {
-                    return Err(Error::at(
-                        Code::InvalidType,
-                        source,
-                        value.span().start,
-                        format!(
-                            "metric `{metric}` must be a table, such as `{metric} = {{ target = \"5kB\" }}` or `{metric} = {{}}`"
-                        ),
-                    ));
+                // A metric without keys, such as `modules:`, is shown but not scored.
+                let empty = Vec::new();
+                let keys = match &value.kind {
+                    Kind::Mapping(keys) => keys,
+                    _ if value.is_null() => &empty,
+                    _ => {
+                        return Err(Error::at(
+                            Code::InvalidType,
+                            source,
+                            value.offset,
+                            format!(
+                                "metric `{metric}` must be a mapping, such as `{metric}: {{ target: 5kB }}` or `{metric}: {{}}`"
+                            ),
+                        ));
+                    }
                 };
 
-                metrics.push(self::metric(source, field, fields)?);
+                metrics.push(self::metric(source, field, metric, keys)?);
             }
         }
     }
@@ -283,7 +300,7 @@ fn category(
         return Err(Error::at(
             Code::RunMissing,
             source,
-            key.span().start,
+            key.offset,
             format!(
                 "category `{name}` has no `run` command. Add one, or a top-level `run` that every category shares"
             ),
@@ -294,14 +311,14 @@ fn category(
         return Err(Error::at(
             Code::NothingConfigured,
             source,
-            key.span().start,
+            key.offset,
             format!("category `{name}` declares no metrics"),
         ));
     }
 
     Ok(Category {
         description,
-        location: Location::of(source, key.span().start),
+        location: Location::of(source, key.offset),
         metrics,
         name: name.to_owned(),
         run,
@@ -309,8 +326,7 @@ fn category(
     })
 }
 
-fn metric(source: &str, key: &Spanned<Cow<'_, str>>, table: &DeTable<'_>) -> Result<Metric, Error> {
-    let name = key.get_ref().as_ref();
+fn metric(source: &str, key: &Node, name: &str, keys: &[(Node, Node)]) -> Result<Metric, Error> {
     let mut better = Better::Lower;
     let mut description = None;
     let mut score = None;
@@ -319,8 +335,8 @@ fn metric(source: &str, key: &Spanned<Cow<'_, str>>, table: &DeTable<'_>) -> Res
     let mut varies = false;
     let mut weight = 1.0;
 
-    for (field, value) in table {
-        match field.get_ref().as_ref() {
+    for (field, value) in keys {
+        match self::key(source, field)? {
             "better" => {
                 better = match string(source, value, "better")? {
                     "higher" => Better::Higher,
@@ -329,7 +345,7 @@ fn metric(source: &str, key: &Spanned<Cow<'_, str>>, table: &DeTable<'_>) -> Res
                         return Err(Error::at(
                             Code::InvalidValue,
                             source,
-                            value.span().start,
+                            value.offset,
                             format!(
                                 "unknown `better` value `{other}`, expected `lower` or `higher`"
                             ),
@@ -350,7 +366,7 @@ fn metric(source: &str, key: &Spanned<Cow<'_, str>>, table: &DeTable<'_>) -> Res
                         return Err(Error::at(
                             Code::InvalidValue,
                             source,
-                            value.span().start,
+                            value.offset,
                             format!(
                                 "unknown `score` value `{other}`, expected one of `p90`, `p10`, `median`, `max`, `min`, `sum`"
                             ),
@@ -360,33 +376,39 @@ fn metric(source: &str, key: &Spanned<Cow<'_, str>>, table: &DeTable<'_>) -> Res
             }
             "target" => target = Some(self::target(source, name, value)?),
             "targets" => {
-                let DeValue::Table(patterns) = value.get_ref() else {
+                let Kind::Mapping(patterns) = &value.kind else {
                     return Err(Error::at(
                         Code::InvalidType,
                         source,
-                        value.span().start,
-                        "`targets` must be a table of item patterns and their targets, such as `targets = { \"viem/chains/*\" = \"1kB\" }`".to_owned(),
+                        value.offset,
+                        "`targets` must map item patterns to targets, such as `targets: { \"viem/chains/*\": 1kB }`".to_owned(),
                     ));
                 };
 
                 for (pattern, value) in patterns {
                     targets.push(Pattern {
-                        location: Location::of(source, pattern.span().start),
-                        pattern: pattern.get_ref().to_string(),
+                        location: Location::of(source, pattern.offset),
+                        pattern: self::key(source, pattern)?.to_owned(),
                         target: self::target(source, name, value)?,
                     });
                 }
             }
             "varies" => {
-                let DeValue::Boolean(flag) = value.get_ref() else {
-                    return Err(Error::at(
+                let flag = match &value.kind {
+                    Kind::Scalar { plain: true, text } => match Yaml::from_str(text) {
+                        Yaml::Boolean(flag) => Some(flag),
+                        _ => None,
+                    },
+                    _ => None,
+                };
+                varies = flag.ok_or_else(|| {
+                    Error::at(
                         Code::InvalidType,
                         source,
-                        value.span().start,
+                        value.offset,
                         "`varies` must be `true` or `false`".to_owned(),
-                    ));
-                };
-                varies = *flag;
+                    )
+                })?;
             }
             "weight" => weight = non_negative(source, value, "weight")?,
             other => {
@@ -394,7 +416,7 @@ fn metric(source: &str, key: &Spanned<Cow<'_, str>>, table: &DeTable<'_>) -> Res
                 return Err(Error::at(
                     Code::UnexpectedKey,
                     source,
-                    field.span().start,
+                    field.offset,
                     format!(
                         "unknown key `{other}` in metric `{name}`, expected one of {}",
                         expected.join(", ")
@@ -407,7 +429,7 @@ fn metric(source: &str, key: &Spanned<Cow<'_, str>>, table: &DeTable<'_>) -> Res
     Ok(Metric {
         better,
         description,
-        location: Location::of(source, key.span().start),
+        location: Location::of(source, key.offset),
         name: name.to_owned(),
         score: score.unwrap_or(match better {
             Better::Higher => Rollup::P10,
@@ -420,13 +442,15 @@ fn metric(source: &str, key: &Spanned<Cow<'_, str>>, table: &DeTable<'_>) -> Res
     })
 }
 
-/// Parses a target: a value string such as `"5kB"`, or a TOML number for a count. A target must
-/// be greater than zero, and a check cannot have one.
-fn target(source: &str, name: &str, value: &Spanned<DeValue<'_>>) -> Result<Value, Error> {
-    let at = value.span().start;
-    let target = match value.get_ref() {
-        DeValue::Integer(_) | DeValue::Float(_) => Value::Count(number(source, value, "target")?),
-        DeValue::String(text) => {
+/// Parses a target: a value such as `5kB` or `20ms`, or a number for a count. A target must be
+/// greater than zero, and a check cannot have one.
+fn target(source: &str, name: &str, value: &Node) -> Result<Value, Error> {
+    let at = value.offset;
+    let target = match &value.kind {
+        Kind::Scalar { plain: true, text } if is_number(text) => {
+            Value::Count(number(source, value, "target")?)
+        }
+        Kind::Scalar { text, .. } if !value.is_null() => {
             let content = content_offset(source, at);
             value::parse(text).map_err(|error| {
                 Error::at(error.code, source, content + error.offset, error.message)
@@ -437,7 +461,7 @@ fn target(source: &str, name: &str, value: &Spanned<DeValue<'_>>) -> Result<Valu
                 Code::InvalidType,
                 source,
                 at,
-                "`target` must be a value such as \"5kB\", \"20ms\", or a number".to_owned(),
+                "`target` must be a value such as `5kB`, `20ms`, or a number".to_owned(),
             ));
         }
     };
@@ -462,21 +486,21 @@ fn target(source: &str, name: &str, value: &Spanned<DeValue<'_>>) -> Result<Valu
 }
 
 /// Parses a `run` command, which must not be blank.
-fn command(source: &str, value: &Spanned<DeValue<'_>>) -> Result<String, Error> {
+fn command(source: &str, value: &Node) -> Result<String, Error> {
     let command = string(source, value, "run")?;
     if command.trim().is_empty() {
         return Err(Error::at(
             Code::InvalidValue,
             source,
-            value.span().start,
+            value.offset,
             "`run` must be a command".to_owned(),
         ));
     }
     Ok(command.to_owned())
 }
 
-/// Parses a duration such as `"10m"`, `"30s"`, or `"500ms"`.
-fn duration(source: &str, value: &Spanned<DeValue<'_>>) -> Result<Duration, Error> {
+/// Parses a duration such as `10m`, `30s`, or `500ms`.
+fn duration(source: &str, value: &Node) -> Result<Duration, Error> {
     /// Duration units and their factors in nanoseconds.
     const UNITS: [(&str, f64); 4] = [("ms", 1e6), ("s", 1e9), ("m", 6e10), ("h", 3.6e12)];
 
@@ -485,9 +509,9 @@ fn duration(source: &str, value: &Spanned<DeValue<'_>>) -> Result<Duration, Erro
         Error::at(
             Code::InvalidValue,
             source,
-            value.span().start,
+            value.offset,
             format!(
-                "invalid `timeout` `{text}`, expected a duration such as \"30s\", \"10m\", or \"500ms\""
+                "invalid `timeout` `{text}`, expected a duration such as `30s`, `10m`, or `500ms`"
             ),
         )
     };
@@ -511,8 +535,19 @@ fn duration(source: &str, value: &Spanned<DeValue<'_>>) -> Result<Duration, Erro
     Ok(Duration::from_nanos(nanos as u64))
 }
 
-fn check_name(source: &str, key: &Spanned<Cow<'_, str>>, what: &str) -> Result<(), Error> {
-    let name = key.get_ref().as_ref();
+/// Returns a mapping key's text. Keys are names, so a mapping or a sequence cannot be one.
+fn key<'n>(source: &str, key: &'n Node) -> Result<&'n str, Error> {
+    key.text().ok_or_else(|| {
+        Error::at(
+            Code::InvalidType,
+            source,
+            key.offset,
+            "a key must be a name, not a mapping or a list".to_owned(),
+        )
+    })
+}
+
+fn check_name(source: &str, key: &Node, name: &str, what: &str) -> Result<(), Error> {
     if is_name(name) {
         return Ok(());
     }
@@ -520,41 +555,41 @@ fn check_name(source: &str, key: &Spanned<Cow<'_, str>>, what: &str) -> Result<(
     Err(Error::at(
         Code::InvalidName,
         source,
-        key.span().start,
+        key.offset,
         format!("invalid {what} name `{name}`. Names use ASCII letters, digits, `-`, `_`, and `.`"),
     ))
 }
 
-/// Returns the byte offset of a string's content, after its opening quotes.
+/// Returns the byte offset of a scalar's content, after its opening quote.
 fn content_offset(source: &str, start: usize) -> usize {
-    let quotes = source.get(start..).map_or(0, |rest| {
-        rest.bytes()
-            .take(3)
-            .take_while(|b| matches!(b, b'"' | b'\''))
-            .count()
-    });
-    start + quotes
+    let quoted = source
+        .get(start..)
+        .is_some_and(|rest| rest.starts_with(['"', '\'']));
+    start + usize::from(quoted)
 }
 
-fn non_negative(source: &str, value: &Spanned<DeValue<'_>>, key: &str) -> Result<f64, Error> {
+/// Returns whether YAML reads a plain scalar as a number.
+fn is_number(text: &str) -> bool {
+    matches!(Yaml::from_str(text), Yaml::Integer(_) | Yaml::Real(_))
+}
+
+fn non_negative(source: &str, value: &Node, key: &str) -> Result<f64, Error> {
     let amount = number(source, value, key)?;
     if amount < 0.0 {
         return Err(Error::at(
             Code::InvalidValue,
             source,
-            value.span().start,
+            value.offset,
             format!("`{key}` cannot be negative"),
         ));
     }
     Ok(amount)
 }
 
-fn number(source: &str, value: &Spanned<DeValue<'_>>, key: &str) -> Result<f64, Error> {
-    let parsed = match value.get_ref() {
-        DeValue::Float(float) => float.as_str().replace('_', "").parse::<f64>().ok(),
-        DeValue::Integer(integer) if integer.radix() == 10 => {
-            integer.as_str().replace('_', "").parse::<f64>().ok()
-        }
+/// Parses a decimal number written as a plain scalar.
+fn number(source: &str, value: &Node, key: &str) -> Result<f64, Error> {
+    let parsed = match &value.kind {
+        Kind::Scalar { plain: true, text } if is_number(text) => text.parse::<f64>().ok(),
         _ => None,
     };
 
@@ -562,19 +597,19 @@ fn number(source: &str, value: &Spanned<DeValue<'_>>, key: &str) -> Result<f64, 
         Error::at(
             Code::InvalidType,
             source,
-            value.span().start,
+            value.offset,
             format!("`{key}` must be a finite number"),
         )
     })
 }
 
-fn string<'a>(source: &str, value: &'a Spanned<DeValue<'_>>, key: &str) -> Result<&'a str, Error> {
-    match value.get_ref() {
-        DeValue::String(text) => Ok(text),
+fn string<'n>(source: &str, value: &'n Node, key: &str) -> Result<&'n str, Error> {
+    match value.text() {
+        Some(text) if !value.is_null() => Ok(text),
         _ => Err(Error::at(
             Code::InvalidType,
             source,
-            value.span().start,
+            value.offset,
             format!("`{key}` must be a string"),
         )),
     }

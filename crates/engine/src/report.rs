@@ -34,7 +34,7 @@ pub struct Report {
 /// One category's scores for one subject, or the reason it has none.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CategoryReport {
-    /// What the category measures, from `retros.toml`.
+    /// What the category measures, from `retros.yaml`.
     pub description: Option<String>,
     /// The category name.
     pub name: String,

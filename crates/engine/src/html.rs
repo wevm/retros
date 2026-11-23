@@ -211,7 +211,7 @@ fn panel(out: &mut String, report: &Report, subject: Option<&str>, index: usize)
     }
 }
 
-/// Writes a category's metrics in the order `retros.toml` declares them.
+/// Writes a category's metrics in the order `retros.yaml` declares them.
 fn metrics(out: &mut String, scored: &CategoryScore) {
     if scored.rounds > 1 {
         let _ = writeln!(

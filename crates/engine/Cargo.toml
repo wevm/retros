@@ -10,6 +10,7 @@ version.workspace = true
 
 [dependencies]
 toml.workspace = true
+yaml-rust2.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

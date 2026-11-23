@@ -21,7 +21,7 @@ pub struct Line<'a> {
     pub location: Location,
     /// The metric name.
     pub metric: &'a str,
-    /// The line's own target, which takes the place of the metric's target in `retros.toml`.
+    /// The line's own target, which takes the place of the metric's target in `retros.yaml`.
     pub target: Option<Value>,
     /// The subject the measurement belongs to, such as `zc` in `zc: startup 0.76ms`.
     pub subject: Option<&'a str>,

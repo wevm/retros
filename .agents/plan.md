@@ -21,7 +21,7 @@ Retros keeps Lighthouse's scoring and depth, and replaces its fixed browser gath
 
 | Lighthouse | Retros |
 | --- | --- |
-| Category, such as Performance or Accessibility | A table in `retros.toml`, named by the project |
+| Category, such as Performance or Accessibility | A top-level key in `retros.yaml`, named by the project |
 | Audit, such as Largest Contentful Paint or image alt text | A metric |
 | Audit details, such as each image without alt text | The metric's items, worst first |
 | The p10 and median control points of an audit | The target and twice the target |
@@ -46,13 +46,13 @@ Retros keeps Lighthouse's scoring and depth, and replaces its fixed browser gath
 
 ## Decisions
 
-1. **Name.** Retros. Repository `wevm/retros`, binary `retros`, configuration `retros.toml`, accepted values in `retros.lock`, and reports under `.retros/`. The names `retros` on npm and crates.io were free on 2026-11-22.
+1. **Name.** Retros. Repository `wevm/retros`, binary `retros`, configuration `retros.yaml`, accepted values in `retros.lock`, and reports under `.retros/`. The names `retros` on npm and crates.io were free on 2026-11-22.
 2. **Scripts measure with existing tools, Retros scores.** Scripts run the tools a project already uses, such as Lighthouse, test runners, type checkers, linters, formatters, and benchmark harnesses, and turn their output into metric lines. A script measures a value itself only when no tool reports it. Retros has no built-in measures until the same script recurs across projects, and scripts remain the escape hatch after that. Decided 2026-11-22, with the preference for existing tools added the same day.
-3. **TOML configuration.** Rust's TOML support is solid, TOML has no indentation traps, and Cargo users already know it.
+3. **YAML configuration.** `retros.yaml` uses YAML, the format most CI and agent configuration already uses. yaml-rust2's event parser keeps each node's position, so errors keep their line and column, and it adds four crates. `retros.lock` stays TOML because it is written by Retros, not by hand. Decided 2026-11-23, replacing TOML.
 4. **Metrics go to a file.** Scripts append lines to the file at `$RETROS_METRICS`, not to standard output. Tools that scripts call print to standard output, and a standard output protocol lets any tool inject a metric. GitHub Actions moved from standard output commands to `$GITHUB_OUTPUT` for the same reason. Decided 2026-11-22.
 5. **One line per measurement.** The format is `metric [item] value [target <value>]`. An item with a space is quoted.
 6. **One target, scored like Lighthouse.** A target is a requirement the project must meet. A value at its target scores 90, twice the target scores 50, and four times the target scores 10. When higher is better, half the target scores 50. Lighthouse's p10 control point becomes the target and its median becomes twice the target. There is no overall score. Decided 2026-11-22, replacing the `target` and `limit` pair.
-7. **Targets are contextual.** A target in `retros.toml` is the metric's default. A script that knows an item needs a different requirement writes the target on the line: a root entry point that bundles the whole library gets a larger target than a subpath, and a health endpoint gets a smaller one than a search endpoint. Each item is scored against its own target, and a list ranks its items by how far past their own targets they are, so a large item that meets a large target never hides a small item that misses a small one. When the project disagrees with a script, `targets` in `retros.toml` sets targets by item pattern, such as `"viem/chains/*" = "1kB"`, and has the final say. A list where some items have a target and others do not, with no default, is an error. Decided 2026-11-22, with patterns added the same day.
+7. **Targets are contextual.** A target in `retros.yaml` is the metric's default. A script that knows an item needs a different requirement writes the target on the line: a root entry point that bundles the whole library gets a larger target than a subpath, and a health endpoint gets a smaller one than a search endpoint. Each item is scored against its own target, and a list ranks its items by how far past their own targets they are, so a large item that meets a large target never hides a small item that misses a small one. When the project disagrees with a script, `targets` in `retros.yaml` sets targets by item pattern, such as `"viem/chains/*" = "1kB"`, and has the final say. A list where some items have a target and others do not, with no default, is an error. Decided 2026-11-22, with patterns added the same day.
 8. **Exact metrics and line targets are locked, timings are compared.** `retros.lock` records sizes, counts, and checks, which are the same on every machine, and the targets scripts set on their lines, so the lock is committed and reviewed like code. Accepting a regression or loosening a script's target is a visible change to `retros.lock` in review. Timings differ between machines, so their values are never locked and compare only within one run on one machine. Decided 2026-11-22.
 9. **Opportunities name the next step.** Retros lists the changes that would raise each category's score most, in category points: one item meeting its target, one metric meeting its target, or a whole list when no single item moves the score. Gains under half a point are left out. Decided 2026-11-22.
 10. **Gates compare values, and improvements lock in.** `--require-baseline` exits with status 1 when anything differs from `retros.lock`, better or worse, or when there is no lock, like a snapshot test. The lock on `main` then always matches the code, every improvement becomes the new floor, and `--compare` can trust a revision's lock. `--require-targets` exits with status 1 when a metric misses its target or has no value because its script failed. Both compare values, not rounded scores, so a value just past its target never passes as 90.
@@ -63,24 +63,25 @@ Retros keeps Lighthouse's scoring and depth, and replaces its fixed browser gath
 15. **Subjects.** A line may start with `subject:`, such as `zc: startup 0.64ms`, for projects that measure several harnesses, packages, or builds in one script. Each subject is scored on its own, reports compare subjects side by side, and the lock keys a subject's category as `"zc: speed"`. A category may not mix lines with and without a subject, and a subject that does not write a metric has no score for it. Decided 2026-11-23 for zepto.
 16. **Shared runs.** A top-level `run` and `timeout` apply to every category that sets none, and categories with the same `run` share one execution. Each line goes to the category that lists its metric, so one metric in two categories that share a run is an error. Decided 2026-11-23, so zepto's one runner feeds five categories.
 17. **`varies`.** A size or count marked `varies = true`, such as peak memory, takes its median across rounds like a time and stays out of the lock, except for its line target. Decided 2026-11-23.
-18. **Descriptions.** Categories and metrics take a `description`, and every report shows it, so a reader knows what a number measures without opening `retros.toml`. Decided 2026-11-23.
+18. **Descriptions.** Categories and metrics take a `description`, and every report shows it, so a reader knows what a number measures without opening `retros.yaml`. Decided 2026-11-23.
+19. **`.agents/retros.yaml`.** Retros reads `retros.yaml` or `.agents/retros.yaml` from the current directory or the nearest parent, and it is an error for one directory to have both. Scripts run from the project root, the directory that holds `retros.yaml` or `.agents`, so a configuration kept with a project's agent files still measures the whole project. `retros.lock` sits beside `retros.yaml`, and reports go to `.retros/` in the project root. Decided 2026-11-23.
 
 ## The Contract
 
-A project adds `retros.toml`. Each table is a category, `run` is the script that measures it, and every other key is a metric the script writes. A metric with a target gets a score, and a metric without one shows its value and change only.
+A project adds `retros.yaml`, at its root or in `.agents/`. Each top-level key is a category, `run` is the script that measures it, and every other key is a metric the script writes. A metric with a target gets a score, and a metric without one shows its value and change only.
 
-```toml
+```yaml
 # Two categories, each measured by its own script.
-[footprint]
-run = "bun metrics/footprint.ts"
-# Gzipped bytes of each export. The script sets its own target for exports that need one, and
-# `targets` overrides any item by pattern.
-export-size = { target = "5kB", targets = { "viem/chains/*" = "1kB" } }
-install-size = { target = "10MB" }
+footprint:
+  run: bun metrics/footprint.ts
+  # Gzipped bytes of each export. The script sets its own target for exports that need one, and
+  # `targets` overrides any item by pattern.
+  export-size: { target: 5kB, targets: { "viem/chains/*": 1kB } }
+  install-size: { target: 10MB }
 
-[speed]
-run = "bun metrics/speed.ts"
-import-time = { target = "20ms" }
+speed:
+  run: bun metrics/speed.ts
+  import-time: { target: 20ms }
 ```
 
 The script appends lines to the file at `$RETROS_METRICS`, each `[subject:] metric [item] value [target <value>]`. The values below are viem's from the earlier applied metrics trial, and the line target is an example:
@@ -94,10 +95,10 @@ bench-time "ABI Decode (500 results)" 1.82ms
 
 - **Values and units:** `B`, `kB`, `MB`, and `GB` for sizes (decimal), `ns`, `µs`, `us`, `ms`, and `s` for time, no unit for counts, and `pass` or `fail` for checks. One metric uses one kind of unit.
 - **Items:** a line with an item adds one entry to a list metric. Retros scores each entry, collapses the list to one score, and lists the entries worst first.
-- **Targets:** `target <value>` at the end of a line sets that item's target, in the metric's kind of unit. It overrides the default `target` in `retros.toml`, and the first matching pattern in `targets` overrides it. In a pattern, `*` matches any run of characters. A target of 0 is an error.
+- **Targets:** `target <value>` at the end of a line sets that item's target, in the metric's kind of unit. It overrides the default `target` in `retros.yaml`, and the first matching pattern in `targets` overrides it. In a pattern, `*` matches any run of characters. A target of 0 is an error.
 - **Logs:** standard output and standard error are logs. Retros keeps the end of standard error for a failed run.
 - **Failure:** a script that exits with a non-zero status gives its category no score.
-- **Runs:** each script runs through `sh -c` from the directory that holds `retros.toml`, in its own process group. Retros kills the group when the script exits or times out, so background processes do not outlive the run.
+- **Runs:** each script runs through `sh -c` from the project root, the directory that holds `retros.yaml` or `.agents`, in its own process group. Retros kills the group when the script exits or times out, so background processes do not outlive the run.
 - **Subjects:** a line that starts with `subject:` belongs to that subject, and each subject is scored on its own.
 - **Optional metric keys:** `targets` (item patterns and their targets), `weight` (default 1), `score` (how a list collapses: `p90` by default, or `p10`, `median`, `max`, `min`, `sum`), `better = "higher"` for metrics where more is better, `varies = true` for a size or count that differs between runs, and `description`. A `better = "higher"` list collapses to its p10 by default.
 - **Optional category keys:** `timeout` (default `10m`) and `description`. A top-level `run` and `timeout` apply to every category that sets none, and categories with the same `run` share one execution.
@@ -110,7 +111,7 @@ retros check                                        Run each script once and che
 ```
 
 - **Files:** `retros.lock` is committed. A recorded line target follows its value, as in `"viem/chains" = "61000B target 80000B"`. `.retros/report.html`, `report.json`, and `report.md` are written on every run and ignored by Git.
-- **Exit status:** 0 when every category passes, 1 when a category fails or a gate fails, and 2 when Retros cannot run, such as for an unknown argument or an invalid `retros.toml`.
+- **Exit status:** 0 when every category passes, 1 when a category fails or a gate fails, and 2 when Retros cannot run, such as for an unknown argument or an invalid `retros.yaml`.
 
 ## Scoring
 
@@ -154,9 +155,9 @@ Set up the repository, conventions, and checks that every later phase builds on.
 
 Read the configuration, run each script once, and read what it wrote.
 
-- [x] `engine::config`: typed `retros.toml`, unknown keys rejected, defaults applied, errors with line and column.
+- [x] `engine::config`: typed `retros.yaml`, unknown keys rejected, defaults applied, errors with line and column.
 - [x] `engine::lines`: the metric line parser, with items, quoting, units, and checks.
-- [x] `cli`: run each `run` command through `sh -c` in its own process group, from the directory that holds `retros.toml`, with a fresh `$RETROS_METRICS` file and a timeout that kills the group.
+- [x] `cli`: run each `run` command through `sh -c` in its own process group, from the directory that holds `retros.yaml`, with a fresh `$RETROS_METRICS` file and a timeout that kills the group.
 - [x] `retros check`: run each script once and confirm that every configured metric was written with one kind of unit. List metrics written but not configured.
 - [x] Fixture projects under `crates/cli/tests/fixtures/`: passing, failing, malformed line, missing metric, and timeout.
 
@@ -184,7 +185,7 @@ Remember accepted values, name the next step, and score each item against the ta
 - [x] Changes against the lock, labeled worse, better, new, or gone, in the terminal summary, `report.json`, and `report.md`.
 - [x] `--require-baseline` exits with status 1 when anything differs from the lock, better or worse, or when there is no lock.
 - [x] The lock records the targets scripts set on their lines, including a timing's, and reports a changed one as looser or tighter.
-- [x] `targets` in `retros.toml`: item patterns that have the final say over line targets, with errors for a target in the wrong kind of unit and warnings for a pattern that matches no item.
+- [x] `targets` in `retros.yaml`: item patterns that have the final say over line targets, with errors for a target in the wrong kind of unit and warnings for a pattern that matches no item.
 - [x] The `rounds` key is gone, and timings always run 5 times.
 - [x] Opportunities: the top 5 in the terminal and the top 10 in `report.md`, each with the category points it adds.
 
@@ -211,7 +212,7 @@ Run Retros on a real TypeScript library with thousands of items.
 - [ ] `metrics/footprint.ts`: export size for every export (esbuild without code splitting, gzip), with targets by kind of export, such as chains, actions, and clients, and install size.
 - [ ] `metrics/speed.ts`: import time for each of the 26 entry points.
 - [ ] `metrics/types.ts`, if viem's development install works in an orb. Its postinstall builds contracts with Foundry.
-- [ ] `retros.toml` and `retros.lock` in a local viem checkout. Nothing is committed to viem without approval.
+- [ ] `retros.yaml` and `retros.lock` in a local viem checkout. Nothing is committed to viem without approval.
 
 **Gate:** with viem 2.58.4 and esbuild 0.28.2, the export-size list has 1,912 items, matching the applied metrics trial. A planted regression in one module shows as worse in the lock comparison, and nothing else changes. The top opportunities name exports a viem maintainer agrees are worth shrinking.
 
@@ -220,7 +221,7 @@ Run Retros on a real TypeScript library with thousands of items.
 Compare timings honestly between two revisions, and fail CI on missed targets.
 
 - [ ] `retros --compare <ref>` checks out `<ref>` in a temporary Git worktree. Timing metrics run 8 interleaved pairs with the verdict rule above. Exact metrics compare with `<ref>`'s `retros.lock` read from Git, and `<ref>` is measured only when it has no lock.
-- [ ] A warning when `retros.toml` or a script it runs differs between the two revisions.
+- [ ] A warning when `retros.yaml` or a script it runs differs between the two revisions.
 - [ ] The worktree is removed after success or failure.
 - [ ] Timing changes appear in the terminal summary, `report.json`, and `report.md`.
 - [ ] `--require-targets` exits with status 1 when a metric misses its target or has no value, and lists each miss with its item. It works with and without `--compare`.
@@ -264,7 +265,7 @@ Remember where the project has been and what moved it.
 Replace zepto's harness metrics report with Retros.
 
 - [x] Subjects, shared runs, and `varies` (decisions 15 to 17). The HTML report shows one tab per subject.
-- [x] `zig build metrics` writes metric lines for each harness. zc-mock, the harness commands, and the crash and resume scenario stay in zepto, and its `retros.toml` holds the targets.
+- [x] `zig build metrics` writes metric lines for each harness. zc-mock, the harness commands, and the crash and resume scenario stay in zepto, and its `retros.yaml` holds the targets.
 - [x] zepto's CI runs `retros` and publishes `report.html` to GitHub Pages per run.
 - [ ] Pages history through Phase 9.
 

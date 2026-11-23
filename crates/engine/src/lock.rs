@@ -37,7 +37,7 @@ use crate::value::{self, Kind, Value};
 /// A parsed `retros.lock`.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Lock {
-    /// Categories with their recorded metrics, in the order of `retros.toml`. A category with a
+    /// Categories with their recorded metrics, in the order of `retros.yaml`. A category with a
     /// subject is named as reports label it, such as `zc: footprint`.
     pub categories: Vec<(String, Vec<(String, Entry)>)>,
 }
@@ -188,7 +188,7 @@ pub fn render(lock: &Lock) -> String {
 
 /// Returns the lock after a run: categories that ran record their sizes, counts, checks, and line
 /// targets, and categories that did not run or failed keep their previous entries. Categories
-/// follow the order of `retros.toml`, and categories it no longer declares are dropped.
+/// follow the order of `retros.yaml`, and categories it no longer declares are dropped.
 pub fn update(previous: Option<&Lock>, config: &Config, report: &Report) -> Lock {
     let mut lock = Lock::default();
 
@@ -345,7 +345,7 @@ fn split(label: &str) -> (Option<&str>, &str) {
 }
 
 /// Returns whether a metric's values differ between runs: a time, or a size or count that
-/// `retros.toml` marks with `varies`. The lock records only its line targets.
+/// `retros.yaml` marks with `varies`. The lock records only its line targets.
 fn varies(metric: &MetricScore) -> bool {
     metric.kind == Kind::Time || (metric.metric.varies && metric.kind != Kind::Check)
 }

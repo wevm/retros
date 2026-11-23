@@ -1,5 +1,5 @@
 # The script waits on a background process for longer than its timeout.
-[speed]
-run = "sh slow.sh"
-timeout = "300ms"
-render = {}
+speed:
+  run: sh slow.sh
+  timeout: 300ms
+  render: {}

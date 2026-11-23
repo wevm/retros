@@ -17,8 +17,8 @@ const binary = path.resolve('target/release/retros')
 
 const project = fs.mkdtempSync(path.join(os.tmpdir(), 'retros-'))
 fs.writeFileSync(
-  path.join(project, 'retros.toml'),
-  `[one]\nrun = "echo 'value 1' >> \\"$RETROS_METRICS\\""\nvalue = {}\n`,
+  path.join(project, 'retros.yaml'),
+  `one:\n  run: echo 'value 1' >> "$RETROS_METRICS"\n  value: {}\n`,
 )
 
 try {

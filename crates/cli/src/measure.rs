@@ -19,7 +19,7 @@ pub(crate) struct Measured {
     /// The text each round wrote to `$RETROS_METRICS`, in the order the rounds ran. A shared run
     /// holds the lines of every category that shares it.
     pub(crate) sources: Vec<String>,
-    /// Rendered warnings from the first round, such as metrics `retros.toml` does not configure.
+    /// Rendered warnings from the first round, such as metrics `retros.yaml` does not configure.
     pub(crate) warnings: Vec<String>,
 }
 

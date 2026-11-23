@@ -64,12 +64,12 @@ fn curve_matches_lighthouse_and_zepto() {
 
 #[test]
 fn scores_values_lists_checks_and_unscored_metrics() {
-    let config = r#"[footprint]
-run = "true"
-bundle = { target = "5kB" }
-export-size = { target = "5kB" }
-modules = {}
-links = {}
+    let config = r#"footprint:
+  run: "true"
+  bundle: { target: "5kB" }
+  export-size: { target: "5kB" }
+  modules: {}
+  links: {}
 "#;
     let lines = "bundle 27.5kB
 export-size c 3kB
@@ -127,14 +127,14 @@ links blog.html pass
 
 #[test]
 fn collapses_lists_with_each_rollup() {
-    let config = r#"[sizes]
-run = "true"
-p90 = {}
-p10 = { better = "higher" }
-median = { score = "median" }
-max = { score = "max" }
-min = { score = "min" }
-sum = { score = "sum" }
+    let config = r#"sizes:
+  run: "true"
+  p90: {}
+  p10: { better: "higher" }
+  median: { score: "median" }
+  max: { score: "max" }
+  min: { score: "min" }
+  sum: { score: "sum" }
 "#;
     let list: String = [7, 2, 9, 4, 1, 10, 3, 8, 5, 6]
         .iter()
@@ -161,10 +161,10 @@ sum = { score = "sum" }
 
 #[test]
 fn takes_timing_medians_across_rounds_and_exact_values_from_the_first() {
-    let config = r#"[speed]
-run = "true"
-render = { target = "2ms" }
-throughput = { target = 2000, better = "higher", weight = 2 }
+    let config = r#"speed:
+  run: "true"
+  render: { target: "2ms" }
+  throughput: { target: 2000, better: "higher", weight: 2 }
 "#;
     let rounds = [
         "render parse 9ms\nrender encode 2ms\nthroughput 2588\n",
@@ -189,7 +189,7 @@ throughput = { target = 2000, better = "higher", weight = 2 }
 
 #[test]
 fn takes_the_mean_of_two_middle_rounds() {
-    let config = "[speed]\nrun = \"true\"\nboot = {}\n";
+    let config = "speed:\n  run: \"true\"\n  boot: {}\n";
     let rounds = ["boot 4ms\n", "boot 1ms\n", "boot 10ms\n", "boot 2ms\n"];
 
     let scored = scored(config, &rounds);
@@ -202,10 +202,10 @@ fn takes_the_mean_of_two_middle_rounds() {
 
 #[test]
 fn leaves_weightless_and_unanchored_metrics_out_of_the_category() {
-    let config = r#"[footprint]
-run = "true"
-bundle = { target = "5kB", weight = 0 }
-modules = {}
+    let config = r#"footprint:
+  run: "true"
+  bundle: { target: "5kB", weight: 0 }
+  modules: {}
 "#;
 
     let scored = scored(config, &["bundle 5kB\nmodules 412\n"]);
@@ -219,7 +219,7 @@ modules = {}
 
 #[test]
 fn scores_zero_when_higher_is_better_and_the_value_is_zero() {
-    let config = "[api]\nrun = \"true\"\nthroughput = { target = 2000, better = \"higher\" }\n";
+    let config = "api:\n  run: \"true\"\n  throughput: { target: 2000, better: \"higher\" }\n";
 
     let scored = scored(config, &["throughput 0\n"]);
 
@@ -231,9 +231,9 @@ fn scores_zero_when_higher_is_better_and_the_value_is_zero() {
 
 #[test]
 fn scores_each_item_against_its_own_target() {
-    let config = r#"[footprint]
-run = "true"
-entry-size = { target = "1kB" }
+    let config = r#"footprint:
+  run: "true"
+  entry-size: { target: "1kB" }
 "#;
     // The root entry is 4 kB against its own 5 kB target, so `./number`, 1.6 times its 1 kB
     // default, is the item furthest past its target. Lighthouse scores 1.6 kB against 1 kB as 66.
@@ -265,9 +265,9 @@ entry-size ./number 1.6kB
 
 #[test]
 fn patterns_in_targets_have_the_final_say() {
-    let config = r#"[footprint]
-run = "true"
-entry-size = { target = "1kB", targets = { "./chains/*" = "500B", "." = "8kB" } }
+    let config = r#"footprint:
+  run: "true"
+  entry-size: { target: "1kB", targets: { "./chains/*": "500B", ".": "8kB" } }
 "#;
     // The pattern `.` overrides the root's line target, so the root is 6 kB against 8 kB, not
     // 4 kB. `./chains/*` matches `./chains/mainnet` but not `./chains`, which keeps the 1 kB
@@ -308,11 +308,11 @@ entry-size ./actions 1.1kB target 2kB
 
 #[test]
 fn finds_opportunities_largest_gain_first() {
-    let config = r#"[footprint]
-run = "true"
-bundle = { target = "5kB" }
-export-size = { target = "5kB" }
-links = {}
+    let config = r#"footprint:
+  run: "true"
+  bundle: { target: "5kB" }
+  export-size: { target: "5kB" }
+  links: {}
 "#;
     let lines = "bundle 27.5kB
 export-size a 9kB
@@ -352,7 +352,7 @@ links about.html fail
 
 #[test]
 fn groups_a_list_when_no_single_item_moves_its_score() {
-    let config = "[footprint]\nrun = \"true\"\nexport-size = { target = \"1kB\" }\n";
+    let config = "footprint:\n  run: \"true\"\n  export-size: { target: \"1kB\" }\n";
     let lines = (1..=20).fold(String::new(), |mut lines, n| {
         let _ = writeln!(lines, "export-size item-{n} 3kB");
         lines
@@ -380,10 +380,10 @@ fn groups_a_list_when_no_single_item_moves_its_score() {
 
 #[test]
 fn scores_each_subject_and_takes_medians_of_metrics_that_vary() {
-    let config = r#"[footprint]
-run = "true"
-turn-rss = { target = "16MB", varies = true }
-install-size = { target = "10MB" }
+    let config = r#"footprint:
+  run: "true"
+  turn-rss: { target: "16MB", varies: true }
+  install-size: { target: "10MB" }
 "#;
     // zc's peak memory varies: 4, 2, and 3 MB have a median of 3 MB. Its install size is exact,
     // so the first round's 1 MB counts. ts writes no install size, so it has no score for it.

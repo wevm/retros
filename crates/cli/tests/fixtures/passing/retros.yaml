@@ -1,0 +1,9 @@
+# Two categories whose scripts write every configured metric.
+footprint:
+  run: sh metrics/footprint.sh
+  export-size: { target: 5kB }
+  modules: {}
+
+speed:
+  run: sh metrics/speed.sh
+  render: { target: 2ms }

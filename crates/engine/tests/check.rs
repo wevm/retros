@@ -6,13 +6,13 @@ use std::fmt::Write;
 use engine::check::{self, Report, Source};
 use engine::{config, lines};
 
-const CONFIG: &str = r#"[footprint]
-run = "node metrics/footprint.mjs"
-export-size = { target = "5kB" }
-modules = {}
+const CONFIG: &str = r#"footprint:
+  run: "node metrics/footprint.mjs"
+  export-size: { target: "5kB" }
+  modules: {}
 "#;
 
-/// Checks `metrics` against the `[footprint]` category and renders every finding.
+/// Checks `metrics` against the `footprint` category and renders every finding.
 fn check(metrics: &str) -> String {
     check_in(CONFIG, metrics)
 }
@@ -36,7 +36,7 @@ fn render(report: &Report, config: &str, metrics: &str) -> String {
 
     for (severity, finding) in findings {
         let (name, source) = match finding.source {
-            Source::Config => ("retros.toml", config),
+            Source::Config => ("retros.yaml", config),
             Source::Metrics => ("footprint metrics", metrics),
         };
         let _ = write!(
@@ -63,9 +63,9 @@ fn reports_a_configured_metric_that_was_not_written() {
 
     insta::assert_snapshot!(report, @"
     passed: false, metrics: 1
-    error [metric-missing] retros.toml:4:1: metric `modules` is configured, but the script did not write it
-      4 | modules = {}
-        | ^
+    error [metric-missing] retros.yaml:4:3: metric `modules` is configured, but the script did not write it
+      4 |   modules: {}
+        |   ^
     ");
 }
 
@@ -75,7 +75,7 @@ fn warns_about_a_metric_that_is_not_configured() {
 
     insta::assert_snapshot!(report, @"
     passed: true, metrics: 3
-    warning [unconfigured-metric] footprint metrics:3:1: metric `chunks` is written, but `[footprint]` does not configure it
+    warning [unconfigured-metric] footprint metrics:3:1: metric `chunks` is written, but `footprint` does not configure it
       3 | chunks 9
         | ^
     ");
@@ -121,7 +121,7 @@ fn reports_values_that_do_not_match_their_target() {
 
     insta::assert_snapshot!(report, @"
     passed: false, metrics: 2
-    error [target-unit] footprint metrics:1:1: metric `export-size` is written as counts, but its `target` in retros.toml is a size
+    error [target-unit] footprint metrics:1:1: metric `export-size` is written as counts, but its `target` in retros.yaml is a size
       1 | export-size 412
         | ^
     ");
@@ -133,7 +133,7 @@ fn reports_targets_on_some_lines_only() {
 
     insta::assert_snapshot!(report, @"
     passed: false, metrics: 2
-    error [mixed-targets] footprint metrics:3:1: metric `modules` sets a target on some items but not this one. Set a target on every line, or a default `target` in retros.toml
+    error [mixed-targets] footprint metrics:3:1: metric `modules` sets a target on some items but not this one. Set a target on every line, or a default `target` in retros.yaml
       3 | modules ox 120
         | ^
     ");
@@ -141,9 +141,9 @@ fn reports_targets_on_some_lines_only() {
 
 #[test]
 fn checks_target_patterns() {
-    let config = r#"[footprint]
-run = "true"
-modules = { targets = { "viem*" = 500, "ox" = "1kB", "abitype" = 50 } }
+    let config = r#"footprint:
+  run: "true"
+  modules: { targets: { "viem*": 500, "ox": "1kB", "abitype": 50 } }
 "#;
     // Patterns give `viem` and `viem/chains` their targets, so only `zod` lacks one.
     let report = check_in(
@@ -153,21 +153,21 @@ modules = { targets = { "viem*" = 500, "ox" = "1kB", "abitype" = 50 } }
 
     insta::assert_snapshot!(report, @r#"
     passed: false, metrics: 1
-    error [mixed-targets] footprint metrics:4:1: metric `modules` sets a target on some items but not this one. Set a target on every line, or a default `target` in retros.toml
+    error [mixed-targets] footprint metrics:4:1: metric `modules` sets a target on some items but not this one. Set a target on every line, or a default `target` in retros.yaml
       4 | modules zod 9
         | ^
-    error [target-unit] retros.toml:3:40: metric `modules` is written as counts, but its target for `ox` is a size
-      3 | modules = { targets = { "viem*" = 500, "ox" = "1kB", "abitype" = 50 } }
-        |                                        ^
-    warning [unmatched-pattern] retros.toml:3:54: pattern `abitype` in the `targets` of metric `modules` matches no item
-      3 | modules = { targets = { "viem*" = 500, "ox" = "1kB", "abitype" = 50 } }
-        |                                                      ^
+    error [target-unit] retros.yaml:3:39: metric `modules` is written as counts, but its target for `ox` is a size
+      3 |   modules: { targets: { "viem*": 500, "ox": "1kB", "abitype": 50 } }
+        |                                       ^
+    warning [unmatched-pattern] retros.yaml:3:52: pattern `abitype` in the `targets` of metric `modules` matches no item
+      3 |   modules: { targets: { "viem*": 500, "ox": "1kB", "abitype": 50 } }
+        |                                                    ^
     "#);
 }
 
 #[test]
 fn checks_duplicates_within_each_subject() {
-    let config = "[speed]\nrun = \"true\"\nstartup = {}\n";
+    let config = "speed:\n  run: \"true\"\n  startup: {}\n";
 
     insta::assert_snapshot!(check_in(config, "zc: startup 1ms\nts: startup 30ms\n"), @"passed: true, metrics: 1");
     insta::assert_snapshot!(check_in(config, "zc: startup 1ms\nzc: startup 2ms\n"), @"
@@ -180,11 +180,11 @@ fn checks_duplicates_within_each_subject() {
 
 #[test]
 fn rejects_lines_with_and_without_subjects() {
-    let config = "[speed]\nrun = \"true\"\nstartup = {}\nrender = {}\n";
+    let config = "speed:\n  run: \"true\"\n  startup: {}\n  render: {}\n";
 
     insta::assert_snapshot!(check_in(config, "zc: startup 1ms\nrender 2ms\n"), @"
     passed: false, metrics: 2
-    error [mixed-subjects] footprint metrics:2:1: `[speed]` mixes lines with and without subjects. Line 1 names a subject
+    error [mixed-subjects] footprint metrics:2:1: `speed` mixes lines with and without subjects. Line 1 names a subject
       2 | render 2ms
         | ^
     ");
@@ -193,7 +193,7 @@ fn rejects_lines_with_and_without_subjects() {
 #[test]
 fn routes_shared_lines_to_the_category_that_configures_them() {
     let config =
-        "run = \"zig build metrics\"\n\n[speed]\nstartup = {}\n\n[footprint]\ninstall-size = {}\n";
+        "run: \"zig build metrics\"\n\nspeed:\n  startup: {}\n\nfootprint:\n  install-size: {}\n";
     let parsed = config::parse(config).unwrap();
     let categories: Vec<_> = parsed.categories.iter().collect();
     let lines = lines::parse("zc: install-size 2MB\nzc: startup 1ms\nzc: chunks 3\n").unwrap();

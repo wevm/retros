@@ -1,8 +1,9 @@
 //! `retros [category]`: runs each category's script, scores its metrics for each subject, prints
 //! each category as it finishes, then the opportunities and the changes since `retros.lock`.
 //! Categories that share a `run` command share one run. It writes `.retros/report.json`,
-//! `.retros/report.md`, and `.retros/report.html` beside `retros.toml`, and with `--update`
-//! records this run's sizes, counts, checks, and line targets in `retros.lock`.
+//! `.retros/report.md`, and `.retros/report.html` in the project root, and with `--update`
+//! records this run's sizes, counts, checks, and line targets in `retros.lock` beside
+//! `retros.yaml`.
 //!
 //! The command exits with status 0 when every category ran and passed its checks, and with
 //! status 1 when any category failed. With `--require-baseline`, it also exits with status 1 when
@@ -37,9 +38,12 @@ pub(crate) struct Options {
 /// Returns a message for the terminal when the category is unknown, when `retros.lock` is
 /// invalid, when Retros cannot run a script at all, or when it cannot write a file.
 pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, String> {
-    let prefix = project.name.trim_end_matches("retros.toml");
-    let lock_name = format!("{prefix}retros.lock");
-    let lock_path = project.root.join("retros.lock");
+    let prefix = &project.prefix;
+    let lock_name = format!(
+        "{}retros.lock",
+        project.name.trim_end_matches("retros.yaml")
+    );
+    let lock_path = project.dir.join("retros.lock");
     let previous = match std::fs::read_to_string(&lock_path) {
         Ok(source) => Some(
             lock::parse(&source)
