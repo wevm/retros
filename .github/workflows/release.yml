@@ -161,6 +161,7 @@ jobs:
       - name: Check packages
         run: |
           packs=$RUNNER_TEMP/packs
+          mkdir -p "$packs"
           npm pack ./npm/retros ./npm/platforms/x86_64-unknown-linux-gnu ./npm/platforms/x86_64-unknown-linux-musl --pack-destination "$packs"
           check='cd "$(mktemp -d)" && npm init -y > /dev/null && npm install --no-audit --no-fund --loglevel=error /packs/retros-[0-9]*.tgz /packs/retros-linux-x64-$0-*.tgz && npx retros --version'
           docker run --rm -v "$packs:/packs:ro" node:24 sh -euc "$check" gnu
