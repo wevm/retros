@@ -377,3 +377,39 @@ fn groups_a_list_when_no_single_item_moves_its_score() {
     ]
     "#);
 }
+
+#[test]
+fn scores_each_subject_and_takes_medians_of_metrics_that_vary() {
+    let config = r#"[footprint]
+run = "true"
+turn-rss = { target = "16MB", varies = true }
+install-size = { target = "10MB" }
+"#;
+    // zc's peak memory varies: 4, 2, and 3 MB have a median of 3 MB. Its install size is exact,
+    // so the first round's 1 MB counts. ts writes no install size, so it has no score for it.
+    let rounds: Vec<_> = [
+        "zc: turn-rss 4MB\nzc: install-size 1MB\nts: turn-rss 64MB\n",
+        "zc: turn-rss 2MB\nzc: install-size 9MB\nts: turn-rss 8MB\n",
+        "zc: turn-rss 3MB\nzc: install-size 9MB\nts: turn-rss 40MB\n",
+    ]
+    .iter()
+    .map(|source| lines::parse(source).unwrap())
+    .collect();
+    let config = config::parse(config).unwrap();
+
+    let subjects = score::subjects(config.categories.first().unwrap(), &rounds);
+
+    let rendered: Vec<String> = subjects
+        .iter()
+        .map(|(subject, scored)| format!("{subject:?}\n{}", summary(scored)))
+        .collect();
+    insta::assert_snapshot!(rendered.join("\n"), @r#"
+    Some("zc")
+    category Some(100)
+    turn-rss 3000000 Some(100)
+    install-size 1000000 Some(100)
+    Some("ts")
+    category Some(34)
+    turn-rss 40000000 Some(34)
+    "#);
+}

@@ -13,8 +13,8 @@ use crate::config::{Better, Category, Metric, Rollup};
 use crate::lines::Line;
 use crate::value::{Kind, Value};
 
-/// How many times a category's script runs when its first run writes a time. Timing items take
-/// their median across the runs.
+/// How many times a category's script runs when its first run writes a time or a metric that
+/// varies. Those items take their median across the runs.
 pub const ROUNDS: usize = 5;
 
 /// The smallest gain, in category points, that counts as an opportunity. Smaller gains round to
@@ -26,7 +26,8 @@ const MIN_GAIN: f64 = 0.5;
 pub struct CategoryScore {
     /// Configured metrics in the order `retros.toml` declares them.
     pub metrics: Vec<MetricScore>,
-    /// How many times the script ran. Timing metrics take the median of each item across rounds.
+    /// How many rounds the category's times and values that vary take their median of: the runs
+    /// of its script, or 1 when it has neither.
     pub rounds: usize,
     /// The weighted mean of the metric scores, or `None` when no metric with weight has a score.
     pub score: Option<u8>,
@@ -103,10 +104,50 @@ struct Evaluated {
     value: f64,
 }
 
+/// Scores one category for each subject its lines name, in the order the subjects first appear.
+/// Lines without subjects score once, with `None` as their subject.
+///
+/// Each round must already pass [`crate::check::category`].
+pub fn subjects(
+    category: &Category,
+    rounds: &[Vec<Line<'_>>],
+) -> Vec<(Option<String>, CategoryScore)> {
+    let mut subjects: Vec<Option<&str>> = Vec::new();
+    for line in rounds.first().into_iter().flatten() {
+        if !subjects.contains(&line.subject) {
+            subjects.push(line.subject);
+        }
+    }
+    if subjects.is_empty() {
+        subjects.push(None);
+    }
+
+    subjects
+        .into_iter()
+        .map(|subject| {
+            let rounds: Vec<Vec<Line<'_>>> = rounds
+                .iter()
+                .map(|round| {
+                    round
+                        .iter()
+                        .filter(|line| line.subject == subject)
+                        .cloned()
+                        .collect()
+                })
+                .collect();
+            (
+                subject.map(str::to_owned),
+                self::category(category, &rounds),
+            )
+        })
+        .collect()
+}
+
 /// Scores one category from the metric lines of each round, in the order the rounds ran.
 ///
-/// Each round must already pass [`crate::check::category`]. Sizes, counts, checks, and targets
-/// come from the first round. A metric that `retros.toml` does not configure is left out.
+/// Each round must already pass [`crate::check::category`], and name one subject or none. Sizes,
+/// counts, checks, and targets come from the first round, except metrics that vary. A metric that
+/// `retros.toml` does not configure is left out.
 pub fn category(category: &Category, rounds: &[Vec<Line<'_>>]) -> CategoryScore {
     let metrics: Vec<MetricScore> = category
         .metrics
@@ -114,10 +155,14 @@ pub fn category(category: &Category, rounds: &[Vec<Line<'_>>]) -> CategoryScore 
         .filter_map(|metric| self::metric(metric, rounds))
         .collect();
 
+    let repeated = metrics.iter().any(|metric| {
+        metric.kind == Kind::Time || (metric.metric.varies && metric.kind != Kind::Check)
+    });
+
     CategoryScore {
         score: mean(&metrics).map(whole),
         metrics,
-        rounds: rounds.len(),
+        rounds: if repeated { rounds.len() } else { 1 },
     }
 }
 
@@ -265,14 +310,15 @@ fn metric(metric: &Metric, rounds: &[Vec<Line<'_>>]) -> Option<MetricScore> {
     let mut measures: Vec<Measure> = lines
         .iter()
         .map(|line| {
-            let value = if kind == Kind::Time && rounds.len() > 1 {
+            let repeated = kind == Kind::Time || (metric.varies && kind != Kind::Check);
+            let value = if repeated && rounds.len() > 1 {
                 let mut samples: Vec<f64> = rounds
                     .iter()
                     .flatten()
                     .filter(|other| other.metric == metric.name && other.item == line.item)
                     .filter_map(|other| other.value.amount())
                     .collect();
-                Value::Time(median(&mut samples))
+                Value::of(kind, median(&mut samples))
             } else {
                 line.value
             };

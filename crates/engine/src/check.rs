@@ -42,8 +42,34 @@ impl Report {
     }
 }
 
+/// Splits the lines of one run among the categories that share its `run` command: each line goes
+/// to the category that configures its metric. A line that none of them configures goes to the
+/// first, which warns about it.
+pub fn route<'a>(categories: &[&Category], lines: &[Line<'a>]) -> Vec<Vec<Line<'a>>> {
+    let mut routed: Vec<Vec<Line<'a>>> = categories.iter().map(|_| Vec::new()).collect();
+
+    for line in lines {
+        let at = categories
+            .iter()
+            .position(|category| {
+                category
+                    .metrics
+                    .iter()
+                    .any(|metric| metric.name == line.metric)
+            })
+            .unwrap_or(0);
+        if let Some(lines) = routed.get_mut(at) {
+            lines.push(line.clone());
+        }
+    }
+
+    routed
+}
+
 /// Checks that a category's script wrote every configured metric, that each metric uses one kind
-/// of unit and matches its target, and that no metric or item is written twice.
+/// of unit and matches its target, that no metric or item is written twice for one subject, and
+/// that the lines either all name a subject or none do. A metric that only some subjects write is
+/// fine: the others have no score for it.
 pub fn category(category: &Category, lines: &[Line<'_>]) -> Report {
     let mut groups: Vec<(&str, Vec<&Line<'_>>)> = Vec::new();
     for line in lines {
@@ -57,6 +83,30 @@ pub fn category(category: &Category, lines: &[Line<'_>]) -> Report {
         metrics: groups.len(),
         ..Report::default()
     };
+
+    if let Some(first) = lines.first()
+        && let Some(line) = lines
+            .iter()
+            .find(|line| line.subject.is_some() != first.subject.is_some())
+    {
+        report.errors.push(Finding {
+            error: Error {
+                code: Code::MixedSubjects,
+                location: Some(line.location),
+                message: format!(
+                    "`[{}]` mixes lines with and without subjects. Line {} {}",
+                    category.name,
+                    first.location.line,
+                    if first.subject.is_some() {
+                        "names a subject"
+                    } else {
+                        "names none"
+                    }
+                ),
+            },
+            source: Source::Metrics,
+        });
+    }
 
     for (name, group) in &groups {
         check_group(category, name, group, &mut report);
@@ -118,30 +168,28 @@ fn check_group(category: &Category, name: &str, group: &[&Line<'_>], report: &mu
             line,
             format!("metric `{name}` mixes lines with and without items"),
         ));
-    } else if first.item.is_none() {
-        if let Some(line) = group.get(1) {
-            report.errors.push(error(
-                Code::Duplicate,
-                line,
-                format!(
-                    "metric `{name}` is written more than once. Give each line an item to write a list"
-                ),
-            ));
-        }
     } else {
+        // Each subject writes a metric once, or each of its items once.
         let mut seen = BTreeSet::new();
-        if let Some(line) = group
-            .iter()
-            .find(|line| !seen.insert(line.item.as_deref().unwrap_or_default()))
-        {
-            report.errors.push(error(
-                Code::Duplicate,
-                line,
-                format!(
-                    "item `{}` of metric `{name}` is written more than once",
-                    line.item.as_deref().unwrap_or_default()
+        if let Some(line) = group.iter().find(|line| {
+            !seen.insert((
+                line.subject.unwrap_or_default(),
+                line.item.as_deref().unwrap_or_default(),
+            ))
+        }) {
+            let subject = line
+                .subject
+                .map(|subject| format!(" for subject `{subject}`"))
+                .unwrap_or_default();
+            let message = match line.item.as_deref() {
+                None => format!(
+                    "metric `{name}` is written more than once{subject}. Give each line an item to write a list"
                 ),
-            ));
+                Some(item) => {
+                    format!("item `{item}` of metric `{name}` is written more than once{subject}")
+                }
+            };
+            report.errors.push(error(Code::Duplicate, line, message));
         }
     }
 

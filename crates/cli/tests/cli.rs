@@ -217,11 +217,14 @@ fn scores_every_category_and_writes_reports() {
       "categories": [
         {
           "name": "footprint",
+          "subject": null,
+          "description": null,
           "score": 43,
           "rounds": 1,
           "metrics": [
             {
               "name": "bundle",
+              "description": null,
               "kind": "size",
               "unit": "B",
               "value": 27500,
@@ -235,6 +238,7 @@ fn scores_every_category_and_writes_reports() {
             },
             {
               "name": "export-size",
+              "description": null,
               "kind": "size",
               "unit": "B",
               "value": 9000,
@@ -299,6 +303,7 @@ fn scores_every_category_and_writes_reports() {
             },
             {
               "name": "modules",
+              "description": null,
               "kind": "count",
               "unit": null,
               "value": 412,
@@ -312,6 +317,7 @@ fn scores_every_category_and_writes_reports() {
             },
             {
               "name": "links",
+              "description": null,
               "kind": "check",
               "unit": null,
               "value": 0.6666666666666666,
@@ -343,11 +349,14 @@ fn scores_every_category_and_writes_reports() {
         },
         {
           "name": "speed",
+          "subject": null,
+          "description": null,
           "score": 75,
           "rounds": 5,
           "metrics": [
             {
               "name": "render",
+              "description": null,
               "kind": "time",
               "unit": "ns",
               "value": 5000000,
@@ -372,6 +381,7 @@ fn scores_every_category_and_writes_reports() {
             },
             {
               "name": "throughput",
+              "description": null,
               "kind": "count",
               "unit": null,
               "value": 2588,
@@ -389,6 +399,7 @@ fn scores_every_category_and_writes_reports() {
       "opportunities": [
         {
           "category": "footprint",
+          "subject": null,
           "metric": "bundle",
           "item": null,
           "items": 1,
@@ -398,6 +409,7 @@ fn scores_every_category_and_writes_reports() {
         },
         {
           "category": "speed",
+          "subject": null,
           "metric": "render",
           "item": "parse",
           "items": 1,
@@ -407,6 +419,7 @@ fn scores_every_category_and_writes_reports() {
         },
         {
           "category": "footprint",
+          "subject": null,
           "metric": "links",
           "item": "about.html",
           "items": 1,
@@ -416,6 +429,7 @@ fn scores_every_category_and_writes_reports() {
         },
         {
           "category": "footprint",
+          "subject": null,
           "metric": "export-size",
           "item": "viem/chains",
           "items": 1,
@@ -425,6 +439,7 @@ fn scores_every_category_and_writes_reports() {
         },
         {
           "category": "footprint",
+          "subject": null,
           "metric": "export-size",
           "item": "viem/op-stack",
           "items": 1,
@@ -481,7 +496,7 @@ fn scores_every_category_and_writes_reports() {
 
     ## speed
 
-    Timings are the median of 5 rounds.
+    Values that vary between runs are the median of 5 rounds.
 
     | Score | Metric | Value | Target |
     | --- | --- | --- | --- |
@@ -697,6 +712,125 @@ Wrote .retros/report.json, .retros/report.md
 
     4 changes since retros.lock. Run `retros --update` to accept them
     ");
+}
+
+#[test]
+fn subjects_share_one_run_and_score_on_their_own() {
+    let project = fixture("subjects");
+
+    let output = retros_in(project.path(), &["--update"], &[]);
+
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    // Both categories come from the same 5 runs: the startup times repeat the script.
+    let runs = fs::read_to_string(project.path().join("runs.txt")).unwrap();
+    assert_eq!(runs.lines().count(), 5);
+    insta::assert_snapshot!(stdout(&output), @"
+    ● 100  zc: speed  median of 5 rounds
+      ● 100  startup  1 ms  target 30 ms
+
+    ● 100  zc: footprint  median of 5 rounds
+      ● 100  turn-rss      3 MB  target 16 MB
+      ● 100  install-size  2 MB  target 10 MB
+
+    ■  77  ts: speed  median of 5 rounds
+      ■  77  startup  40 ms  target 30 ms
+
+    ●  97  ts: footprint  median of 5 rounds
+      ●  95  turn-rss      48 MB   target 57 MB
+      ● 100  install-size  4 MB    target 10 MB
+      ●  97  wasm-size     250 kB  target 350 kB
+
+    Opportunities
+      +13  ts: speed  startup  40 ms → 30 ms
+
+    Since retros.lock
+      looser  ts: footprint  turn-rss      target 16 MB → 57 MB
+      new     zc: footprint  install-size
+      new     ts: footprint  install-size
+      new     ts: footprint  wasm-size
+
+    Wrote .retros/report.json, .retros/report.md, retros.lock
+    ");
+
+    // zc's peak memory varies, so the lock leaves it out and keeps ts's line target.
+    let lock = fs::read_to_string(project.path().join("retros.lock")).unwrap();
+    insta::assert_snapshot!(lock, @r#"
+    # The accepted value of every size, count, and check, and the targets scripts set on their
+    # lines. `retros --update` writes this file. Commit it, so each run reports what changed since.
+
+    ["zc: footprint"]
+    install-size = "2000000B"
+
+    ["ts: footprint"]
+    turn-rss = "target 57000000B"
+    install-size = "4000000B"
+    wasm-size = "250000B"
+    "#);
+
+    let markdown = fs::read_to_string(project.path().join(".retros/report.md")).unwrap();
+    insta::assert_snapshot!(markdown, @"
+    # Retros report
+
+    | Subject | speed | footprint |
+    | --- | --- | --- |
+    | zc | ● 100 | ● 100 |
+    | ts | ■ 77 | ● 97 |
+
+    ## Opportunities
+
+    | Gain | Category | Change | Value | Target |
+    | --- | --- | --- | --- | --- |
+    | +13 | ts: speed | startup | 40 ms | 30 ms |
+
+    ## Changes since retros.lock
+
+    | Change | Category | Metric | Before | After |
+    | --- | --- | --- | --- | --- |
+    | looser | ts: footprint | turn-rss | target 16 MB | target 57 MB |
+    | new | zc: footprint | install-size |  |  |
+    | new | ts: footprint | install-size |  |  |
+    | new | ts: footprint | wasm-size |  |  |
+
+    ## zc: speed
+
+    Values that vary between runs are the median of 5 rounds.
+
+    | Score | Metric | Value | Target |
+    | --- | --- | --- | --- |
+    | ● 100 | startup | 1 ms | 30 ms |
+
+    ## zc: footprint
+
+    Values that vary between runs are the median of 5 rounds.
+
+    | Score | Metric | Value | Target |
+    | --- | --- | --- | --- |
+    | ● 100 | turn-rss | 3 MB | 16 MB |
+    | ● 100 | install-size | 2 MB | 10 MB |
+
+    ## ts: speed
+
+    Values that vary between runs are the median of 5 rounds.
+
+    | Score | Metric | Value | Target |
+    | --- | --- | --- | --- |
+    | ■ 77 | startup | 40 ms | 30 ms |
+
+    ## ts: footprint
+
+    Values that vary between runs are the median of 5 rounds.
+
+    | Score | Metric | Value | Target |
+    | --- | --- | --- | --- |
+    | ● 95 | turn-rss | 48 MB | 57 MB |
+    | ● 100 | install-size | 4 MB | 10 MB |
+    | ● 97 | wasm-size | 250 kB | 350 kB |
+    ");
+
+    // The next 5 runs write zc's memory as 6 to 10 MB, which is not a change.
+    let again = retros_in(project.path(), &["--require-baseline"], &[]);
+    assert_eq!(again.status.code(), Some(0), "{}", stdout(&again));
+    assert!(stdout(&again).contains("\nNo changes since retros.lock\n"));
 }
 
 #[test]

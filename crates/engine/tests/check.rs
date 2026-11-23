@@ -164,3 +164,55 @@ modules = { targets = { "viem*" = 500, "ox" = "1kB", "abitype" = 50 } }
         |                                                      ^
     "#);
 }
+
+#[test]
+fn checks_duplicates_within_each_subject() {
+    let config = "[speed]\nrun = \"true\"\nstartup = {}\n";
+
+    insta::assert_snapshot!(check_in(config, "zc: startup 1ms\nts: startup 30ms\n"), @"passed: true, metrics: 1");
+    insta::assert_snapshot!(check_in(config, "zc: startup 1ms\nzc: startup 2ms\n"), @"
+    passed: false, metrics: 1
+    error [duplicate] footprint metrics:2:5: metric `startup` is written more than once for subject `zc`. Give each line an item to write a list
+      2 | zc: startup 2ms
+        |     ^
+    ");
+}
+
+#[test]
+fn rejects_lines_with_and_without_subjects() {
+    let config = "[speed]\nrun = \"true\"\nstartup = {}\nrender = {}\n";
+
+    insta::assert_snapshot!(check_in(config, "zc: startup 1ms\nrender 2ms\n"), @"
+    passed: false, metrics: 2
+    error [mixed-subjects] footprint metrics:2:1: `[speed]` mixes lines with and without subjects. Line 1 names a subject
+      2 | render 2ms
+        | ^
+    ");
+}
+
+#[test]
+fn routes_shared_lines_to_the_category_that_configures_them() {
+    let config =
+        "run = \"zig build metrics\"\n\n[speed]\nstartup = {}\n\n[footprint]\ninstall-size = {}\n";
+    let parsed = config::parse(config).unwrap();
+    let categories: Vec<_> = parsed.categories.iter().collect();
+    let lines = lines::parse("zc: install-size 2MB\nzc: startup 1ms\nzc: chunks 3\n").unwrap();
+
+    let routed: Vec<Vec<&str>> = check::route(&categories, &lines)
+        .iter()
+        .map(|lines| lines.iter().map(|line| line.metric).collect())
+        .collect();
+
+    // `chunks` is in neither category, so it goes to the first, which warns about it.
+    insta::assert_debug_snapshot!(routed, @r#"
+    [
+        [
+            "startup",
+            "chunks",
+        ],
+        [
+            "install-size",
+        ],
+    ]
+    "#);
+}

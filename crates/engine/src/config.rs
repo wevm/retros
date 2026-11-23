@@ -1,10 +1,11 @@
 //! The `retros.toml` configuration.
 //!
 //! Each top-level table is a category. A category's `run` key is the command that measures it,
-//! `timeout` is optional, and every other key is a metric. A metric is a table of optional keys:
-//! `target`, `targets`, `weight`, `score`, and `better`. `target` is the default for every item,
-//! a metric line can set its own, and `targets` sets targets by item pattern and has the final
-//! say.
+//! `timeout` and `description` are optional, and every other key is a metric. A top-level `run`
+//! and `timeout` apply to every category that sets none, and categories with the same command
+//! share one run of it. A metric is a table of optional keys: `target`, `targets`, `weight`,
+//! `score`, `better`, `varies`, and `description`. `target` is the default for every item, a
+//! metric line can set its own, and `targets` sets targets by item pattern and has the final say.
 //!
 //! ```toml
 //! [footprint]
@@ -23,7 +24,15 @@ use crate::lines::is_name;
 use crate::value::{self, Value};
 
 /// Keys a metric table accepts, in the order error messages list them.
-const METRIC_KEYS: [&str; 5] = ["better", "score", "target", "targets", "weight"];
+const METRIC_KEYS: [&str; 7] = [
+    "better",
+    "description",
+    "score",
+    "target",
+    "targets",
+    "varies",
+    "weight",
+];
 
 /// Time a script may run when its category sets no `timeout`.
 const DEFAULT_TIMEOUT: Duration = Duration::from_mins(10);
@@ -38,13 +47,15 @@ pub struct Config {
 /// A category: one script and the metrics it writes.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Category {
+    /// What the category measures, for reports.
+    pub description: Option<String>,
     /// The position of the category's name.
     pub location: Location,
     /// Metrics in the order the file declares them.
     pub metrics: Vec<Metric>,
     /// The category name, such as `footprint`.
     pub name: String,
-    /// The shell command that runs the script.
+    /// The shell command that runs the script. Categories with the same command share one run.
     pub run: String,
     /// How long one run may take before Retros stops it. Defaults to 10 minutes.
     pub timeout: Duration,
@@ -55,6 +66,8 @@ pub struct Category {
 pub struct Metric {
     /// Which direction is better. Defaults to lower.
     pub better: Better,
+    /// What the metric measures, for reports.
+    pub description: Option<String>,
     /// The position of the metric's name.
     pub location: Location,
     /// The metric name, such as `export-size`.
@@ -68,6 +81,9 @@ pub struct Metric {
     /// Targets by item pattern, in the order the file declares them. The first pattern that
     /// matches an item sets its target, over the item's line and the default.
     pub targets: Vec<Pattern>,
+    /// Whether a size or count differs between runs, such as peak memory. Like a time, it takes
+    /// its median across rounds and stays out of `retros.lock`. Defaults to false.
+    pub varies: bool,
     /// The metric's weight in its category. Defaults to 1.
     pub weight: f64,
 }
@@ -146,7 +162,7 @@ pub enum Rollup {
 /// # Errors
 ///
 /// Returns the first error: TOML syntax, an unknown key, a value of the wrong type, a missing
-/// `run` command, or a target that cannot score.
+/// `run` command, a target that cannot score, or a metric in two categories that share a run.
 pub fn parse(source: &str) -> Result<Config, Error> {
     let document = DeTable::parse(source).map_err(|error| Error {
         code: Code::Toml,
@@ -154,10 +170,26 @@ pub fn parse(source: &str) -> Result<Config, Error> {
         message: error.message().to_owned(),
     })?;
 
-    let mut categories = Vec::new();
+    // Top-level `run` and `timeout` are defaults for every category.
+    let mut defaults = Defaults {
+        run: None,
+        timeout: DEFAULT_TIMEOUT,
+    };
+    for (key, value) in document.get_ref() {
+        match key.get_ref().as_ref() {
+            "run" => defaults.run = Some(command(source, value)?),
+            "timeout" => defaults.timeout = duration(source, value)?,
+            _ => {}
+        }
+    }
+
+    let mut categories: Vec<Category> = Vec::new();
 
     for (key, value) in document.get_ref() {
         let name = key.get_ref().as_ref();
+        if matches!(name, "run" | "timeout") {
+            continue;
+        }
         check_name(source, key, "category")?;
 
         let DeValue::Table(table) = value.get_ref() else {
@@ -169,7 +201,28 @@ pub fn parse(source: &str) -> Result<Config, Error> {
             ));
         };
 
-        categories.push(category(source, key, table)?);
+        let category = category(source, key, table, &defaults)?;
+
+        // A shared run gives each line to the category that configures its metric, so a metric
+        // name can belong to only one of the categories that share it.
+        for other in categories.iter().filter(|other| other.run == category.run) {
+            if let Some(metric) = category
+                .metrics
+                .iter()
+                .find(|metric| other.metrics.iter().any(|m| m.name == metric.name))
+            {
+                return Err(Error {
+                    code: Code::DuplicateMetric,
+                    location: Some(metric.location),
+                    message: format!(
+                        "metric `{}` is in `[{}]` and `[{}]`, which share the same `run`, so Retros cannot tell which category its lines belong to",
+                        metric.name, other.name, category.name
+                    ),
+                });
+            }
+        }
+
+        categories.push(category);
     }
 
     if categories.is_empty() {
@@ -184,30 +237,28 @@ pub fn parse(source: &str) -> Result<Config, Error> {
     Ok(Config { categories })
 }
 
+/// The top-level keys that apply to every category that does not set its own.
+struct Defaults {
+    run: Option<String>,
+    timeout: Duration,
+}
+
 fn category(
     source: &str,
     key: &Spanned<Cow<'_, str>>,
     table: &DeTable<'_>,
+    defaults: &Defaults,
 ) -> Result<Category, Error> {
     let name = key.get_ref().as_ref();
+    let mut description = None;
     let mut metrics = Vec::new();
     let mut run = None;
-    let mut timeout = DEFAULT_TIMEOUT;
+    let mut timeout = defaults.timeout;
 
     for (field, value) in table {
         match field.get_ref().as_ref() {
-            "run" => {
-                let command = string(source, value, "run")?;
-                if command.trim().is_empty() {
-                    return Err(Error::at(
-                        Code::InvalidValue,
-                        source,
-                        value.span().start,
-                        "`run` must be a command".to_owned(),
-                    ));
-                }
-                run = Some(command.to_owned());
-            }
+            "description" => description = Some(string(source, value, "description")?.to_owned()),
+            "run" => run = Some(command(source, value)?),
             "timeout" => timeout = duration(source, value)?,
             metric => {
                 check_name(source, field, "metric")?;
@@ -228,12 +279,14 @@ fn category(
         }
     }
 
-    let Some(run) = run else {
+    let Some(run) = run.or_else(|| defaults.run.clone()) else {
         return Err(Error::at(
             Code::RunMissing,
             source,
             key.span().start,
-            format!("category `{name}` has no `run` command"),
+            format!(
+                "category `{name}` has no `run` command. Add one, or a top-level `run` that every category shares"
+            ),
         ));
     };
 
@@ -247,6 +300,7 @@ fn category(
     }
 
     Ok(Category {
+        description,
         location: Location::of(source, key.span().start),
         metrics,
         name: name.to_owned(),
@@ -258,9 +312,11 @@ fn category(
 fn metric(source: &str, key: &Spanned<Cow<'_, str>>, table: &DeTable<'_>) -> Result<Metric, Error> {
     let name = key.get_ref().as_ref();
     let mut better = Better::Lower;
+    let mut description = None;
     let mut score = None;
     let mut target = None;
     let mut targets = Vec::new();
+    let mut varies = false;
     let mut weight = 1.0;
 
     for (field, value) in table {
@@ -281,6 +337,7 @@ fn metric(source: &str, key: &Spanned<Cow<'_, str>>, table: &DeTable<'_>) -> Res
                     }
                 };
             }
+            "description" => description = Some(string(source, value, "description")?.to_owned()),
             "score" => {
                 score = Some(match string(source, value, "score")? {
                     "max" => Rollup::Max,
@@ -320,6 +377,17 @@ fn metric(source: &str, key: &Spanned<Cow<'_, str>>, table: &DeTable<'_>) -> Res
                     });
                 }
             }
+            "varies" => {
+                let DeValue::Boolean(flag) = value.get_ref() else {
+                    return Err(Error::at(
+                        Code::InvalidType,
+                        source,
+                        value.span().start,
+                        "`varies` must be `true` or `false`".to_owned(),
+                    ));
+                };
+                varies = *flag;
+            }
             "weight" => weight = non_negative(source, value, "weight")?,
             other => {
                 let expected: Vec<String> = METRIC_KEYS.iter().map(|k| format!("`{k}`")).collect();
@@ -338,6 +406,7 @@ fn metric(source: &str, key: &Spanned<Cow<'_, str>>, table: &DeTable<'_>) -> Res
 
     Ok(Metric {
         better,
+        description,
         location: Location::of(source, key.span().start),
         name: name.to_owned(),
         score: score.unwrap_or(match better {
@@ -346,6 +415,7 @@ fn metric(source: &str, key: &Spanned<Cow<'_, str>>, table: &DeTable<'_>) -> Res
         }),
         target,
         targets,
+        varies,
         weight,
     })
 }
@@ -389,6 +459,20 @@ fn target(source: &str, name: &str, value: &Spanned<DeValue<'_>>) -> Result<Valu
         )),
         Some(_) => Ok(target),
     }
+}
+
+/// Parses a `run` command, which must not be blank.
+fn command(source: &str, value: &Spanned<DeValue<'_>>) -> Result<String, Error> {
+    let command = string(source, value, "run")?;
+    if command.trim().is_empty() {
+        return Err(Error::at(
+            Code::InvalidValue,
+            source,
+            value.span().start,
+            "`run` must be a command".to_owned(),
+        ));
+    }
+    Ok(command.to_owned())
 }
 
 /// Parses a duration such as `"10m"`, `"30s"`, or `"500ms"`.

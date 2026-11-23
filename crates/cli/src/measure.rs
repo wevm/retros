@@ -1,6 +1,9 @@
-//! Measures one category: runs its script, reads the metric lines, and checks them against the
-//! category's configuration. A category whose first run writes a time runs again until it has
-//! run [`engine::score::ROUNDS`] times.
+//! Measures categories: runs their script, reads the metric lines, and checks them against each
+//! category's configuration. Categories with the same `run` command share one run, and each line
+//! goes to the category that configures its metric. A run whose first round writes a time, or a
+//! metric that varies, runs again until it has run [`engine::score::ROUNDS`] times.
+
+use std::time::Duration;
 
 use engine::config::Category;
 use engine::report::Failure;
@@ -11,37 +14,81 @@ use crate::script::{self, Outcome};
 
 /// The metric lines of each round of a category that passed its checks.
 pub(crate) struct Measured {
-    /// The number of distinct metrics the first round wrote.
+    /// The number of distinct metrics the first round wrote for the category.
     pub(crate) metrics: usize,
-    /// The text each round wrote to `$RETROS_METRICS`, in the order the rounds ran.
+    /// The text each round wrote to `$RETROS_METRICS`, in the order the rounds ran. A shared run
+    /// holds the lines of every category that shares it.
     pub(crate) sources: Vec<String>,
     /// Rendered warnings from the first round, such as metrics `retros.toml` does not configure.
     pub(crate) warnings: Vec<String>,
 }
 
-/// Runs `category` once, or [`engine::score::ROUNDS`] times when `repeat` is set and the first run
-/// writes a time.
+/// Groups categories that share a `run` command, in the order of each group's first category.
+pub(crate) fn groups<'c>(categories: &[&'c Category]) -> Vec<Vec<&'c Category>> {
+    let mut groups: Vec<Vec<&'c Category>> = Vec::new();
+    for &category in categories {
+        match groups
+            .iter_mut()
+            .find(|group| group.first().is_some_and(|first| first.run == category.run))
+        {
+            Some(group) => group.push(category),
+            None => groups.push(vec![category]),
+        }
+    }
+    groups
+}
+
+/// Runs the script that the categories of `group` share once, or [`engine::score::ROUNDS`] times
+/// when `repeat` is set and the first run writes a time or a metric that varies. Returns each
+/// category's result, in the order of `group`.
 ///
 /// # Errors
 ///
 /// Returns a message for the terminal when Retros cannot run the script at all. A script that
-/// fails, or writes lines that fail their checks, returns `Ok(Err(failure))`.
-pub(crate) fn category(
+/// fails fails every category in the group. Lines that fail one category's checks fail only that
+/// category.
+pub(crate) fn group(
     project: &Project,
-    category: &Category,
+    group: &[&Category],
     repeat: bool,
-) -> Result<Result<Measured, Failure>, String> {
-    let mut measured = Measured {
-        metrics: 0,
-        sources: Vec::new(),
-        warnings: Vec::new(),
+) -> Result<Vec<Result<Measured, Failure>>, String> {
+    let Some(first) = group.first() else {
+        return Ok(Vec::new());
     };
+    let timeout = group
+        .iter()
+        .map(|category| category.timeout)
+        .max()
+        .unwrap_or(Duration::ZERO);
+
+    let mut results: Vec<Result<Measured, Failure>> = group
+        .iter()
+        .map(|_| {
+            Ok(Measured {
+                metrics: 0,
+                sources: Vec::new(),
+                warnings: Vec::new(),
+            })
+        })
+        .collect();
+    let mut sources = Vec::new();
     let mut rounds = 1;
 
-    while measured.sources.len() < rounds {
-        let round = measured.sources.len() + 1;
-        let run = script::run(&category.run, &project.root, category.timeout)
-            .map_err(|error| format!("error: could not run `{}`: {error}", category.run))?;
+    while sources.len() < rounds {
+        let round = sources.len() + 1;
+        let run = script::run(&first.run, &project.root, timeout)
+            .map_err(|error| format!("error: could not run `{}`: {error}", first.run))?;
+        let fail_all = |details: String, message: String| {
+            group
+                .iter()
+                .map(|_| {
+                    Err(Failure {
+                        details: details.clone(),
+                        message: in_round(message.clone(), round),
+                    })
+                })
+                .collect()
+        };
 
         let message = match run.outcome {
             Outcome::Exited(0) => None,
@@ -49,88 +96,106 @@ pub(crate) fn category(
             Outcome::Signaled(signal) => Some(format!("script was stopped by signal {signal}")),
             Outcome::TimedOut => Some(format!(
                 "script timed out after {}",
-                engine::format::duration(category.timeout)
+                engine::format::duration(timeout)
             )),
         };
         if let Some(message) = message {
-            return Ok(Err(Failure {
-                details: run.stderr,
-                message: in_round(message, round),
-            }));
+            return Ok(fail_all(run.stderr, message));
         }
 
         let Ok(text) = String::from_utf8(run.metrics) else {
-            return Ok(Err(Failure {
-                details: String::new(),
-                message: in_round("metric lines are not valid UTF-8".to_owned(), round),
-            }));
+            return Ok(fail_all(
+                String::new(),
+                "metric lines are not valid UTF-8".to_owned(),
+            ));
         };
-        let label = in_round(format!("{} metrics", category.name), round);
+        let label = in_round(format!("{} metrics", first.name), round);
 
         let lines = match engine::lines::parse(&text) {
             Ok(lines) => lines,
             Err(error) => {
-                return Ok(Err(Failure {
-                    details: crate::diagnostic("error", &error, &label, &text),
-                    message: in_round("invalid metric line".to_owned(), round),
-                }));
+                return Ok(fail_all(
+                    crate::diagnostic("error", &error, &label, &text),
+                    "invalid metric line".to_owned(),
+                ));
             }
         };
 
-        let report = engine::check::category(category, &lines);
-        let render = |severity, finding: &engine::check::Finding| match finding.source {
-            engine::check::Source::Config => {
-                crate::diagnostic(severity, &finding.error, &project.name, &project.source)
-            }
-            engine::check::Source::Metrics => {
-                crate::diagnostic(severity, &finding.error, &label, &text)
-            }
-        };
+        let routed = engine::check::route(group, &lines);
+        for ((category, lines), result) in group.iter().zip(&routed).zip(&mut results) {
+            let Ok(measured) = result else {
+                continue;
+            };
 
-        if !report.passed() {
-            let mut summary = vec![count(report.metrics, "metric")];
-            summary.push(count(report.errors.len(), "error"));
-            if !report.warnings.is_empty() {
-                summary.push(count(report.warnings.len(), "warning"));
+            let report = engine::check::category(category, lines);
+            let render = |severity, finding: &engine::check::Finding| match finding.source {
+                engine::check::Source::Config => {
+                    crate::diagnostic(severity, &finding.error, &project.name, &project.source)
+                }
+                engine::check::Source::Metrics => {
+                    crate::diagnostic(severity, &finding.error, &label, &text)
+                }
+            };
+
+            if !report.passed() {
+                let mut summary = vec![count(report.metrics, "metric")];
+                summary.push(count(report.errors.len(), "error"));
+                if !report.warnings.is_empty() {
+                    summary.push(count(report.warnings.len(), "warning"));
+                }
+
+                let details: Vec<String> = report
+                    .errors
+                    .iter()
+                    .map(|finding| render("error", finding))
+                    .chain(
+                        report
+                            .warnings
+                            .iter()
+                            .map(|finding| render("warning", finding)),
+                    )
+                    .collect();
+
+                *result = Err(Failure {
+                    details: details.join("\n"),
+                    message: in_round(summary.join(", "), round),
+                });
+                continue;
             }
 
-            let details: Vec<String> = report
-                .errors
-                .iter()
-                .map(|finding| render("error", finding))
-                .chain(
-                    report
-                        .warnings
-                        .iter()
-                        .map(|finding| render("warning", finding)),
-                )
-                .collect();
-
-            return Ok(Err(Failure {
-                details: details.join("\n"),
-                message: in_round(summary.join(", "), round),
-            }));
+            if round == 1 {
+                measured.metrics = report.metrics;
+                measured.warnings = report
+                    .warnings
+                    .iter()
+                    .map(|finding| render("warning", finding))
+                    .collect();
+            }
         }
 
-        if round == 1 {
-            measured.metrics = report.metrics;
-            measured.warnings = report
-                .warnings
+        if round == 1 && repeat {
+            let varies = |name: &str| {
+                group
+                    .iter()
+                    .flat_map(|category| &category.metrics)
+                    .any(|metric| metric.name == name && metric.varies)
+            };
+            if lines
                 .iter()
-                .map(|finding| render("warning", finding))
-                .collect();
-
-            let timed = lines.iter().any(|line| line.value.kind() == Kind::Time);
-            if repeat && timed {
+                .any(|line| line.value.kind() == Kind::Time || varies(line.metric))
+            {
                 rounds = engine::score::ROUNDS;
             }
         }
 
         drop(lines);
-        measured.sources.push(text);
+        sources.push(text);
     }
 
-    Ok(Ok(measured))
+    for measured in results.iter_mut().flatten() {
+        measured.sources.clone_from(&sources);
+    }
+    Ok(results)
 }
 
 /// Formats a count with its noun, such as `1 metric` or `3 metrics`.

@@ -1,4 +1,5 @@
 //! `retros check`: runs each category's script once and checks the metric lines it writes.
+//! Categories that share a `run` command share one run.
 //!
 //! Each category prints one line as its script finishes, followed by the end of standard error
 //! for a failed script, or by the errors and warnings its metric lines produced. A summary line
@@ -30,27 +31,31 @@ pub(crate) fn run(project: &Project) -> Result<ExitCode, String> {
     let mut passed = 0;
     let mut warnings = 0;
 
-    for category in &project.config.categories {
-        let name = &category.name;
+    let categories: Vec<_> = project.config.categories.iter().collect();
+    for group in measure::groups(&categories) {
+        let results = measure::group(project, &group, false)?;
         let mut block = String::new();
 
-        match measure::category(project, category, false)? {
-            Ok(measured) => {
-                passed += 1;
-                warnings += measured.warnings.len();
+        for (category, result) in group.iter().zip(results) {
+            let name = &category.name;
+            match result {
+                Ok(measured) => {
+                    passed += 1;
+                    warnings += measured.warnings.len();
 
-                let mut summary = count(measured.metrics, "metric");
-                if !measured.warnings.is_empty() {
-                    let _ = write!(summary, ", {}", count(measured.warnings.len(), "warning"));
+                    let mut summary = count(measured.metrics, "metric");
+                    if !measured.warnings.is_empty() {
+                        let _ = write!(summary, ", {}", count(measured.warnings.len(), "warning"));
+                    }
+                    let _ = writeln!(block, "✓ {name:width$}  {summary}");
+                    indent(&mut block, &measured.warnings.join("\n"));
                 }
-                let _ = writeln!(block, "✓ {name:width$}  {summary}");
-                indent(&mut block, &measured.warnings.join("\n"));
-            }
-            Err(failure) => {
-                failed += 1;
+                Err(failure) => {
+                    failed += 1;
 
-                let _ = writeln!(block, "✗ {name:width$}  {}", failure.message);
-                indent(&mut block, &failure.details);
+                    let _ = writeln!(block, "✗ {name:width$}  {}", failure.message);
+                    indent(&mut block, &failure.details);
+                }
             }
         }
 

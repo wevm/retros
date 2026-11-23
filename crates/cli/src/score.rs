@@ -1,6 +1,7 @@
-//! `retros [category]`: runs each category's script, scores its metrics, prints each category as
-//! it finishes, then the opportunities and the changes since `retros.lock`. It writes
-//! `.retros/report.json` and `.retros/report.md` beside `retros.toml`, and with `--update`
+//! `retros [category]`: runs each category's script, scores its metrics for each subject, prints
+//! each category as it finishes, then the opportunities and the changes since `retros.lock`.
+//! Categories that share a `run` command share one run. It writes `.retros/report.json` and
+//! `.retros/report.md` beside `retros.toml`, and with `--update`
 //! records this run's sizes, counts, checks, and line targets in `retros.lock`.
 //!
 //! The command exits with status 0 when every category ran and passed its checks, and with
@@ -78,46 +79,78 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
         changes: None,
     };
 
-    for category in categories {
-        let mut warnings = Vec::new();
-
-        let result = match measure::category(project, category, true)? {
-            Err(failure) => Err(failure),
-            Ok(measured) => {
-                let rounds = measured
-                    .sources
-                    .iter()
-                    .map(|source| engine::lines::parse(source))
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(|error| format!("error: {}", error.message))?;
-
-                warnings = measured.warnings;
-                Ok(engine::score::category(category, &rounds))
-            }
-        };
-
-        let entry = CategoryReport {
-            name: category.name.clone(),
-            result,
-        };
-
-        let mut block = if report.categories.is_empty() {
-            String::new()
-        } else {
-            "\n".to_owned()
-        };
-        block.push_str(&engine::report::terminal(&entry));
-        for line in warnings.iter().flat_map(|warning| warning.lines()) {
-            block.push_str("    ");
-            block.push_str(line);
-            block.push('\n');
+    let all: Vec<&Category> = project.config.categories.iter().collect();
+    for group in measure::groups(&all) {
+        let chosen =
+            |category: &Category| categories.iter().any(|chosen| chosen.name == category.name);
+        if !group.iter().any(|category| chosen(category)) {
+            continue;
         }
 
-        let mut stdout = io::stdout().lock();
-        let _ = stdout.write_all(block.as_bytes());
-        let _ = stdout.flush();
+        // Each category's entries, one per subject, with the warnings its lines produced.
+        let mut entries: Vec<(CategoryReport, Vec<String>)> = Vec::new();
+        let results = measure::group(project, &group, true)?;
 
-        report.categories.push(entry);
+        for (index, (category, result)) in group.iter().zip(results).enumerate() {
+            if !chosen(category) {
+                continue;
+            }
+            let entry = |subject, result| CategoryReport {
+                description: category.description.clone(),
+                name: category.name.clone(),
+                result,
+                subject,
+            };
+
+            match result {
+                Err(failure) => entries.push((entry(None, Err(failure)), Vec::new())),
+                Ok(measured) => {
+                    let rounds = measured
+                        .sources
+                        .iter()
+                        .map(|source| {
+                            let lines = engine::lines::parse(source)?;
+                            Ok(engine::check::route(&group, &lines).swap_remove(index))
+                        })
+                        .collect::<Result<Vec<_>, engine::error::Error>>()
+                        .map_err(|error| format!("error: {}", error.message))?;
+
+                    let mut warnings = measured.warnings;
+                    for (subject, scored) in engine::score::subjects(category, &rounds) {
+                        entries.push((entry(subject, Ok(scored)), std::mem::take(&mut warnings)));
+                    }
+                }
+            }
+        }
+
+        // Subjects print together, each with its categories in order.
+        let mut subjects: Vec<Option<String>> = Vec::new();
+        for (entry, _) in &entries {
+            if !subjects.contains(&entry.subject) {
+                subjects.push(entry.subject.clone());
+            }
+        }
+        entries.sort_by_key(|(entry, _)| subjects.iter().position(|s| *s == entry.subject));
+
+        for (entry, warnings) in entries {
+            let mut block = if report.categories.is_empty() {
+                String::new()
+            } else {
+                "\n".to_owned()
+            };
+            block.push_str(&engine::report::terminal(&entry));
+            for line in warnings.iter().flat_map(|warning| warning.lines()) {
+                block.push_str("    ");
+                block.push_str(line);
+                block.push('\n');
+            }
+
+            let mut stdout = io::stdout().lock();
+            let _ = stdout.write_all(block.as_bytes());
+            let _ = stdout.flush();
+
+            report.categories.push(entry);
+        }
     }
 
     // A first `--update` compares with an empty lock, so it lists every metric it records as new.

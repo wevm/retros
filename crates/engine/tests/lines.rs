@@ -29,6 +29,7 @@ fn parses_values_in_base_units() {
             },
             metric: "export-size",
             target: None,
+            subject: None,
             value: Size(
                 1100.0,
             ),
@@ -41,6 +42,7 @@ fn parses_values_in_base_units() {
             },
             metric: "bundle",
             target: None,
+            subject: None,
             value: Size(
                 45600000.0,
             ),
@@ -53,6 +55,7 @@ fn parses_values_in_base_units() {
             },
             metric: "boot",
             target: None,
+            subject: None,
             value: Time(
                 236000.0,
             ),
@@ -65,6 +68,7 @@ fn parses_values_in_base_units() {
             },
             metric: "request",
             target: None,
+            subject: None,
             value: Time(
                 1820000.0,
             ),
@@ -77,6 +81,7 @@ fn parses_values_in_base_units() {
             },
             metric: "idle",
             target: None,
+            subject: None,
             value: Time(
                 2000000000.0,
             ),
@@ -89,6 +94,7 @@ fn parses_values_in_base_units() {
             },
             metric: "retries",
             target: None,
+            subject: None,
             value: Count(
                 3.0,
             ),
@@ -101,6 +107,7 @@ fn parses_values_in_base_units() {
             },
             metric: "ratio",
             target: None,
+            subject: None,
             value: Count(
                 0.25,
             ),
@@ -113,6 +120,7 @@ fn parses_values_in_base_units() {
             },
             metric: "lint",
             target: None,
+            subject: None,
             value: Check(
                 true,
             ),
@@ -139,6 +147,7 @@ fn parses_items_quotes_tabs_and_blank_lines() {
             },
             metric: "render",
             target: None,
+            subject: None,
             value: Time(
                 1820000.0,
             ),
@@ -153,6 +162,7 @@ fn parses_items_quotes_tabs_and_blank_lines() {
             },
             metric: "render",
             target: None,
+            subject: None,
             value: Time(
                 236000.0,
             ),
@@ -167,6 +177,7 @@ fn parses_items_quotes_tabs_and_blank_lines() {
             },
             metric: "lint",
             target: None,
+            subject: None,
             value: Check(
                 false,
             ),
@@ -309,4 +320,48 @@ fn rejects_invalid_line_targets() {
       1 | entry-size "." 408B target 2kb
         |                             ^
     "#);
+}
+
+#[test]
+fn parses_subjects() {
+    let source = "zc: startup 0.76ms\nzeptocode-ts: turn-rss 48.1MB target 57MB\nzc: export-size \"a b\" 1kB\nmodules 412\n";
+
+    let parsed: Vec<String> = lines::parse(source)
+        .unwrap()
+        .iter()
+        .map(|line| {
+            format!(
+                "{:?} {} {:?} {:?} {:?}",
+                line.subject, line.metric, line.item, line.value, line.target
+            )
+        })
+        .collect();
+
+    insta::assert_debug_snapshot!(parsed, @r#"
+    [
+        "Some(\"zc\") startup None Time(760000.0) None",
+        "Some(\"zeptocode-ts\") turn-rss None Size(48100000.0) Some(Size(57000000.0))",
+        "Some(\"zc\") export-size Some(\"a b\") Size(1000.0) None",
+        "None modules None Count(412.0) None",
+    ]
+    "#);
+}
+
+#[test]
+fn rejects_invalid_subjects() {
+    insta::assert_snapshot!(error("zc:\n"), @"
+    [line-syntax] footprint metrics:1:4: expected a metric after subject `zc:`
+      1 | zc:
+        |    ^
+    ");
+    insta::assert_snapshot!(error("zc:: startup 1ms\n"), @"
+    [invalid-name] footprint metrics:1:1: invalid subject `zc::`. A subject is a name followed by `:`, such as `zc:`, and names use ASCII letters, digits, `-`, `_`, and `.`
+      1 | zc:: startup 1ms
+        | ^
+    ");
+    insta::assert_snapshot!(error("z c: startup 1ms\n"), @"
+    [line-syntax] footprint metrics:1:14: expected `metric [item] value [target <value>]`, found more fields. Quote an item that contains spaces
+      1 | z c: startup 1ms
+        |              ^
+    ");
 }

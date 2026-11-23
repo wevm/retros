@@ -35,6 +35,7 @@ modules = {}
     Config {
         categories: [
             Category {
+                description: None,
                 location: Location {
                     column: 2,
                     line: 2,
@@ -42,6 +43,7 @@ modules = {}
                 metrics: [
                     Metric {
                         better: Higher,
+                        description: None,
                         location: Location {
                             column: 1,
                             line: 5,
@@ -54,10 +56,12 @@ modules = {}
                             ),
                         ),
                         targets: [],
+                        varies: false,
                         weight: 2.0,
                     },
                     Metric {
                         better: Lower,
+                        description: None,
                         location: Location {
                             column: 1,
                             line: 6,
@@ -66,6 +70,7 @@ modules = {}
                         score: Median,
                         target: None,
                         targets: [],
+                        varies: false,
                         weight: 1.0,
                     },
                 ],
@@ -74,6 +79,7 @@ modules = {}
                 timeout: 1.5s,
             },
             Category {
+                description: None,
                 location: Location {
                     column: 2,
                     line: 8,
@@ -81,6 +87,7 @@ modules = {}
                 metrics: [
                     Metric {
                         better: Lower,
+                        description: None,
                         location: Location {
                             column: 1,
                             line: 10,
@@ -114,10 +121,12 @@ modules = {}
                                 ),
                             },
                         ],
+                        varies: false,
                         weight: 1.0,
                     },
                     Metric {
                         better: Lower,
+                        description: None,
                         location: Location {
                             column: 1,
                             line: 11,
@@ -130,10 +139,12 @@ modules = {}
                             ),
                         ),
                         targets: [],
+                        varies: false,
                         weight: 1.0,
                     },
                     Metric {
                         better: Lower,
+                        description: None,
                         location: Location {
                             column: 1,
                             line: 12,
@@ -142,6 +153,7 @@ modules = {}
                         score: P90,
                         target: None,
                         targets: [],
+                        varies: false,
                         weight: 1.0,
                     },
                 ],
@@ -165,16 +177,16 @@ m = {}
 [b]
 run = "true"
 timeout = "90s"
-m = {}
+n = {}
 
 [c]
 run = "true"
-m = {}
+o = {}
 
 [d]
 run = "true"
 timeout = "2h"
-m = {}
+p = {}
 "#;
 
     let config = config::parse(source).unwrap();
@@ -204,14 +216,14 @@ fn rejects_invalid_toml_and_structure() {
 
     insta::assert_snapshot!(error("# nothing yet\n"), @"[nothing-configured] retros.toml: no categories. Add a table such as `[footprint]` with a `run` command");
 
-    insta::assert_snapshot!(error("run = \"node metrics.mjs\"\n"), @r#"
-    [invalid-type] retros.toml:1:1: top-level key `run` must be a category table, such as `[run]`
-      1 | run = "node metrics.mjs"
+    insta::assert_snapshot!(error("size = \"5kB\"\n[footprint]\nrun = \"true\"\nm = {}\n"), @r#"
+    [invalid-type] retros.toml:1:1: top-level key `size` must be a category table, such as `[size]`
+      1 | size = "5kB"
         | ^
     "#);
 
     insta::assert_snapshot!(error("[footprint]\nexport-size = {}\n"), @"
-    [run-missing] retros.toml:1:2: category `footprint` has no `run` command
+    [run-missing] retros.toml:1:2: category `footprint` has no `run` command. Add one, or a top-level `run` that every category shares
       1 | [footprint]
         |  ^
     ");
@@ -259,13 +271,13 @@ fn rejects_invalid_category_settings() {
 #[test]
 fn rejects_invalid_metric_settings() {
     insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { target = \"5kB\", goal = 1 }\n"), @r#"
-    [unexpected-key] retros.toml:3:26: unknown key `goal` in metric `size`, expected one of `better`, `score`, `target`, `targets`, `weight`
+    [unexpected-key] retros.toml:3:26: unknown key `goal` in metric `size`, expected one of `better`, `description`, `score`, `target`, `targets`, `varies`, `weight`
       3 | size = { target = "5kB", goal = 1 }
         |                          ^
     "#);
 
     insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nsize = { target = \"5kB\", limit = \"50kB\" }\n"), @r#"
-    [unexpected-key] retros.toml:3:26: unknown key `limit` in metric `size`, expected one of `better`, `score`, `target`, `targets`, `weight`
+    [unexpected-key] retros.toml:3:26: unknown key `limit` in metric `size`, expected one of `better`, `description`, `score`, `target`, `targets`, `varies`, `weight`
       3 | size = { target = "5kB", limit = "50kB" }
         |                          ^
     "#);
@@ -337,5 +349,45 @@ fn rejects_targets_that_cannot_score() {
     [target-range] retros.toml:3:33: the `target` of metric `size` must be greater than zero
       3 | size = { targets = { "viem/*" = 0 } }
         |                                 ^
+    "#);
+}
+
+#[test]
+fn shares_a_top_level_run_and_rejects_a_metric_in_two_sharing_categories() {
+    let shared = config::parse(
+        "run = \"zig build metrics\"\ntimeout = \"2m\"\n\n[speed]\nstartup = { description = \"Spawn to exit\" }\n\n[footprint]\nrun = \"du -b zc\"\nturn-rss = { varies = true }\n",
+    )
+    .unwrap();
+    let summary: Vec<String> = shared
+        .categories
+        .iter()
+        .map(|category| {
+            let metric = category.metrics.first().unwrap();
+            format!(
+                "{} `{}` {} {:?} varies={}",
+                category.name,
+                category.run,
+                engine::format::duration(category.timeout),
+                metric.description,
+                metric.varies
+            )
+        })
+        .collect();
+    insta::assert_debug_snapshot!(summary, @r#"
+    [
+        "speed `zig build metrics` 2m Some(\"Spawn to exit\") varies=false",
+        "footprint `du -b zc` 2m None varies=true",
+    ]
+    "#);
+
+    insta::assert_snapshot!(error("run = \"zig build metrics\"\n\n[speed]\nstartup = {}\n\n[scale]\nstartup = {}\n"), @"
+    [duplicate-metric] retros.toml:7:1: metric `startup` is in `[speed]` and `[scale]`, which share the same `run`, so Retros cannot tell which category its lines belong to
+      7 | startup = {}
+        | ^
+    ");
+    insta::assert_snapshot!(error("[footprint]\nrun = \"true\"\nturn-rss = { varies = \"yes\" }\n"), @r#"
+    [invalid-type] retros.toml:3:23: `varies` must be `true` or `false`
+      3 | turn-rss = { varies = "yes" }
+        |                       ^
     "#);
 }

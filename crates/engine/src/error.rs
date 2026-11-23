@@ -36,6 +36,8 @@ impl Location {
 pub enum Code {
     /// A metric line written twice in one run, or an item written twice for one metric.
     Duplicate,
+    /// A metric in two categories that share one `run` command.
+    DuplicateMetric,
     /// A name with characters other than ASCII letters, digits, `-`, `_`, and `.`.
     InvalidName,
     /// A number that does not parse.
@@ -44,12 +46,14 @@ pub enum Code {
     InvalidType,
     /// A configuration value of the right type that is not allowed.
     InvalidValue,
-    /// A metric line that is not `metric [item] value`.
+    /// A metric line that is not `[subject:] metric [item] value`.
     LineSyntax,
     /// A configured metric that the script did not write.
     MetricMissing,
     /// A metric written both with and without items.
     MixedItems,
+    /// A category written both with and without subjects.
+    MixedSubjects,
     /// A metric that sets a target on some lines but not others, with no default target.
     MixedTargets,
     /// A metric written with more than one kind of unit.
@@ -79,6 +83,7 @@ impl Code {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Duplicate => "duplicate",
+            Self::DuplicateMetric => "duplicate-metric",
             Self::InvalidName => "invalid-name",
             Self::InvalidNumber => "invalid-number",
             Self::InvalidType => "invalid-type",
@@ -86,6 +91,7 @@ impl Code {
             Self::LineSyntax => "line-syntax",
             Self::MetricMissing => "metric-missing",
             Self::MixedItems => "mixed-items",
+            Self::MixedSubjects => "mixed-subjects",
             Self::MixedTargets => "mixed-targets",
             Self::MixedUnits => "mixed-units",
             Self::NothingConfigured => "nothing-configured",

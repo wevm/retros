@@ -1,13 +1,13 @@
 //! `retros.lock`: the accepted value of every size, count, and check, the targets scripts set on
 //! their lines, and the changes since.
 //!
-//! The lock is TOML. Each category is a table, a metric without items is a key, and a metric
-//! with items is a table of items sorted by name, so a change shows as one line in a diff. A line
-//! that sets its own target records it after the value, as metric lines write it, so a script
-//! that loosens its own target changes the lock like a regression does. Timing values are left
-//! out: they differ between machines, and comparing them needs interleaved runs on one machine.
-//! A timing item appears only to record its line's target. Updating the lock twice from the same
-//! code writes the same file.
+//! The lock is TOML. Each category is a table, named `zc: footprint` for a subject's scores, a
+//! metric without items is a key, and a metric with items is a table of items sorted by name, so a
+//! change shows as one line in a diff. A line that sets its own target records it after the value,
+//! as metric lines write it, so a script that loosens its own target changes the lock like a
+//! regression does. Timings and metrics that vary are left out: they differ between machines and
+//! runs, and comparing them needs interleaved runs on one machine. Such an item appears only to
+//! record its line's target. Updating the lock twice from the same code writes the same file.
 //!
 //! ```toml
 //! [footprint]
@@ -37,7 +37,8 @@ use crate::value::{self, Kind, Value};
 /// A parsed `retros.lock`.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Lock {
-    /// Categories with their recorded metrics, in the order of `retros.toml`.
+    /// Categories with their recorded metrics, in the order of `retros.toml`. A category with a
+    /// subject is named as reports label it, such as `zc: footprint`.
     pub categories: Vec<(String, Vec<(String, Entry)>)>,
 }
 
@@ -76,6 +77,8 @@ pub struct Change {
     pub item: Option<String>,
     /// The metric name.
     pub metric: String,
+    /// The subject of the category, or `None` when its lines name no subject.
+    pub subject: Option<String>,
 }
 
 /// The kind of a change.
@@ -190,23 +193,32 @@ pub fn update(previous: Option<&Lock>, config: &Config, report: &Report) -> Lock
     let mut lock = Lock::default();
 
     for category in &config.categories {
-        let ran = report
+        let ran: Vec<_> = report
             .categories
             .iter()
-            .find(|ran| ran.name == category.name)
-            .and_then(|ran| ran.result.as_ref().ok());
+            .filter(|ran| ran.name == category.name)
+            .filter_map(|ran| Some((ran.label(), ran.result.as_ref().ok()?)))
+            .collect();
 
-        let entries = match ran {
-            Some(scored) => scored.metrics.iter().filter_map(entry).collect(),
-            None => match previous.and_then(|lock| entries(lock, &category.name)) {
-                Some(entries) => entries.to_vec(),
-                None => continue,
-            },
+        // A category that did not run keeps every subject it recorded before.
+        let entries: Vec<(String, Vec<(String, Entry)>)> = if ran.is_empty() {
+            previous
+                .into_iter()
+                .flat_map(|lock| &lock.categories)
+                .filter(|(label, _)| split(label).1 == category.name)
+                .cloned()
+                .collect()
+        } else {
+            ran.into_iter()
+                .map(|(label, scored)| (label, scored.metrics.iter().filter_map(entry).collect()))
+                .collect()
         };
 
-        if !entries.is_empty() {
-            lock.categories.push((category.name.clone(), entries));
-        }
+        lock.categories.extend(
+            entries
+                .into_iter()
+                .filter(|(_, entries)| !entries.is_empty()),
+        );
     }
 
     lock
@@ -220,7 +232,7 @@ pub fn compare(lock: &Lock, report: &Report) -> Vec<Change> {
         let Ok(scored) = &category.result else {
             continue;
         };
-        let recorded = entries(lock, &category.name).unwrap_or_default();
+        let recorded = entries(lock, &category.label()).unwrap_or_default();
         let mut push = |metric: &str, item: Option<&str>, before, after, direction| {
             changes.push(Change {
                 after,
@@ -229,6 +241,7 @@ pub fn compare(lock: &Lock, report: &Report) -> Vec<Change> {
                 direction,
                 item: item.map(str::to_owned),
                 metric: metric.to_owned(),
+                subject: category.subject.clone(),
             });
         };
 
@@ -238,7 +251,7 @@ pub fn compare(lock: &Lock, report: &Report) -> Vec<Change> {
             let after = entry(metric).map(|(_, entry)| entry);
 
             // A timing has no recorded value, so a missing record means no line target.
-            if metric.kind == Kind::Time {
+            if varies(metric) {
                 let none = Entry::Items(Vec::new());
                 let records = pair(before.unwrap_or(&none), after.as_ref().unwrap_or(&none));
                 for (item, before, after) in records {
@@ -293,7 +306,48 @@ pub fn compare(lock: &Lock, report: &Report) -> Vec<Change> {
         }
     }
 
+    // A subject the lock records for a category that ran, but that this run did not write.
+    for (label, entries) in &lock.categories {
+        let (subject, name) = split(label);
+        let ran = report
+            .categories
+            .iter()
+            .any(|category| category.name == name && category.result.is_ok());
+        let written = report
+            .categories
+            .iter()
+            .any(|category| category.label() == *label);
+        if !ran || written {
+            continue;
+        }
+        for (metric, _) in entries {
+            changes.push(Change {
+                after: None,
+                before: None,
+                category: name.to_owned(),
+                direction: Direction::Gone,
+                item: None,
+                metric: metric.clone(),
+                subject: subject.map(str::to_owned),
+            });
+        }
+    }
+
     changes
+}
+
+/// Splits a lock category name into its subject and category, such as `zc: footprint`.
+fn split(label: &str) -> (Option<&str>, &str) {
+    match label.split_once(": ") {
+        Some((subject, category)) => (Some(subject), category),
+        None => (None, label),
+    }
+}
+
+/// Returns whether a metric's values differ between runs: a time, or a size or count that
+/// `retros.toml` marks with `varies`. The lock records only its line targets.
+fn varies(metric: &MetricScore) -> bool {
+    metric.kind == Kind::Time || (metric.metric.varies && metric.kind != Kind::Check)
 }
 
 fn entries<'a>(lock: &'a Lock, category: &str) -> Option<&'a [(String, Entry)]> {
@@ -334,12 +388,12 @@ fn pair<'a>(
 
 /// Returns the entry a scored metric records, or `None` for a timing without line targets.
 fn entry(metric: &MetricScore) -> Option<(String, Entry)> {
-    let timing = metric.kind == Kind::Time;
+    let timing = varies(metric);
 
     let entry = if metric.items.is_empty() {
         let value = match metric.kind {
             Kind::Check => Some(Value::Check(metric.value >= 1.0)),
-            Kind::Time => None,
+            _ if timing => None,
             kind => Some(Value::of(kind, metric.value)),
         };
         if value.is_none() && metric.line_target.is_none() {

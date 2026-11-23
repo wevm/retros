@@ -30,13 +30,32 @@ pub struct Report {
     pub changes: Option<Vec<Change>>,
 }
 
-/// One category's scores, or the reason it has none.
+/// One category's scores for one subject, or the reason it has none.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CategoryReport {
+    /// What the category measures, from `retros.toml`.
+    pub description: Option<String>,
     /// The category name.
     pub name: String,
     /// The category's scores, or why its script produced none.
     pub result: Result<CategoryScore, Failure>,
+    /// The subject the scores belong to, or `None` when the lines name no subject.
+    pub subject: Option<String>,
+}
+
+impl CategoryReport {
+    /// Returns the category's name as reports show it: `speed`, or `zc: speed` with a subject.
+    pub fn label(&self) -> String {
+        label(self.subject.as_deref(), &self.name)
+    }
+}
+
+/// Formats a category name with its subject, such as `zc: speed`, as metric lines write it.
+pub fn label(subject: Option<&str>, category: &str) -> String {
+    match subject {
+        Some(subject) => format!("{subject}: {category}"),
+        None => category.to_owned(),
+    }
 }
 
 /// Why a category has no scores.
@@ -66,7 +85,7 @@ pub fn terminal(category: &CategoryReport) -> String {
     let scored = match &category.result {
         Ok(scored) => scored,
         Err(failure) => {
-            let _ = writeln!(out, "✗ {}  {}", category.name, failure.message);
+            let _ = writeln!(out, "✗ {}  {}", category.label(), failure.message);
             for line in failure.details.lines() {
                 let _ = writeln!(out, "    {line}");
             }
@@ -79,7 +98,7 @@ pub fn terminal(category: &CategoryReport) -> String {
     } else {
         String::new()
     };
-    let _ = writeln!(out, "{}  {}{rounds}", cell(scored.score), category.name);
+    let _ = writeln!(out, "{}  {}{rounds}", cell(scored.score), category.label());
 
     let rows: Vec<(&MetricScore, String)> = scored
         .metrics
@@ -135,7 +154,7 @@ pub fn summary(report: &Report) -> String {
             .map(|(category, opportunity)| {
                 [
                     gain(opportunity),
-                    (*category).to_owned(),
+                    category.label(),
                     subject(opportunity),
                     format!(
                         "{} → {}",
@@ -162,7 +181,7 @@ pub fn summary(report: &Report) -> String {
                 .map(|change| {
                     [
                         change.direction.as_str().to_owned(),
-                        change.category.clone(),
+                        label(change.subject.as_deref(), &change.category),
                         changed(change),
                         values(change),
                     ]
@@ -188,10 +207,14 @@ pub fn summary(report: &Report) -> String {
 pub fn json(report: &Report) -> String {
     let categories = report.categories.iter().map(|category| {
         let name = ("name", Json::String(category.name.clone()));
+        let subject = ("subject", optional(category.subject.as_deref()));
+        let description = ("description", optional(category.description.as_deref()));
 
         match &category.result {
             Err(failure) => Json::Object(vec![
                 name,
+                subject,
+                description,
                 ("score", Json::Null),
                 (
                     "error",
@@ -203,6 +226,8 @@ pub fn json(report: &Report) -> String {
             ]),
             Ok(scored) => Json::Object(vec![
                 name,
+                subject,
+                description,
                 ("score", score_json(scored.score)),
                 ("rounds", Json::Number(count(scored.rounds))),
                 (
@@ -217,7 +242,8 @@ pub fn json(report: &Report) -> String {
         .into_iter()
         .map(|(category, opportunity)| {
             Json::Object(vec![
-                ("category", Json::String(category.to_owned())),
+                ("category", Json::String(category.name.clone())),
+                ("subject", optional(category.subject.as_deref())),
                 ("metric", Json::String(opportunity.metric.clone())),
                 ("item", optional(opportunity.item.as_deref())),
                 ("items", Json::Number(count(opportunity.count))),
@@ -234,6 +260,7 @@ pub fn json(report: &Report) -> String {
                 .map(|change| {
                     Json::Object(vec![
                         ("category", Json::String(change.category.clone())),
+                        ("subject", optional(change.subject.as_deref())),
                         ("metric", Json::String(change.metric.clone())),
                         ("item", optional(change.item.as_deref())),
                         ("change", Json::String(change.direction.as_str().to_owned())),
@@ -261,14 +288,51 @@ pub fn json(report: &Report) -> String {
 /// changes since `retros.lock`, then a section per category with a table of metrics and the worst
 /// items of each list.
 pub fn markdown(report: &Report) -> String {
-    let mut out = String::from("# Retros report\n\n| Category | Score |\n| --- | --- |\n");
+    let mut out = String::from("# Retros report\n\n");
+    let score = |category: &CategoryReport| match &category.result {
+        Ok(scored) => compact(scored.score),
+        Err(failure) => format!("✗ {}", failure.message),
+    };
 
-    for category in &report.categories {
-        let score = match &category.result {
-            Ok(scored) => compact(scored.score),
-            Err(failure) => format!("✗ {}", failure.message),
-        };
-        let _ = writeln!(out, "| {} | {} |", escape(&category.name), escape(&score));
+    // With subjects, one row per subject and one column per category, so subjects compare at a
+    // glance.
+    let subjects = subjects(report);
+    if subjects.iter().any(Option::is_some) {
+        let names = names(report);
+        let _ = writeln!(
+            out,
+            "| Subject | {} |\n| --- |{}",
+            names.join(" | "),
+            " --- |".repeat(names.len())
+        );
+        for subject in &subjects {
+            let cells: Vec<String> = names
+                .iter()
+                .map(|name| {
+                    report
+                        .categories
+                        .iter()
+                        .find(|c| c.subject.as_deref() == *subject && c.name == *name)
+                        .map_or_else(|| "–".to_owned(), |category| escape(&score(category)))
+                })
+                .collect();
+            let _ = writeln!(
+                out,
+                "| {} | {} |",
+                escape(subject.unwrap_or("–")),
+                cells.join(" | ")
+            );
+        }
+    } else {
+        out.push_str("| Category | Score |\n| --- | --- |\n");
+        for category in &report.categories {
+            let _ = writeln!(
+                out,
+                "| {} | {} |",
+                escape(&category.name),
+                escape(&score(category))
+            );
+        }
     }
 
     let opportunities = opportunities(report);
@@ -281,7 +345,7 @@ pub fn markdown(report: &Report) -> String {
                 out,
                 "| {} | {} | {} | {} | {} |",
                 gain(opportunity),
-                escape(category),
+                escape(&category.label()),
                 escape(&subject(opportunity)),
                 format::value(opportunity.value),
                 format::value(opportunity.target)
@@ -302,7 +366,7 @@ pub fn markdown(report: &Report) -> String {
                 out,
                 "| {} | {} | {} | {} | {} |",
                 change.direction.as_str(),
-                escape(&change.category),
+                escape(&label(change.subject.as_deref(), &change.category)),
                 escape(&changed(change)),
                 side_cell(change, change.before),
                 side_cell(change, change.after)
@@ -311,7 +375,7 @@ pub fn markdown(report: &Report) -> String {
     }
 
     for category in &report.categories {
-        let _ = write!(out, "\n## {}\n\n", category.name);
+        let _ = write!(out, "\n## {}\n\n", category.label());
 
         let scored = match &category.result {
             Ok(scored) => scored,
@@ -327,7 +391,7 @@ pub fn markdown(report: &Report) -> String {
         if scored.rounds > 1 {
             let _ = write!(
                 out,
-                "Timings are the median of {} rounds.\n\n",
+                "Values that vary between runs are the median of {} rounds.\n\n",
                 scored.rounds
             );
         }
@@ -379,24 +443,47 @@ pub fn markdown(report: &Report) -> String {
 }
 
 /// Returns every category's opportunities, largest gain first.
-fn opportunities(report: &Report) -> Vec<(&str, Opportunity)> {
-    let mut all: Vec<(&str, Opportunity)> = report
+pub(crate) fn opportunities(report: &Report) -> Vec<(&CategoryReport, Opportunity)> {
+    let mut all: Vec<(&CategoryReport, Opportunity)> = report
         .categories
         .iter()
-        .filter_map(|category| Some((category.name.as_str(), category.result.as_ref().ok()?)))
-        .flat_map(|(name, scored)| {
+        .filter_map(|category| Some((category, category.result.as_ref().ok()?)))
+        .flat_map(|(category, scored)| {
             score::opportunities(scored)
                 .into_iter()
-                .map(move |opportunity| (name, opportunity))
+                .map(move |opportunity| (category, opportunity))
         })
         .collect();
     all.sort_by(|(_, a), (_, b)| b.gain.total_cmp(&a.gain));
     all
 }
 
+/// Returns the subjects of a report in the order they first appear. A report without subjects
+/// returns one `None`.
+pub(crate) fn subjects(report: &Report) -> Vec<Option<&str>> {
+    let mut subjects = Vec::new();
+    for category in &report.categories {
+        if !subjects.contains(&category.subject.as_deref()) {
+            subjects.push(category.subject.as_deref());
+        }
+    }
+    subjects
+}
+
+/// Returns the category names of a report in the order they first appear.
+pub(crate) fn names(report: &Report) -> Vec<&str> {
+    let mut names = Vec::new();
+    for category in &report.categories {
+        if !names.contains(&category.name.as_str()) {
+            names.push(category.name.as_str());
+        }
+    }
+    names
+}
+
 /// Orders changes worst first: worse values, looser targets, new and gone metrics or items,
 /// tighter targets, then better values.
-fn sorted(changes: &[Change]) -> Vec<&Change> {
+pub(crate) fn sorted(changes: &[Change]) -> Vec<&Change> {
     let rank = |change: &&Change| match change.direction {
         Direction::Worse => 0,
         Direction::Looser => 1,
@@ -411,13 +498,13 @@ fn sorted(changes: &[Change]) -> Vec<&Change> {
 }
 
 /// Formats an opportunity's gain in category points, such as `+29`.
-fn gain(opportunity: &Opportunity) -> String {
+pub(crate) fn gain(opportunity: &Opportunity) -> String {
     format!("+{}", opportunity.gain.round())
 }
 
 /// Names what an opportunity changes, such as `bundle`, `export-size viem/chains`, or
 /// `export-size, 4 items`.
-fn subject(opportunity: &Opportunity) -> String {
+pub(crate) fn subject(opportunity: &Opportunity) -> String {
     match (&opportunity.item, opportunity.count) {
         (Some(item), _) => format!("{} {item}", opportunity.metric),
         (None, 1) => opportunity.metric.clone(),
@@ -426,7 +513,7 @@ fn subject(opportunity: &Opportunity) -> String {
 }
 
 /// Names what a change concerns, such as `export-size viem/chains`.
-fn changed(change: &Change) -> String {
+pub(crate) fn changed(change: &Change) -> String {
     match &change.item {
         Some(item) => format!("{} {item}", change.metric),
         None => change.metric.clone(),
@@ -435,7 +522,7 @@ fn changed(change: &Change) -> String {
 
 /// Formats a change's values, such as `61 kB → 64 kB`, one value for a new or gone item, or the
 /// targets of a target change, such as `target 5 kB → 8 kB`.
-fn values(change: &Change) -> String {
+pub(crate) fn values(change: &Change) -> String {
     if change.direction.is_target() {
         return format!("target {} → {}", side(change.before), side(change.after));
     }
@@ -510,7 +597,7 @@ fn compact(score: Option<u8>) -> String {
 
 /// Formats a metric's collapsed value, such as `27.5 kB`, `p90 9 kB (viem/op-stack)`, or
 /// `2 of 3 pass`.
-fn value(metric: &MetricScore) -> String {
+pub(crate) fn value(metric: &MetricScore) -> String {
     if metric.kind == Kind::Check {
         let passed = metric
             .items
@@ -536,7 +623,7 @@ fn value(metric: &MetricScore) -> String {
 }
 
 /// Formats a metric's target and any weight other than 1, such as `target 5 kB, weight 2`.
-fn target(metric: &MetricScore) -> String {
+pub(crate) fn target(metric: &MetricScore) -> String {
     let mut parts = Vec::new();
 
     if let Some(target) = metric.target.or(metric.metric.target) {
@@ -579,6 +666,10 @@ fn metric_json(metric: &MetricScore) -> Json {
 
     Json::Object(vec![
         ("name", Json::String(metric.metric.name.clone())),
+        (
+            "description",
+            optional(metric.metric.description.as_deref()),
+        ),
         ("kind", Json::String(kind.to_owned())),
         ("unit", unit),
         ("value", Json::Number(metric.value)),

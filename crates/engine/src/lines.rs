@@ -3,7 +3,9 @@
 //! Each line is `metric value` or `metric item value`, with fields separated by spaces or tabs.
 //! An item that contains a space is quoted, such as `"ABI Decode (500 results)"`, and a quoted
 //! item escapes `"` and `\` with a backslash. A line may end with `target <value>` to set that
-//! measurement's own target, such as `entry-size "." 408B target 2kB`. Blank lines are ignored.
+//! measurement's own target, such as `entry-size "." 408B target 2kB`. A line may start with a
+//! subject and a colon, such as `zc: startup 0.76ms`, when one script measures several things
+//! that each get their own scores. Blank lines are ignored.
 
 use std::borrow::Cow;
 
@@ -21,6 +23,8 @@ pub struct Line<'a> {
     pub metric: &'a str,
     /// The line's own target, which takes the place of the metric's target in `retros.toml`.
     pub target: Option<Value>,
+    /// The subject the measurement belongs to, such as `zc` in `zc: startup 0.76ms`.
+    pub subject: Option<&'a str>,
     /// The measured value.
     pub value: Value,
 }
@@ -29,8 +33,8 @@ pub struct Line<'a> {
 ///
 /// # Errors
 ///
-/// Returns the first line that is not `metric [item] value [target <value>]`, or whose name,
-/// value, or target is invalid.
+/// Returns the first line that is not `[subject:] metric [item] value [target <value>]`, or whose
+/// subject, name, value, or target is invalid.
 pub fn parse(source: &str) -> Result<Vec<Line<'_>>, Error> {
     let mut lines = Vec::new();
     let mut start = 0;
@@ -62,7 +66,38 @@ struct Field<'a> {
 
 /// Parses one non-blank line that starts at byte `start` of `source`.
 fn line<'a>(source: &'a str, start: usize, text: &'a str) -> Result<Line<'a>, Error> {
-    let fields = fields(source, start, text)?;
+    let mut fields = fields(source, start, text)?;
+
+    // A first field that ends with `:` names the subject. Metric names cannot hold `:`.
+    let subject = match fields.first() {
+        Some(Field {
+            offset,
+            text: Cow::Borrowed(first),
+        }) if first.ends_with(':') => {
+            let name = first.trim_end_matches(':');
+            if !is_name(name) || name.len() + 1 != first.len() {
+                return Err(Error::at(
+                    Code::InvalidName,
+                    source,
+                    *offset,
+                    format!(
+                        "invalid subject `{first}`. A subject is a name followed by `:`, such as `zc:`, and names use ASCII letters, digits, `-`, `_`, and `.`"
+                    ),
+                ));
+            }
+            if fields.len() == 1 {
+                return Err(Error::at(
+                    Code::LineSyntax,
+                    source,
+                    offset + first.len(),
+                    format!("expected a metric after subject `{first}`"),
+                ));
+            }
+            fields.remove(0);
+            Some(name)
+        }
+        _ => None,
+    };
 
     let (fields, target) = match fields.as_slice() {
         [rest @ .., keyword, target] if rest.len() >= 2 && keyword.text == "target" => {
@@ -161,6 +196,7 @@ fn line<'a>(source: &'a str, start: usize, text: &'a str) -> Result<Line<'a>, Er
         item: item.map(|item| item.text.clone()),
         location: Location::of(source, metric.offset),
         metric: name,
+        subject,
         target,
         value: parsed,
     })
