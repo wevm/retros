@@ -10,15 +10,15 @@
 
 ## Overview
 
-Retros is Lighthouse for your project. It scores the metrics a project chooses, such as bundle size or request latency, against targets, and lists the fixes that would raise each score.
+Retros scores a project against its own targets. A project picks its metrics, such as bundle size or request latency. Retros scores each one from 0 to 100 and lists the fixes that would raise the scores most.
 
 ## Problem
 
-Lighthouse only scores web pages. A library, an API, or a CLI has no equivalent. Its numbers end up in one-off scripts and CI checks that pass or fail, with no score and no list of what to fix next.
+Most projects track their numbers in one-off scripts and CI checks that pass or fail. Nothing shows how far a project is from its targets, or which fix would close the gap most.
 
 ## Solution
 
-Retros gives any project the same loop. Scripts measure with the tools the project already uses, Retros scores each metric against its target, and the top opportunity is the next fix to make.
+Retros turns every metric into a score and every gap into a next step. Scripts measure with the tools the project already uses. Each run shows where the project stands, so a person or an agent can climb toward the targets one fix at a time.
 
 ```yaml
 # 1. .agents/retros.yaml: the footprint category, its script, and its target.
@@ -68,7 +68,7 @@ retros check
 - **Metric keys:** `target`, `targets`, `weight` (default 1), `score` (`p90` by default, or `p10`, `median`, `max`, `min`, `sum`), `better`, `varies`, and `description`.
 - **Files:** `retros.lock` sits beside the configuration. Reports go to `.retros/` in the project root.
 
-[`examples/`](examples) has a TypeScript library, a website measured with Lighthouse, and a Rust API measured with Cargo. Retros measures itself with [`.agents/retros.yaml`](.agents/retros.yaml).
+[`examples/`](examples) has a TypeScript library, a website, and a Rust API. Retros measures itself with [`.agents/retros.yaml`](.agents/retros.yaml).
 
 > [!NOTE]
 > Retros is in development. The [implementation plan](.agents/plan.md) lists each phase and its acceptance gate.
