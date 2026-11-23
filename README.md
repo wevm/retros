@@ -10,15 +10,15 @@
 
 ## Overview
 
-Retros scores a project's metrics against targets on every change. Scripts in any language take the measurements. Retros scores each metric from 0 to 100, compares it with the last accepted run, and names the fixes worth the most points.
+Retros scores a project's metrics against targets, locally or in CI. Scripts in any language take the measurements. Retros scores each metric from 0 to 100, compares it with the last accepted run, and names the fixes worth the most points.
 
 ## Problem
 
-Most projects check speed and size now and then, with separate tools. Regressions land between checks, and improvements wear away. Without a number on every change, a person or an agent cannot tell a better change from a worse one.
+Most projects check speed and size now and then, with separate tools. Regressions land between checks, and improvements wear away. Without a number to compare, a person or an agent cannot tell a better change from a worse one.
 
 ## Solution
 
-Retros puts a score on every change. A script measures each metric with tools the project already uses, and Retros scores the result against its target. The top opportunity is the next step up.
+Retros shows whether a change helped. A script measures each metric with tools the project already uses, and Retros scores the result against its target. The top opportunity is the next step up.
 
 ```toml
 # 1. Declare the metric, its target, and the script that measures it.
