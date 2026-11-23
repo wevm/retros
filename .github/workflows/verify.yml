@@ -65,3 +65,6 @@ jobs:
 
       - name: Build npm launcher
         run: pnpm --filter retros build
+
+      - name: Build documentation site
+        run: pnpm --filter @retros/site build

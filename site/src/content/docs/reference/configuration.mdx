@@ -1,0 +1,289 @@
+# Configuration
+
+`retros.yaml` or `retros.toml` declares the categories, the command that measures each one, and the target of each metric. Both formats accept the same keys.
+
+## Files
+
+Retros reads `retros.yaml` or `retros.toml`, at the project root or in `.agents/`, from the current directory or the nearest parent. One directory with more than one of these files is an error. The project root is the directory that holds the file or `.agents/`.
+
+Scripts run from the project root, and reports go to `.retros/` in it. Each top-level key is a category, apart from `run`, `setup`, and `timeout`.
+
+<Tabs>
+<Tab title="YAML">
+
+```yaml title=".agents/retros.yaml"
+# Two categories, each measured by its own script.
+footprint:
+  run: sh metrics/footprint.sh
+  entry-size: { target: 5kB, targets: { chains: 8kB } }
+
+speed:
+  run: bun metrics/speed.ts
+  import-time: { target: 20ms }
+```
+
+</Tab>
+<Tab title="TOML">
+
+```toml title=".agents/retros.toml"
+# Two categories, each measured by its own script.
+[footprint]
+run = "sh metrics/footprint.sh"
+entry-size = { target = "5kB", targets = { "chains" = "8kB" } }
+
+[speed]
+run = "bun metrics/speed.ts"
+import-time = { target = "20ms" }
+```
+
+</Tab>
+</Tabs>
+
+## Names
+
+A category or metric name starts with an ASCII letter or digit, and continues with ASCII letters, digits, `-`, `_`, and `.`. `report.md` and `report.html` show a name in words unless a `title` is set, so `request-out` reads "Request out".
+
+```yaml title="retros.yaml"
+# Valid names: footprint, entry-size, p95_latency, and v2.startup.
+footprint:
+  run: sh metrics/footprint.sh
+  entry-size: { target: 5kB }
+```
+
+## Top-Level Keys
+
+### `run`
+
+- **Type:** string
+- **Default:** none
+
+The command for every category that sets no `run`. Categories with the same command share one run of it, and each line goes to the category that lists its metric. One metric in two categories that share a run is an error.
+
+```yaml title="retros.yaml"
+# Both categories read the lines of one run of bench.sh.
+run: sh bench.sh
+
+footprint:
+  binary-size: { target: 2MB }
+
+speed:
+  startup: { target: 5ms }
+```
+
+### `setup`
+
+- **Type:** string
+- **Default:** none
+
+A command that prepares each checkout that `--compare` creates, such as a package install. It runs once from the root of the new checkout, before any script, with the top-level `timeout`. A failed setup stops the run with exit status 2.
+
+```yaml title="retros.yaml"
+# Install packages in the worktree of the other revision.
+setup: bun install --frozen-lockfile
+```
+
+### `timeout`
+
+- **Type:** duration, such as `500ms`, `30s`, `10m`, or `1h`
+- **Default:** `10m`
+
+The time each script may run in a category that sets no `timeout`, and the time `setup` may run. When the time passes, Retros stops the script and every process it started.
+
+```yaml title="retros.yaml"
+# Give every script 2 minutes.
+timeout: 2m
+```
+
+## Category Keys
+
+### `run`
+
+- **Type:** string
+- **Default:** the top-level `run`
+
+The command that measures the category. Retros runs it through `sh -c` from the project root, with `$RETROS_METRICS` set to a new file for the script's metric lines. A category without a `run` and without a top-level `run` is an error.
+
+```yaml title="retros.yaml"
+# Measure the footprint category with a shell script.
+footprint:
+  run: sh metrics/footprint.sh
+  bundle-size: { target: 5kB }
+```
+
+### `timeout`
+
+- **Type:** duration
+- **Default:** the top-level `timeout`
+
+The time the category's script may run.
+
+```yaml title="retros.yaml"
+# Give the end-to-end suite 30 minutes.
+e2e:
+  run: sh metrics/e2e.sh
+  timeout: 30m
+  passed: {}
+```
+
+### `title`
+
+- **Type:** string
+- **Default:** the name in words
+
+The name that `report.md`, `report.html`, and `report.json` show. The terminal and baselines keep the name.
+
+```yaml title="retros.yaml"
+# Show "Bundle footprint" in reports.
+footprint:
+  run: sh metrics/footprint.sh
+  title: Bundle footprint
+  bundle-size: { target: 5kB }
+```
+
+### `description`
+
+- **Type:** string
+- **Default:** none
+
+What the category measures, which `report.html` and `report.json` show.
+
+```yaml title="retros.yaml"
+# Describe the category for readers of the report.
+footprint:
+  run: sh metrics/footprint.sh
+  description: Gzipped size of the published entry points.
+  bundle-size: { target: 5kB }
+```
+
+## Metric Keys
+
+Every other key of a category is a metric. A metric is a mapping of the keys below. A metric without keys, such as `modules: {}`, shows its value and changes but has no score. A category must declare at least one metric.
+
+```yaml title="retros.yaml"
+# bundle-size is scored, and modules is shown without a score.
+footprint:
+  run: sh metrics/footprint.sh
+  bundle-size: { target: 5kB }
+  modules: {}
+```
+
+### `target`
+
+- **Type:** a size, a time, or a number
+- **Default:** none
+
+The value that scores 90, for every item that has no target of its own. It is greater than zero and in the same kind of unit as the metric's values. A list of checks scores the share of items that pass, so a check has no target.
+
+```yaml title="retros.yaml"
+# Each page scores 90 at 20 kB and 50 at 40 kB.
+page-size: { target: 20kB }
+```
+
+### `targets`
+
+- **Type:** a mapping of item patterns to targets
+- **Default:** none
+
+Targets by item, which replace the `target` key and the targets that scripts write on their lines. In a pattern, `*` matches any run of characters, and the first matching pattern applies. A pattern that matches no item gives a warning.
+
+```yaml title="retros.yaml"
+# Each chain entry point scores against 1 kB, and the root entry point against 60 kB.
+export-size: { target: 5kB, targets: { "viem/chains/*": 1kB, viem: 60kB } }
+```
+
+### `better`
+
+- **Type:** `lower` or `higher`
+- **Default:** `lower`
+
+The direction that improves the metric. With `higher`, half the target scores 50, and a list collapses to its p10 by default.
+
+```yaml title="retros.yaml"
+# More coverage is better.
+coverage: { target: 80, better: higher }
+```
+
+### `score`
+
+- **Type:** `p90`, `p10`, `median`, `max`, `min`, or `sum`
+- **Default:** `p90`, or `p10` when `better` is `higher`
+
+How a list collapses to one score. Items rank by value against their own target, and a percentile takes the item at its nearest rank. A `sum` scores the total of the values against the total of the targets.
+
+```yaml title="retros.yaml"
+# Score the total size of every chunk.
+chunk-size: { target: 25kB, score: sum }
+```
+
+### `weight`
+
+- **Type:** a number, 0 or greater
+- **Default:** `1`
+
+The metric's weight in the category score, which is the weighted mean of the metric scores. A metric with weight 0 still has a score, but the category mean leaves it out.
+
+```yaml title="retros.yaml"
+# Count throughput twice.
+throughput: { target: 2000, better: higher, weight: 2 }
+```
+
+### `varies`
+
+- **Type:** `true` or `false`
+- **Default:** `false`
+
+Marks a size or count that differs between runs, such as peak memory. Retros repeats its script and takes the median like a time, and its baseline records only its line targets.
+
+```yaml title="retros.yaml"
+# Peak memory differs between runs.
+peak-memory: { target: 64MB, varies: true }
+```
+
+### `title`
+
+- **Type:** string
+- **Default:** the name in words
+
+The name that `report.md`, `report.html`, and `report.json` show.
+
+```yaml title="retros.yaml"
+# Show "Time to first request" instead of "Request out".
+request-out: { target: 20ms, title: Time to first request }
+```
+
+### `description`
+
+- **Type:** string
+- **Default:** none
+
+What the metric measures, which `report.html` and `report.json` show.
+
+```yaml title="retros.yaml"
+# Describe the metric for readers of the report.
+page-size: { target: 20kB, description: Bytes of HTML each page sends. }
+```
+
+### `baseline`
+
+- **Type:** a value, or a mapping of items to values
+- **Default:** none
+
+The last accepted value, which `retros --update` writes. A metric with items takes one line per item, and a line target follows its value. With subjects, each subject has its own entry. Timings have no baseline.
+
+```yaml title="retros.yaml"
+# Written by retros --update.
+bundle-size: { target: 5kB, baseline: 6.9kB }
+entry-size:
+  target: 5kB
+  baseline:
+    chains: 12033B target 15kB
+    index: 6112B
+export-size:
+  target: 2kB
+  baseline:
+    node:
+      format: 900B
+      parse: 1.1kB
+    web:
+      parse: 1.3kB target 1kB
+```

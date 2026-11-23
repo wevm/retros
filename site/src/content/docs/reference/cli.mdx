@@ -1,0 +1,139 @@
+# CLI
+
+The `retros` binary runs a project's scripts, scores the metrics, and writes reports. `retros check` runs each script once to check its lines.
+
+## Usage
+
+`retros` runs every category, or only the category it names. Flags combine, such as `--compare main --require-targets`.
+
+```text
+retros [category] [--compare <ref>] [--update] [--require-baseline] [--require-targets]
+retros check
+```
+
+```sh
+# Score every category.
+retros
+
+# Score only the speed category.
+retros speed
+```
+
+## Commands
+
+### `retros`
+
+Runs each category's script, scores its metrics, lists the opportunities that raise the scores most, and compares sizes, counts, checks, and line targets with each metric's baseline. It writes `report.json`, `report.md`, and `report.html` to `.retros/`.
+
+```sh
+# Score every category and write the reports.
+retros
+```
+
+### `retros check`
+
+Runs each script once and checks the metric lines it writes, without scoring. It reports invalid lines, metrics that the configuration lists but the script does not write, and metrics written but not listed. It writes no reports.
+
+```text
+$ retros check
+✓ pages  2 metrics
+
+1 passed
+```
+
+## Arguments
+
+### `category`
+
+- **Type:** a category name
+- **Default:** every category
+
+Runs only the named category. An unknown name exits with status 2 and lists the categories.
+
+```text
+$ retros speeed
+error: unknown category 'speeed'. retros.yaml declares footprint, speed
+```
+
+## Flags
+
+### `--compare <ref>`
+
+Measures the revision `<ref>` in a temporary Git worktree, and adds the changes against it to every report. Timings run in 8 interleaved pairs. Sizes, counts, and checks compare with the baselines of `<ref>`, or with a run of it when it has none.
+
+```sh
+# Compare the current checkout with the main branch.
+retros --compare main
+```
+
+### `--update`
+
+Writes this run's sizes, counts, checks, and line targets to each metric's `baseline` key in the configuration. Retros keeps the rest of the file as it was.
+
+```sh
+# Accept this run as the baseline.
+retros --update
+```
+
+### `--require-baseline`
+
+Exits with status 1 when anything differs from the baselines, better or worse, or when no metric has a baseline.
+
+```text
+$ retros --require-baseline
+...
+4 changes since the baseline. Run `retros --update` to accept them
+```
+
+### `--require-targets`
+
+Exits with status 1 when a metric misses its target or a script fails, and lists each miss with its item.
+
+```text
+$ retros --require-targets
+...
+Missed targets
+  speed  slugify-time  917 ns  target 500 ns
+
+1 target missed
+```
+
+### `--help`
+
+Prints the usage, the commands, and the flags. `-h` is the short form.
+
+```sh
+# Print help.
+retros --help
+```
+
+### `--version`
+
+Prints the version. `-V` is the short form.
+
+```sh
+# Print the version.
+retros --version
+```
+
+## Exit Status
+
+| Status | Meaning |
+| --- | --- |
+| 0 | Every category ran and every gate passed |
+| 1 | A category failed, or `--require-baseline` or `--require-targets` failed |
+| 2 | Retros could not run, such as for an unknown argument, an invalid configuration, or a failed `setup` |
+
+```sh
+# Print the exit status of the last run.
+retros; echo $?
+```
+
+## Environment
+
+Retros sets `RETROS_METRICS` for each script to the path of a new, empty file. The script appends its metric lines to it, and Retros reads it after the script exits.
+
+```sh
+# Write one metric line from a script.
+echo "bundle-size 6.9kB" >> "$RETROS_METRICS"
+```

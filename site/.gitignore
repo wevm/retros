@@ -1,0 +1,3 @@
+.tanstack/
+.wrangler/
+src/routeTree.gen.ts

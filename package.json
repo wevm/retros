@@ -3,7 +3,7 @@
   "type": "module",
   "scripts": {
     "check": "vp check --fix",
-    "check:types": "tsc"
+    "check:types": "tsc && pnpm --filter @retros/site check:types"
   },
   "devDependencies": {
     "@types/node": "catalog:",

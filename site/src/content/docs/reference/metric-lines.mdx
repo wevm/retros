@@ -1,0 +1,121 @@
+# Metric Lines
+
+A metric line is one measurement that a script appends to the file at `$RETROS_METRICS`. Retros reads the file after the script exits.
+
+## Format
+
+Each line has up to six fields, separated by spaces or tabs. Brackets mark the optional fields. Blank lines are ignored.
+
+```text
+[subject:] metric [item] value [target <value>] [note <text>]
+```
+
+```text
+bundle-size 6.9kB
+export-size viem/actions 31.7kB target 40kB
+alt-text /pricing fail note "hero.svg has no alt text"
+zc: startup 0.76ms
+```
+
+## Fields
+
+### `subject`
+
+- **Format:** a name followed by `:`, such as `zc:`
+
+The subject the measurement belongs to. Each subject scores on its own, and reports compare subjects side by side. A category cannot mix lines with and without a subject.
+
+```text
+node: startup 61ms
+bun: startup 18ms
+```
+
+### `metric`
+
+- **Format:** a name, such as `export-size`
+
+A metric that the category lists in the configuration. A name starts with an ASCII letter or digit, and continues with ASCII letters, digits, `-`, `_`, and `.`. A metric the category does not list gives a warning in `retros check`.
+
+```text
+modules 412
+```
+
+### `item`
+
+- **Format:** any text, quoted when it contains a space or a tab
+
+One entry of a list metric. Each item scores against its own target, and the list collapses to one score. Items keep the order of their first line, and reports rank them worst first.
+
+```text
+page-size index.html 14034B
+bench-time "ABI Decode (500 results)" 1.82ms
+```
+
+### `value`
+
+- **Format:** a number with an optional unit, `pass`, or `fail`
+
+The measured value. One metric uses one kind of unit for every line. [Units](/docs/reference/units) lists every unit.
+
+```text
+install-size 45.6MB
+type-errors 0
+has-title index.html pass
+```
+
+### `target`
+
+- **Format:** `target` and a value, such as `target 15kB`
+
+The item's own target, which replaces the metric's `target` key. It is greater than zero and in the same kind of unit as the value, and a check cannot have one. A pattern in the `targets` key replaces it.
+
+```text
+entry-size chains 12033B target 15kB
+```
+
+### `note`
+
+- **Format:** `note` and text, such as `note "no <title> element"`
+
+Why the measurement is what it is. It comes after any target. Notes come from the first round, stay out of baselines, and show under their item in every report. The terminal shows a note only under an item or metric that misses its target.
+
+```text
+has-title about.html fail note "no <title> element"
+lint src/parse.ts 2 target 1 note "no-unused-vars: 'cache' is never used"
+```
+
+## Quoting
+
+A field that contains a space or a tab takes double quotes. Inside quotes, a backslash escapes `"` and `\`. Metric names and subjects are never quoted.
+
+```text
+links "blog/first post.html" pass
+heading "Say \"hello\"" fail note "C:\\site\\index.html has no heading"
+```
+
+## Errors
+
+A line that Retros cannot read gives its category no score, and the other categories still run. The error names the category's metrics file, the line, and the column, and points at the field.
+
+```text
+$ retros check
+✗ footprint  invalid metric line
+    error[unknown-unit] footprint metrics:1:16: unknown unit `KB`, expected one of `B`, `kB`, `MB`, `GB`, `ns`, `µs`, `us`, `ms`, `s`
+      1 | bundle-size 6.9KB
+        |                ^
+
+0 passed, 1 failed
+```
+
+The configuration and the lines must also agree. A metric the configuration lists but the script does not write is an error, and a metric the script writes but the configuration does not list is a warning.
+
+```text
+$ retros check
+✗ footprint  2 metrics, 1 error, 1 warning
+    error[metric-missing] retros.yaml:4:3: metric `modules` is configured, but the script did not write it
+      4 |   modules: {}
+        |   ^
+    warning[unconfigured-metric] footprint metrics:2:1: metric `chunks` is written, but `footprint` does not configure it
+      2 | chunks 4
+        | ^
+```

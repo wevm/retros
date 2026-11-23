@@ -1,0 +1,214 @@
+# GitHub Actions
+
+The Retros action scores each pull request, compares it with its base branch, and keeps one comment on the pull request with the report.
+
+## Overview
+
+The action installs Retros, runs `retros --compare` against the base branch, and writes `report.md` to the job summary and to a comment. Each later run updates the same comment. The job fails when `retros` fails.
+
+```yaml title=".github/workflows/retros.yml"
+# Score each pull request and compare it with its base branch.
+name: Retros
+on: pull_request
+
+jobs:
+  retros:
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: wevm/retros@main
+```
+
+> [!NOTE]
+> The first release is not published yet, so the action has no binary to install. Until it is, build Retros in the job and set `version: none`, as [Local Builds](#local-builds) shows.
+
+## Walkthrough
+
+This walkthrough adds the action to a project whose scripts run on Bun, and gates each pull request on its targets.
+
+### Add the Workflow
+
+The job needs `pull-requests: write` to write the comment, and `contents: read` to clone the repository. The clone needs only the head commit, because the action fetches the base branch when the clone lacks it.
+
+```yaml title=".github/workflows/retros.yml"
+# 1. Run on each pull request, with permission to comment.
+name: Retros
+on: pull_request
+
+jobs:
+  retros:
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+```
+
+### Install the Tools
+
+Scripts run the tools the project already uses, so the job installs them before the action runs. The base branch runs in a new worktree, so a top-level `setup` command in `retros.yaml` installs its packages.
+
+```yaml title=".github/workflows/retros.yml"
+      # 2. Install Bun and the project's packages for the scripts.
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+```
+
+```yaml title="retros.yaml"
+# Install packages in the base branch's worktree too.
+setup: bun install --frozen-lockfile
+```
+
+### Run Retros
+
+The `args` input adds arguments to `retros`. `--require-targets` fails the job when a metric misses its target or a script fails.
+
+```yaml title=".github/workflows/retros.yml"
+      # 3. Compare with the base branch, comment, and fail on a missed target.
+      - uses: wevm/retros@main
+        with:
+          args: --require-targets
+```
+
+### Read the Comment
+
+The comment holds `report.md`: scores, opportunities, changes since the baselines, and changes against the base branch. A failed run adds the exit status and the end of the output.
+
+The last line names the command, the commit, and the workflow run. This excerpt leaves out the sections between the tables:
+
+```md
+<!-- The next line is the marker that the action finds the comment by. -->
+<!-- retros: . -->
+# Retros report
+
+| Category | Score |
+| --- | --- |
+| Footprint | ● 100 |
+| Speed | ■ 51 |
+
+## Changes against origin/main (ac66366)
+
+| Change | Category | Metric | Before | After | Pairs |
+| --- | --- | --- | --- | --- | --- |
+| worse | Footprint | Source size | 138 B | 172 B |  |
+| worse | Speed | Slugify time | 550 ns | 984 ns (+79%) | 8 of 8 pairs |
+
+> [!CAUTION]
+> `retros --compare origin/main --require-targets` exited with status 1.
+
+<details><summary>Output</summary>
+...
+</details>
+
+<sub>`retros --compare origin/main --require-targets` at fa8deea in [run 12](https://github.com/acme/slugify/actions/runs/1)</sub>
+```
+
+## Recipes
+
+### Gate on Baselines
+
+`--require-baseline` fails the job when a size, count, check, or line target differs from its baseline, so each change to them comes with a `retros --update`.
+
+```yaml title=".github/workflows/retros.yml"
+# Fail when anything differs from the baselines.
+- uses: wevm/retros@main
+  with:
+    args: --require-baseline
+```
+
+### Several Projects
+
+A repository with more than one project runs the action once per project with `working-directory`. Each project keeps its own comment, which the action finds by a marker that holds the directory.
+
+```yaml title=".github/workflows/retros.yml"
+# One comment for the site, and one for the API.
+- uses: wevm/retros@main
+  with:
+    working-directory: site
+- uses: wevm/retros@main
+  with:
+    working-directory: api
+```
+
+### Pin a Version
+
+The action installs the release that matches its own tag, such as `v0.1.0`. At a branch, such as `main`, it installs the latest release. The `version` input selects another release.
+
+```yaml title=".github/workflows/retros.yml"
+# Install Retros 0.1.0.
+- uses: wevm/retros@main
+  with:
+    version: 0.1.0
+```
+
+### Local Builds
+
+`version: none` skips the install and runs the `retros` on `PATH`, such as one the job builds from source.
+
+```yaml title=".github/workflows/retros.yml"
+# Build Retros with Cargo, then run it.
+- run: cargo install --locked --git https://github.com/wevm/retros retros
+- uses: wevm/retros@main
+  with:
+    version: none
+```
+
+### Score Pushes
+
+The `compare` input defaults to the base branch on pull requests, and is empty on other events. When it is empty, the action runs plain `retros` and writes the report to the job summary. On a pull request, `compare: ''` skips the comparison.
+
+```yaml title=".github/workflows/retros-main.yml"
+# Score each push to main, without a comparison or a comment.
+name: Retros
+on:
+  push:
+    branches: [main]
+
+jobs:
+  retros:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: wevm/retros@main
+```
+
+### Summary Only
+
+`comment: false` keeps the report in the job summary only. A pull request from a fork has a read-only token, so the action cannot comment there. It writes a warning instead of failing the job.
+
+```yaml title=".github/workflows/retros.yml"
+# Write the report to the job summary only.
+- uses: wevm/retros@main
+  with:
+    comment: false
+```
+
+### Keep the Reports
+
+The reports stay in `.retros/` after the action runs, so a later step can upload them. `.retros/` is a hidden directory, which the upload step skips unless `include-hidden-files` is set.
+
+```yaml title=".github/workflows/retros.yml"
+# Keep report.html, report.json, and report.md as a workflow artifact, also when Retros fails.
+- uses: wevm/retros@main
+- if: always()
+  uses: actions/upload-artifact@v7
+  with:
+    include-hidden-files: true
+    name: retros
+    path: .retros/
+```
+
+## More
+
+<Cards>
+  <Card title="Action Reference" to="/docs/reference/action" description="Every input and output." />
+  <Card title="Comparing Revisions" to="/docs/guides/comparing" description="How timings compare in pairs." />
+  <Card title="Baselines" to="/docs/guides/baselines" description="Gate on accepted values." />
+  <Card title="Installation" to="/docs/introduction/installation" description="The install script the action runs." />
+</Cards>

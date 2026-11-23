@@ -1,0 +1,85 @@
+# Getting Started
+
+Retros scores a project against its own targets. Scripts measure the project, Retros scores each metric from 0 to 100, and each run names the fixes worth the most points.
+
+## Install
+
+Retros is one binary for macOS and Linux. [Installation](/docs/introduction/installation) lists every way to install it.
+
+```sh
+# Build and install the retros binary from source.
+cargo install --locked --git https://github.com/wevm/retros retros
+```
+
+> [!NOTE]
+> The first release is not published yet. Until it is, the install script and `npx retros` have nothing to download, so Cargo is the way to install Retros.
+
+## Add a Category
+
+A category groups metrics that one script measures. `retros.yaml` declares each category, its `run` command, and a target for each metric. Retros reads it from the project root or from `.agents/`.
+
+```yaml title=".agents/retros.yaml"
+# The footprint category runs one script, which writes the bundle-size metric.
+footprint:
+  run: sh .agents/metrics/footprint.sh
+  bundle-size: { target: 5kB }
+```
+
+## Write a Script
+
+A script measures with the tools the project already uses. It appends one metric line per measurement to the file at `$RETROS_METRICS`. Standard output and standard error are logs.
+
+```sh title=".agents/metrics/footprint.sh"
+# Measure the gzipped bundle and write one metric line.
+echo "bundle-size $(gzip -c dist/index.js | wc -c)B" >> "$RETROS_METRICS"
+```
+
+## Check the Script
+
+`retros check` runs each script once and checks the lines it writes. A misspelled metric, an unknown unit, or a metric that the script does not write fails the check with its file, line, and column.
+
+```text
+$ retros check
+✓ footprint  1 metric
+
+1 passed
+```
+
+## Score the Project
+
+`retros` runs every category, scores each metric against its target, and lists opportunities: the changes that raise a category score most. A value at its target scores 90.
+
+```text
+$ retros
+■  75  footprint
+  ■  75  bundle-size  6.9 kB  target 5 kB
+
+Opportunities
+  +15  footprint  bundle-size  6.9 kB → 5 kB
+
+No baseline yet. Run `retros --update` to record these values as the baseline.
+
+Wrote .retros/report.json, .retros/report.md, .retros/report.html
+```
+
+Each run writes three reports to `.retros/` in the project root. `report.html` is one file that opens in a browser without network requests. Add `.retros/` to `.gitignore`.
+
+## Record a Baseline
+
+`retros --update` writes each metric's accepted value to its `baseline` key. Commit the configuration, and every later run reports what changed since then.
+
+```yaml title=".agents/retros.yaml"
+# retros --update added the baseline key.
+footprint:
+  run: sh .agents/metrics/footprint.sh
+  bundle-size: { target: 5kB, baseline: 6.9kB }
+```
+
+## More
+
+<Cards>
+  <Card title="Writing Scripts" to="/docs/guides/scripts" description="Write metric lines for lists, subjects, timings, and checks." />
+  <Card title="Targets" to="/docs/guides/targets" description="Set targets per item and read opportunities." />
+  <Card title="Baselines" to="/docs/guides/baselines" description="Record accepted values and gate on changes." />
+  <Card title="GitHub Actions" to="/docs/guides/github-actions" description="Compare pull requests and keep one comment." />
+</Cards>

@@ -292,7 +292,7 @@ Applies to documentation, comments, TSDoc, interface copy, commit messages, and 
 - `install.sh` and `.github/workflows/release.yml`: the install script, and the workflow that builds release archives and publishes the npm packages for a `v*` tag.
 - `npm/retros/`: the `retros` npm package, a launcher that runs the binary from the platform package for the machine. `npm/platforms/<target>/` holds one platform package per release target, and `npm/stage.ts` puts a release's binaries and version into them.
 - `action.yml`: the GitHub Action, which runs `retros --compare` on a pull request and keeps one comment with the report.
-- Later phases add the documentation site. It gets its layout entry here when it lands.
+- `site/`: the documentation site, a TanStack Start app on Cloudflare Workers styled with Zyzz. Each page is an MDX file under `site/src/content/docs/`, listed in sidebar order in `site/src/Docs.ts`, and served with a Markdown twin at the same path plus `.md`.
 
 ## Tooling
 
@@ -306,4 +306,5 @@ Applies to documentation, comments, TSDoc, interface copy, commit messages, and 
 - `cargo fmt --all --check` and `cargo clippy --workspace --all-targets -- -D warnings` check formatting and lints.
 - `cargo build --release` builds the release binary at `target/release/retros`.
 - `cargo run -p retros -- check` runs Retros on itself with `.agents/retros.yaml`.
-- `pnpm install` installs the TypeScript tooling. `pnpm check` formats and lints TypeScript with Vite Plus, and `pnpm check:types` checks types.
+- `pnpm install` installs the TypeScript tooling. `pnpm check` formats and lints TypeScript with Vite Plus, and `pnpm check:types` checks types, including the site's.
+- `pnpm --filter @retros/site dev` serves the documentation site on port 3000, and `pnpm --filter @retros/site build` builds it.
