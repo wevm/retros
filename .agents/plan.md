@@ -60,6 +60,10 @@ Retros keeps Lighthouse's scoring and depth, and replaces its fixed browser gath
 12. **TypeScript on Bun, no Python.** Scripts in this repository, including the dogfood scripts and the examples, are shell or TypeScript run by Bun. Projects that use Retros pick any language. Decided 2026-11-22.
 13. **Pure engine, thin command line.** `crates/engine` is deterministic and has no I/O. `crates/cli` runs scripts, reads and writes files, and drives Git.
 14. **Built like Ondine and zyzz.** AGENTS.md, lints, toolchain pin, and testing rules follow those repositories. Work lands directly on `main`.
+15. **Subjects.** A line may start with `subject:`, such as `zc: startup 0.64ms`, for projects that measure several harnesses, packages, or builds in one script. Each subject is scored on its own, reports compare subjects side by side, and the lock keys a subject's category as `"zc: speed"`. A category may not mix lines with and without a subject, and a subject that does not write a metric has no score for it. Decided 2026-11-23 for zepto.
+16. **Shared runs.** A top-level `run` and `timeout` apply to every category that sets none, and categories with the same `run` share one execution. Each line goes to the category that lists its metric, so one metric in two categories that share a run is an error. Decided 2026-11-23, so zepto's one runner feeds five categories.
+17. **`varies`.** A size or count marked `varies = true`, such as peak memory, takes its median across rounds like a time and stays out of the lock, except for its line target. Decided 2026-11-23.
+18. **Descriptions.** Categories and metrics take a `description`, and every report shows it, so a reader knows what a number measures without opening `retros.toml`. Decided 2026-11-23.
 
 ## The Contract
 
@@ -79,7 +83,7 @@ run = "bun metrics/speed.ts"
 import-time = { target = "20ms" }
 ```
 
-The script appends lines to the file at `$RETROS_METRICS`. The values below are viem's from the earlier applied metrics trial, and the line target is an example:
+The script appends lines to the file at `$RETROS_METRICS`, each `[subject:] metric [item] value [target <value>]`. The values below are viem's from the earlier applied metrics trial, and the line target is an example:
 
 ```text
 install-size 45.6MB
@@ -94,8 +98,9 @@ bench-time "ABI Decode (500 results)" 1.82ms
 - **Logs:** standard output and standard error are logs. Retros keeps the end of standard error for a failed run.
 - **Failure:** a script that exits with a non-zero status gives its category no score.
 - **Runs:** each script runs through `sh -c` from the directory that holds `retros.toml`, in its own process group. Retros kills the group when the script exits or times out, so background processes do not outlive the run.
-- **Optional metric keys:** `targets` (item patterns and their targets), `weight` (default 1), `score` (how a list collapses: `p90` by default, or `p10`, `median`, `max`, `min`, `sum`), and `better = "higher"` for metrics where more is better. A `better = "higher"` list collapses to its p10 by default.
-- **Optional category keys:** `timeout` (default `10m`).
+- **Subjects:** a line that starts with `subject:` belongs to that subject, and each subject is scored on its own.
+- **Optional metric keys:** `targets` (item patterns and their targets), `weight` (default 1), `score` (how a list collapses: `p90` by default, or `p10`, `median`, `max`, `min`, `sum`), `better = "higher"` for metrics where more is better, `varies = true` for a size or count that differs between runs, and `description`. A `better = "higher"` list collapses to its p10 by default.
+- **Optional category keys:** `timeout` (default `10m`) and `description`. A top-level `run` and `timeout` apply to every category that sets none, and categories with the same `run` share one execution.
 
 The command line:
 
@@ -104,12 +109,12 @@ retros [category] [--update] [--require-baseline]   Score, list opportunities, a
 retros check                                        Run each script once and check its lines
 ```
 
-- **Files:** `retros.lock` is committed. A recorded line target follows its value, as in `"viem/chains" = "61000B target 80000B"`. `.retros/report.json` and `.retros/report.md` are written on every run and ignored by Git.
+- **Files:** `retros.lock` is committed. A recorded line target follows its value, as in `"viem/chains" = "61000B target 80000B"`. `.retros/report.html`, `report.json`, and `report.md` are written on every run and ignored by Git.
 - **Exit status:** 0 when every category passes, 1 when a category fails or a gate fails, and 2 when Retros cannot run, such as for an unknown argument or an invalid `retros.toml`.
 
 ## Scoring
 
-1. **Repeat timings.** When a script's first run writes a time, Retros runs it 5 times and takes each timing item's median. Sizes, counts, and checks come from the first run.
+1. **Repeat timings.** When a script's first run writes a time or a metric marked `varies`, Retros runs it 5 times and takes the median of each timing item and each varying item. Other sizes, counts, and checks come from the first run.
 2. **Score each measurement.** Lighthouse's `getLogNormalScore`, ported with its `erf` approximation, scores each value against its own target. Smaller values approach 100 and larger values approach 0. A `better = "higher"` metric scores the reciprocal.
 3. **Collapse lists.** Items rank by how far past their own target they are: value divided by target, or target divided by value when higher is better. The roll-up takes the item at its nearest rank, so the p90 is the item with at most a tenth of the list further past its target, and the median is the upper middle. The report names the selected item, such as `p90 9 kB (viem/op-stack)`. A `sum` scores the total of the values against the total of the targets. A check scores the share of items that pass.
 4. **Average categories.** Like Lighthouse, a metric's score is rounded to a whole number, and a category is the weighted mean of those scores, rounded. Metrics without a target are shown but not scored, a metric with weight 0 is scored but left out of the mean, and a failed metric drops out instead of counting as zero.
@@ -227,9 +232,9 @@ Compare timings honestly between two revisions, and fail CI on missed targets.
 Explain each miss, and write the report people open.
 
 - [ ] Notes: a line can say why an item misses, such as `alt-text /pricing fail note "hero.svg has no alt text"`. Notes appear under their items in every report. The syntax is decided at the start of this phase.
-- [ ] Metric descriptions in reports, so a reader knows what each metric measures without opening `retros.toml`. Where they come from is decided at the start of this phase.
-- [ ] One self-contained `.retros/report.html`: a gauge per category, score bands, metric rows, items worst first with their targets and notes, opportunities, and changes.
-- [ ] Light and dark schemes, phone layout, keyboard access, and reduced motion.
+- [x] Metric descriptions in reports, from the `description` key (decision 18).
+- [x] One self-contained `.retros/report.html`: a comparison table and one tab per subject, a gauge per category, score bands, metric rows with descriptions, items worst first with their targets, opportunities, and changes. Notes join the items once they exist.
+- [x] Light and dark schemes, phone layout, keyboard access to the tabs, and reduced motion.
 
 **Gate:** the web app example's HTML report reads like a Lighthouse report: every miss names its item, its value, its target, and why. Screenshots at desktop and phone widths, in light and dark schemes, are reviewed. The browser records no network requests.
 
@@ -256,13 +261,14 @@ Remember where the project has been and what moved it.
 
 ## Phase 10: zepto
 
-Replace zepto's harness lighthouse with Retros.
+Replace zepto's harness metrics report with Retros.
 
-- [ ] Subjects: one set of scores per subject, such as each harness, rendered as tabs with alternatives collapsed. The design is decided at the start of this phase.
-- [ ] zepto's scenarios become scripts that write metric lines. zc-mock, the harness commands, and the crash and resume scenario stay in zepto.
-- [ ] GitHub Pages history through Phase 9.
+- [x] Subjects, shared runs, and `varies` (decisions 15 to 17). The HTML report shows one tab per subject.
+- [x] `zig build metrics` writes metric lines for each harness. zc-mock, the harness commands, and the crash and resume scenario stay in zepto, and its `retros.toml` holds the targets.
+- [x] zepto's CI runs `retros` and publishes `report.html` to GitHub Pages per run.
+- [ ] Pages history through Phase 9.
 
-**Gate:** on one machine and run, Retros reports the same category scores as `bench/lighthouse.zig` within noise. zepto then removes the scoring and report code from `bench/lighthouse.zig` and `bench/lighthouse.html`.
+**Gate:** Retros scores zc, the Zig SDK, and the TypeScript package from one run of `zig build metrics` per round, and zepto removes its scoring and report code. Scores move because each metric has one target instead of zepto's `good` and `median` pair, which jxom accepted on 2026-11-23. On one orb, `retros` took 48 s and scored the TypeScript package's speed 85, from 91, since its first request misses a 20 ms target.
 
 ## Phase 11: Distribution
 

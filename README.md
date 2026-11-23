@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="#overview">Overview</a> · <a href="#philosophy">Philosophy</a> · <a href="#features">Features</a> · <a href="#scoring">Scoring</a> · <a href="#targets">Targets</a> · <a href="#baselines">Baselines</a> · <a href="#usage">Usage</a>
+  <a href="#overview">Overview</a> · <a href="#philosophy">Philosophy</a> · <a href="#features">Features</a> · <a href="#scoring">Scoring</a> · <a href="#targets">Targets</a> · <a href="#subjects">Subjects</a> · <a href="#baselines">Baselines</a> · <a href="#usage">Usage</a>
 </p>
 
 ## Overview
@@ -50,9 +50,10 @@ Opportunities
 - [**Contextual targets**](#targets): a default per metric, a target per line from the script, and item patterns that override both.
 - [**Item lists**](examples/web-app): thousands of items per metric, such as one per export or page, with the worst named in each report.
 - [**Opportunities**](examples/typescript-library): the changes that would raise each category most, with the points each adds.
+- [**Subjects**](#subjects): several harnesses, packages, or builds measured by one script, each scored on its own and compared side by side.
 - [**Baselines**](#baselines): accepted values in `retros.lock`, and a list of every change since.
 - [**CI gate**](#baselines): `--require-baseline` fails on any change that is not accepted, better or worse.
-- [**Reports**](#usage): terminal output, `.retros/report.json`, and `.retros/report.md`.
+- [**Reports**](#usage): terminal output, a self-contained HTML report with a gauge per category, and JSON and Markdown beside it.
 
 ## Scoring
 
@@ -67,7 +68,7 @@ A metric scores 90 at its target, 50 at twice the target, and 10 at four times t
 
 A metric with many items scores one of them. Retros ranks the items by how far each is past its own target, then scores the item at the 90th percentile. A check scores the share of items that pass.
 
-A category score is the weighted mean of its metric scores. When a script writes a time, Retros runs the script 5 times and scores the median of each item.
+A category score is the weighted mean of its metric scores. When a script writes a time, Retros runs the script 5 times and scores the median of each item. A size or count marked `varies`, such as peak memory, takes its median too.
 
 ## Targets
 
@@ -83,6 +84,29 @@ entry-size = { target = "1kB", targets = { "." = "3kB" } }
 
 # Higher is better for throughput, so half the target scores 50.
 throughput = { target = 5000, better = "higher" }
+```
+
+## Subjects
+
+A line can start with a subject, such as a harness, a package, or a build. Retros scores each subject on its own and shows them side by side. A top-level `run` measures every category that sets none, and categories with the same `run` share one execution.
+
+```toml
+# One script measures both builds. Each category scores the metrics it lists.
+run = "bun metrics/builds.ts"
+
+[speed]
+startup = { target = "30ms" }
+
+[footprint]
+peak-memory = { target = "16MB", varies = true }
+```
+
+```sh
+# The Node build runs on an engine that holds 41 MB at rest, so its line sets its own target.
+echo 'native: startup 0.64ms' >> "$RETROS_METRICS"
+echo 'native: peak-memory 2.4MB' >> "$RETROS_METRICS"
+echo 'node: startup 31.9ms' >> "$RETROS_METRICS"
+echo 'node: peak-memory 48.4MB target 57MB' >> "$RETROS_METRICS"
 ```
 
 ## Baselines
@@ -119,10 +143,11 @@ retros --require-baseline
 retros check
 ```
 
-- **Metric line:** `metric [item] value [target <value>]`. Quote an item that contains a space.
+- **Metric line:** `[subject:] metric [item] value [target <value>]`. Quote an item that contains a space.
 - **Values:** sizes in `B`, `kB`, `MB`, or `GB`, times in `ns`, `µs`, `ms`, or `s`, counts without a unit, and checks as `pass` or `fail`.
-- **Category keys:** `run`, and `timeout` (default `10m`).
-- **Metric keys:** `target`, `targets`, `weight` (default 1), `score` (`p90` by default, or `p10`, `median`, `max`, `min`, `sum`), and `better`.
+- **Category keys:** `run`, `timeout` (default `10m`), and `description`. A top-level `run` and `timeout` apply to categories that set none.
+- **Metric keys:** `target`, `targets`, `weight` (default 1), `score` (`p90` by default, or `p10`, `median`, `max`, `min`, `sum`), `better`, `varies`, and `description`.
+- **Reports:** `.retros/report.html`, `report.json`, and `report.md`, written on every run.
 
 [`examples/`](examples) has a TypeScript library, a website measured by Lighthouse, and a Rust API measured with Cargo's tools. Retros measures itself with the root [`retros.toml`](retros.toml).
 
