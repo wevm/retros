@@ -10,17 +10,15 @@
 
 ## Overview
 
-Retros is Lighthouse for your project. Lighthouse scores a web page and lists the fixes that would raise each score. Retros brings the same loop to any codebase, with the metrics that project cares about: bundle size, request latency, memory, test coverage, or anything a script can measure.
-
-Each metric has a target, and each run scores the project from 0 to 100 against it. The scores show where the project stands, the opportunities show the next step up, and `retros.lock` keeps every gain.
+Retros is Lighthouse for your project. It scores the metrics a project chooses, such as bundle size or request latency, against targets, and lists the fixes that would raise each score.
 
 ## Problem
 
-Quality and performance slip a little at a time. A bundle grows by a few hundred bytes, an endpoint slows by a millisecond, a lint warning stays. No single change looks like the cause, so nobody notices until users do.
+Lighthouse only scores web pages. A library, an API, or a CLI has no equivalent. Its numbers end up in one-off scripts and CI checks that pass or fail, with no score and no list of what to fix next.
 
 ## Solution
 
-Retros turns those numbers into targets and scores. Scripts measure with the tools the project already uses, and Retros scores each metric and names the fix worth the most points. Run it in CI or in an agent's loop, and the project climbs toward its targets instead of drifting away.
+Retros gives any project the same loop. Scripts measure with the tools the project already uses, Retros scores each metric against its target, and the top opportunity is the next fix to make.
 
 ```yaml
 # 1. .agents/retros.yaml: the footprint category, its script, and its target.
@@ -45,7 +43,7 @@ Opportunities
 
 ## Usage
 
-Retros reads `retros.yaml` or `.agents/retros.yaml` from the current directory or the nearest parent. Scripts run from the project root, the directory that holds `retros.yaml` or `.agents`. Add `.retros/` to `.gitignore`.
+Retros reads `retros.yaml` or `retros.toml`, at the project root or in `.agents/`, from the current directory or the nearest parent. Scripts run from the project root. Add `.retros/` to `.gitignore`.
 
 ```sh
 # Score every category, list opportunities, and compare with retros.lock.
@@ -68,7 +66,7 @@ retros check
 - **Values:** sizes in `B`, `kB`, `MB`, or `GB`, times in `ns`, `µs`, `ms`, or `s`, counts without a unit, and checks as `pass` or `fail`.
 - **Category keys:** `run`, `timeout` (default `10m`), and `description`. A top-level `run` and `timeout` apply to categories that set none.
 - **Metric keys:** `target`, `targets`, `weight` (default 1), `score` (`p90` by default, or `p10`, `median`, `max`, `min`, `sum`), `better`, `varies`, and `description`.
-- **Files:** `retros.lock` sits beside `retros.yaml`. Reports go to `.retros/` in the project root.
+- **Files:** `retros.lock` sits beside the configuration. Reports go to `.retros/` in the project root.
 
 [`examples/`](examples) has a TypeScript library, a website measured with Lighthouse, and a Rust API measured with Cargo. Retros measures itself with [`.agents/retros.yaml`](.agents/retros.yaml).
 
