@@ -2,9 +2,6 @@
 
 Uphill is one binary with no runtime. Release builds cover macOS and Linux on arm64 and x64, and Cargo builds it anywhere Rust runs.
 
-> [!NOTE]
-> The npm package is not published yet, so `npx uphill` has nothing to download for now. The install script, the release archives, and Cargo work.
-
 ## Install Script
 
 The install script downloads the release archive for the machine, checks its SHA-256 digest against `sha256sums.txt`, and puts the binary in `~/.uphill/bin`. It runs on macOS and on Linux with glibc or musl.
