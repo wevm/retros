@@ -22,9 +22,12 @@ accessibility:
   audits: {}
 
 best-practices:
+  # Reports show a title, or else the name in words.
+  title: Best Practices
   run: bun metrics/lighthouse.ts best-practices
   audits: {}
 
 seo:
+  title: SEO
   run: bun metrics/lighthouse.ts seo
   audits: {}

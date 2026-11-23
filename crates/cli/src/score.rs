@@ -101,6 +101,7 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
                 name: category.name.clone(),
                 result,
                 subject,
+                title: category.title(),
             };
 
             match result {

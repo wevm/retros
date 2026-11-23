@@ -1,5 +1,6 @@
 # Two subjects, zc and ts, measured by one script that both categories share. zc's peak memory
-# varies from round to round, and ts writes a wasm size that zc does not.
+# varies from round to round, and ts writes a wasm size that zc does not. Footprint and its peak
+# memory have titles, and the other names show in words.
 run: sh harnesses.sh
 
 speed:
@@ -7,6 +8,7 @@ speed:
   startup: { target: 30ms, description: "Spawn to exit of `--version`." }
 
 footprint:
-  turn-rss: { target: 16MB, varies: true }
+  title: Size and memory
+  turn-rss: { target: 16MB, varies: true, title: "Peak memory, one turn" }
   install-size: { target: 10MB }
   wasm-size: { target: 350kB }

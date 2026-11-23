@@ -223,6 +223,7 @@ fn scores_every_category_and_writes_reports() {
       "categories": [
         {
           "name": "footprint",
+          "title": "Footprint",
           "subject": null,
           "description": null,
           "score": 43,
@@ -230,6 +231,7 @@ fn scores_every_category_and_writes_reports() {
           "metrics": [
             {
               "name": "bundle",
+              "title": "Bundle",
               "description": null,
               "kind": "size",
               "unit": "B",
@@ -244,6 +246,7 @@ fn scores_every_category_and_writes_reports() {
             },
             {
               "name": "export-size",
+              "title": "Export size",
               "description": null,
               "kind": "size",
               "unit": "B",
@@ -309,6 +312,7 @@ fn scores_every_category_and_writes_reports() {
             },
             {
               "name": "modules",
+              "title": "Modules",
               "description": null,
               "kind": "count",
               "unit": null,
@@ -323,6 +327,7 @@ fn scores_every_category_and_writes_reports() {
             },
             {
               "name": "links",
+              "title": "Links",
               "description": null,
               "kind": "check",
               "unit": null,
@@ -355,6 +360,7 @@ fn scores_every_category_and_writes_reports() {
         },
         {
           "name": "speed",
+          "title": "Speed",
           "subject": null,
           "description": null,
           "score": 75,
@@ -362,6 +368,7 @@ fn scores_every_category_and_writes_reports() {
           "metrics": [
             {
               "name": "render",
+              "title": "Render",
               "description": null,
               "kind": "time",
               "unit": "ns",
@@ -387,6 +394,7 @@ fn scores_every_category_and_writes_reports() {
             },
             {
               "name": "throughput",
+              "title": "Throughput",
               "description": null,
               "kind": "count",
               "unit": null,
@@ -464,29 +472,29 @@ fn scores_every_category_and_writes_reports() {
 
     | Category | Score |
     | --- | --- |
-    | footprint | ▲ 43 |
-    | speed | ■ 75 |
+    | Footprint | ▲ 43 |
+    | Speed | ■ 75 |
 
     ## Opportunities
 
     | Gain | Category | Change | Value | Target |
     | --- | --- | --- | --- | --- |
-    | +29 | footprint | bundle | 27.5 kB | 5 kB |
-    | +19 | speed | render parse | 5 ms | 2 ms |
-    | +11 | footprint | links about.html | fail | pass |
-    | +3 | footprint | export-size viem/chains | 10 kB | 5 kB |
-    | +3 | footprint | export-size viem/op-stack | 9 kB | 5 kB |
+    | +29 | Footprint | Bundle | 27.5 kB | 5 kB |
+    | +19 | Speed | Render `parse` | 5 ms | 2 ms |
+    | +11 | Footprint | Links `about.html` | fail | pass |
+    | +3 | Footprint | Export size `viem/chains` | 10 kB | 5 kB |
+    | +3 | Footprint | Export size `viem/op-stack` | 9 kB | 5 kB |
 
-    ## footprint
+    ## Footprint
 
     | Score | Metric | Value | Target |
     | --- | --- | --- | --- |
-    | ▲ 3 | bundle | 27.5 kB | 5 kB |
-    | ■ 58 | export-size | p90 9 kB (viem/op-stack) | 5 kB |
-    | – | modules | 412 |  |
-    | ■ 67 | links | 2 of 3 pass |  |
+    | ▲ 3 | Bundle | 27.5 kB | 5 kB |
+    | ■ 58 | Export size | p90 9 kB (viem/op-stack) | 5 kB |
+    | – | Modules | 412 |  |
+    | ■ 67 | Links | 2 of 3 pass |  |
 
-    Worst items of `export-size`:
+    Worst items of Export size:
 
     | Item | Value | Target |
     | --- | --- | --- |
@@ -494,22 +502,22 @@ fn scores_every_category_and_writes_reports() {
     | viem/op-stack | 9 kB | 5 kB |
     | viem/utils | 8 kB | 5 kB |
 
-    Failed items of `links`:
+    Failed items of Links:
 
     | Item | Value | Target |
     | --- | --- | --- |
     | about.html | fail |  |
 
-    ## speed
+    ## Speed
 
     Values that vary between runs are the median of 5 rounds.
 
     | Score | Metric | Value | Target |
     | --- | --- | --- | --- |
-    | ▲ 34 | render | p90 5 ms (parse) | 2 ms |
-    | ● 96 | throughput | 2588 | 2000 |
+    | ▲ 34 | Render | p90 5 ms (parse) | 2 ms |
+    | ● 96 | Throughput | 2588 | 2000 |
 
-    Worst items of `render`:
+    Worst items of Render:
 
     | Item | Value | Target |
     | --- | --- | --- |
@@ -777,7 +785,7 @@ fn subjects_share_one_run_and_score_on_their_own() {
     insta::assert_snapshot!(markdown, @"
     # Retros report
 
-    | Subject | speed | footprint |
+    | Subject | Speed | Size and memory |
     | --- | --- | --- |
     | zc | ● 100 | ● 100 |
     | ts | ■ 77 | ● 97 |
@@ -786,57 +794,59 @@ fn subjects_share_one_run_and_score_on_their_own() {
 
     | Gain | Category | Change | Value | Target |
     | --- | --- | --- | --- | --- |
-    | +13 | ts: speed | startup | 40 ms | 30 ms |
+    | +13 | ts: Speed | Startup | 40 ms | 30 ms |
 
     ## Changes since retros.lock
 
     | Change | Category | Metric | Before | After |
     | --- | --- | --- | --- | --- |
-    | looser | ts: footprint | turn-rss | target 16 MB | target 57 MB |
-    | new | zc: footprint | install-size |  |  |
-    | new | ts: footprint | install-size |  |  |
-    | new | ts: footprint | wasm-size |  |  |
+    | looser | ts: Size and memory | Peak memory, one turn | target 16 MB | target 57 MB |
+    | new | zc: Size and memory | Install size |  |  |
+    | new | ts: Size and memory | Install size |  |  |
+    | new | ts: Size and memory | Wasm size |  |  |
 
-    ## zc: speed
-
-    Values that vary between runs are the median of 5 rounds.
-
-    | Score | Metric | Value | Target |
-    | --- | --- | --- | --- |
-    | ● 100 | startup | 1 ms | 30 ms |
-
-    ## zc: footprint
+    ## zc: Speed
 
     Values that vary between runs are the median of 5 rounds.
 
     | Score | Metric | Value | Target |
     | --- | --- | --- | --- |
-    | ● 100 | turn-rss | 3 MB | 16 MB |
-    | ● 100 | install-size | 2 MB | 10 MB |
+    | ● 100 | Startup | 1 ms | 30 ms |
 
-    ## ts: speed
-
-    Values that vary between runs are the median of 5 rounds.
-
-    | Score | Metric | Value | Target |
-    | --- | --- | --- | --- |
-    | ■ 77 | startup | 40 ms | 30 ms |
-
-    ## ts: footprint
+    ## zc: Size and memory
 
     Values that vary between runs are the median of 5 rounds.
 
     | Score | Metric | Value | Target |
     | --- | --- | --- | --- |
-    | ● 95 | turn-rss | 48 MB | 57 MB |
-    | ● 100 | install-size | 4 MB | 10 MB |
-    | ● 97 | wasm-size | 250 kB | 350 kB |
+    | ● 100 | Peak memory, one turn | 3 MB | 16 MB |
+    | ● 100 | Install size | 2 MB | 10 MB |
+
+    ## ts: Speed
+
+    Values that vary between runs are the median of 5 rounds.
+
+    | Score | Metric | Value | Target |
+    | --- | --- | --- | --- |
+    | ■ 77 | Startup | 40 ms | 30 ms |
+
+    ## ts: Size and memory
+
+    Values that vary between runs are the median of 5 rounds.
+
+    | Score | Metric | Value | Target |
+    | --- | --- | --- | --- |
+    | ● 95 | Peak memory, one turn | 48 MB | 57 MB |
+    | ● 100 | Install size | 4 MB | 10 MB |
+    | ● 97 | Wasm size | 250 kB | 350 kB |
     ");
 
-    // The page has a tab per subject and loads nothing from the network.
+    // The page has a tab per subject, shows titles, and loads nothing from the network.
     let html = fs::read_to_string(project.path().join(".retros/report.html")).unwrap();
     assert_eq!(html.matches("role=\"tab\"").count(), 2);
     assert!(html.contains(">zc</button>") && html.contains(">ts</button>"));
+    assert!(html.contains("<h2>Size and memory</h2>"));
+    assert!(html.contains("<span class=\"metric-title\">Peak memory, one turn</span>"));
     assert!(!html.contains("http://") && !html.contains("https://"));
 
     // The next 5 runs write zc's memory as 6 to 10 MB, which is not a change.

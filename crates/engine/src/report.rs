@@ -6,7 +6,7 @@
 
 use std::fmt::Write;
 
-use crate::config::{Better, Rollup};
+use crate::config::{self, Better, Rollup};
 use crate::format;
 use crate::lock::{Change, Direction};
 use crate::score::{self, CategoryScore, MetricScore, Opportunity};
@@ -42,12 +42,26 @@ pub struct CategoryReport {
     pub result: Result<CategoryScore, Failure>,
     /// The subject the scores belong to, or `None` when the lines name no subject.
     pub subject: Option<String>,
+    /// The name the HTML and Markdown reports show, such as `Speed`, from
+    /// [`crate::config::Category::title`].
+    pub title: String,
 }
 
 impl CategoryReport {
-    /// Returns the category's name as reports show it: `speed`, or `zc: speed` with a subject.
+    /// Returns the category's name as the terminal shows it: `speed`, or `zc: speed` with a
+    /// subject.
     pub fn label(&self) -> String {
         label(self.subject.as_deref(), &self.name)
+    }
+
+    /// Returns the title of one of the category's metrics, or the metric name in words when the
+    /// category scored no such metric.
+    pub(crate) fn metric_title(&self, metric: &str) -> String {
+        self.result
+            .as_ref()
+            .ok()
+            .and_then(|scored| scored.metrics.iter().find(|m| m.metric.name == metric))
+            .map_or_else(|| config::words(metric), |m| m.metric.title())
     }
 }
 
@@ -208,12 +222,14 @@ pub fn summary(report: &Report) -> String {
 pub fn json(report: &Report) -> String {
     let categories = report.categories.iter().map(|category| {
         let name = ("name", Json::String(category.name.clone()));
+        let title = ("title", Json::String(category.title.clone()));
         let subject = ("subject", optional(category.subject.as_deref()));
         let description = ("description", optional(category.description.as_deref()));
 
         match &category.result {
             Err(failure) => Json::Object(vec![
                 name,
+                title,
                 subject,
                 description,
                 ("score", Json::Null),
@@ -227,6 +243,7 @@ pub fn json(report: &Report) -> String {
             ]),
             Ok(scored) => Json::Object(vec![
                 name,
+                title,
                 subject,
                 description,
                 ("score", score_json(scored.score)),
@@ -300,10 +317,15 @@ pub fn markdown(report: &Report) -> String {
     let subjects = subjects(report);
     if subjects.iter().any(Option::is_some) {
         let names = names(report);
+        let titles: Vec<String> = names
+            .iter()
+            .filter_map(|name| report.categories.iter().find(|c| c.name == *name))
+            .map(|category| escape(&category.title))
+            .collect();
         let _ = writeln!(
             out,
             "| Subject | {} |\n| --- |{}",
-            names.join(" | "),
+            titles.join(" | "),
             " --- |".repeat(names.len())
         );
         for subject in &subjects {
@@ -330,7 +352,7 @@ pub fn markdown(report: &Report) -> String {
             let _ = writeln!(
                 out,
                 "| {} | {} |",
-                escape(&category.name),
+                escape(&category.title),
                 escape(&score(category))
             );
         }
@@ -346,8 +368,12 @@ pub fn markdown(report: &Report) -> String {
                 out,
                 "| {} | {} | {} | {} | {} |",
                 gain(opportunity),
-                escape(&category.label()),
-                escape(&subject(opportunity)),
+                escape(&label(category.subject.as_deref(), &category.title)),
+                escape(&titled(
+                    &category.metric_title(&opportunity.metric),
+                    opportunity.item.as_deref(),
+                    opportunity.count
+                )),
                 format::value(opportunity.value),
                 format::value(opportunity.target)
             );
@@ -363,12 +389,13 @@ pub fn markdown(report: &Report) -> String {
             "\n## Changes since retros.lock\n\n| Change | Category | Metric | Before | After |\n| --- | --- | --- | --- | --- |\n",
         );
         for change in sorted(changes) {
+            let (category, metric) = titles(report, change);
             let _ = writeln!(
                 out,
                 "| {} | {} | {} | {} | {} |",
                 change.direction.as_str(),
-                escape(&label(change.subject.as_deref(), &change.category)),
-                escape(&changed(change)),
+                escape(&label(change.subject.as_deref(), &category)),
+                escape(&titled(&metric, change.item.as_deref(), 1)),
                 side_cell(change, change.before),
                 side_cell(change, change.after)
             );
@@ -376,7 +403,11 @@ pub fn markdown(report: &Report) -> String {
     }
 
     for category in &report.categories {
-        let _ = write!(out, "\n## {}\n\n", category.label());
+        let _ = write!(
+            out,
+            "\n## {}\n\n",
+            label(category.subject.as_deref(), &category.title)
+        );
 
         let scored = match &category.result {
             Ok(scored) => scored,
@@ -403,7 +434,7 @@ pub fn markdown(report: &Report) -> String {
                 out,
                 "| {} | {} | {} | {} |",
                 compact(metric.score),
-                escape(&metric.metric.name),
+                escape(&metric.metric.title()),
                 escape(&value(metric)),
                 metric.target.map(format::value).unwrap_or_default()
             );
@@ -422,8 +453,8 @@ pub fn markdown(report: &Report) -> String {
             };
             let _ = write!(
                 out,
-                "\n{heading} of `{}`:\n\n| Item | Value | Target |\n| --- | --- | --- |\n",
-                metric.metric.name
+                "\n{heading} of {}:\n\n| Item | Value | Target |\n| --- | --- | --- |\n",
+                metric.metric.title()
             );
             for item in items {
                 let _ = writeln!(
@@ -505,7 +536,7 @@ pub(crate) fn gain(opportunity: &Opportunity) -> String {
 
 /// Names what an opportunity changes, such as `bundle`, `export-size viem/chains`, or
 /// `export-size, 4 items`.
-pub(crate) fn subject(opportunity: &Opportunity) -> String {
+fn subject(opportunity: &Opportunity) -> String {
     match (&opportunity.item, opportunity.count) {
         (Some(item), _) => format!("{} {item}", opportunity.metric),
         (None, 1) => opportunity.metric.clone(),
@@ -514,10 +545,40 @@ pub(crate) fn subject(opportunity: &Opportunity) -> String {
 }
 
 /// Names what a change concerns, such as `export-size viem/chains`.
-pub(crate) fn changed(change: &Change) -> String {
+fn changed(change: &Change) -> String {
     match &change.item {
         Some(item) => format!("{} {item}", change.metric),
         None => change.metric.clone(),
+    }
+}
+
+/// Names a metric by its title, with its item as a Markdown code span, for the HTML and Markdown
+/// reports: `Bundle`, `Export size` followed by `viem/chains` in backticks, or
+/// `Export size, 4 items`.
+pub(crate) fn titled(title: &str, item: Option<&str>, count: usize) -> String {
+    match (item, count) {
+        (Some(item), _) => format!("{title} `{item}`"),
+        (None, 1) => title.to_owned(),
+        (None, count) => format!("{title}, {count} items"),
+    }
+}
+
+/// Returns the titles of a change's category and metric, from the category of this run that
+/// scored it, or their names in words when this run has none.
+pub(crate) fn titles(report: &Report, change: &Change) -> (String, String) {
+    let category = report
+        .categories
+        .iter()
+        .find(|category| category.subject == change.subject && category.name == change.category);
+    match category {
+        Some(category) => (
+            category.title.clone(),
+            category.metric_title(&change.metric),
+        ),
+        None => (
+            config::words(&change.category),
+            config::words(&change.metric),
+        ),
     }
 }
 
@@ -667,6 +728,7 @@ fn metric_json(metric: &MetricScore) -> Json {
 
     Json::Object(vec![
         ("name", Json::String(metric.metric.name.clone())),
+        ("title", Json::String(metric.metric.title())),
         (
             "description",
             optional(metric.metric.description.as_deref()),
@@ -716,7 +778,8 @@ fn optional(text: Option<&str>) -> Json {
     text.map_or(Json::Null, |text| Json::String(text.to_owned()))
 }
 
-fn rollup(rollup: Rollup) -> &'static str {
+/// Returns the name of a roll-up as reports write it, such as `p90`.
+pub(crate) fn rollup(rollup: Rollup) -> &'static str {
     match rollup {
         Rollup::Max => "max",
         Rollup::Median => "median",

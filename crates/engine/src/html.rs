@@ -1,15 +1,17 @@
 //! The HTML report: one self-contained page, with inline styles and a small inline script, that
-//! makes no network requests. It shows a tab per subject, a gauge per category, each metric with
-//! its value, target, and description, the worst items of each list, the opportunities that would
-//! raise each category most, and the changes since `retros.lock`. Like the other reports, it has
-//! no timestamps or paths, so the same scores always produce the same bytes.
+//! makes no network requests. It follows Lighthouse's report: a tab per subject, a gauge per
+//! category, and for each category a grid of metrics, each with its value against its target and
+//! its share of the score, then a collapsible row per list of items. Opportunities and the changes
+//! since `retros.lock` come first. Like the other reports, it has no timestamps or paths, so the
+//! same scores always produce the same bytes.
 
 use std::fmt::Write;
 
+use crate::config::Better;
 use crate::format;
 use crate::lock::{Change, Direction};
 use crate::report::{self, CategoryReport, Report};
-use crate::score::{CategoryScore, MetricScore};
+use crate::score::{CategoryScore, Item, MetricScore};
 use crate::value::{Kind, Value};
 
 /// How many items of a list the page shows under its metric, worst first.
@@ -65,7 +67,12 @@ fn compare(out: &mut String, report: &Report, subjects: &[Option<&str>]) {
 
     out.push_str("<div class=\"scroll\"><table class=\"compare\">\n<thead><tr><th scope=\"col\">Subject</th>");
     for name in &names {
-        let _ = write!(out, "<th scope=\"col\">{}</th>", escape(name));
+        let title = report
+            .categories
+            .iter()
+            .find(|category| category.name == *name)
+            .map_or(*name, |category| category.title.as_str());
+        let _ = write!(out, "<th scope=\"col\">{}</th>", escape(title));
     }
     out.push_str("</tr></thead>\n<tbody>\n");
 
@@ -116,10 +123,11 @@ fn panel(out: &mut String, report: &Report, subject: Option<&str>, index: usize)
             band_class(score),
             anchor(category),
             gauge(score, category.result.is_err()),
-            escape(&category.name)
+            escape(&category.title)
         );
     }
     out.push_str("</nav>\n");
+    out.push_str(SCALE);
 
     let opportunities: Vec<_> = report::opportunities(report)
         .into_iter()
@@ -132,13 +140,18 @@ fn panel(out: &mut String, report: &Report, subject: Option<&str>, index: usize)
             .fold(0.0, f64::max);
         out.push_str("<section class=\"block\">\n<h2>Opportunities</h2>\n<p class=\"muted\">The changes that would raise each category most, in category points.</p>\n<ul class=\"opportunities\">\n");
         for (category, opportunity) in &opportunities {
+            let metric = category.metric_title(&opportunity.metric);
             let _ = writeln!(
                 out,
-                "<li><span class=\"gain\">{}</span><span class=\"bar\" aria-hidden=\"true\"><span style=\"width:{:.0}%\"></span></span><span class=\"what\"><span class=\"muted\">{}</span> {}</span><span class=\"to\">{} → {}</span></li>",
+                "<li><span class=\"gain\">{}</span><span class=\"bar-gain\" aria-hidden=\"true\"><span style=\"width:{:.0}%\"></span></span><span class=\"what\"><span class=\"muted\">{}</span> {}</span><span class=\"to\">{} → {}</span></li>",
                 escape(&report::gain(opportunity)),
                 opportunity.gain / most * 100.0,
-                escape(&category.name),
-                escape(&report::subject(opportunity)),
+                escape(&category.title),
+                inline(&report::titled(
+                    &metric,
+                    opportunity.item.as_deref(),
+                    opportunity.count
+                )),
                 escape(&format::value(opportunity.value)),
                 escape(&format::value(opportunity.target))
             );
@@ -157,13 +170,14 @@ fn panel(out: &mut String, report: &Report, subject: Option<&str>, index: usize)
         } else {
             out.push_str("<ul class=\"changes\">\n");
             for change in changes {
+                let (category, metric) = report::titles(report, change);
                 let _ = writeln!(
                     out,
                     "<li><span class=\"chip {}\">{}</span><span class=\"what\"><span class=\"muted\">{}</span> {}</span><span class=\"to\">{}</span></li>",
                     direction_class(change.direction),
                     change.direction.as_str(),
-                    escape(&change.category),
-                    escape(&report::changed(change)),
+                    escape(&category),
+                    inline(&report::titled(&metric, change.item.as_deref(), 1)),
                     escape(&report::values(change))
                 );
             }
@@ -173,156 +187,399 @@ fn panel(out: &mut String, report: &Report, subject: Option<&str>, index: usize)
     }
 
     for category in categories {
-        let _ = writeln!(
-            out,
-            "<section class=\"category\" id=\"{}\">",
-            anchor(category)
-        );
-        let score = category
-            .result
-            .as_ref()
-            .ok()
-            .and_then(|scored| scored.score);
-        let _ = writeln!(
-            out,
-            "<h2><span class=\"mini {}\">{}</span>{}</h2>",
-            band_class(score),
-            score.map_or_else(|| "–".to_owned(), |score| score.to_string()),
-            escape(&category.name)
-        );
-        if let Some(description) = &category.description {
-            let _ = writeln!(out, "<p class=\"muted\">{}</p>", inline(description));
-        }
-
-        match &category.result {
-            Err(failure) => {
-                let _ = writeln!(
-                    out,
-                    "<p class=\"failure\">✗ {}</p>",
-                    escape(&failure.message)
-                );
-                if !failure.details.is_empty() {
-                    let _ = writeln!(out, "<pre>{}</pre>", escape(&failure.details));
-                }
-            }
-            Ok(scored) => metrics(out, scored),
-        }
-        out.push_str("</section>\n");
+        self::category(out, category, &anchor(category));
     }
 }
 
-/// Writes a category's metrics in the order `retros.yaml` declares them.
-fn metrics(out: &mut String, scored: &CategoryScore) {
+/// Writes one category: a header with its gauge, title, and description, then its metrics and
+/// its lists of items, or why it has no scores.
+fn category(out: &mut String, category: &CategoryReport, id: &str) {
+    let score = category
+        .result
+        .as_ref()
+        .ok()
+        .and_then(|scored| scored.score);
+
+    let _ = writeln!(
+        out,
+        "<section class=\"category\" id=\"{id}\">\n<header class=\"category-head\"><div class=\"gauge large {}\">{}</div><h2>{}</h2>",
+        band_class(score),
+        gauge(score, category.result.is_err()),
+        escape(&category.title)
+    );
+    if let Some(description) = &category.description {
+        let _ = writeln!(out, "<p class=\"muted\">{}</p>", inline(description));
+    }
+    out.push_str("</header>\n");
+
+    match &category.result {
+        Err(failure) => {
+            let _ = writeln!(
+                out,
+                "<p class=\"failure\">✗ {}</p>",
+                escape(&failure.message)
+            );
+            if !failure.details.is_empty() {
+                let _ = writeln!(out, "<pre>{}</pre>", escape(&failure.details));
+            }
+        }
+        Ok(scored) => {
+            metrics(out, scored, id);
+            lists(out, scored);
+        }
+    }
+    out.push_str("</section>\n");
+}
+
+/// Writes a category's metrics as a grid in the order `retros.yaml` declares them, with the strip
+/// that shows how their scores make up the category's.
+fn metrics(out: &mut String, scored: &CategoryScore, id: &str) {
+    out.push_str("<div class=\"group-head\"><h3>Metrics</h3>");
+    if scored
+        .metrics
+        .iter()
+        .any(|metric| metric.metric.description.is_some())
+    {
+        let _ = write!(
+            out,
+            "<button class=\"expand\" type=\"button\" aria-controls=\"{id}-metrics\" aria-expanded=\"false\">Expand view</button>"
+        );
+    }
+    out.push_str("</div>\n");
+
     if scored.rounds > 1 {
         let _ = writeln!(
             out,
-            "<p class=\"muted\">Values that vary between runs are the median of {} rounds.</p>",
+            "<p class=\"note muted\">Values that vary between runs are the median of {} rounds.</p>",
             scored.rounds
         );
     }
 
-    out.push_str("<ul class=\"metrics\">\n");
+    let total: f64 = scored
+        .metrics
+        .iter()
+        .filter(|metric| counts(metric))
+        .map(|metric| metric.metric.weight)
+        .sum();
+
+    strip(out, scored, total);
+
+    let _ = writeln!(out, "<ul class=\"grid\" id=\"{id}-metrics\">");
     for metric in &scored.metrics {
-        let row = row(metric);
-        let shown: Vec<_> = metric.items.iter().take(ITEMS).collect();
-
-        if shown.is_empty() {
-            let _ = writeln!(out, "<li><div class=\"row\">{row}</div></li>");
-            continue;
-        }
-
-        // Checks have no targets, so their table leaves the column out.
-        let check = metric.kind == Kind::Check;
-        let _ = writeln!(
-            out,
-            "<li><details><summary class=\"row\">{row}</summary>\n<div class=\"scroll\"><table class=\"items\">\n<thead><tr><th scope=\"col\">Item</th><th scope=\"col\">Value</th>{}</tr></thead>\n<tbody>",
-            if check {
-                ""
-            } else {
-                "<th scope=\"col\">Target</th>"
-            }
-        );
-        for item in &shown {
-            let value = match item.value {
-                Value::Check(passed) => format!(
-                    "<span class=\"chip {}\">{}</span>",
-                    if passed { "good" } else { "poor" },
-                    if passed { "pass" } else { "fail" }
-                ),
-                value => escape(&format::value(value)),
-            };
-            let target = if check {
-                String::new()
-            } else {
-                format!(
-                    "<td>{}</td>",
-                    item.target
-                        .or(metric.metric.target)
-                        .map(|target| escape(&format::value(target)))
-                        .unwrap_or_default()
-                )
-            };
-            let _ = writeln!(
-                out,
-                "<tr><td>{}</td><td>{value}</td>{target}</tr>",
-                escape(&item.name)
-            );
-        }
-        out.push_str("</tbody>\n</table></div>\n");
-        if metric.items.len() > ITEMS {
-            let _ = writeln!(
-                out,
-                "<p class=\"muted\">And {} more in report.json.</p>",
-                metric.items.len() - ITEMS
-            );
-        }
-        out.push_str("</details></li>\n");
+        card(out, metric, total);
     }
     out.push_str("</ul>\n");
 }
 
-/// Renders a metric's row: its band, score, name, description, value, and target.
-fn row(metric: &MetricScore) -> String {
-    let mut row = format!(
-        "<span class=\"shape {}\" aria-hidden=\"true\"></span><span class=\"score\">{}</span><span class=\"name\">{}",
-        band_class(metric.score),
+/// Writes the strip that shows how a category's score is made: one part per metric that counts,
+/// as wide as its weight and filled to its score, so the empty part of each is the points the
+/// metric costs the category. A category with fewer than two such metrics has no strip.
+fn strip(out: &mut String, scored: &CategoryScore, total: f64) {
+    let parts: Vec<&MetricScore> = scored.metrics.iter().filter(|m| counts(m)).collect();
+    if parts.len() < 2 {
+        return;
+    }
+
+    let describe = |metric: &MetricScore| {
+        format!(
+            "{}: {:.0}% of the score, scores {}",
+            metric.metric.title(),
+            metric.metric.weight / total * 100.0,
+            metric.score.unwrap_or_default()
+        )
+    };
+    let label: Vec<String> = parts.iter().map(|metric| describe(metric)).collect();
+
+    let _ = write!(
+        out,
+        "<div class=\"strip\" role=\"img\" aria-label=\"{}\">",
+        escape(&label.join(". "))
+    );
+    for metric in parts {
+        let score = metric.score.unwrap_or_default();
+        let _ = write!(
+            out,
+            "<span class=\"part {}\" style=\"flex-grow:{:.3}\" title=\"{}\"><span style=\"width:{score}%\"></span></span>",
+            band_class(metric.score),
+            metric.metric.weight,
+            escape(&describe(metric))
+        );
+    }
+    out.push_str("</div>\n<p class=\"note muted\">Each part is one metric's share of the score, filled to its score.</p>\n");
+}
+
+/// Writes one metric of the grid: its band, title, and score, its value in its band's color, its
+/// value against its target, its share of the category's score, and its description, which shows
+/// in the expanded view.
+fn card(out: &mut String, metric: &MetricScore, total: f64) {
+    let band = band_class(metric.score);
+    let _ = write!(
+        out,
+        "<li class=\"metric\"><div class=\"metric-head\"><span class=\"shape {band}\" aria-hidden=\"true\"></span><span class=\"metric-title\">{}</span><span class=\"metric-score {band}\">{}</span></div><div class=\"metric-value {band}\">{}</div>",
+        escape(&metric.metric.title()),
         metric
             .score
             .map_or_else(|| "–".to_owned(), |score| score.to_string()),
-        escape(&metric.metric.name)
+        escape(&headline(metric))
     );
+
+    if metric.kind != Kind::Check && !metric.items.is_empty() {
+        let count = metric.items.len();
+        let items = format!("{count} {}", if count == 1 { "item" } else { "items" });
+        let rollup = report::rollup(metric.metric.score);
+        let at = match (&metric.at, rollup) {
+            (_, "sum") => format!("Sum of {items}"),
+            (Some(item), _) => format!("{rollup} of {items}, at <code>{}</code>", escape(item)),
+            (None, _) => format!("{rollup} of {items}"),
+        };
+        let _ = write!(out, "<div class=\"metric-at muted\">{at}</div>");
+    }
+
+    let target = metric.target.and_then(Value::amount);
+    match (metric.kind, target) {
+        (Kind::Check, _) if !metric.items.is_empty() => {
+            let _ = write!(
+                out,
+                "<div class=\"ratio\" aria-hidden=\"true\"><span style=\"width:{:.1}%\"></span></div>",
+                metric.value * 100.0
+            );
+        }
+        (Kind::Check, _) | (_, None) => {}
+        (_, Some(target)) => {
+            out.push_str(&bar(metric.value, target, metric.metric.better, band));
+        }
+    }
+
+    let goal = match (metric.kind, metric.target) {
+        (Kind::Check, _) => String::new(),
+        (_, Some(target)) => format!("Target {}", format::value(target)),
+        (_, None) => "No target".to_owned(),
+    };
+    let share = match metric.score {
+        Some(score) if counts(metric) => {
+            let share = metric.metric.weight / total;
+            let lost = share * f64::from(100 - score);
+            let mut text = format!("{:.0}% of score", (share * 100.0).round());
+            if lost >= 0.5 {
+                let lost = lost.round();
+                let _ = write!(
+                    text,
+                    " · <span class=\"lost {band}\">−{lost:.0} {}</span>",
+                    if lost > 1.0 { "points" } else { "point" }
+                );
+            }
+            text
+        }
+        Some(_) => "Not in score".to_owned(),
+        None => String::new(),
+    };
+    let _ = write!(
+        out,
+        "<div class=\"metric-foot\"><span>{}</span><span>{share}</span></div>",
+        escape(&goal)
+    );
+
     if let Some(description) = &metric.metric.description {
         let _ = write!(
-            row,
-            "<span class=\"description\">{}</span>",
+            out,
+            "<p class=\"metric-description\">{}</p>",
             inline(description)
         );
     }
-    let _ = write!(
-        row,
-        "</span><span class=\"value\">{}</span><span class=\"target\">{}</span>",
-        escape(&report::value(metric)),
-        escape(&report::target(metric))
-    );
-    if metric.kind != Kind::Check && metric.items.len() > 1 {
-        let _ = write!(
-            row,
-            "<span class=\"count\">{} items</span>",
-            metric.items.len()
-        );
-    }
-    row
+    out.push_str("</li>\n");
 }
 
-/// Renders a score gauge: a ring filled to the score in its band's color.
+/// Returns a metric's value as the grid shows it: `27.1 ms`, `pass`, or `5 of 6 pass`.
+fn headline(metric: &MetricScore) -> String {
+    if metric.kind == Kind::Check {
+        return report::value(metric);
+    }
+    format::amount(metric.kind, metric.value)
+}
+
+/// Writes a collapsible row for each metric with items, as Lighthouse lists its audits. Lists
+/// with an item that misses its target come first, and lists that meet every target close under
+/// a Passed group.
+fn lists(out: &mut String, scored: &CategoryScore) {
+    let lists: Vec<&MetricScore> = scored
+        .metrics
+        .iter()
+        .filter(|metric| !metric.items.is_empty())
+        .collect();
+    if lists.is_empty() {
+        return;
+    }
+
+    let (passed, open): (Vec<&MetricScore>, Vec<&MetricScore>) =
+        lists.into_iter().partition(|metric| {
+            let judged: Vec<bool> = metric
+                .items
+                .iter()
+                .filter_map(|item| missed(item, metric))
+                .collect();
+            !judged.is_empty() && !judged.contains(&true)
+        });
+
+    out.push_str("<div class=\"group-head\"><h3>Items</h3></div>\n");
+    if !open.is_empty() {
+        out.push_str("<ul class=\"audits\">\n");
+        for metric in open {
+            audit(out, metric);
+        }
+        out.push_str("</ul>\n");
+    }
+    if !passed.is_empty() {
+        let _ = writeln!(
+            out,
+            "<details class=\"passed\"><summary>Passed <span class=\"muted\">({})</span></summary>\n<ul class=\"audits\">",
+            passed.len()
+        );
+        for metric in passed {
+            audit(out, metric);
+        }
+        out.push_str("</ul>\n</details>\n");
+    }
+}
+
+/// Writes one list's row: its band, title, and how many items miss, which opens on a table of its
+/// items, worst first, each against its own target.
+fn audit(out: &mut String, metric: &MetricScore) {
+    let count = metric.items.len();
+    let judged: Vec<bool> = metric
+        .items
+        .iter()
+        .filter_map(|item| missed(item, metric))
+        .collect();
+    let misses = judged.iter().filter(|missed| **missed).count();
+    let check = metric.kind == Kind::Check;
+
+    let summary = match (check, judged.is_empty(), misses) {
+        (true, _, 0) => format!("All {count} pass"),
+        (true, _, misses) => format!("{misses} of {count} fail"),
+        (false, true, _) => format!("{count} items"),
+        (false, false, 0) => format!("All {count} meet their target"),
+        (false, false, misses) => format!("{misses} of {count} miss their target"),
+    };
+
+    let _ = writeln!(
+        out,
+        "<li><details><summary class=\"audit\"><span class=\"shape {}\" aria-hidden=\"true\"></span><span class=\"audit-title\">{}</span><span class=\"audit-summary\">{}</span></summary>\n<div class=\"scroll\"><table class=\"items\">\n<thead><tr><th scope=\"col\">Item</th><th scope=\"col\">{}</th>{}</tr></thead>\n<tbody>",
+        band_class(metric.score),
+        escape(&metric.metric.title()),
+        escape(&summary),
+        if check { "Result" } else { "Value" },
+        if check {
+            ""
+        } else {
+            "<th scope=\"col\">Target</th><th class=\"cell-bar\" scope=\"col\"><span class=\"hidden\">Against target</span></th>"
+        }
+    );
+
+    for item in metric.items.iter().take(ITEMS) {
+        let target = item.target.or(metric.metric.target);
+        let cells = match (item.value, target.and_then(Value::amount)) {
+            (Value::Check(passed), _) => format!(
+                "<td><span class=\"chip {}\">{}</span></td>",
+                if passed { "good" } else { "poor" },
+                if passed { "pass" } else { "fail" }
+            ),
+            (value, Some(goal)) => {
+                let amount = value.amount().unwrap_or_default();
+                let band = band_of(amount, goal, metric.metric.better);
+                format!(
+                    "<td class=\"value {band}\">{}</td><td>{}</td><td class=\"cell-bar\">{}</td>",
+                    escape(&format::value(value)),
+                    escape(&target.map(format::value).unwrap_or_default()),
+                    bar(amount, goal, metric.metric.better, band)
+                )
+            }
+            (value, None) => format!(
+                "<td class=\"value\">{}</td><td></td><td class=\"cell-bar\"></td>",
+                escape(&format::value(value))
+            ),
+        };
+        let _ = writeln!(out, "<tr><td>{}</td>{cells}</tr>", escape(&item.name));
+    }
+    out.push_str("</tbody>\n</table></div>\n");
+
+    if count > ITEMS {
+        let _ = writeln!(
+            out,
+            "<p class=\"muted more\">And {} more in report.json.</p>",
+            count - ITEMS
+        );
+    }
+    out.push_str("</details></li>\n");
+}
+
+/// Returns whether an item misses its target: a check that fails, or a value past its own target.
+/// `None` for a value without a target.
+fn missed(item: &Item, metric: &MetricScore) -> Option<bool> {
+    match item.value {
+        Value::Check(passed) => Some(!passed),
+        value => {
+            let target = item.target.or(metric.metric.target)?.amount()?;
+            let amount = value.amount()?;
+            Some(match metric.metric.better {
+                Better::Lower => amount > target,
+                Better::Higher => amount < target,
+            })
+        }
+    }
+}
+
+/// Renders a value against its target on a bar of the three score bands. Where lower is better,
+/// the bar runs from zero to three times the target, so the target, which scores 90, sits a third
+/// of the way along, and twice the target, which scores 50, two thirds. Where higher is better,
+/// it runs from zero to one and a half times the target, so half the target sits a third along
+/// and the target two thirds. A value past either end sits at that end.
+fn bar(value: f64, target: f64, better: Better, band: &str) -> String {
+    let (span, tick, direction) = match better {
+        Better::Lower => (3.0 * target, 100.0 / 3.0, "lower"),
+        Better::Higher => (1.5 * target, 200.0 / 3.0, "higher"),
+    };
+    let at = (value / span).clamp(0.0, 1.0) * 100.0;
+    format!(
+        "<div class=\"bar {direction}\" aria-hidden=\"true\"><span class=\"tick\" style=\"left:{tick:.1}%\"></span><span class=\"marker {band}\" style=\"left:{at:.1}%\"></span></div>"
+    )
+}
+
+/// Returns the class of the band a value falls in against its target, on the boundaries of
+/// [`crate::score::curve`]: at or better than the target is good, up to twice the target (half,
+/// where higher is better) needs work, and beyond that is poor.
+fn band_of(value: f64, target: f64, better: Better) -> &'static str {
+    let ratio = match better {
+        Better::Lower => value / target,
+        Better::Higher if value <= 0.0 => f64::INFINITY,
+        Better::Higher => target / value,
+    };
+    match ratio {
+        r if r <= 1.0 => "good",
+        r if r <= 2.0 => "average",
+        _ => "poor",
+    }
+}
+
+/// Returns whether a metric counts toward its category's score: it has a score and a weight.
+fn counts(metric: &MetricScore) -> bool {
+    metric.score.is_some() && metric.metric.weight > 0.0
+}
+
+/// Renders a score gauge: a ring filled to the score in its band's color. Without a score the
+/// ring stays empty, since a round cap would draw even an arc of length zero.
 fn gauge(score: Option<u8>, failed: bool) -> String {
-    let (fill, text) = match score {
-        Some(score) => (score, score.to_string()),
-        None if failed => (0, "✗".to_owned()),
-        None => (0, "–".to_owned()),
+    let (arc, text) = match score {
+        Some(score) => (
+            format!(
+                "<circle class=\"arc\" cx=\"60\" cy=\"60\" r=\"52\" pathLength=\"100\" stroke-dasharray=\"{score} 100\" transform=\"rotate(-90 60 60)\"/>"
+            ),
+            score.to_string(),
+        ),
+        None if failed => (String::new(), "✗".to_owned()),
+        None => (String::new(), "–".to_owned()),
     };
     format!(
-        "<svg viewBox=\"0 0 120 120\" aria-hidden=\"true\"><circle class=\"track\" cx=\"60\" cy=\"60\" r=\"52\"/><circle class=\"arc\" cx=\"60\" cy=\"60\" r=\"52\" pathLength=\"100\" stroke-dasharray=\"{fill} 100\" transform=\"rotate(-90 60 60)\"/></svg><span class=\"gauge-score\">{text}</span>"
+        "<svg viewBox=\"0 0 120 120\" aria-hidden=\"true\"><circle class=\"track\" cx=\"60\" cy=\"60\" r=\"52\"/>{arc}</svg><span class=\"gauge-score\">{text}</span>"
     )
 }
 
@@ -390,6 +647,9 @@ fn escape(text: &str) -> String {
     out
 }
 
+/// Lighthouse's legend of the three score bands.
+const SCALE: &str = "<div class=\"scale\"><span><span class=\"shape poor\" aria-hidden=\"true\"></span>0–49</span><span><span class=\"shape average\" aria-hidden=\"true\"></span>50–89</span><span><span class=\"shape good\" aria-hidden=\"true\"></span>90–100</span></div>\n";
+
 /// The document head and styles. Colors follow Lighthouse's bands, in light and dark schemes.
 const HEAD: &str = r#"<!doctype html>
 <html lang="en">
@@ -405,10 +665,11 @@ const HEAD: &str = r#"<!doctype html>
 body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 main{max-width:960px;margin:0 auto;padding:24px 20px 64px}
 h1{font-size:22px;margin:0 0 16px}
-h2{font-size:18px;margin:0 0 8px;display:flex;align-items:center;gap:10px}
+h2{font-size:18px;margin:0 0 8px}
 a{color:inherit}
 :focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .muted{color:var(--muted)}
+.hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .scroll{overflow-x:auto}
 table{border-collapse:collapse;width:100%}
 th,td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
@@ -425,7 +686,7 @@ th{font-weight:600}
 .tabs button{font:inherit;font-weight:600;color:var(--muted);background:none;border:0;border-bottom:3px solid transparent;padding:10px 14px;cursor:pointer;white-space:nowrap}
 .tabs button[aria-selected=true]{color:var(--fg);border-bottom-color:var(--focus)}
 .tabs button:hover{color:var(--fg)}
-.gauges{display:flex;flex-wrap:wrap;justify-content:center;gap:12px 28px;padding:12px 0 24px;border-bottom:1px solid var(--line);margin-bottom:24px}
+.gauges{display:flex;flex-wrap:wrap;justify-content:center;gap:12px 28px;padding:12px 0 8px}
 .gauge{position:relative;display:flex;flex-direction:column;align-items:center;min-width:104px;text-decoration:none;border-radius:8px;padding:4px}
 .gauge svg{width:88px;height:88px}
 .gauge .track{fill:var(--bg);stroke:var(--soft);stroke-width:8}
@@ -435,39 +696,79 @@ th{font-weight:600}
 .gauge-score{position:absolute;top:4px;left:0;right:0;height:88px;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:600;font-variant-numeric:tabular-nums}
 .gauge.good .gauge-score{color:var(--good-fg)}.gauge.average .gauge-score{color:var(--average-fg)}.gauge.poor .gauge-score{color:var(--poor-fg)}.gauge.none .gauge-score{color:var(--none-fg)}
 .gauge-label{margin-top:6px;font-weight:600;text-align:center;white-space:nowrap}
+.gauge.large{min-width:0;padding:0}
+.gauge.large svg{width:112px;height:112px}
+.gauge.large .gauge-score{top:0;height:112px;font-size:34px}
 @keyframes fill{from{stroke-dasharray:0 100}}
 @media (prefers-reduced-motion:reduce){.gauge .arc{animation:none}}
-.block,.category{margin:0 0 32px}
-.mini{display:inline-flex;align-items:center;justify-content:center;flex:none;width:42px;height:42px;border-radius:50%;font-size:14px;font-variant-numeric:tabular-nums;font-weight:600;border:3px solid var(--none);color:var(--none-fg)}
-.mini.good{border-color:var(--good);color:var(--good-fg)}.mini.average{border-color:var(--average);color:var(--average-fg)}.mini.poor{border-color:var(--poor);color:var(--poor-fg)}
-.metrics,.opportunities,.changes{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
-.metrics>li,.opportunities>li,.changes>li{border-bottom:1px solid var(--line)}
-.row{display:grid;grid-template-columns:14px 34px minmax(0,1fr) auto minmax(110px,auto);align-items:baseline;gap:4px 12px;padding:10px 4px}
-summary.row{cursor:pointer;list-style:none;grid-template-columns:14px 34px minmax(0,1fr) auto minmax(110px,auto) 16px}
-summary.row::-webkit-details-marker{display:none}
-summary.row::after{grid-column:6;grid-row:1;content:"";width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);align-self:center;justify-self:center}
-details[open]>summary.row::after{transform:rotate(-135deg)}
-summary.row:hover{background:var(--soft)}
-.shape{width:12px;height:12px;align-self:start;margin-top:5px;background:var(--none)}
-.shape.good{background:var(--good);border-radius:50%}
-.shape.average{background:var(--average)}
-.shape.poor{width:0;height:0;background:none;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:11px solid var(--poor)}
-.shape.none{border-radius:50%;background:var(--none)}
-.score{font-weight:600;font-variant-numeric:tabular-nums}
-.name{font-weight:600;overflow-wrap:anywhere}
-.description{display:block;font-weight:400;color:var(--muted);font-size:14px}
+.scale{display:flex;justify-content:center;gap:20px;font-size:13px;color:var(--muted);padding:4px 0 20px;border-bottom:1px solid var(--line);margin-bottom:28px}
+.scale>span{display:inline-flex;align-items:center;gap:6px}
+.block{margin:0 0 32px}
+.category{margin:0 0 48px;padding-top:8px}
+.category-head{display:flex;flex-direction:column;align-items:center;text-align:center;margin-bottom:20px}
+.category-head h2{font-size:22px;font-weight:500;margin:10px 0 4px}
+.category-head p{max-width:640px;margin:0}
+.group-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line);padding:8px 0 6px;margin-top:20px}
+.group-head h3{margin:0;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.expand{font:inherit;font-size:13px;color:var(--focus);background:none;border:0;padding:2px 4px;cursor:pointer}
+.expand:hover{text-decoration:underline}
+.note{font-size:13px;margin:8px 0 0}
+.strip{display:flex;gap:3px;height:10px;margin:14px 0 0}
+.part{flex-basis:0;min-width:4px;border-radius:2px;overflow:hidden;background:var(--none-bg)}
+.part.good{background:var(--good-bg)}.part.average{background:var(--average-bg)}.part.poor{background:var(--poor-bg)}
+.part>span{display:block;height:100%;background:var(--none)}
+.part.good>span{background:var(--good)}.part.average>span{background:var(--average)}.part.poor>span{background:var(--poor)}
+.grid{list-style:none;margin:6px 0 0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:40px}
+.metric{border-bottom:1px solid var(--line);padding:14px 0 12px}
+.metric-head{display:flex;align-items:center;gap:10px}
+.metric-title{font-weight:500;overflow-wrap:anywhere}
+.metric-score{margin-left:auto;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
+.metric-value{font-size:28px;line-height:1.25;margin:4px 0 0;font-variant-numeric:tabular-nums}
+.good.metric-value,.good.metric-score,.value.good,.lost.good{color:var(--good-fg)}
+.average.metric-value,.average.metric-score,.value.average,.lost.average{color:var(--average-fg)}
+.poor.metric-value,.poor.metric-score,.value.poor,.lost.poor{color:var(--poor-fg)}
+.none.metric-score{color:var(--none-fg)}
+.metric-at{font-size:13px;overflow-wrap:anywhere}
+.bar{position:relative;height:6px;border-radius:3px;margin:12px 7px 8px;background:linear-gradient(to right,color-mix(in srgb,var(--good) 40%,transparent) 0 33.33%,color-mix(in srgb,var(--average) 40%,transparent) 33.33% 66.67%,color-mix(in srgb,var(--poor) 40%,transparent) 66.67%)}
+.bar.higher{background:linear-gradient(to right,color-mix(in srgb,var(--poor) 40%,transparent) 0 33.33%,color-mix(in srgb,var(--average) 40%,transparent) 33.33% 66.67%,color-mix(in srgb,var(--good) 40%,transparent) 66.67%)}
+.tick{position:absolute;top:-4px;bottom:-4px;width:2px;margin-left:-1px;border-radius:1px;background:var(--fg)}
+.marker{position:absolute;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;border:2px solid var(--bg);background:var(--none)}
+.marker.good{background:var(--good)}.marker.average{background:var(--average)}.marker.poor{background:var(--poor)}
+.ratio{height:6px;border-radius:3px;margin:12px 0 8px;background:var(--poor);overflow:hidden}
+.ratio>span{display:block;height:100%;background:var(--good)}
+.metric-foot{display:flex;justify-content:space-between;gap:12px;font-size:13px;color:var(--muted)}
+.metric-description{display:none;margin:8px 0 0;font-size:14px;color:var(--muted)}
+.category.expanded .metric-description{display:block}
 code{font:13px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--soft);padding:1px 4px;border-radius:4px}
-.value{font-variant-numeric:tabular-nums;text-align:right;overflow-wrap:anywhere}
-.target{color:var(--muted);text-align:right}
-.count{grid-column:3;grid-row:2;color:var(--muted);font-size:13px}
+.shape{display:inline-block;flex:none;width:12px;height:12px;background:var(--none);border-radius:50%}
+.shape.good{background:var(--good)}
+.shape.average{background:var(--average);border-radius:0}
+.shape.poor{width:0;height:0;background:none;border-radius:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:11px solid var(--poor)}
+.audits{list-style:none;margin:0;padding:0}
+.audits>li{border-bottom:1px solid var(--line)}
+summary.audit{display:grid;grid-template-columns:14px minmax(0,1fr) auto 16px;align-items:center;gap:4px 12px;padding:11px 4px;cursor:pointer;list-style:none}
+summary.audit::-webkit-details-marker,.passed>summary::-webkit-details-marker{display:none}
+summary.audit::after,.passed>summary::after{content:"";width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);justify-self:center}
+details[open]>summary.audit::after,.passed[open]>summary::after{transform:rotate(-135deg)}
+summary.audit:hover,.passed>summary:hover{background:var(--soft)}
+.audit-title{font-weight:500;overflow-wrap:anywhere}
+.audit-summary{font-size:14px;color:var(--muted);text-align:right}
+.passed>summary{display:flex;align-items:center;gap:8px;padding:11px 4px;cursor:pointer;list-style:none;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid var(--line)}
+.passed>summary::after{margin-left:auto}
 .items{margin:0 0 12px;font-size:14px}
-.items td:nth-child(2),.items td:nth-child(3),.items th:nth-child(2),.items th:nth-child(3){text-align:right}
 .items td:first-child{white-space:normal;overflow-wrap:anywhere}
+.items .value{text-align:right;font-variant-numeric:tabular-nums}
+.items th:nth-child(2){text-align:right}
+.cell-bar{width:160px}
+.cell-bar .bar{margin:0 7px}
+.more{font-size:14px}
+.opportunities,.changes{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
+.opportunities>li,.changes>li{border-bottom:1px solid var(--line)}
 .opportunities li,.changes li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:4px 12px;padding:10px 4px}
 .opportunities li{grid-template-columns:44px 120px minmax(0,1fr) auto}
 .gain{font-weight:600;color:var(--good-fg);font-variant-numeric:tabular-nums}
-.bar{height:8px;border-radius:4px;background:var(--soft);overflow:hidden}
-.bar span{display:block;height:100%;background:var(--good)}
+.bar-gain{height:8px;border-radius:4px;background:var(--soft);overflow:hidden}
+.bar-gain span{display:block;height:100%;background:var(--good)}
 .what{overflow-wrap:anywhere}
 .to{font-variant-numeric:tabular-nums;white-space:nowrap}
 .failure{color:var(--poor-fg);font-weight:600}
@@ -476,22 +777,24 @@ pre{background:var(--soft);padding:12px;border-radius:6px;overflow-x:auto;font-s
 main{padding:16px 12px 48px}
 .gauges{gap:8px 12px}
 .gauge{min-width:84px}.gauge svg{width:68px;height:68px}.gauge-score{height:68px;font-size:20px}.gauge-label{font-size:14px}
-.row,summary.row{grid-template-columns:14px 34px minmax(0,1fr) 16px}
-.row:not(summary){grid-template-columns:14px 34px minmax(0,1fr)}
-.value,.target{grid-column:3;grid-row:auto;text-align:left}
-.count{grid-row:auto}
-summary.row::after{grid-column:4;grid-row:1}
+.gauge.large svg{width:96px;height:96px}.gauge.large .gauge-score{height:96px;font-size:30px}
+.grid{grid-template-columns:minmax(0,1fr)}
+summary.audit{grid-template-columns:14px minmax(0,1fr) 16px}
+summary.audit::after{grid-column:3;grid-row:1}
+.audit-summary{grid-column:2;text-align:left}
+.cell-bar{display:none}
 .opportunities li{grid-template-columns:44px minmax(0,1fr)}
-.opportunities .bar{display:none}
+.opportunities .bar-gain{display:none}
 .opportunities .to,.changes .to{grid-column:2;white-space:normal}
 }
 </style>
-<noscript><style>[role=tabpanel][hidden]{display:block}.tabs{display:none}</style></noscript>
+<noscript><style>[role=tabpanel][hidden]{display:block}.tabs,.expand{display:none}.metric-description{display:block}</style></noscript>
 </head>
 <body>
 "#;
 
-/// Switches subject tabs on click and with the arrow, Home, and End keys.
+/// Switches subject tabs on click and with the arrow, Home, and End keys, and expands each
+/// category's metric descriptions.
 const SCRIPT: &str = r"<script>
 const tabs = [...document.querySelectorAll('[role=tab]')]
 const select = (tab) => {
@@ -513,5 +816,13 @@ tabs.forEach((tab, index) => {
     event.preventDefault()
   })
 })
+for (const button of document.querySelectorAll('.expand')) {
+  button.addEventListener('click', () => {
+    const expanded = button.getAttribute('aria-expanded') !== 'true'
+    button.setAttribute('aria-expanded', String(expanded))
+    button.textContent = expanded ? 'Collapse view' : 'Expand view'
+    button.closest('.category').classList.toggle('expanded', expanded)
+  })
+}
 </script>
 ";

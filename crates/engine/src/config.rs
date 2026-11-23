@@ -29,12 +29,13 @@ use crate::lines::is_name;
 use crate::value::{self, Value};
 
 /// Keys a metric accepts, in the order error messages list them.
-const METRIC_KEYS: [&str; 7] = [
+const METRIC_KEYS: [&str; 8] = [
     "better",
     "description",
     "score",
     "target",
     "targets",
+    "title",
     "varies",
     "weight",
 ];
@@ -83,6 +84,15 @@ pub struct Category {
     pub run: String,
     /// How long one run may take before Retros stops it. Defaults to 10 minutes.
     pub timeout: Duration,
+    /// The name reports show, such as `Best Practices`.
+    pub title: Option<String>,
+}
+
+impl Category {
+    /// Returns the name reports show: the `title`, or else the name in words, such as `Speed`.
+    pub fn title(&self) -> String {
+        self.title.clone().unwrap_or_else(|| words(&self.name))
+    }
 }
 
 /// A configured metric.
@@ -105,6 +115,8 @@ pub struct Metric {
     /// Targets by item pattern, in the order the file declares them. The first pattern that
     /// matches an item sets its target, over the item's line and the default.
     pub targets: Vec<Pattern>,
+    /// The name reports show, such as `Time to first token`.
+    pub title: Option<String>,
     /// Whether a size or count differs between runs, such as peak memory. Like a time, it takes
     /// its median across rounds and stays out of `retros.lock`. Defaults to false.
     pub varies: bool,
@@ -117,6 +129,22 @@ impl Metric {
     pub fn pattern(&self, item: &str) -> Option<&Pattern> {
         self.targets.iter().find(|pattern| pattern.matches(item))
     }
+
+    /// Returns the name reports show: the `title`, or else the name in words, such as
+    /// `Request out` for `request-out`.
+    pub fn title(&self) -> String {
+        self.title.clone().unwrap_or_else(|| words(&self.name))
+    }
+}
+
+/// Writes a name in words for a report without a `title`: `-` and `_` become spaces, and the
+/// first letter is upper case, so `first-token` reads `First token`.
+pub(crate) fn words(name: &str) -> String {
+    let spaced = name.replace(['-', '_'], " ");
+    let mut chars = spaced.chars();
+    chars.next().map_or_else(String::new, |first| {
+        first.to_ascii_uppercase().to_string() + chars.as_str()
+    })
 }
 
 /// An item pattern and the target it sets, such as `"viem/chains/*": 1kB`.
@@ -297,12 +325,14 @@ fn category(
     let mut metrics = Vec::new();
     let mut run = None;
     let mut timeout = defaults.timeout;
+    let mut title = None;
 
     for (field, value) in fields {
         match self::key(source, field)? {
             "description" => description = Some(string(source, value, "description")?.to_owned()),
             "run" => run = Some(command(source, value)?),
             "timeout" => timeout = duration(source, value)?,
+            "title" => title = Some(string(source, value, "title")?.to_owned()),
             metric => {
                 check_name(source, field, metric, "metric")?;
 
@@ -360,6 +390,7 @@ fn category(
         name: name.to_owned(),
         run,
         timeout,
+        title,
     })
 }
 
@@ -375,6 +406,7 @@ fn metric(
     let mut score = None;
     let mut target = None;
     let mut targets = Vec::new();
+    let mut title = None;
     let mut varies = false;
     let mut weight = 1.0;
 
@@ -439,6 +471,7 @@ fn metric(
                     });
                 }
             }
+            "title" => title = Some(string(source, value, "title")?.to_owned()),
             "varies" => {
                 let flag = match &value.kind {
                     Kind::Scalar { plain: true, text } => match Yaml::from_str(text) {
@@ -483,6 +516,7 @@ fn metric(
         }),
         target,
         targets,
+        title,
         varies,
         weight,
     })

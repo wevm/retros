@@ -65,6 +65,7 @@ Retros keeps Lighthouse's scoring and depth, and replaces its fixed browser gath
 17. **`varies`.** A size or count marked `varies = true`, such as peak memory, takes its median across rounds like a time and stays out of the lock, except for its line target. Decided 2026-11-23.
 18. **Descriptions.** Categories and metrics take a `description`, and every report shows it, so a reader knows what a number measures without opening `retros.yaml`. Decided 2026-11-23.
 19. **`.agents/`.** Retros reads `retros.yaml` or `retros.toml`, at the project root or in `.agents/`, from the current directory or the nearest parent, and it is an error for one directory to have more than one. Scripts run from the project root, the directory that holds the configuration or `.agents`, so a configuration kept with a project's agent files still measures the whole project. `retros.lock` sits beside the configuration, and reports go to `.retros/` in the project root. Decided 2026-11-23.
+20. **Titles.** Categories and metrics take a `title`, such as `Time to first request`, which the HTML and Markdown reports show. Without one, the name shows in words: `request-out` reads `Request out`. The terminal, the lock, and metric lines keep names. Decided 2026-11-23.
 
 ## The Contract
 
@@ -100,8 +101,8 @@ bench-time "ABI Decode (500 results)" 1.82ms
 - **Failure:** a script that exits with a non-zero status gives its category no score.
 - **Runs:** each script runs through `sh -c` from the project root, the directory that holds `retros.yaml` or `.agents`, in its own process group. Retros kills the group when the script exits or times out, so background processes do not outlive the run.
 - **Subjects:** a line that starts with `subject:` belongs to that subject, and each subject is scored on its own.
-- **Optional metric keys:** `targets` (item patterns and their targets), `weight` (default 1), `score` (how a list collapses: `p90` by default, or `p10`, `median`, `max`, `min`, `sum`), `better = "higher"` for metrics where more is better, `varies = true` for a size or count that differs between runs, and `description`. A `better = "higher"` list collapses to its p10 by default.
-- **Optional category keys:** `timeout` (default `10m`) and `description`. A top-level `run` and `timeout` apply to every category that sets none, and categories with the same `run` share one execution.
+- **Optional metric keys:** `targets` (item patterns and their targets), `weight` (default 1), `score` (how a list collapses: `p90` by default, or `p10`, `median`, `max`, `min`, `sum`), `better = "higher"` for metrics where more is better, `varies = true` for a size or count that differs between runs, `title`, and `description`. A `better = "higher"` list collapses to its p10 by default.
+- **Optional category keys:** `timeout` (default `10m`), `title`, and `description`. A top-level `run` and `timeout` apply to every category that sets none, and categories with the same `run` share one execution.
 
 The command line:
 
@@ -234,7 +235,8 @@ Explain each miss, and write the report people open.
 
 - [ ] Notes: a line can say why an item misses, such as `alt-text /pricing fail note "hero.svg has no alt text"`. Notes appear under their items in every report. The syntax is decided at the start of this phase.
 - [x] Metric descriptions in reports, from the `description` key (decision 18).
-- [x] One self-contained `.retros/report.html`: a comparison table and one tab per subject, a gauge per category, score bands, metric rows with descriptions, items worst first with their targets, opportunities, and changes. Notes join the items once they exist.
+- [x] One self-contained `.retros/report.html`: a comparison table and one tab per subject, a gauge per category, score bands, opportunities, and changes. Each category shows its metrics as a grid, each value on a bar against its target, a strip of each metric's share of the score, descriptions behind Expand view, and a collapsible row per list with its items worst first against their targets. Notes join the items once they exist.
+- [x] Titles for categories and metrics, from the `title` key (decision 20).
 - [x] Light and dark schemes, phone layout, keyboard access to the tabs, and reduced motion.
 
 **Gate:** the web app example's HTML report reads like a Lighthouse report: every miss names its item, its value, its target, and why. Screenshots at desktop and phone widths, in light and dark schemes, are reviewed. The browser records no network requests.

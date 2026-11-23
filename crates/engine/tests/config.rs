@@ -85,6 +85,7 @@ footprint:
                             ),
                         ),
                         targets: [],
+                        title: None,
                         varies: false,
                         weight: 2.0,
                     },
@@ -99,6 +100,7 @@ footprint:
                         score: Median,
                         target: None,
                         targets: [],
+                        title: None,
                         varies: false,
                         weight: 1.0,
                     },
@@ -106,6 +108,7 @@ footprint:
                 name: "speed",
                 run: "node metrics/speed.mjs",
                 timeout: 1.5s,
+                title: None,
             },
             Category {
                 description: None,
@@ -150,6 +153,7 @@ footprint:
                                 ),
                             },
                         ],
+                        title: None,
                         varies: false,
                         weight: 1.0,
                     },
@@ -168,6 +172,7 @@ footprint:
                             ),
                         ),
                         targets: [],
+                        title: None,
                         varies: false,
                         weight: 1.0,
                     },
@@ -182,6 +187,7 @@ footprint:
                         score: P90,
                         target: None,
                         targets: [],
+                        title: None,
                         varies: false,
                         weight: 1.0,
                     },
@@ -189,6 +195,7 @@ footprint:
                 name: "footprint",
                 run: "node metrics/footprint.mjs",
                 timeout: 600s,
+                title: None,
             },
         ],
     }
@@ -305,13 +312,13 @@ fn rejects_invalid_category_settings() {
 #[test]
 fn rejects_invalid_metric_settings() {
     insta::assert_snapshot!(error("footprint:\n  run: \"true\"\n  size: { target: 5kB, goal: 1 }\n"), @"
-    [unexpected-key] retros.yaml:3:24: unknown key `goal` in metric `size`, expected one of `better`, `description`, `score`, `target`, `targets`, `varies`, `weight`
+    [unexpected-key] retros.yaml:3:24: unknown key `goal` in metric `size`, expected one of `better`, `description`, `score`, `target`, `targets`, `title`, `varies`, `weight`
       3 |   size: { target: 5kB, goal: 1 }
         |                        ^
     ");
 
     insta::assert_snapshot!(error("footprint:\n  run: \"true\"\n  size: { target: 5kB, limit: 50kB }\n"), @"
-    [unexpected-key] retros.yaml:3:24: unknown key `limit` in metric `size`, expected one of `better`, `description`, `score`, `target`, `targets`, `varies`, `weight`
+    [unexpected-key] retros.yaml:3:24: unknown key `limit` in metric `size`, expected one of `better`, `description`, `score`, `target`, `targets`, `title`, `varies`, `weight`
       3 |   size: { target: 5kB, limit: 50kB }
         |                        ^
     ");
