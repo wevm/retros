@@ -10,7 +10,7 @@
 
 ## Overview
 
-Retros scores a project against its own targets. A project picks its metrics, such as bundle size, request latency, or test coverage, and sets a target for each. Retros runs the scripts that measure them, scores each metric from 0 to 100, and names the fixes worth the most points.
+Retros scores a project against its own targets. A metric is anything a script can measure: bundle size, page load time, request latency, memory, test coverage, lint warnings, or an eval score. Retros runs the scripts, scores each metric from 0 to 100, and names the fixes worth the most points.
 
 ## Problem
 
