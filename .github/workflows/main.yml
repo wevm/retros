@@ -8,9 +8,78 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
-    name: Verify
-    uses: ./.github/workflows/verify.yml
+  binaries:
+    name: Binaries
+    if: needs.release.outputs.build == 'true'
+    needs: release
+    uses: ./.github/workflows/binaries.yml
+
+  changesets:
+    name: Version PR
+    if: needs.release.outputs.publish != 'true'
+    needs: [release, verify]
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-dependencies
+
+      # `pnpm changeset:version` runs scripts/version.ts with Bun.
+      - name: Install Bun
+        uses: wevm/actions/vendor/oven-sh/setup-bun/v2.2.0@b518cf981b50a4c745a8b7335fc693f34b108a75
+        with:
+          bun-version: 1.4.4
+
+      - name: Create or update version PR
+        uses: wevm/actions/vendor/changesets/action/v2@6d24d44bb98809270f8d2a19d584f29aeb384be5
+        with:
+          commit-message: 'chore: version packages'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          pr-title: 'chore: version packages'
+          version-script: pnpm run changeset:version
+
+  # Installs the new release on clean machines with the install script and with npx.
+  install:
+    name: Install (${{ matrix.os }})
+    env:
+      RETROS_VERSION: v${{ needs.release.outputs.version }}
+    needs: [publish, release]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15-intel, macos-latest, ubuntu-24.04-arm, ubuntu-latest]
+    timeout-minutes: 10
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run install script
+        run: sh install.sh && ~/.retros/bin/retros --version
+
+      - name: Run with npx
+        run: npx --yes "retros@${RETROS_VERSION#v}" --version
+
+      # Alpine has musl and only BusyBox wget. AlmaLinux 8 has glibc 2.28, the oldest the glibc
+      # build supports. CentOS 7 has glibc 2.17, so it gets the musl build.
+      - name: Run install script in containers
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          for image in alpine:3 almalinux:8 centos:7; do
+            docker run --rm -e RETROS_VERSION -v "$PWD/install.sh:/install.sh:ro" "$image" sh -c 'sh /install.sh && ~/.retros/bin/retros --version'
+          done
 
   # Each run on main keeps Retros' own scores and values as a Git note on its commit, which the
   # trends in report.html and `retros log` read. The workflow's concurrency runs one at a time.
@@ -41,3 +110,138 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           cargo run --release --locked --quiet -p retros -- --note
           git push origin refs/notes/retros
+
+  # Creates the GitHub Release with the archives, and publishes the same binaries to npm. Each
+  # step skips work that a cancelled or failed run already finished, so a later run resumes it.
+  publish:
+    name: Publish
+    # Published packages must not consume build state from other CI jobs.
+    cache-mode: none
+    env:
+      VERSION: ${{ needs.release.outputs.version }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.publish == 'true' }}
+    needs: [binaries, release, verify]
+    permissions:
+      contents: write
+      # npm signs provenance, and trusted publishing exchanges this token for a publish token.
+      id-token: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-dependencies
+
+      - name: Download archives
+        if: needs.binaries.result == 'success'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          merge-multiple: true
+          path: dist
+          pattern: retros-*
+
+      - name: Download release archives
+        if: needs.binaries.result == 'skipped'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "v$VERSION" --dir dist --pattern 'retros-*.tar.gz' --repo "$GITHUB_REPOSITORY"
+
+      # src/bin.ts runs `binaries/<process.platform>-<process.arch>/retros`. The static musl
+      # builds run on Linux with glibc or musl.
+      - name: Stage binaries
+        run: |
+          for entry in darwin-arm64:aarch64-apple-darwin darwin-x64:x86_64-apple-darwin linux-arm64:aarch64-unknown-linux-musl linux-x64:x86_64-unknown-linux-musl; do
+            mkdir -p "binaries/${entry%%:*}"
+            tar -xzf "dist/retros-${entry#*:}.tar.gz" -C "binaries/${entry%%:*}" retros
+          done
+
+      # Packs the package as `changeset publish` does, installs it on glibc and on musl, and runs
+      # the launcher. pnpm marks only the files in `bin` and `publishConfig.executableFiles` as
+      # executable. pnpm runs once, since a later `pnpm exec` installs from the prepared manifest.
+      - name: Check package
+        run: |
+          pnpm exec sh -euc 'zile publish:prepare && pnpm pack --pack-destination "$RUNNER_TEMP" && zile publish:post'
+          check='cd "$(mktemp -d)" && npm init -y > /dev/null && npm install --no-audit --no-fund --loglevel=error /pack/retros-*.tgz && npx retros --version'
+          docker run --rm -v "$RUNNER_TEMP:/pack:ro" node:24 sh -euc "$check"
+          docker run --rm -v "$RUNNER_TEMP:/pack:ro" node:24-alpine sh -euc "$check"
+
+      # The release notes are the version's section of CHANGELOG.md. A version with a suffix, such
+      # as 0.2.0-rc.0, makes a prerelease, which `latest` skips.
+      - name: Create GitHub Release
+        if: needs.binaries.result == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          (cd dist && sha256sum retros-*.tar.gz > sha256sums.txt)
+          touch CHANGELOG.md
+          awk -v heading="## $VERSION" '$0 == heading { found = 1; next } /^## / { found = 0 } found' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          case "$VERSION" in *-*) prerelease=--prerelease ;; *) prerelease= ;; esac
+          gh release create "v$VERSION" dist/retros-*.tar.gz dist/sha256sums.txt --notes-file "$RUNNER_TEMP/notes.md" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "v$VERSION" $prerelease
+
+      # Without NPM_TOKEN, npm uses trusted publishing.
+      - name: Authenticate with npm
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: if [ -n "$NPM_TOKEN" ]; then npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN"; fi
+
+      # The GitHub Release above holds the `v<version>` tag, so Changesets pushes no tags.
+      - name: Publish package
+        uses: wevm/actions/vendor/changesets/action/v2@6d24d44bb98809270f8d2a19d584f29aeb384be5
+        env:
+          NPM_CONFIG_PROVENANCE: 'true'
+        with:
+          create-github-releases: false
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          publish-script: pnpm run changeset:publish
+          push-git-tags: false
+
+  # A version is released once no changesets are pending and npm does not have it. A version
+  # with a GitHub Release keeps that release's archives, so npm gets the same binaries.
+  release:
+    name: Release
+    outputs:
+      build: ${{ steps.release.outputs.build }}
+      publish: ${{ steps.release.outputs.publish }}
+      version: ${{ steps.release.outputs.version }}
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # npm accepts trusted publishing only for a package it already has, so the first publish
+      # needs NPM_TOKEN.
+      - id: release
+        name: Check for an unpublished version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          pending=$(find .changeset -name '*.md' ! -name README.md | head -n 1)
+          if [ -n "$pending" ] || [ -n "$(npm view "retros@$version" version 2> /dev/null)" ]; then exit 0; fi
+          if [ -z "$NPM_TOKEN" ] && [ -z "$(npm view retros name 2> /dev/null)" ]; then
+            echo "::warning::retros@$version is not on npm yet. Add the NPM_TOKEN secret for the first publish."
+            exit 0
+          fi
+          echo publish=true >> "$GITHUB_OUTPUT"
+          if ! gh release view "v$version" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo build=true >> "$GITHUB_OUTPUT"
+          fi
+
+  verify:
+    name: Verify
+    uses: ./.github/workflows/verify.yml
+
+permissions:
+  contents: read

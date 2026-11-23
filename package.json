@@ -1,14 +1,54 @@
 {
-  "private": true,
-  "type": "module",
   "scripts": {
+    "build": "zile",
+    "changeset:publish": "zile publish:prepare && changeset publish && zile publish:post",
+    "changeset:version": "changeset version && bun scripts/version.ts",
     "check": "vp check --fix",
     "check:types": "tsc && pnpm --filter @retros/site check:types"
   },
   "devDependencies": {
+    "@changesets/cli": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:",
-    "vite-plus": "catalog:"
+    "vite-plus": "catalog:",
+    "zile": "catalog:"
   },
-  "packageManager": "pnpm@11.25.0"
+  "packageManager": "pnpm@11.25.0",
+  "[!start-pkg]": "",
+  "name": "retros",
+  "description": "Continuous metrics and hill climbing",
+  "type": "module",
+  "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wevm/retros.git"
+  },
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "cpu": [
+    "arm64",
+    "x64"
+  ],
+  "bin": {
+    "retros": "./dist/bin.js",
+    "retros.src": "./src/bin.ts"
+  },
+  "files": [
+    "binaries",
+    "dist",
+    "src"
+  ],
+  "publishConfig": {
+    "executableFiles": [
+      "./binaries/darwin-arm64/retros",
+      "./binaries/darwin-x64/retros",
+      "./binaries/linux-arm64/retros",
+      "./binaries/linux-x64/retros"
+    ]
+  },
+  "sideEffects": false,
+  "exports": {}
 }

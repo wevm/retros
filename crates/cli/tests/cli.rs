@@ -138,8 +138,12 @@ fn stderr(output: &Output) -> String {
 fn version() {
     let output = retros(&["--version"]);
 
+    // `pnpm changeset:version` sets the version on each release.
     assert!(output.status.success());
-    insta::assert_snapshot!(stdout(&output), @"retros 0.1.0");
+    insta::assert_snapshot!(
+        stdout(&output).replace(env!("CARGO_PKG_VERSION"), "[version]"),
+        @"retros [version]"
+    );
 }
 
 #[test]

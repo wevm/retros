@@ -3,7 +3,7 @@
 Retros is one binary with no runtime. Release builds cover macOS and Linux on arm64 and x64, and Cargo builds it anywhere Rust runs.
 
 > [!NOTE]
-> The npm packages are not published yet, so `npx retros` has nothing to download for now. The install script, the release archives, and Cargo work.
+> The npm package is not published yet, so `npx retros` has nothing to download for now. The install script, the release archives, and Cargo work.
 
 ## Install Script
 
@@ -26,7 +26,7 @@ curl -fsSL https://raw.githubusercontent.com/wevm/retros/main/install.sh | RETRO
 
 ## npm
 
-The `retros` package runs the binary from one platform package, such as `@retros/linux-x64-gnu`. npm installs only the platform package that matches the machine's operating system, CPU, and C library, so an install downloads one binary.
+The `retros` package holds the binaries for macOS and Linux on arm64 and x64, and runs the one for the machine. On Linux it runs the static musl build, so one binary serves glibc and musl systems.
 
 ```sh
 # Run the latest release without installing it.
@@ -36,7 +36,7 @@ npx retros
 npm install --save-dev retros
 ```
 
-`pnpm dlx retros` and `bunx retros` run it the same way. An install that omits optional dependencies has no platform package, and `retros` then exits with an error that names the missing package.
+`pnpm dlx retros` and `bunx retros` run it the same way. The package declares its operating systems and CPUs, so npm refuses to install it on other platforms.
 
 ## Cargo
 
@@ -60,7 +60,7 @@ Each GitHub Release has one `retros-<target>.tar.gz` archive per target and a `s
 | `aarch64-unknown-linux-musl` | Linux on arm64, static |
 | `x86_64-unknown-linux-musl` | Linux on x64, static |
 
-The musl builds link statically, so they also run on Alpine and on systems with a glibc older than 2.28. The install script selects them on those systems, and the npm package selects them on musl.
+The musl builds link statically, so they also run on Alpine and on systems with a glibc older than 2.28. The install script selects them on those systems, and the npm package runs them on every Linux system.
 
 ```sh
 # Download the static x64 build, check its digest, and extract the binary.

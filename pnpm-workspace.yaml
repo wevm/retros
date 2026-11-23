@@ -1,6 +1,5 @@
 packages:
   - '.'
-  - npm/retros
   - site
 
 allowBuilds:
@@ -8,6 +7,7 @@ allowBuilds:
   workerd: true
 
 catalog:
+  '@changesets/cli': '^3.0.3'
   '@cloudflare/vite-plugin': '1.56.0'
   '@fontsource-variable/geist': '^5.3.0'
   '@fontsource-variable/geist-mono': '^5.3.0'
@@ -32,4 +32,5 @@ catalog:
   'vite': '^8.3.4'
   'vite-plus': '0.2.2'
   'wrangler': '^4.149.0'
+  'zile': '0.0.31'
   'zyzz': '0.0.46'

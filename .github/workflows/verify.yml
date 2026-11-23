@@ -45,17 +45,8 @@ jobs:
       - name: Clone repository
         uses: actions/checkout@v7
 
-      - name: Set up pnpm
-        uses: wevm/actions/vendor/pnpm/action-setup/v6@b518cf981b50a4c745a8b7335fc693f34b108a75
-
-      - name: Set up Node
-        uses: actions/setup-node@v7
-        with:
-          cache: pnpm
-          node-version: '24'
-
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        uses: ./.github/actions/install-dependencies
 
       - name: Check formatting and lint
         run: pnpm exec vp check
@@ -63,8 +54,11 @@ jobs:
       - name: Check types
         run: pnpm check:types
 
-      - name: Build npm launcher
-        run: pnpm --filter retros build
+      # zile rewrites package.json, so a change means the committed manifest is out of date.
+      - name: Build package
+        run: |
+          pnpm build
+          git diff --exit-code package.json
 
       - name: Build documentation site
         run: pnpm --filter @retros/site build
