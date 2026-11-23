@@ -104,7 +104,7 @@ fn help() {
 
     assert!(output.status.success());
     insta::assert_snapshot!(stdout(&output), @"
-    Usage: retros [category] [--update] [--require-baseline]
+    Usage: retros [category] [--update] [--require-baseline] [--require-targets]
            retros check
 
     Run each category's script, score its metrics, list the opportunities that would raise the
@@ -119,6 +119,7 @@ fn help() {
     Options:
       --update            Write this run's sizes, counts, checks, and line targets as baselines
       --require-baseline  Exit with status 1 when anything differs from the baselines
+      --require-targets   Exit with status 1 when a metric misses its target or a script fails
       -h, --help          Print help
       -V, --version       Print version
     ");
@@ -132,7 +133,7 @@ fn unknown_argument() {
     insta::assert_snapshot!(stderr(&output), @"
     error: unknown argument '--nope'
 
-    Usage: retros [category] [--update] [--require-baseline]
+    Usage: retros [category] [--update] [--require-baseline] [--require-targets]
            retros check
 
     Run each category's script, score its metrics, list the opportunities that would raise the
@@ -147,6 +148,7 @@ fn unknown_argument() {
     Options:
       --update            Write this run's sizes, counts, checks, and line targets as baselines
       --require-baseline  Exit with status 1 when anything differs from the baselines
+      --require-targets   Exit with status 1 when a metric misses its target or a script fails
       -h, --help          Print help
       -V, --version       Print version
     ");
@@ -160,7 +162,7 @@ fn unknown_check_argument() {
     insta::assert_snapshot!(stderr(&output), @"
     error: unknown argument '--fast'
 
-    Usage: retros [category] [--update] [--require-baseline]
+    Usage: retros [category] [--update] [--require-baseline] [--require-targets]
            retros check
 
     Run each category's script, score its metrics, list the opportunities that would raise the
@@ -175,6 +177,7 @@ fn unknown_check_argument() {
     Options:
       --update            Write this run's sizes, counts, checks, and line targets as baselines
       --require-baseline  Exit with status 1 when anything differs from the baselines
+      --require-targets   Exit with status 1 when a metric misses its target or a script fails
       -h, --help          Print help
       -V, --version       Print version
     ");
@@ -904,6 +907,73 @@ fn subjects_share_one_run_and_score_on_their_own() {
     let again = retros_in(project.path(), &["--require-baseline"], &[]);
     assert_eq!(again.status.code(), Some(0), "{}", stdout(&again));
     assert!(stdout(&again).contains("\nNo changes since the baseline\n"));
+}
+
+#[test]
+fn require_targets_fails_on_each_missed_target_and_failed_script() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join("retros.yaml"),
+        "quality:\n  run: sh metrics.sh\n  size: { target: 2kB }\n  rate: { target: 2000, better: higher }\n  ok: {}\n",
+    )
+    .unwrap();
+    let script = dir.path().join("metrics.sh");
+
+    // A value equal to its target meets it, in either direction.
+    fs::write(
+        &script,
+        "printf 'size 2kB\\nrate 2000\\nok pass\\n' >> \"$RETROS_METRICS\"\n",
+    )
+    .unwrap();
+    let met = retros_in(dir.path(), &["--require-targets"], &[]);
+    assert_eq!(met.status.code(), Some(0), "{}", stdout(&met));
+    assert!(!stdout(&met).contains("Missed targets"));
+
+    fs::write(
+        &script,
+        "printf 'size 2.1kB\\nrate 1999\\nok pass\\n' >> \"$RETROS_METRICS\"\n",
+    )
+    .unwrap();
+    let past = retros_in(dir.path(), &["--require-targets"], &[]);
+    assert_eq!(past.status.code(), Some(1));
+    assert!(stdout(&past).ends_with(
+        "
+Missed targets
+  quality  size  2.1 kB  target 2 kB
+  quality  rate  1999    target 2000
+
+2 targets missed
+"
+    ));
+
+    // A list misses at the item its roll-up selects, and each failing check item is a miss.
+    let scored = fixture("scored");
+    let output = retros_in(scored.path(), &["--require-targets"], &[]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(stdout(&output).ends_with(
+        "
+Missed targets
+  footprint  bundle                     27.5 kB  target 5 kB
+  footprint  export-size viem/op-stack  9 kB     target 5 kB
+  footprint  links about.html           fail
+  speed      render parse               5 ms     target 2 ms
+
+4 targets missed
+"
+    ));
+
+    let failing = fixture("failing");
+    let output = retros_in(failing.path(), &["--require-targets"], &[]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(stdout(&output).ends_with(
+        "
+Missed targets
+  build  script exited with status 3
+  crash  script was stopped by signal 9
+
+2 targets missed
+"
+    ));
 }
 
 #[test]

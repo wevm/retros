@@ -7,8 +7,9 @@
 //!
 //! The command exits with status 0 when every category ran and passed its checks, and with
 //! status 1 when any category failed. With `--require-baseline`, it also exits with status 1 when
-//! anything differs from the baselines, or when no metric has one. Scores do not change the exit
-//! status.
+//! anything differs from the baselines, or when no metric has one. With `--require-targets`, it
+//! exits with status 1 when a metric misses its target or a script fails. Scores do not change
+//! the exit status.
 
 use std::io::{self, Write as _};
 use std::process::ExitCode;
@@ -27,6 +28,8 @@ pub(crate) struct Options {
     pub(crate) category: Option<String>,
     /// Whether any difference from the baselines fails the run.
     pub(crate) require_baseline: bool,
+    /// Whether a missed target or a failed script fails the run.
+    pub(crate) require_targets: bool,
     /// Whether to write this run's values to the baselines.
     pub(crate) update: bool,
 }
@@ -178,10 +181,21 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
     }
     let _ = writeln!(io::stdout(), "\nWrote {written}");
 
-    let failed = report
+    let mut failed = report
         .categories
         .iter()
         .any(|category| category.result.is_err());
+
+    // Compares values, not rounded scores, so a value just past its target never passes as 90.
+    if options.require_targets {
+        let misses = engine::report::misses(&report);
+        if !misses.is_empty() {
+            let missed = engine::report::missed(&misses);
+            let count = measure::count(misses.len(), "target");
+            let _ = write!(io::stdout(), "{missed}\n{count} missed\n");
+            failed = true;
+        }
+    }
 
     // Like a snapshot test, the baseline gate fails on any difference, so improvements are
     // recorded and become the new floor.

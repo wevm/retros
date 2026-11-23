@@ -58,6 +58,9 @@ retros --update
 # Fail when anything differs from the baselines.
 retros --require-baseline
 
+# Fail when a metric misses its target or a script fails.
+retros --require-targets
+
 # Run each script once and check its lines, without scoring.
 retros check
 ```

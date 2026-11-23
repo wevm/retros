@@ -82,6 +82,126 @@ pub struct Failure {
     pub message: String,
 }
 
+/// A miss that fails `--require-targets`.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Miss {
+    /// A category whose script failed, so its metrics have no values.
+    Failed {
+        /// The category as the terminal names it, such as `zc: speed`.
+        category: String,
+        /// Why the category has no values.
+        message: String,
+    },
+    /// A metric whose value is past its target, or a check that fails.
+    Missed {
+        /// The category as the terminal names it, such as `zc: speed`.
+        category: String,
+        /// The item the roll-up selected, or the check item that fails.
+        item: Option<String>,
+        /// The metric name.
+        metric: String,
+        /// The target, or `None` for a check.
+        target: Option<Value>,
+        /// The value past the target, or `fail`.
+        value: Value,
+    },
+}
+
+/// Returns every miss in a report, in report order: each failed category, each metric whose
+/// collapsed value is past its target, and each check item that fails. A value equal to its
+/// target meets it. Metrics without a target and metrics a subject did not write never miss.
+pub fn misses(report: &Report) -> Vec<Miss> {
+    let mut misses = Vec::new();
+
+    for category in &report.categories {
+        let scored = match &category.result {
+            Ok(scored) => scored,
+            Err(failure) => {
+                misses.push(Miss::Failed {
+                    category: category.label(),
+                    message: failure.message.clone(),
+                });
+                continue;
+            }
+        };
+
+        for metric in &scored.metrics {
+            let missed = |item: Option<String>, value, target| Miss::Missed {
+                category: category.label(),
+                item,
+                metric: metric.metric.name.clone(),
+                target,
+                value,
+            };
+
+            if metric.kind == Kind::Check {
+                let failing = metric
+                    .items
+                    .iter()
+                    .filter(|item| item.value == Value::Check(false));
+                misses.extend(
+                    failing.map(|item| missed(Some(item.name.clone()), Value::Check(false), None)),
+                );
+                if metric.items.is_empty() && metric.value < 1.0 {
+                    misses.push(missed(None, Value::Check(false), None));
+                }
+                continue;
+            }
+
+            let Some(target) = metric.target else {
+                continue;
+            };
+            let past = target
+                .amount()
+                .is_some_and(|amount| match metric.metric.better {
+                    Better::Higher => metric.value < amount,
+                    Better::Lower => metric.value > amount,
+                });
+            if past {
+                let value = Value::of(metric.kind, metric.value);
+                misses.push(missed(metric.at.clone(), value, Some(target)));
+            }
+        }
+    }
+
+    misses
+}
+
+/// Renders the misses that fail `--require-targets` for the terminal, such as
+/// `footprint  bundle  27.5 kB  target 5 kB`.
+pub fn missed(misses: &[Miss]) -> String {
+    let rows: Vec<[String; 4]> = misses
+        .iter()
+        .map(|miss| match miss {
+            Miss::Failed { category, message } => [
+                category.clone(),
+                message.clone(),
+                String::new(),
+                String::new(),
+            ],
+            Miss::Missed {
+                category,
+                item,
+                metric,
+                target,
+                value,
+            } => [
+                category.clone(),
+                item.as_ref()
+                    .map_or_else(|| metric.clone(), |item| format!("{metric} {item}")),
+                format::value(*value),
+                target
+                    .map(|target| format!("target {}", format::value(target)))
+                    .unwrap_or_default(),
+            ],
+        })
+        .collect();
+
+    let mut out = String::from("\nMissed targets\n");
+    table(&mut out, &rows);
+    out
+}
+
 /// Returns Lighthouse's band for a score: `●` for 90 to 100, `■` for 50 to 89, and `▲` for 0 to
 /// 49.
 pub fn band(score: u8) -> char {

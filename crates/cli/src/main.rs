@@ -17,7 +17,7 @@ use std::process::ExitCode;
 use engine::error::Error;
 
 const USAGE: &str = "\
-Usage: retros [category] [--update] [--require-baseline]
+Usage: retros [category] [--update] [--require-baseline] [--require-targets]
        retros check
 
 Run each category's script, score its metrics, list the opportunities that would raise the
@@ -32,6 +32,7 @@ Commands:
 Options:
   --update            Write this run's sizes, counts, checks, and line targets as baselines
   --require-baseline  Exit with status 1 when anything differs from the baselines
+  --require-targets   Exit with status 1 when a metric misses its target or a script fails
   -h, --help          Print help
   -V, --version       Print version
 ";
@@ -57,6 +58,7 @@ fn main() -> ExitCode {
                 match arg.as_str() {
                     "--update" => options.update = true,
                     "--require-baseline" => options.require_baseline = true,
+                    "--require-targets" => options.require_targets = true,
                     flag if flag.starts_with('-') => {
                         return usage(&format!("unknown argument '{flag}'"));
                     }
