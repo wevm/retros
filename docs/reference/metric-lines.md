@@ -53,7 +53,7 @@ bench-time "ABI Decode (500 results)" 1.82ms
 
 ### `value`
 
-- **Format:** a number with an optional unit, `pass`, or `fail`
+- **Format:** a number with an optional unit, `pass`, `fail`, or `skip`
 
 The measured value. One metric uses one kind of unit for every line. [Units](./units.md) lists every unit.
 
@@ -61,6 +61,7 @@ The measured value. One metric uses one kind of unit for every line. [Units](./u
 install-size 45.6MB
 type-errors 0
 has-title index.html pass
+video-caption skip
 ```
 
 ### `target`

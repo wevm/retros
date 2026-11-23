@@ -4,10 +4,11 @@
 //! `timeout` and `description` are optional, and every other key is a metric. A top-level `run`
 //! and `timeout` apply to every category that sets none, and categories with the same command
 //! share one run of it. A top-level `setup` command prepares each checkout that
-//! `uphill --compare` creates. A metric is a mapping of optional keys: `target`, `targets`,
-//! `weight`, `score`, `better`, `varies`, `title`, `description`, and `baseline`, which
+//! `uphill --compare` creates. A metric is a mapping of optional keys: `target`, `poor`,
+//! `targets`, `weight`, `score`, `better`, `varies`, `title`, `description`, and `baseline`, which
 //! `uphill --update` writes. `target` is the default for every item, a metric line can set its
-//! own, and `targets` sets targets by item pattern and has the final say.
+//! own, and `targets` sets targets by item pattern and has the final say. `poor` is the value that
+//! scores 50 against the default target, and twice the target without it.
 //!
 //! ```yaml
 //! footprint:
@@ -32,10 +33,11 @@ use crate::lines::is_name;
 use crate::value::{self, Value};
 
 /// Keys a metric accepts, in the order error messages list them.
-const METRIC_KEYS: [&str; 9] = [
+const METRIC_KEYS: [&str; 10] = [
     "baseline",
     "better",
     "description",
+    "poor",
     "score",
     "target",
     "targets",
@@ -154,6 +156,10 @@ pub struct Metric {
     pub location: Location,
     /// The metric name, such as `export-size`.
     pub name: String,
+    /// The value that scores 50 against `target`, Lighthouse's median control point. `None` for
+    /// twice the target, or half the target when higher is better. Each item's own target scales
+    /// it by the same factor.
+    pub poor: Option<Value>,
     /// How a list of items collapses to one value. Defaults to `p90`, or `p10` when higher is
     /// better.
     pub score: Rollup,
@@ -176,6 +182,24 @@ impl Metric {
     /// Returns the first pattern in `targets` that matches `item`.
     pub fn pattern(&self, item: &str) -> Option<&Pattern> {
         self.targets.iter().find(|pattern| pattern.matches(item))
+    }
+
+    /// Returns the value in base units that scores 50 for an item scored against `target`: the
+    /// metric's `poor` scaled by the item's target over the default `target`, or else twice the
+    /// target, or half the target when higher is better.
+    pub fn poor(&self, target: f64) -> f64 {
+        match (
+            self.poor.and_then(Value::amount),
+            self.target.and_then(Value::amount),
+        ) {
+            // An item at the default target keeps `poor` exactly, so its score matches
+            // Lighthouse's for the same control points.
+            (Some(poor), Some(default)) => poor * (target / default),
+            _ => match self.better {
+                Better::Higher => target / 2.0,
+                Better::Lower => target * 2.0,
+            },
+        }
     }
 
     /// Returns the name reports show: the `title`, or else the name in words, such as
@@ -460,6 +484,7 @@ fn metric(
     let mut baseline = None;
     let mut better = Better::Lower;
     let mut description = None;
+    let mut poor = None;
     let mut score = None;
     let mut target = None;
     let mut targets = Vec::new();
@@ -487,6 +512,7 @@ fn metric(
                 };
             }
             "description" => description = Some(string(source, value, "description")?.to_owned()),
+            "poor" => poor = Some((self::target(source, name, "poor", value)?, value.offset)),
             "score" => {
                 score = Some(match string(source, value, "score")? {
                     "max" => Rollup::Max,
@@ -507,7 +533,7 @@ fn metric(
                     }
                 });
             }
-            "target" => target = Some(self::target(source, name, value)?),
+            "target" => target = Some(self::target(source, name, "target", value)?),
             "targets" => {
                 let Kind::Mapping(patterns) = &value.kind else {
                     return Err(Error::at(
@@ -525,7 +551,7 @@ fn metric(
                     targets.push(Pattern {
                         location: Location::of(source, pattern.offset),
                         pattern: self::key(source, pattern)?.to_owned(),
-                        target: self::target(source, name, value)?,
+                        target: self::target(source, name, "target", value)?,
                     });
                 }
             }
@@ -563,12 +589,54 @@ fn metric(
         }
     }
 
+    if let Some((value, offset)) = poor {
+        let problem = match target {
+            None => Some((
+                Code::InvalidValue,
+                format!(
+                    "metric `{name}` sets `poor` without a `target`. Set the `target` that scores 90 too"
+                ),
+            )),
+            Some(target) if target.kind() != value.kind() => Some((
+                Code::TargetUnit,
+                format!(
+                    "the `poor` of metric `{name}` is {}, but its `target` is {}",
+                    value.kind().singular(),
+                    target.kind().singular()
+                ),
+            )),
+            Some(target) => {
+                let (poor, target) = (
+                    value.amount().unwrap_or_default(),
+                    target.amount().unwrap_or_default(),
+                );
+                match better {
+                    Better::Lower if poor <= target => Some((
+                        Code::TargetRange,
+                        format!("the `poor` of metric `{name}` must be greater than its `target`"),
+                    )),
+                    Better::Higher if poor >= target => Some((
+                        Code::TargetRange,
+                        format!(
+                            "the `poor` of metric `{name}` must be less than its `target`, since higher is better"
+                        ),
+                    )),
+                    _ => None,
+                }
+            }
+        };
+        if let Some((code, message)) = problem {
+            return Err(Error::at(code, source, offset, message));
+        }
+    }
+
     Ok(Metric {
         baseline,
         better,
         description,
         location: Location::of(source, key.offset),
         name: name.to_owned(),
+        poor: poor.map(|(value, _)| value),
         score: score.unwrap_or(match better {
             Better::Higher => Rollup::P10,
             Better::Lower => Rollup::P90,
@@ -581,9 +649,9 @@ fn metric(
     })
 }
 
-/// Parses a target: a value such as `5kB` or `20ms`, or a number for a count. A target must be
-/// greater than zero, and a check cannot have one.
-fn target(source: &str, name: &str, value: &Node) -> Result<Value, Error> {
+/// Parses a target or `poor`, named by `key`: a value such as `5kB` or `20ms`, or a number for a
+/// count. It must be greater than zero, and a check cannot have one.
+fn target(source: &str, name: &str, key: &str, value: &Node) -> Result<Value, Error> {
     let at = value.offset;
     let target = match &value.kind {
         Kind::Scalar { plain: true, text } if is_number(text) => {
@@ -600,7 +668,7 @@ fn target(source: &str, name: &str, value: &Node) -> Result<Value, Error> {
                 Code::InvalidType,
                 source,
                 at,
-                "`target` must be a value such as `5kB`, `20ms`, or a number".to_owned(),
+                format!("`{key}` must be a value such as `5kB`, `20ms`, or a number"),
             ));
         }
     };
@@ -611,14 +679,14 @@ fn target(source: &str, name: &str, value: &Node) -> Result<Value, Error> {
             source,
             at,
             format!(
-                "metric `{name}` cannot have a check as its target. A check scores the share of items that pass"
+                "metric `{name}` cannot have a check as its {key}. A check scores the share of items that pass"
             ),
         )),
         Some(amount) if amount <= 0.0 => Err(Error::at(
             Code::TargetRange,
             source,
             at,
-            format!("the `target` of metric `{name}` must be greater than zero"),
+            format!("the `{key}` of metric `{name}` must be greater than zero"),
         )),
         Some(_) => Ok(target),
     }

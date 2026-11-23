@@ -32,7 +32,7 @@ quality:
   coverage: { target: 90, better: higher }
 ```
 
-- Metric keys: `target`, `targets` (targets by item pattern, such as `{ "src/legacy/*": 60 }`), `better: higher` when more is better, `varies: true` for a size or count that differs between runs, `weight` (default 1), `score` (how a list collapses: `p90` by default, or `p10` when higher is better, `median`, `max`, `min`, `sum`), `title`, and `description`.
+- Metric keys: `target`, `poor` (the value that scores 50, twice the target by default), `targets` (targets by item pattern, such as `{ "src/legacy/*": 60 }`), `better: higher` when more is better, `varies: true` for a size or count that differs between runs, `weight` (default 1), `score` (how a list collapses: `p90` by default, or `p10` when higher is better, `median`, `max`, `min`, `sum`), `title`, and `description`.
 - Category keys: `run`, `timeout` (default `10m`), `title`, and `description`.
 - A check always scores the share of items that pass. A size, time, or count scores only when every item has a target, from the configuration or from its line, and a target is greater than zero.
 - A script whose first run writes a time, or a metric marked `varies`, runs 5 times for the median, and `timeout` applies to each run.
@@ -51,7 +51,7 @@ tests "date.test.ts > formats a weekday" fail note "expected 'Mon' to be 'Monday
 lint src/date.ts fail note "line 8: Variable 'week' is declared but never used."
 ```
 
-- Values: sizes in `B`, `kB`, `MB`, or `GB` (decimal), times in `ns`, `µs`, `ms`, or `s`, counts without a unit, and checks as `pass` or `fail`. One metric uses one kind of unit.
+- Values: sizes in `B`, `kB`, `MB`, or `GB` (decimal), times in `ns`, `µs`, `ms`, or `s`, counts without a unit, and checks as `pass` or `fail`, or `skip` when the check does not apply. One metric uses one kind of unit.
 - Quote an item or note that contains a space, and escape `"` and `\` inside it with `\`. Quoting any item works.
 - A line with an item adds one entry to a list metric. Uphill scores each item against its own target and lists the worst first.
 - A script that exits with a non-zero status fails its category. A failing check is a measurement, so a script that wrote one still exits with status 0.

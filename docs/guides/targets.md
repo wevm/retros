@@ -4,7 +4,7 @@ A target is a requirement the project must meet. Uphill scores each item against
 
 ## Overview
 
-A value at its target scores 90, twice the target scores 50, and four times the target scores 10. Smaller values approach 100. The `target` key in `uphill.yaml` is the default for every item of a metric.
+A value at its target scores 90, twice the target scores 50, and four times the target scores 10. The `poor` key moves the value that scores 50. Smaller values approach 100. The `target` key in `uphill.yaml` is the default for every item of a metric.
 
 Items can need different targets. A script that knows an item needs a larger or smaller target writes it on the line. When the project disagrees with a script, the `targets` key sets targets by item pattern and has the final say.
 
@@ -39,8 +39,8 @@ done
 
 ```text
 $ uphill
-▲  37  footprint
-  ▲  37  entry-size  p90 12 kB (chains)  target 5 kB
+▲  36  footprint
+  ▲  36  entry-size  p90 12 kB (chains)  target 5 kB
                      12 kB   chains
                      6.1 kB  index
                      1.1 kB  utils
@@ -63,14 +63,14 @@ echo "entry-size chains $(gzip -c dist/chains.js | wc -c)B target 15kB" >> "$UPH
 
 ```text
 $ uphill
-■  82  footprint
-  ■  82  entry-size  p90 6.1 kB (index)  target 5 kB
+■  81  footprint
+  ■  81  entry-size  p90 6.1 kB (index)  target 5 kB
                      6.1 kB  index
                      12 kB   chains  target 15 kB
                      1.1 kB  utils
 
 Opportunities
-  +8  footprint  entry-size index  6.1 kB → 5 kB
+  +9  footprint  entry-size index  6.1 kB → 5 kB
 ```
 
 ### Override by Pattern
@@ -93,7 +93,7 @@ $ uphill
                      1.1 kB  utils
 
 Opportunities
-  +12  footprint  entry-size chains  12 kB → 8 kB
+  +11  footprint  entry-size chains  12 kB → 8 kB
 ```
 
 ### Read Opportunities
@@ -144,8 +144,8 @@ footprint:
 
 ```text
 $ uphill
-■  88  footprint
-  ■  88  chunk-size  sum 53 kB  target 50 kB
+■  87  footprint
+  ■  87  chunk-size  sum 53 kB  target 50 kB
                      31 kB  main
                      22 kB  vendor
 ```

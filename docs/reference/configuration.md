@@ -174,6 +174,18 @@ The value that scores 90, for every item that has no target of its own. It is gr
 page-size: { target: 20kB }
 ```
 
+### `poor`
+
+- **Type:** a size, a time, or a number
+- **Default:** twice the `target`, or half the `target` when higher is better
+
+The value that scores 50, Lighthouse's median control point. It needs a `target` in the same kind of unit, and it is worse than the target. An item with its own target scales `poor` by its target over the `target` key.
+
+```yaml title="uphill.yaml"
+# Lighthouse's mobile Largest Contentful Paint: 90 at 2.5 s and 50 at 4 s.
+largest-contentful-paint: { target: 2500ms, poor: 4000ms }
+```
+
 ### `targets`
 
 - **Type:** a mapping of item patterns to targets

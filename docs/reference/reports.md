@@ -4,13 +4,13 @@ Each run prints a summary and writes three reports to `.uphill/` in the project 
 
 ## Terminal
 
-The summary lists each category with its score, then each metric with its value and target. A list shows its 3 worst items, and a failed check shows its note. Then come the top 5 opportunities, up to 10 changes since the baselines, and the changes against `--compare`.
+The summary lists each category with its score, then each metric with its value and target. A list shows its 3 worst items, a failed check shows its note, and checks that skip collapse into one count, such as `– 41 skipped`. Then come the top 5 opportunities, up to 10 changes since the baselines, and the changes against `--compare`.
 
 ```text
 $ uphill
-▲  43  footprint
+▲  42  footprint
   ▲   3  bundle       27.5 kB                   target 5 kB
-  ■  58  export-size  p90 9 kB (viem/op-stack)  target 5 kB
+  ■  57  export-size  p90 9 kB (viem/op-stack)  target 5 kB
                       12 kB  viem/chains
                       9 kB   viem/op-stack
                       8 kB   viem/utils
@@ -19,7 +19,7 @@ $ uphill
                       fail  about.html
 
 ■  75  speed  median of 5 rounds
-  ▲  34  render      p90 5 ms (parse)  target 2 ms
+  ▲  33  render      p90 5 ms (parse)  target 2 ms
                      5 ms  parse
                      2 ms  encode
   ●  96  throughput  2588              target 2000, weight 2
@@ -47,7 +47,7 @@ The Markdown report suits a pull request comment or a job summary. It lists cate
 
 | Category | Score |
 | --- | --- |
-| Footprint | ▲ 43 |
+| Footprint | ▲ 42 |
 | Speed | ■ 75 |
 
 ## Opportunities
@@ -62,7 +62,7 @@ With subjects, the first table has one row per subject and one column per catego
 
 ## `report.html`
 
-The HTML report is one file with inline styles and scripts, so it opens from disk or from a CI artifact. Each category has a gauge and a grid of metrics, with each value on a bar against its target.
+The HTML report is one file with inline styles and scripts, so it opens from disk or from a CI artifact. Each category has a gauge and a grid of metrics, with each value on a bar against its target. Checks that skip close under a Skipped group after the grid.
 
 ```sh
 # Open the report on macOS. On Linux, use xdg-open.
@@ -132,7 +132,7 @@ One object per category and subject, in the order the configuration declares the
   "title": "Footprint",
   "subject": null,
   "description": null,
-  "score": 43,
+  "score": 42,
   "rounds": 1,
   "metrics": []
 }
@@ -142,24 +142,24 @@ One object per category and subject, in the order the configuration declares the
 
 Each object in `metrics` describes one metric and its items.
 
-| Field         | Type             | Description                                                           |
-| ------------- | ---------------- | --------------------------------------------------------------------- |
-| `name`        | string           | The metric name                                                       |
-| `title`       | string           | The `title` key, or the name in words                                 |
-| `description` | string or `null` | The `description` key                                                 |
-| `kind`        | string           | `size`, `time`, `count`, or `check`                                   |
-| `unit`        | string or `null` | `B` for sizes, `ns` for times, and `null` for counts and checks       |
-| `value`       | number           | The collapsed value, or the share of checks that pass, from 0 to 1    |
-| `item`        | string or `null` | The item the roll-up selected                                         |
-| `score`       | number or `null` | The metric score, or `null` without a target                          |
-| `target`      | number or `null` | The target of the selected item, or the total for a `sum`             |
-| `note`        | string or `null` | The note of a metric written without items                            |
-| `better`      | string           | `lower` or `higher`                                                   |
-| `weight`      | number           | The `weight` key                                                      |
-| `rollup`      | string or `null` | `p90`, `p10`, `median`, `max`, `min`, or `sum`, and `null` for checks |
-| `items`       | array            | Each item's `name`, `value`, `target`, and `note`, worst first        |
+| Field         | Type             | Description                                                                          |
+| ------------- | ---------------- | ------------------------------------------------------------------------------------ |
+| `name`        | string           | The metric name                                                                      |
+| `title`       | string           | The `title` key, or the name in words                                                |
+| `description` | string or `null` | The `description` key                                                                |
+| `kind`        | string           | `size`, `time`, `count`, or `check`                                                  |
+| `unit`        | string or `null` | `B` for sizes, `ns` for times, and `null` for counts and checks                      |
+| `value`       | number or `null` | The collapsed value, the share of checks that pass, or `null` for a check that skips |
+| `item`        | string or `null` | The item the roll-up selected                                                        |
+| `score`       | number or `null` | The metric score, or `null` without a target or for a check that skips               |
+| `target`      | number or `null` | The target of the selected item, or the total for a `sum`                            |
+| `note`        | string or `null` | The note of a metric written without items                                           |
+| `better`      | string           | `lower` or `higher`                                                                  |
+| `weight`      | number           | The `weight` key                                                                     |
+| `rollup`      | string or `null` | `p90`, `p10`, `median`, `max`, `min`, or `sum`, and `null` for checks                |
+| `items`       | array            | Each item's `name`, `value`, `target`, and `note`, worst first                       |
 
-An item's `target` is its own target, from its line or a `targets` pattern, and `null` when it uses the metric's `target`. A check item's `value` is `true` or `false`.
+An item's `target` is its own target, from its line or a `targets` pattern, and `null` when it uses the metric's `target`. A check item's `value` is `true` or `false`, or `null` when it skips.
 
 ```json
 {
@@ -170,7 +170,7 @@ An item's `target` is its own target, from its line or a `targets` pattern, and 
   "unit": "B",
   "value": 9000,
   "item": "viem/op-stack",
-  "score": 58,
+  "score": 57,
   "target": 5000,
   "note": null,
   "better": "lower",

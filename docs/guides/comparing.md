@@ -71,11 +71,11 @@ Comparing with main (ac66366)
 ● 100  footprint
   ● 100  source-size  172 B  target 1 kB
 
-■  55  speed  median of 8 rounds
-  ■  55  slugify-time  938.5 ns  target 500 ns
+■  54  speed  median of 8 rounds
+  ■  54  slugify-time  938.5 ns  target 500 ns
 
 Opportunities
-  +35  speed  slugify-time  938.5 ns → 500 ns
+  +36  speed  slugify-time  938.5 ns → 500 ns
 
 Since the baseline
   worse  footprint  source-size  138 B → 172 B

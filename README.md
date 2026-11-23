@@ -34,11 +34,11 @@ echo "bundle-size $(gzip -c dist/index.js | wc -c)B" >> "$UPHILL_METRICS"
 
 ```text
 $ uphill
-■  76  footprint
-  ■  76  bundle-size  6.9 kB  target 5 kB
+■  75  footprint
+  ■  75  bundle-size  6.9 kB  target 5 kB
 
 Opportunities
-  +14  footprint  bundle-size  6.9 kB → 5 kB
+  +15  footprint  bundle-size  6.9 kB → 5 kB
 ```
 
 ## Install

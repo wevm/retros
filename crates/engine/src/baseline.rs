@@ -469,6 +469,7 @@ pub(crate) fn exact(value: Value) -> String {
     let (amount, units) = match value {
         Value::Check(true) => return "pass".to_owned(),
         Value::Check(false) => return "fail".to_owned(),
+        Value::Skip => return "skip".to_owned(),
         Value::Count(n) => return format!("{n}"),
         Value::Size(n) => (n, &SIZES),
         Value::Time(n) => (n, &TIMES),
@@ -546,11 +547,7 @@ fn entry(metric: &MetricScore) -> Option<Entry> {
     let timing = varies(metric);
 
     if metric.items.is_empty() {
-        let value = match metric.kind {
-            Kind::Check => Some(Value::Check(metric.value >= 1.0)),
-            _ if timing => None,
-            kind => Some(Value::of(kind, metric.value)),
-        };
+        let value = (!timing).then(|| metric.single());
         if value.is_none() && metric.line_target.is_none() {
             return None;
         }
@@ -585,6 +582,14 @@ fn entry(metric: &MetricScore) -> Option<Entry> {
 
 /// Returns the direction of a change between two values, or `None` when they are equal.
 fn direction(before: Value, after: Value, better: Better) -> Option<Direction> {
+    // A check that starts or stops skipping starts or stops having a result.
+    match (before, after) {
+        (Value::Skip, Value::Skip) => return None,
+        (Value::Skip, _) => return Some(Direction::New),
+        (_, Value::Skip) => return Some(Direction::Gone),
+        _ => {}
+    }
+
     if let (Value::Check(before), Value::Check(after)) = (before, after) {
         return match (before, after) {
             (true, false) => Some(Direction::Worse),

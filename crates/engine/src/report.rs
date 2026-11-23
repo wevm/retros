@@ -232,7 +232,7 @@ pub fn band(score: u8) -> char {
 }
 
 /// Renders one category for the terminal: its score, then each metric's score, value, and
-/// target, and the worst items of each list.
+/// target, and the worst items of each list. Checks that skip collapse into one count.
 pub fn terminal(category: &CategoryReport) -> String {
     let mut out = String::new();
 
@@ -257,6 +257,7 @@ pub fn terminal(category: &CategoryReport) -> String {
     let rows: Vec<(&MetricScore, String)> = scored
         .metrics
         .iter()
+        .filter(|metric| !metric.skipped())
         .map(|metric| (metric, value(metric)))
         .collect();
     let name_width = width(rows.iter().map(|(metric, _)| metric.metric.name.as_str()));
@@ -307,6 +308,11 @@ pub fn terminal(category: &CategoryReport) -> String {
                 );
             }
         }
+    }
+
+    let skipped = scored.metrics.len() - rows.len();
+    if skipped > 0 {
+        let _ = writeln!(out, "  {}  {skipped} skipped", cell(None));
     }
 
     out
@@ -1007,10 +1013,8 @@ fn compact(score: Option<u8>) -> String {
     )
 }
 
-/// Formats a metric's collapsed value, such as `27.5 kB`, `p90 9 kB (viem/op-stack)`, or
-/// `2 of 3 pass`.
 /// Returns a metric's value as the HTML report's grid and `uphill log` show it: `27.1 ms`, `pass`,
-/// or `5 of 6 pass`.
+/// `5 of 6 pass`, or `skip`.
 pub fn headline(metric: &MetricScore) -> String {
     if metric.kind == Kind::Check {
         return value(metric);
@@ -1018,14 +1022,24 @@ pub fn headline(metric: &MetricScore) -> String {
     format::amount(metric.kind, metric.value)
 }
 
+/// Formats a metric's collapsed value, such as `27.5 kB`, `p90 9 kB (viem/op-stack)`,
+/// `2 of 3 pass`, or `skip`. Items that skip count toward neither side.
 pub(crate) fn value(metric: &MetricScore) -> String {
+    if metric.skipped() {
+        return "skip".to_owned();
+    }
     if metric.kind == Kind::Check {
         let passed = metric
             .items
             .iter()
             .filter(|item| item.value == Value::Check(true))
             .count();
-        return match metric.items.len() {
+        let judged = metric
+            .items
+            .iter()
+            .filter(|item| item.value != Value::Skip)
+            .count();
+        return match judged {
             0 if metric.value >= 1.0 => "pass".to_owned(),
             0 => "fail".to_owned(),
             n => format!("{passed} of {n} pass"),
@@ -1075,6 +1089,7 @@ fn note_cell(noted: bool, note: Option<&str>) -> String {
 pub(crate) fn misses_target(item: &score::Item, metric: &MetricScore) -> Option<bool> {
     match item.value {
         Value::Check(passed) => Some(!passed),
+        Value::Skip => None,
         value => {
             let target = item.target.or(metric.metric.target)?.amount()?;
             let amount = value.amount()?;
@@ -1106,7 +1121,7 @@ fn worst(metric: &MetricScore) -> Vec<&score::Item> {
     metric
         .items
         .iter()
-        .filter(|item| item.value != Value::Check(true))
+        .filter(|item| !matches!(item.value, Value::Check(true) | Value::Skip))
         .take(WORST)
         .collect()
 }
@@ -1136,7 +1151,14 @@ fn metric_json(metric: &MetricScore) -> Json {
         ),
         ("kind", Json::String(kind.to_owned())),
         ("unit", unit),
-        ("value", Json::Number(metric.value)),
+        (
+            "value",
+            if metric.skipped() {
+                Json::Null
+            } else {
+                Json::Number(metric.value)
+            },
+        ),
         ("item", optional(metric.at.as_deref())),
         ("score", score_json(metric.score)),
         ("target", metric.target.map_or(Json::Null, value_json)),
@@ -1164,10 +1186,12 @@ fn metric_json(metric: &MetricScore) -> Json {
     ])
 }
 
-/// Returns a value as JSON: a number in base units, or a boolean for a check.
+/// Returns a value as JSON: a number in base units, a boolean for a check, or `null` for a check
+/// that skips.
 fn value_json(value: Value) -> Json {
     match value {
         Value::Check(passed) => Json::Bool(passed),
+        Value::Skip => Json::Null,
         other => Json::Number(other.amount().unwrap_or_default()),
     }
 }

@@ -9,7 +9,7 @@
 use std::fmt::Write;
 
 use crate::baseline::{Change, Direction};
-use crate::config::Better;
+use crate::config::{Better, Metric};
 use crate::format;
 use crate::history::Run;
 use crate::report::{self, CategoryReport, Report};
@@ -314,7 +314,8 @@ fn category(out: &mut String, category: &CategoryReport, id: &str, history: &[Ru
     out.push_str("</section>\n");
 }
 
-/// Writes a category's metrics as a grid in the order `uphill.yaml` declares them.
+/// Writes a category's metrics as a grid in the order `uphill.yaml` declares them, and the checks
+/// that skip as a closed list after it.
 fn metrics(
     out: &mut String,
     scored: &CategoryScore,
@@ -343,10 +344,24 @@ fn metrics(
     }
 
     let _ = writeln!(out, "<ul class=\"grid\" id=\"{id}-metrics\">");
-    for metric in &scored.metrics {
+    for metric in scored.metrics.iter().filter(|metric| !metric.skipped()) {
         card(out, metric, past);
     }
     out.push_str("</ul>\n");
+
+    // Checks that skip close under one group, as Lighthouse lists audits that do not apply.
+    let skipped: Vec<&MetricScore> = scored.metrics.iter().filter(|m| m.skipped()).collect();
+    if !skipped.is_empty() {
+        let _ = writeln!(
+            out,
+            "<details class=\"passed\"><summary>Skipped <span class=\"muted\">({})</span></summary>\n<ul class=\"skipped\">",
+            skipped.len()
+        );
+        for metric in skipped {
+            let _ = writeln!(out, "<li>{}</li>", escape(&metric.metric.title()));
+        }
+        out.push_str("</ul>\n</details>\n");
+    }
 }
 
 /// Writes one metric of the grid: its band, title, and score, its value in its band's color, its
@@ -414,7 +429,7 @@ fn card(out: &mut String, metric: &MetricScore, past: &[(String, crate::history:
 
     let target = metric.target.and_then(Value::amount);
     match (metric.kind, target) {
-        (Kind::Check, _) if !metric.items.is_empty() => {
+        (Kind::Check, _) if !metric.items.is_empty() && !metric.skipped() => {
             let _ = write!(
                 out,
                 "<div class=\"ratio\" aria-hidden=\"true\"><span style=\"width:{:.1}%\"></span></div>",
@@ -423,7 +438,7 @@ fn card(out: &mut String, metric: &MetricScore, past: &[(String, crate::history:
         }
         (Kind::Check, _) | (_, None) => {}
         (_, Some(target)) => {
-            out.push_str(&bar(metric.value, target, metric.metric.better, band));
+            out.push_str(&bar(metric.value, target, &metric.metric, band));
         }
     }
 
@@ -751,14 +766,15 @@ fn audit(out: &mut String, metric: &MetricScore) {
                 if passed { "good" } else { "poor" },
                 if passed { "pass" } else { "fail" }
             ),
+            (Value::Skip, _) => "<td><span class=\"chip\">skip</span></td>".to_owned(),
             (value, Some(goal)) => {
                 let amount = value.amount().unwrap_or_default();
-                let band = band_of(amount, goal, metric.metric.better);
+                let band = band_of(amount, goal, &metric.metric);
                 format!(
                     "<td class=\"value {band}\">{}</td><td>{}</td><td class=\"cell-bar\">{}</td>",
                     escape(&format::value(value)),
                     escape(&target.map(format::value).unwrap_or_default()),
-                    bar(amount, goal, metric.metric.better, band)
+                    bar(amount, goal, &metric.metric, band)
                 )
             }
             (value, None) => format!(
@@ -784,15 +800,16 @@ fn audit(out: &mut String, metric: &MetricScore) {
 }
 
 /// Renders a value against its target on a bar of the three score bands. Where lower is better,
-/// the bar runs from zero to three times the target, so the target, which scores 90, sits a third
-/// of the way along, and twice the target, which scores 50, two thirds. Where higher is better,
-/// it runs from zero to one and a half times the target, so half the target sits a third along
-/// and the target two thirds. A value past either end sits at that end.
-fn bar(value: f64, target: f64, better: Better, band: &str) -> String {
-    let (span, tick, direction) = match better {
-        Better::Lower => (3.0 * target, 100.0 / 3.0, "lower"),
-        Better::Higher => (1.5 * target, 200.0 / 3.0, "higher"),
+/// the bar runs from zero to one and a half times the value that scores 50, so with the default
+/// `poor` of twice the target, the target, which scores 90, sits a third of the way along, and
+/// twice the target two thirds. Where higher is better, it runs from zero to one and a half times
+/// the target, so the target sits two thirds along. A value past either end sits at that end.
+fn bar(value: f64, target: f64, metric: &Metric, band: &str) -> String {
+    let (span, direction) = match metric.better {
+        Better::Lower => (1.5 * metric.poor(target), "lower"),
+        Better::Higher => (1.5 * target, "higher"),
     };
+    let tick = target / span * 100.0;
     let at = (value / span).clamp(0.0, 1.0) * 100.0;
     format!(
         "<div class=\"bar {direction}\" aria-hidden=\"true\"><span class=\"tick\" style=\"left:{tick:.1}%\"></span><span class=\"marker {band}\" style=\"left:{at:.1}%\"></span></div>"
@@ -800,18 +817,18 @@ fn bar(value: f64, target: f64, better: Better, band: &str) -> String {
 }
 
 /// Returns the class of the band a value falls in against its target, on the boundaries of
-/// [`crate::score::curve`]: at or better than the target is good, up to twice the target (half,
-/// where higher is better) needs work, and beyond that is poor.
-fn band_of(value: f64, target: f64, better: Better) -> &'static str {
-    let ratio = match better {
-        Better::Lower => value / target,
-        Better::Higher if value <= 0.0 => f64::INFINITY,
-        Better::Higher => target / value,
+/// [`crate::score::curve`]: at or better than the target is good, up to the metric's `poor` for
+/// that target needs work, and beyond that is poor.
+fn band_of(value: f64, target: f64, metric: &Metric) -> &'static str {
+    let poor = metric.poor(target);
+    let (good, average) = match metric.better {
+        Better::Lower => (value <= target, value <= poor),
+        Better::Higher => (value >= target, value >= poor),
     };
-    match ratio {
-        r if r <= 1.0 => "good",
-        r if r <= 2.0 => "average",
-        _ => "poor",
+    match (good, average) {
+        (true, _) => "good",
+        (false, true) => "average",
+        (false, false) => "poor",
     }
 }
 
@@ -1014,6 +1031,7 @@ code{font:13px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--soft
 .shape.average{background:var(--average);border-radius:0}
 .shape.poor{width:0;height:0;background:none;border-radius:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:11px solid var(--poor)}
 .audits{list-style:none;margin:0;padding:0}
+.skipped{columns:2 220px;margin:0;padding:10px 4px;list-style:none;color:var(--muted);font-size:13px;line-height:1.8}
 .audits>li{border-bottom:1px solid var(--line)}
 summary.audit{display:grid;grid-template-columns:14px minmax(0,1fr) auto 16px;align-items:center;gap:4px 12px;padding:11px 4px;cursor:pointer;list-style:none}
 summary.audit::-webkit-details-marker,.passed>summary::-webkit-details-marker{display:none}

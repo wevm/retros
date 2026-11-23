@@ -1,8 +1,8 @@
 //! Measured values and their units.
 //!
 //! A value is a number with an optional unit, such as `45.6MB`, `236ms`, or `54774`, or a check
-//! result, `pass` or `fail`. Parsing converts sizes to bytes and times to nanoseconds, and size
-//! units are decimal, so `1kB` is 1,000 bytes.
+//! result, `pass`, `fail`, or `skip`. Parsing converts sizes to bytes and times to nanoseconds,
+//! and size units are decimal, so `1kB` is 1,000 bytes.
 
 use crate::error::Code;
 
@@ -59,6 +59,9 @@ impl Kind {
 pub enum Value {
     /// A check result.
     Check(bool),
+    /// A check that does not apply, such as an audit with nothing on the page to audit. It has no
+    /// score and never misses.
+    Skip,
     /// A plain number.
     Count(f64),
     /// A size in bytes.
@@ -82,7 +85,7 @@ impl Value {
     /// Returns the number in base units, or `None` for a check.
     pub fn amount(self) -> Option<f64> {
         match self {
-            Self::Check(_) => None,
+            Self::Check(_) | Self::Skip => None,
             Self::Count(amount) | Self::Size(amount) | Self::Time(amount) => Some(amount),
         }
     }
@@ -90,7 +93,7 @@ impl Value {
     /// Returns the kind of quantity the value measures.
     pub fn kind(self) -> Kind {
         match self {
-            Self::Check(_) => Kind::Check,
+            Self::Check(_) | Self::Skip => Kind::Check,
             Self::Count(_) => Kind::Count,
             Self::Size(_) => Kind::Size,
             Self::Time(_) => Kind::Time,
@@ -106,18 +109,19 @@ pub(crate) struct ParseError {
     pub(crate) offset: usize,
 }
 
-/// Parses value text such as `45.6MB`, `236ms`, `54774`, or `pass`.
+/// Parses value text such as `45.6MB`, `236ms`, `54774`, `pass`, or `skip`.
 pub(crate) fn parse(text: &str) -> Result<Value, ParseError> {
     match text {
         "fail" => return Ok(Value::Check(false)),
         "pass" => return Ok(Value::Check(true)),
+        "skip" => return Ok(Value::Skip),
         _ => {}
     }
 
     let (number, unit) = split(text).ok_or_else(|| ParseError {
         code: Code::InvalidNumber,
         message: format!(
-            "expected a number, a number with a unit, `pass`, or `fail`, found `{text}`"
+            "expected a number, a number with a unit, `pass`, `fail`, or `skip`, found `{text}`"
         ),
         offset: 0,
     })?;

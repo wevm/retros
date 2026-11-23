@@ -3,11 +3,12 @@
 //!
 //! Each measurement is scored against its own target: the first pattern in the metric's `targets`
 //! that matches its item, else the target its line sets, else the metric's `target`. A value at
-//! its target scores 90, a value twice the target scores 50, and a value four times the target
-//! scores 10. A list collapses to the item furthest past its own target at the configured rank,
-//! so the p90 of a list is the item with at most a tenth of the list further past its target.
-//! Scores follow Lighthouse's rounding: a metric's score is a whole number from 0 to 100, and a
-//! category's score is the weighted mean of its metric scores, rounded.
+//! its target scores 90, and a value at the metric's `poor`, twice the target by default, scores
+//! 50. A list collapses to the item furthest past its own target at the configured rank, so the
+//! p90 of a list is the item with at most a tenth of the list further past its target. Scores
+//! follow Lighthouse's arithmetic: a metric's score is a whole number from 0 to 100, from
+//! `Util.computeLogNormalScore`, and a category's score is the weighted mean of its metric scores
+//! as `ReportScoring.arithmeticMean` computes it, rounded.
 
 use crate::config::{Better, Category, Metric, Rollup};
 use crate::lines::Line;
@@ -49,14 +50,32 @@ pub struct MetricScore {
     pub metric: Metric,
     /// The note the line sets, for a metric written without items.
     pub note: Option<String>,
-    /// The score from 0 to 100. A check always has one, and other metrics have one when every
-    /// measurement has a target.
+    /// The score from 0 to 100. A check has one unless every item skips, and other metrics have
+    /// one when every measurement has a target.
     pub score: Option<u8>,
     /// The target the metric is scored against: the selected item's target, or the total of the
     /// targets for a `sum`.
     pub target: Option<Value>,
-    /// The collapsed value in base units. For a check, the share of items that pass, from 0 to 1.
+    /// The collapsed value in base units. For a check, the share of items that pass among those
+    /// that do not skip, from 0 to 1, or 1 when every item skips.
     pub value: f64,
+}
+
+impl MetricScore {
+    /// Returns the value of a metric written without items: `pass`, `fail`, `skip`, or its
+    /// collapsed amount.
+    pub fn single(&self) -> Value {
+        match self.kind {
+            Kind::Check if self.skipped() => Value::Skip,
+            Kind::Check => Value::Check(self.value >= 1.0),
+            kind => Value::of(kind, self.value),
+        }
+    }
+
+    /// Returns whether the metric is a check where every item, or its one line, skips.
+    pub fn skipped(&self) -> bool {
+        self.kind == Kind::Check && self.score.is_none()
+    }
 }
 
 /// One item of a list metric.
@@ -261,19 +280,19 @@ pub fn opportunities(scored: &CategoryScore) -> Vec<Opportunity> {
 }
 
 /// Scores a value where lower is better on Lighthouse's `getLogNormalScore`, with `target` as its
-/// p10 control point and twice the target as its median. A value at `target` scores 0.9, a value
-/// at twice the target scores 0.5, and each side of a control point is clamped to its band.
-/// `target` must be greater than zero.
-pub fn curve(target: f64, value: f64) -> f64 {
+/// p10 control point and `poor` as its median. A value at `target` scores 0.9, a value at `poor`
+/// scores 0.5, and each side of a control point is clamped to its band. `target` must be greater
+/// than zero and less than `poor`.
+pub fn curve(target: f64, poor: f64, value: f64) -> f64 {
     /// The closest double to `erfc⁻¹(1/5)`.
     const INVERSE_ERFC_ONE_FIFTH: f64 = 0.906_193_802_436_823_2;
     /// The largest scores below 0.9 and 0.5.
     const MAX_AVERAGE: f64 = 0.899_999_999_999_999_9;
     const MAX_POOR: f64 = 0.499_999_999_999_999_94;
 
-    debug_assert!(target > 0.0);
+    debug_assert!(target > 0.0 && target < poor);
 
-    let median = 2.0 * target;
+    let median = poor;
 
     if value <= 0.0 {
         return 1.0;
@@ -293,6 +312,23 @@ pub fn curve(target: f64, value: f64) -> f64 {
     } else {
         complementary.clamp(0.0, MAX_POOR)
     }
+}
+
+/// Returns a score from 0 to 100 for a value on the curve, as Lighthouse's
+/// `Util.computeLogNormalScore` does: scores above 0.9 gain up to half a point more, and the
+/// result rounds down to a whole number.
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the clamped value is between 0 and 100"
+)]
+fn points(score: f64) -> u8 {
+    let boosted = if score > 0.9 {
+        score + 0.05 * (score - 0.9)
+    } else {
+        score
+    };
+    (boosted * 100.0).floor().clamp(0.0, 100.0) as u8
 }
 
 /// Lighthouse's `erf`: Abramowitz and Stegun, formula 7.1.26.
@@ -363,10 +399,15 @@ pub(crate) fn metric(metric: &Metric, rounds: &[Vec<Line<'_>>]) -> Option<Metric
         .and_then(|at| measures.get(at))
         .and_then(|measure| measure.name.clone());
 
-    // Worst first: failed checks, then the values furthest past their targets.
+    // Worst first: failed checks, then passed checks, then skipped checks, or the values
+    // furthest past their targets.
     measures.sort_by(|a, b| {
-        if let (Value::Check(a), Value::Check(b)) = (a.value, b.value) {
-            return a.cmp(&b);
+        if kind == Kind::Check {
+            let rank = |measure: &Measure| match measure.value {
+                Value::Check(passed) => u8::from(passed),
+                _ => 2,
+            };
+            return rank(a).cmp(&rank(b));
         }
 
         let order = ratio(a).total_cmp(&ratio(b));
@@ -406,13 +447,22 @@ fn evaluate(metric: &Metric, kind: Kind, measures: &[Measure]) -> Evaluated {
             .iter()
             .filter(|measure| measure.value == Value::Check(true))
             .count();
-        let share = count(passed) / count(measures.len().max(1));
+        let judged = measures
+            .iter()
+            .filter(|measure| measure.value != Value::Skip)
+            .count();
 
+        // A check where every item skips does not apply, so it has no score, like an audit
+        // Lighthouse marks not applicable.
         return Evaluated {
             at: None,
-            score: Some(whole(share * 100.0)),
+            score: (judged > 0).then(|| whole(count(passed) / count(judged) * 100.0)),
             target: None,
-            value: share,
+            value: if judged > 0 {
+                count(passed) / count(judged)
+            } else {
+                1.0
+            },
         };
     }
 
@@ -458,7 +508,7 @@ fn evaluate(metric: &Metric, kind: Kind, measures: &[Measure]) -> Evaluated {
     let target = target.filter(|_| targets.is_some());
     Evaluated {
         at,
-        score: target.map(|target| whole(scaled(target, metric.better, value) * 100.0)),
+        score: target.map(|target| points(scaled(metric, target, value))),
         target,
         value,
     }
@@ -469,11 +519,7 @@ fn measures(metric: &MetricScore) -> Vec<Measure> {
     let default = metric.metric.target.and_then(Value::amount);
 
     if metric.items.is_empty() {
-        let value = if metric.kind == Kind::Check {
-            Value::Check(metric.value >= 1.0)
-        } else {
-            Value::of(metric.kind, metric.value)
-        };
+        let value = metric.single();
         return vec![Measure {
             name: None,
             note: None,
@@ -500,6 +546,7 @@ fn measures(metric: &MetricScore) -> Vec<Measure> {
 fn misses(measure: &Measure, better: Better) -> bool {
     match (measure.value, measure.target) {
         (Value::Check(passed), _) => !passed,
+        (Value::Skip, _) | (_, None) => false,
         (value, Some(target)) => {
             let amount = value.amount().unwrap_or_default();
             match better {
@@ -507,7 +554,6 @@ fn misses(measure: &Measure, better: Better) -> bool {
                 Better::Lower => amount > target,
             }
         }
-        (_, None) => false,
     }
 }
 
@@ -524,8 +570,10 @@ fn ratio(measure: &Measure) -> f64 {
     measure.value.amount().unwrap_or_default() / measure.target.unwrap_or(1.0)
 }
 
-/// Returns the weighted mean of the metric scores, before rounding, or `None` when no metric with
-/// weight has a score.
+/// Returns the weighted mean of the metric scores in points, before rounding, or `None` when no
+/// metric with weight has a score. Like Lighthouse's `ReportScoring.arithmeticMean`, it sums each
+/// score as a fraction of 1 times its weight, in the order `uphill.yaml` declares the metrics, so
+/// a mean that falls on half a point rounds the way Lighthouse's does.
 fn mean(metrics: &[MetricScore]) -> Option<f64> {
     let mut total = 0.0;
     let mut weights = 0.0;
@@ -534,21 +582,22 @@ fn mean(metrics: &[MetricScore]) -> Option<f64> {
         if let Some(score) = metric.score
             && metric.metric.weight > 0.0
         {
-            total += f64::from(score) * metric.metric.weight;
+            total += f64::from(score) / 100.0 * metric.metric.weight;
             weights += metric.metric.weight;
         }
     }
 
-    (weights > 0.0).then(|| total / weights)
+    (weights > 0.0).then(|| total / weights * 100.0)
 }
 
-/// Scores a value on the curve. A metric where higher is better scores the reciprocals, so half
-/// its target scores 50.
-fn scaled(target: f64, better: Better, value: f64) -> f64 {
-    match better {
-        Better::Lower => curve(target, value),
+/// Scores a value on the curve against its target and the metric's `poor` for that target. A
+/// metric where higher is better scores the reciprocals, so half its target scores 50 by default.
+fn scaled(metric: &Metric, target: f64, value: f64) -> f64 {
+    let poor = metric.poor(target);
+    match metric.better {
+        Better::Lower => curve(target, poor, value),
         Better::Higher if value <= 0.0 => 0.0,
-        Better::Higher => curve(1.0 / target, 1.0 / value),
+        Better::Higher => curve(1.0 / target, 1.0 / poor, 1.0 / value),
     }
 }
 

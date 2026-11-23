@@ -4,7 +4,9 @@ Uphill scores each value from 0 to 100 against its target, collapses each list t
 
 ## Curve
 
-Each value scores on a log-normal curve with two control points: a value at its target scores 90, and twice the target scores 50. Smaller values approach 100 and larger values approach 0. Uphill compares values, not rounded scores, so a value just past its target never passes as 90.
+Each value scores on Lighthouse's log-normal curve with two control points: a value at its target scores 90, and a value at the metric's [`poor`](./configuration.md#poor), twice the target by default, scores 50. Smaller values approach 100 and larger values approach 0.
+
+Like Lighthouse, Uphill adds up to half a point to scores above 90 and then rounds down, so 89.9 scores 89. Gates compare values, not scores, so a value just past its target never passes.
 
 | Value against a 5 kB target  | Score | Band       |
 | ---------------------------- | ----- | ---------- |
@@ -24,17 +26,28 @@ Each value scores on a log-normal curve with two control points: a value at its 
   ▲   3  f  27.5 kB  target 5 kB
 ```
 
+With `poor` set, the curve takes Lighthouse's own control points, so the same value scores the same as in a Lighthouse report.
+
+```yaml title="uphill.yaml"
+# Lighthouse's mobile Total Blocking Time: 90 at 200 ms and 50 at 600 ms.
+total-blocking-time: { target: 200ms, poor: 600ms }
+```
+
+```text
+  ■  73  total-blocking-time  350 ms  target 200 ms
+```
+
 ## Bands
 
 Each score falls in a band, which reports mark with a shape so the band reads without color.
 
-| Shape | Band       | Scores                         |
-| ----- | ---------- | ------------------------------ |
-| ●     | good       | 90 to 100                      |
-| ■     | needs work | 50 to 89                       |
-| ▲     | poor       | 0 to 49                        |
-| –     | no score   | a metric without a target      |
-| ✗     | failed     | a category whose script failed |
+| Shape | Band       | Scores                                           |
+| ----- | ---------- | ------------------------------------------------ |
+| ●     | good       | 90 to 100                                        |
+| ■     | needs work | 50 to 89                                         |
+| ▲     | poor       | 0 to 49                                          |
+| –     | no score   | a metric without a target, or a check that skips |
+| ✗     | failed     | a category whose script failed                   |
 
 ## Higher Is Better
 
@@ -55,7 +68,7 @@ Items rank by value divided by their own target, so each item is judged by its o
 - **`max`** and **`min`:** The highest and the lowest item.
 - **`sum`:** The total of the values against the total of the targets.
 
-A list of checks scores the share of items that pass, so 2 of 3 passing scores 67.
+A list of checks scores the share of items that pass, so 2 of 3 passing scores 67. Items that `skip` count toward neither side.
 
 ```text
 ■  68  page-size  p90 31 kB (pricing.html)  target 20 kB
@@ -64,14 +77,14 @@ A list of checks scores the share of items that pass, so 2 of 3 passing scores 6
 
 ## Categories
 
-A metric's score is rounded to a whole number, and a category score is the weighted mean of its metric scores, rounded. A metric with weight 0 has a score but stays out of the mean.
+A category score is the weighted mean of its metric scores, rounded. It adds the scores in the order `uphill.yaml` declares them, as fractions of 1, like Lighthouse, so a mean of exactly half a point rounds as Lighthouse rounds it. A metric with weight 0 has a score but stays out of the mean.
 
-A metric without a target has no score and stays out of the mean. A category whose script fails, or does not write a metric that the category lists, has no score, which is different from a score of 0.
+A metric without a target, and a check that skips, have no score and stay out of the mean. A category whose script fails, or does not write a metric that the category lists, has no score, which is different from a score of 0.
 
 ```text
-▲  43  footprint
+▲  42  footprint
   ▲   3  bundle       27.5 kB                   target 5 kB
-  ■  58  export-size  p90 9 kB (viem/op-stack)  target 5 kB
+  ■  57  export-size  p90 9 kB (viem/op-stack)  target 5 kB
       –  modules      412
   ■  67  links        2 of 3 pass
 ```

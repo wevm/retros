@@ -9,7 +9,7 @@ A value's unit sets its kind: a size, a time, a count, or a check. Uphill conver
 | Size  | `B`, `kB`, `MB`, `GB`       | bytes        | `45.6MB` |
 | Time  | `ns`, `µs`, `us`, `ms`, `s` | nanoseconds  | `1.82ms` |
 | Count | no unit                     | the number   | `412`    |
-| Check | `pass`, `fail`              | pass or fail | `pass`   |
+| Check | `pass`, `fail`, `skip`      | pass or fail | `pass`   |
 
 Units are case-sensitive, so `KB` and `Ms` are errors. A unit follows the number without a space.
 
@@ -51,9 +51,12 @@ score-delta -3
 
 A check is `pass` or `fail`. A list of checks scores the share of items that pass, so a check needs no target and cannot have one.
 
+A check that does not apply, such as an audit of video captions on a page without video, is `skip`. It counts toward neither side of a list. A check whose every line skips has no score and stays out of its category.
+
 ```text
 links index.html pass
 links about.html fail note "/team returns 404"
+video-caption skip
 ```
 
 ## Display
@@ -64,5 +67,5 @@ Reports show sizes and times in the largest unit that keeps the number at 1 or m
 
 ```text
 ■  68  page-size  p90 31 kB (pricing.html)  target 20 kB
-■  55  slugify-time  938.5 ns  target 500 ns
+■  54  slugify-time  938.5 ns  target 500 ns
 ```

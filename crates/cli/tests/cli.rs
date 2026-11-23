@@ -275,10 +275,10 @@ fn scores_every_category_and_writes_reports() {
 
     assert_eq!(output.status.code(), Some(0));
     insta::assert_snapshot!(stdout(&output), @"
-    ▲  43  footprint
+    ▲  42  footprint
       ▲   3  bundle       27.5 kB                   target 5 kB
                           includes all of lodash
-      ■  58  export-size  p90 9 kB (viem/op-stack)  target 5 kB
+      ■  57  export-size  p90 9 kB (viem/op-stack)  target 5 kB
                           10 kB  viem/chains
                                  bundles every chain definition
                           9 kB   viem/op-stack
@@ -289,7 +289,7 @@ fn scores_every_category_and_writes_reports() {
                                 links to /team, which is gone
 
     ■  75  speed  median of 5 rounds
-      ▲  34  render      p90 5 ms (parse)  target 2 ms
+      ▲  33  render      p90 5 ms (parse)  target 2 ms
                          5 ms  parse
                          2 ms  encode
       ●  96  throughput  2588              target 2000, weight 2
@@ -316,7 +316,7 @@ fn scores_every_category_and_writes_reports() {
           "title": "Footprint",
           "subject": null,
           "description": null,
-          "score": 43,
+          "score": 42,
           "rounds": 1,
           "metrics": [
             {
@@ -343,7 +343,7 @@ fn scores_every_category_and_writes_reports() {
               "unit": "B",
               "value": 9000,
               "item": "viem/op-stack",
-              "score": 58,
+              "score": 57,
               "target": 5000,
               "note": null,
               "better": "lower",
@@ -481,7 +481,7 @@ fn scores_every_category_and_writes_reports() {
               "unit": "ns",
               "value": 5000000,
               "item": "parse",
-              "score": 34,
+              "score": 33,
               "target": 2000000,
               "note": null,
               "better": "lower",
@@ -584,7 +584,7 @@ fn scores_every_category_and_writes_reports() {
 
     | Category | Score |
     | --- | --- |
-    | Footprint | ▲ 43 |
+    | Footprint | ▲ 42 |
     | Speed | ■ 75 |
 
     ## Opportunities
@@ -602,7 +602,7 @@ fn scores_every_category_and_writes_reports() {
     | Score | Metric | Value | Target | Note |
     | --- | --- | --- | --- | --- |
     | ▲ 3 | Bundle | 27.5 kB | 5 kB | includes all of lodash |
-    | ■ 58 | Export size | p90 9 kB (viem/op-stack) | 5 kB |  |
+    | ■ 57 | Export size | p90 9 kB (viem/op-stack) | 5 kB |  |
     | – | Modules | 412 |  |  |
     | ■ 67 | Links | 2 of 3 pass |  |  |
 
@@ -626,7 +626,7 @@ fn scores_every_category_and_writes_reports() {
 
     | Score | Metric | Value | Target |
     | --- | --- | --- | --- |
-    | ▲ 34 | Render | p90 5 ms (parse) | 2 ms |
+    | ▲ 33 | Render | p90 5 ms (parse) | 2 ms |
     | ● 96 | Throughput | 2588 | 2000 |
 
     Worst items of Render:
@@ -647,10 +647,10 @@ fn scores_one_category_from_a_subdirectory() {
 
     assert_eq!(output.status.code(), Some(0));
     insta::assert_snapshot!(stdout(&output), @"
-    ▲  43  footprint
+    ▲  42  footprint
       ▲   3  bundle       27.5 kB                   target 5 kB
                           includes all of lodash
-      ■  58  export-size  p90 9 kB (viem/op-stack)  target 5 kB
+      ■  57  export-size  p90 9 kB (viem/op-stack)  target 5 kB
                           10 kB  viem/chains
                                  bundles every chain definition
                           9 kB   viem/op-stack
@@ -833,10 +833,10 @@ Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
 
     assert_eq!(gated.status.code(), Some(1));
     insta::assert_snapshot!(stdout(&gated), @"
-    ■  54  footprint
+    ■  53  footprint
       ▲   3  bundle       27.5 kB                   target 5 kB
                           includes all of lodash
-      ■  58  export-size  p90 9 kB (viem/op-stack)  target 5 kB
+      ■  57  export-size  p90 9 kB (viem/op-stack)  target 5 kB
                           12 kB  viem/chains
                                  bundles every chain definition
                           9 kB   viem/op-stack
@@ -902,7 +902,7 @@ fn subjects_share_one_run_and_score_on_their_own() {
       ■  77  startup  40 ms  target 30 ms
 
     ●  97  ts: footprint  median of 5 rounds
-      ●  95  turn-rss      48 MB   target 57 MB
+      ●  94  turn-rss      48 MB   target 57 MB
       ● 100  install-size  4 MB    target 10 MB
       ●  97  wasm-size     250 kB  target 350 kB
 
@@ -1004,7 +1004,7 @@ fn subjects_share_one_run_and_score_on_their_own() {
 
     | Score | Metric | Value | Target |
     | --- | --- | --- | --- |
-    | ● 95 | Peak memory, one turn | 48 MB | 57 MB |
+    | ● 94 | Peak memory, one turn | 48 MB | 57 MB |
     | ● 100 | Install size | 4 MB | 10 MB |
     | ● 97 | Wasm size | 250 kB | 350 kB |
     ");
@@ -1103,8 +1103,8 @@ fn compare_reports_what_changed_since_a_revision_and_leaves_timing_noise_out() {
     insta::assert_snapshot!(unchanged, @"
     Comparing with HEAD (abc1234)
 
-    ●  93  footprint
-      ●  93  bundle  27.5 kB  target 30 kB
+    ●  92  footprint
+      ●  92  bundle  27.5 kB  target 30 kB
 
     ●  99  speed  median of 8 rounds
       ●  98  encode  2 ms   target 3 ms
@@ -1135,8 +1135,8 @@ fn compare_reports_what_changed_since_a_revision_and_leaves_timing_noise_out() {
     ●  90  footprint
       ●  90  bundle  30 kB  target 30 kB
 
-    ●  97  speed  median of 8 rounds
-      ●  95  encode  2.5 ms  target 3 ms
+    ●  96  speed  median of 8 rounds
+      ●  94  encode  2.5 ms  target 3 ms
       ●  98  parse   20 ms   target 30 ms
 
     No baseline yet. Run `uphill --update` to record these values as the baseline.
@@ -1236,8 +1236,8 @@ fn compare_uses_the_revision_baselines_and_always_removes_its_checkout() {
     Comparing with HEAD (abc1234)
     warning: footprint.sh differs in HEAD (abc1234), so its changes may come from the script
 
-    ●  93  footprint
-      ●  93  bundle  27.5 kB  target 30 kB
+    ●  92  footprint
+      ●  92  bundle  27.5 kB  target 30 kB
         warning: footprint failed in HEAD (abc1234): script exited with status 3
 
     No baseline yet. Run `uphill --update` to record these values as the baseline.
@@ -1260,8 +1260,8 @@ fn compare_uses_the_revision_baselines_and_always_removes_its_checkout() {
     insta::assert_snapshot!(text, @"
     Comparing with HEAD (abc1234)
 
-    ●  93  footprint
-      ●  93  bundle  27.5 kB  target 30 kB
+    ●  92  footprint
+      ●  92  bundle  27.5 kB  target 30 kB
 
     Since the baseline
       worse  footprint  bundle  25 kB → 27.5 kB
@@ -1458,7 +1458,7 @@ fn notes_keep_runs_for_log_and_the_trends_in_report_html() {
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     assert!(named(&stdout(&output)).ends_with("report.html, a note on commit1\n"));
     insta::assert_snapshot!(git(dir, &["notes", "--ref", "refs/notes/uphill", "show", "HEAD"]), @"
-    [footprint 93]
+    [footprint 92]
     bundle 27.5kB
     [speed 99]
     encode 2ms
@@ -1503,9 +1503,9 @@ fn notes_keep_runs_for_log_and_the_trends_in_report_html() {
         .collect();
     insta::assert_debug_snapshot!(trends, @r#"
     [
-        "Score over the last 3 runs, from 93 to 90",
+        "Score over the last 3 runs, from 92 to 90",
         "Bundle over the last 3 runs, from 27.5 kB to 30 kB",
-        "Score over the last 3 runs, from 99 to 98",
+        "Score over the last 3 runs, from 99 to 97",
         "Encode over the last 3 runs, from 2 ms to 2.5 ms",
         "Parse over the last 3 runs, from 10 ms to 10 ms",
     ]
@@ -1526,7 +1526,7 @@ fn compact_prints_scores_misses_and_opportunities_in_a_few_lines() {
 
     assert_eq!(output.status.code(), Some(1));
     insta::assert_snapshot!(stdout(&output), @"
-    footprint 43, speed 75
+    footprint 42, speed 75
 
     Missed targets
       footprint  bundle                     27.5 kB  target 5 kB  includes all of lodash

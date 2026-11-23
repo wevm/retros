@@ -32,11 +32,12 @@ pub fn amount(kind: Kind, amount: f64) -> String {
     precise(kind, amount, 0)
 }
 
-/// Formats a value for display, such as `61 kB` or `pass`.
+/// Formats a value for display, such as `61 kB`, `pass`, or `skip`.
 pub fn value(value: Value) -> String {
     match value {
         Value::Check(true) => "pass".to_owned(),
         Value::Check(false) => "fail".to_owned(),
+        Value::Skip => "skip".to_owned(),
         Value::Count(n) => amount(Kind::Count, n),
         Value::Size(n) => amount(Kind::Size, n),
         Value::Time(n) => amount(Kind::Time, n),

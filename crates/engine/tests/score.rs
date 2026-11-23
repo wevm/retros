@@ -55,12 +55,114 @@ fn curve_matches_lighthouse_and_zepto() {
     ];
 
     for (target, value, expected) in cases {
-        let actual = score::curve(target, value);
+        let actual = score::curve(target, 2.0 * target, value);
         assert!(
             (actual - expected).abs() < 1e-12,
             "curve({target}, {value}) = {actual}, expected {expected}"
         );
     }
+}
+
+#[test]
+fn scores_metrics_like_lighthouse_audits_with_their_control_points() {
+    // Lighthouse 13.6.0's mobile control points, with `poor` as each median.
+    let config = r#"performance:
+  run: "true"
+  first-contentful-paint: { target: 1800ms, poor: 3000ms, weight: 10 }
+  largest-contentful-paint: { target: 2500ms, poor: 4000ms, weight: 25 }
+  total-blocking-time: { target: 200ms, poor: 600ms, weight: 30 }
+  cumulative-layout-shift: { target: 0.1, poor: 0.25, weight: 25 }
+  speed-index: { target: 3387ms, poor: 5800ms, weight: 10 }
+"#;
+
+    // Lighthouse's `Util.computeLogNormalScore` at edc407d7 scores these as 0.09, 0.87, 0.73, 1,
+    // and 0.89: it rounds down, so 0.0988, 0.8775, and 0.8984 do not round up. Its
+    // `ReportScoring.arithmeticMean` makes the category 0.78.
+    let audits = scored(
+        config,
+        &["first-contentful-paint 5013.7ms
+largest-contentful-paint 2611.4ms
+total-blocking-time 350ms
+cumulative-layout-shift 0.012
+speed-index 3400.25ms
+"],
+    );
+    insta::assert_snapshot!(summary(&audits), @"
+    category Some(78)
+    first-contentful-paint 5013700000 Some(9)
+    largest-contentful-paint 2611400000 Some(87)
+    total-blocking-time 350000000 Some(73)
+    cumulative-layout-shift 0.012 Some(100)
+    speed-index 3400250000 Some(89)
+    ");
+
+    // Scores of 0, 0, 3, 50, and 11 have a weighted mean of exactly 14.5 points, but Lighthouse
+    // sums fractions of 1 and reports 14.
+    let halfway = scored(
+        config,
+        &["first-contentful-paint 30s
+largest-contentful-paint 40s
+total-blocking-time 2700ms
+cumulative-layout-shift 0.25
+speed-index 9550ms
+"],
+    );
+    insta::assert_snapshot!(summary(&halfway), @"
+    category Some(14)
+    first-contentful-paint 30000000000 Some(0)
+    largest-contentful-paint 40000000000 Some(0)
+    total-blocking-time 2700000000 Some(3)
+    cumulative-layout-shift 0.25 Some(50)
+    speed-index 9550000000 Some(11)
+    ");
+}
+
+#[test]
+fn scales_poor_with_each_items_own_target() {
+    let config = r#"footprint:
+  run: "true"
+  entry-size: { target: 1kB, poor: 3kB, targets: { ".": 4kB } }
+"#;
+    // `poor` is three times the default target, so the root's 4 kB target makes 12 kB score 50,
+    // and `./date`, at 3 kB, scores 50 against the default.
+    let root = scored(config, &["entry-size . 12kB\nentry-size ./date 1kB\n"]);
+    let date = scored(config, &["entry-size . 4kB\nentry-size ./date 3kB\n"]);
+
+    insta::assert_snapshot!(summary(&root), @"
+    category Some(50)
+    entry-size 12000 Some(50)
+    ");
+    insta::assert_snapshot!(summary(&date), @"
+    category Some(50)
+    entry-size 3000 Some(50)
+    ");
+}
+
+#[test]
+fn checks_that_skip_have_no_score() {
+    let config = r#"accessibility:
+  run: "true"
+  image-alt: { weight: 10 }
+  video-caption: { weight: 10 }
+  links: { weight: 3 }
+"#;
+    // A skipped check, like an audit Lighthouse marks not applicable, leaves the category, and a
+    // skipped item counts toward neither side of a list.
+    let lines = "image-alt fail
+video-caption skip
+links a pass
+links b skip
+links c pass
+";
+
+    let scored = scored(config, &[lines]);
+
+    insta::assert_snapshot!(summary(&scored), @"
+    category Some(23)
+    image-alt 0 Some(0)
+    video-caption 1 None
+    links 1 Some(100)
+    ");
 }
 
 #[test]
@@ -91,12 +193,12 @@ links blog.html pass
 
     let scored = scored(config, &[lines]);
 
-    // Against a 5 kB target, Lighthouse scores 27.5 kB as 3 and the p90, 9 kB, as 58. Two of
-    // three links pass, 67. The mean of 3, 58, and 67 is 43.
+    // Against a 5 kB target, Lighthouse scores 27.5 kB as 3 and the p90, 9 kB, as 57. Two of
+    // three links pass, 67. The mean of 3, 57, and 67 is 42.
     insta::assert_snapshot!(summary(&scored), @"
-    category Some(43)
+    category Some(42)
     bundle 27500 Some(3)
-    export-size 9000 Some(58)
+    export-size 9000 Some(57)
     modules 412 None
     links 0.6666666666666666 Some(67)
     ");
@@ -178,12 +280,12 @@ fn takes_timing_medians_across_rounds_and_exact_values_from_the_first() {
     let scored = scored(config, &rounds);
 
     // The median of `parse` is 5 ms, and the p90 of two items is the larger, 5 ms, which
-    // Lighthouse scores 34 against a 2 ms target. Throughput keeps the first round's 2588, which
+    // Lighthouse scores 33 against a 2 ms target. Throughput keeps the first round's 2588, which
     // scores 96 against a target of 2000. With weight 2 on throughput, the category is 75.
     assert_eq!(scored.rounds, 5);
     insta::assert_snapshot!(summary(&scored), @"
     category Some(75)
-    render 5000000 Some(34)
+    render 5000000 Some(33)
     throughput 2588 Some(96)
     ");
 }
@@ -273,7 +375,7 @@ fn patterns_in_targets_have_the_final_say() {
     // The pattern `.` overrides the root's line target, so the root is 6 kB against 8 kB, not
     // 4 kB. `./chains/*` matches `./chains/mainnet` but not `./chains`, which keeps the 1 kB
     // default. `./chains/mainnet`, 600 B against 500 B, is furthest past its target, and
-    // Lighthouse scores it 83.
+    // Lighthouse scores it 82.
     let lines = "entry-size . 6kB target 4kB
 entry-size ./chains/mainnet 600B
 entry-size ./chains 900B
@@ -289,8 +391,8 @@ entry-size ./actions 1.1kB target 2kB
         .collect();
 
     insta::assert_snapshot!(summary(&scored), @"
-    category Some(83)
-    entry-size 600 Some(83)
+    category Some(82)
+    entry-size 600 Some(82)
     ");
     insta::assert_debug_snapshot!((&metric.at, targets), @r#"
     (
@@ -333,20 +435,20 @@ links about.html fail
         })
         .collect();
 
-    // Category 37 is the mean of bundle 3, export-size 58 (9 kB, the p90 of two items), and links
+    // Category 37 is the mean of bundle 3, export-size 57 (9 kB, the p90 of two items), and links
     // 50. Meeting a target lifts a metric to 90, or a check list to 100: bundle adds 29,
-    // `about.html` adds 16.67, and `a` adds 10.67.
+    // `about.html` adds 16.67, and `a` adds 11.
     insta::assert_snapshot!(summary(&scored), @"
     category Some(37)
     bundle 27500 Some(3)
-    export-size 9000 Some(58)
+    export-size 9000 Some(57)
     links 0.5 Some(50)
     ");
     insta::assert_debug_snapshot!(opportunities, @r#"
     [
         "29.00 bundle None Size(27500.0) -> Size(5000.0) (1)",
         "16.67 links Some(\"about.html\") Check(false) -> Check(true) (1)",
-        "10.67 export-size Some(\"a\") Size(9000.0) -> Size(5000.0) (1)",
+        "11.00 export-size Some(\"a\") Size(9000.0) -> Size(5000.0) (1)",
     ]
     "#);
 }
@@ -359,8 +461,8 @@ fn groups_a_list_when_no_single_item_moves_its_score() {
         lines
     });
 
-    // Twenty items at 3 kB score 23 against 1 kB. Fixing one leaves the p90 at 3 kB, so the only
-    // opportunity is all twenty, which lifts the metric to 90: 67 points.
+    // Twenty items at 3 kB score 22 against 1 kB. Fixing one leaves the p90 at 3 kB, so the only
+    // opportunity is all twenty, which lifts the metric to 90: 68 points.
     let scored = scored(config, &[&lines]);
     let opportunities: Vec<String> = score::opportunities(&scored)
         .iter()
@@ -374,7 +476,7 @@ fn groups_a_list_when_no_single_item_moves_its_score() {
 
     insta::assert_debug_snapshot!(opportunities, @r#"
     [
-        "67.00 export-size None Size(3000.0) -> Size(1000.0) (20)",
+        "68.00 export-size None Size(3000.0) -> Size(1000.0) (20)",
     ]
     "#);
 }
@@ -410,7 +512,7 @@ fn scores_each_subject_and_takes_medians_of_metrics_that_vary() {
     turn-rss 3000000 Some(100)
     install-size 1000000 Some(100)
     Some("ts")
-    category Some(34)
-    turn-rss 40000000 Some(34)
+    category Some(33)
+    turn-rss 40000000 Some(33)
     "#);
 }

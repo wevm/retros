@@ -15,7 +15,7 @@ fn error(source: &str) -> String {
 
 #[test]
 fn parses_values_in_base_units() {
-    let source = "export-size 1.1kB\nbundle 45.6MB\nboot 236µs\nrequest 1.82ms\nidle 2s\nretries 3\nratio 0.25\nlint pass\n";
+    let source = "export-size 1.1kB\nbundle 45.6MB\nboot 236µs\nrequest 1.82ms\nidle 2s\nretries 3\nratio 0.25\nlint pass\ncaptions skip\n";
 
     let lines = lines::parse(source).unwrap();
 
@@ -132,6 +132,18 @@ fn parses_values_in_base_units() {
             value: Check(
                 true,
             ),
+        },
+        Line {
+            item: None,
+            location: Location {
+                column: 1,
+                line: 9,
+            },
+            metric: "captions",
+            note: None,
+            target: None,
+            subject: None,
+            value: Skip,
         },
     ]
     "#);
@@ -257,13 +269,13 @@ fn rejects_invalid_values() {
     ");
 
     insta::assert_snapshot!(error("size five\n"), @"
-    [invalid-number] footprint metrics:1:6: expected a number, a number with a unit, `pass`, or `fail`, found `five`
+    [invalid-number] footprint metrics:1:6: expected a number, a number with a unit, `pass`, `fail`, or `skip`, found `five`
       1 | size five
         |      ^
     ");
 
     insta::assert_snapshot!(error("size 5.kB\n"), @"
-    [invalid-number] footprint metrics:1:6: expected a number, a number with a unit, `pass`, or `fail`, found `5.kB`
+    [invalid-number] footprint metrics:1:6: expected a number, a number with a unit, `pass`, `fail`, or `skip`, found `5.kB`
       1 | size 5.kB
         |      ^
     ");

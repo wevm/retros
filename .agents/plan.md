@@ -24,7 +24,8 @@ Uphill keeps Lighthouse's scoring and depth, and replaces its fixed browser gath
 | Category, such as Performance or Accessibility | A top-level key in `uphill.yaml`, named by the project |
 | Audit, such as Largest Contentful Paint or image alt text | A metric |
 | Audit details, such as each image without alt text | The metric's items, worst first |
-| The p10 and median control points of an audit | The target and twice the target |
+| The p10 and median control points of an audit | The target and `poor`, which defaults to twice the target |
+| Not applicable, manual, and informative audits | Checks that `skip` |
 | Opportunities with estimated savings | Opportunities with the category points they add |
 | Audit descriptions and help text | Notes on metric lines |
 | Passed audits | Metrics at or better than their targets |
@@ -75,6 +76,9 @@ Uphill keeps Lighthouse's scoring and depth, and replaces its fixed browser gath
 27. **Log and blame.** `uphill log` lists the commits that changed a metric's baseline. `uphill blame` names the last, or bisects commits measured in temporary worktrees when no baseline records the metric. A time is unchanged within noise of `HEAD` in interleaved pairs. Each commit runs its own configuration's `run`. Decided 2026-11-23.
 28. **Runs live in Git notes.** `uphill --note` keeps a run's scores and values as a Git note on `HEAD` under `refs/notes/uphill`. Notes need no service, travel with the repository, and never expire like CI artifacts. CI on `main` writes and pushes them, with write access and a full clone. Decided 2026-11-23.
 29. **Releases through Changesets.** A change that users see adds a changeset. The Main workflow keeps a version pull request open, and merging it releases: `binaries.yml` builds the archives, the Main workflow creates the `v<version>` GitHub Release, and Changesets publishes `uphill` to npm with the same binaries. `npm/version.ts` keeps the Cargo version equal to the npm version. One package with four binaries needs no npm scope, and an install downloads about 2.5 MB. Decided 2026-11-23, replacing tag-triggered releases and per-platform packages.
+30. **`poor`.** A metric may set `poor`, the value that scores 50, Lighthouse's median control point. It defaults to twice the target, or half when higher is better, and an item with its own target scales it by that target over the default. Lighthouse's metrics use control points that are not a factor of 2 apart, such as 1.8 s and 3 s for mobile First Contentful Paint, so one target could not reproduce them. Decided 2026-11-23, extending decision 6.
+31. **`skip`.** A check may be `skip` when it does not apply, such as an audit of video captions on a page without video. It counts toward neither side of a list, and a check whose every line skips has no score and stays out of its category, as Lighthouse gives a not applicable audit no weight. The terminal collapses skipped checks into a count. Decided 2026-11-23.
+32. **Lighthouse's arithmetic.** A curve score follows `Util.computeLogNormalScore`: scores above 0.9 gain up to half a point, and the score rounds down to a whole number. A category adds its metric scores as fractions of 1, in declared order, as `ReportScoring.arithmeticMean` does, so a mean of exactly half a point rounds the same way. Scores that rounded before can read one point lower. Decided 2026-11-23, so `examples/lighthouse` matches Lighthouse's reports exactly.
 
 ## The Contract
 
@@ -104,14 +108,14 @@ export-size viem/actions:readContract 31.7kB target 40kB
 bench-time "ABI Decode (500 results)" 1.82ms
 ```
 
-- **Values and units:** `B`, `kB`, `MB`, and `GB` for sizes (decimal), `ns`, `µs`, `us`, `ms`, and `s` for time, no unit for counts, and `pass` or `fail` for checks. One metric uses one kind of unit.
+- **Values and units:** `B`, `kB`, `MB`, and `GB` for sizes (decimal), `ns`, `µs`, `us`, `ms`, and `s` for time, no unit for counts, and `pass`, `fail`, or `skip` for checks. One metric uses one kind of unit. A check that skips does not apply and has no score.
 - **Items:** a line with an item adds one entry to a list metric. Uphill scores each entry, collapses the list to one score, and lists the entries worst first.
 - **Targets:** `target <value>` at the end of a line sets that item's target, in the metric's kind of unit. It overrides the default `target` in `uphill.yaml`, and the first matching pattern in `targets` overrides it. In a pattern, `*` matches any run of characters. A target of 0 is an error.
 - **Logs:** standard output and standard error are logs. Uphill keeps the end of standard error for a failed run.
 - **Failure:** a script that exits with a non-zero status gives its category no score.
 - **Runs:** each script runs through `sh -c` from the project root, the directory that holds `uphill.yaml` or `.agents`, in its own process group. Uphill kills the group when the script exits or times out, so background processes do not outlive the run.
 - **Subjects:** a line that starts with `subject:` belongs to that subject, and each subject is scored on its own.
-- **Optional metric keys:** `targets` (item patterns and their targets), `weight` (default 1), `score` (how a list collapses: `p90` by default, or `p10`, `median`, `max`, `min`, `sum`), `better = "higher"` for metrics where more is better, `varies = true` for a size or count that differs between runs, `title`, `description`, and `baseline`, which `uphill --update` writes. A `better = "higher"` list collapses to its p10 by default.
+- **Optional metric keys:** `poor` (the value that scores 50, twice the target by default), `targets` (item patterns and their targets), `weight` (default 1), `score` (how a list collapses: `p90` by default, or `p10`, `median`, `max`, `min`, `sum`), `better = "higher"` for metrics where more is better, `varies = true` for a size or count that differs between runs, `title`, `description`, and `baseline`, which `uphill --update` writes. A `better = "higher"` list collapses to its p10 by default.
 - **Optional category keys:** `timeout` (default `10m`), `title`, and `description`. A top-level `run` and `timeout` apply to every category that sets none, and categories with the same `run` share one execution.
 - **Setup:** a top-level `setup` command prepares each checkout that `--compare` creates, such as by installing packages.
 
@@ -130,11 +134,11 @@ uphill init
 ## Scoring
 
 1. **Repeat timings.** When a script's first run writes a time or a metric marked `varies`, Uphill runs it 5 times and takes the median of each timing item and each varying item. Other sizes, counts, and checks come from the first run.
-2. **Score each measurement.** Lighthouse's `getLogNormalScore`, ported with its `erf` approximation, scores each value against its own target. Smaller values approach 100 and larger values approach 0. A `better = "higher"` metric scores the reciprocal.
+2. **Score each measurement.** Lighthouse's `getLogNormalScore`, ported with its `erf` approximation, scores each value against its own target and the metric's `poor`. Smaller values approach 100 and larger values approach 0. A `better = "higher"` metric scores the reciprocal. Like `Util.computeLogNormalScore`, scores above 90 gain up to half a point and then round down.
 3. **Collapse lists.** Items rank by how far past their own target they are: value divided by target, or target divided by value when higher is better. The roll-up takes the item at its nearest rank, so the p90 is the item with at most a tenth of the list further past its target, and the median is the upper middle. The report names the selected item, such as `p90 9 kB (viem/op-stack)`. A `sum` scores the total of the values against the total of the targets. A check scores the share of items that pass.
-4. **Average categories.** Like Lighthouse, a metric's score is rounded to a whole number, and a category is the weighted mean of those scores, rounded. Metrics without a target are shown but not scored, a metric with weight 0 is scored but left out of the mean, and a failed metric drops out instead of counting as zero.
+4. **Average categories.** Like Lighthouse, a metric's score is a whole number, and a category is the weighted mean of those scores as fractions of 1, in declared order, rounded. Metrics without a target and checks that skip are shown but not scored, a metric with weight 0 is scored but left out of the mean, and a failed metric drops out instead of counting as zero.
 
-| Value against a 5 kB target | Score | Band |
+| Value against a 5 kB target, with the default `poor` | Score | Band |
 | --- | --- | --- |
 | 2.5 kB | 99 | good |
 | 5 kB (the target) | 90 | good |

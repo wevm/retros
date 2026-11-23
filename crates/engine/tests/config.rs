@@ -81,6 +81,7 @@ footprint:
                             line: 5,
                         },
                         name: "throughput",
+                        poor: None,
                         score: P10,
                         target: Some(
                             Count(
@@ -101,6 +102,7 @@ footprint:
                             line: 6,
                         },
                         name: "decode",
+                        poor: None,
                         score: Median,
                         target: None,
                         targets: [],
@@ -130,6 +132,7 @@ footprint:
                             line: 10,
                         },
                         name: "export-size",
+                        poor: None,
                         score: P90,
                         target: Some(
                             Size(
@@ -171,6 +174,7 @@ footprint:
                             line: 11,
                         },
                         name: "bundle",
+                        poor: None,
                         score: P90,
                         target: Some(
                             Size(
@@ -191,6 +195,7 @@ footprint:
                             line: 12,
                         },
                         name: "modules",
+                        poor: None,
                         score: P90,
                         target: None,
                         targets: [],
@@ -320,13 +325,13 @@ fn rejects_invalid_category_settings() {
 #[test]
 fn rejects_invalid_metric_settings() {
     insta::assert_snapshot!(error("footprint:\n  run: \"true\"\n  size: { target: 5kB, goal: 1 }\n"), @"
-    [unexpected-key] uphill.yaml:3:24: unknown key `goal` in metric `size`, expected one of `baseline`, `better`, `description`, `score`, `target`, `targets`, `title`, `varies`, `weight`
+    [unexpected-key] uphill.yaml:3:24: unknown key `goal` in metric `size`, expected one of `baseline`, `better`, `description`, `poor`, `score`, `target`, `targets`, `title`, `varies`, `weight`
       3 |   size: { target: 5kB, goal: 1 }
         |                        ^
     ");
 
     insta::assert_snapshot!(error("footprint:\n  run: \"true\"\n  size: { target: 5kB, limit: 50kB }\n"), @"
-    [unexpected-key] uphill.yaml:3:24: unknown key `limit` in metric `size`, expected one of `baseline`, `better`, `description`, `score`, `target`, `targets`, `title`, `varies`, `weight`
+    [unexpected-key] uphill.yaml:3:24: unknown key `limit` in metric `size`, expected one of `baseline`, `better`, `description`, `poor`, `score`, `target`, `targets`, `title`, `varies`, `weight`
       3 |   size: { target: 5kB, limit: 50kB }
         |                        ^
     ");
@@ -375,6 +380,30 @@ fn rejects_targets_that_cannot_score() {
     [target-range] uphill.yaml:3:21: the `target` of metric `errors` must be greater than zero
       3 |   errors: { target: 0 }
         |                     ^
+    ");
+
+    insta::assert_snapshot!(error("speed:\n  run: \"true\"\n  paint: { poor: 3s }\n"), @"
+    [invalid-value] uphill.yaml:3:18: metric `paint` sets `poor` without a `target`. Set the `target` that scores 90 too
+      3 |   paint: { poor: 3s }
+        |                  ^
+    ");
+
+    insta::assert_snapshot!(error("speed:\n  run: \"true\"\n  paint: { target: 1.8s, poor: 3kB }\n"), @"
+    [target-unit] uphill.yaml:3:32: the `poor` of metric `paint` is a size, but its `target` is a time
+      3 |   paint: { target: 1.8s, poor: 3kB }
+        |                                ^
+    ");
+
+    insta::assert_snapshot!(error("speed:\n  run: \"true\"\n  paint: { target: 1.8s, poor: 1.8s }\n"), @"
+    [target-range] uphill.yaml:3:32: the `poor` of metric `paint` must be greater than its `target`
+      3 |   paint: { target: 1.8s, poor: 1.8s }
+        |                                ^
+    ");
+
+    insta::assert_snapshot!(error("api:\n  run: \"true\"\n  throughput: { target: 2000, poor: 3000, better: higher }\n"), @"
+    [target-range] uphill.yaml:3:37: the `poor` of metric `throughput` must be less than its `target`, since higher is better
+      3 |   throughput: { target: 2000, poor: 3000, better: higher }
+        |                                     ^
     ");
 
     insta::assert_snapshot!(error("footprint:\n  run: \"true\"\n  size: { target: -5kB }\n"), @"

@@ -14,7 +14,6 @@ use crate::config::Metric;
 use crate::lines;
 use crate::report::Report;
 use crate::score::{self, MetricScore};
-use crate::value::Value;
 
 /// A past run, read from the note on the commit it measured.
 #[derive(Clone, Debug, PartialEq)]
@@ -81,8 +80,7 @@ pub fn note(report: &Report) -> String {
         for metric in &scored.metrics {
             let name = &metric.metric.name;
             if metric.items.is_empty() {
-                let value = Value::of(metric.kind, metric.value);
-                let _ = writeln!(out, "{name} {}", baseline::exact(value));
+                let _ = writeln!(out, "{name} {}", baseline::exact(metric.single()));
             }
             for item in &metric.items {
                 let quoted = item.name.replace('\\', "\\\\").replace('"', "\\\"");

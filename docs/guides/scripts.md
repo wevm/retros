@@ -175,8 +175,8 @@ fs.appendFileSync(process.env.UPHILL_METRICS!, `import-time ${time.toFixed(2)}ms
 The category header names the rounds:
 
 ```text
-■  88  speed  median of 5 rounds
-  ■  88  import-time  5.3 ms  target 5 ms
+■  87  speed  median of 5 rounds
+  ■  87  import-time  5.3 ms  target 5 ms
 ```
 
 ### Use Subjects
@@ -191,8 +191,8 @@ echo "bun: startup 18ms" >> "$UPHILL_METRICS"
 
 ```text
 $ uphill
-■  82  node: speed  median of 5 rounds
-  ■  82  startup  61 ms  target 50 ms
+■  81  node: speed  median of 5 rounds
+  ■  81  startup  61 ms  target 50 ms
 
 ● 100  bun: speed  median of 5 rounds
   ● 100  startup  18 ms  target 50 ms
