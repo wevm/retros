@@ -1,0 +1,117 @@
+{
+  "version": 1,
+  "categories": [
+    {
+      "name": "footprint",
+      "title": "Footprint",
+      "subject": null,
+      "description": null,
+      "score": 62,
+      "rounds": 1,
+      "metrics": [
+        {
+          "name": "binary-size",
+          "title": "Binary size",
+          "description": null,
+          "kind": "size",
+          "unit": "B",
+          "value": 1335376,
+          "item": null,
+          "score": 77,
+          "target": 1000000,
+          "default": 1000000,
+          "note": null,
+          "better": "lower",
+          "weight": 1,
+          "rollup": "p90",
+          "items": []
+        },
+        {
+          "name": "dependencies",
+          "title": "Dependencies",
+          "description": null,
+          "kind": "count",
+          "unit": null,
+          "value": 21,
+          "item": null,
+          "score": 46,
+          "target": 10,
+          "default": 10,
+          "note": null,
+          "better": "lower",
+          "weight": 1,
+          "rollup": "p90",
+          "items": []
+        }
+      ]
+    },
+    {
+      "name": "speed",
+      "title": "Speed",
+      "subject": null,
+      "description": null,
+      "score": 96,
+      "rounds": 5,
+      "metrics": [
+        {
+          "name": "startup",
+          "title": "Startup",
+          "description": null,
+          "kind": "time",
+          "unit": "ns",
+          "value": 922000,
+          "item": null,
+          "score": 92,
+          "target": 1000000,
+          "default": 1000000,
+          "note": null,
+          "better": "lower",
+          "weight": 1,
+          "rollup": "p90",
+          "items": []
+        },
+        {
+          "name": "check",
+          "title": "Check",
+          "description": null,
+          "kind": "time",
+          "unit": "ns",
+          "value": 2013000,
+          "item": null,
+          "score": 100,
+          "target": 5000000,
+          "default": 5000000,
+          "note": null,
+          "better": "lower",
+          "weight": 1,
+          "rollup": "p90",
+          "items": []
+        }
+      ]
+    }
+  ],
+  "opportunities": [
+    {
+      "category": "footprint",
+      "subject": null,
+      "metric": "dependencies",
+      "item": null,
+      "items": 1,
+      "value": 21,
+      "target": 10,
+      "gain": 22
+    },
+    {
+      "category": "footprint",
+      "subject": null,
+      "metric": "binary-size",
+      "item": null,
+      "items": 1,
+      "value": 1335376,
+      "target": 1000000,
+      "gain": 7
+    }
+  ],
+  "changes": null,
+  "comparison": null
+}
