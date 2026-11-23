@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="#overview">Overview</a> · <a href="#problem">Problem</a> · <a href="#solution">Solution</a> · <a href="#philosophy">Philosophy</a> · <a href="#usage">Usage</a>
+  <a href="#overview">Overview</a> · <a href="#problem">Problem</a> · <a href="#solution">Solution</a> · <a href="#usage">Usage</a>
 </p>
 
 ## Overview
@@ -40,13 +40,6 @@ $ retros
 Opportunities
   +14  footprint  bundle-size  6.9 kB → 5 kB
 ```
-
-## Philosophy
-
-- **Targets are requirements:** A value at its target scores 90. Anything worse loses points.
-- **Items differ:** A root entry point and a small subpath need different targets. Each item gets its own.
-- **Any project:** Retros measures nothing itself. Scripts run Lighthouse, a test runner, a linter, or any other tool, and write what it reports.
-- **Progress sticks:** An accepted improvement becomes the new baseline. Accepting a regression takes a reviewed change to `retros.lock`.
 
 ## Usage
 
