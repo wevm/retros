@@ -1,5 +1,5 @@
 //! Baselines: each metric's `baseline` key records the sizes, counts, and checks that
-//! `retros --update` accepted, and the targets scripts set on their lines. Each run reports what
+//! `uphill --update` accepted, and the targets scripts set on their lines. Each run reports what
 //! changed since.
 //!
 //! A metric without items records one value. A metric with items records each item, sorted by
@@ -280,7 +280,7 @@ pub fn compare(config: &Config, report: &Report) -> Vec<Change> {
 /// # Errors
 ///
 /// Returns an error when a metric's baseline must change but its configuration has a form
-/// Retros cannot edit, such as a TOML metric defined with dotted keys.
+/// Uphill cannot edit, such as a TOML metric defined with dotted keys.
 pub fn write(
     source: &str,
     format: Format,
@@ -313,7 +313,7 @@ pub fn write(
     Err(cannot(format, metric, location))
 }
 
-/// Returns `config` with the baselines a run records and no others, as a first `retros --update`
+/// Returns `config` with the baselines a run records and no others, as a first `uphill --update`
 /// would write them.
 pub fn accepted(config: &Config, report: &Report) -> Config {
     let mut cleared = config.clone();
@@ -699,7 +699,7 @@ fn cannot(format: Format, metric: &str, location: Option<Location>) -> Error {
         code: Code::InvalidType,
         location,
         message: format!(
-            "Retros cannot write the baseline of metric `{metric}` in this form. Write the metric as {example}, then run `retros --update` again"
+            "Uphill cannot write the baseline of metric `{metric}` in this form. Write the metric as {example}, then run `uphill --update` again"
         ),
     }
 }
@@ -710,6 +710,6 @@ fn invalid(source: &str, offset: usize) -> Error {
         Code::InvalidValue,
         source,
         offset,
-        "expected a size, count, or check, optionally followed by `target <value>`, or a mapping of items or subjects to them. Run `retros --update` to rewrite the baseline".to_owned(),
+        "expected a size, count, or check, optionally followed by `target <value>`, or a mapping of items or subjects to them. Run `uphill --update` to rewrite the baseline".to_owned(),
     )
 }

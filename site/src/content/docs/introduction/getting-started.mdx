@@ -1,21 +1,21 @@
 # Getting Started
 
-Retros scores a project against its own targets. Scripts measure the project, Retros scores each metric from 0 to 100, and each run names the fixes worth the most points.
+Uphill scores a project against its own targets. Scripts measure the project, Uphill scores each metric from 0 to 100, and each run names the fixes worth the most points.
 
 ## Install
 
-Retros is one binary for macOS and Linux. [Installation](/docs/introduction/installation) lists every way to install it.
+Uphill is one binary for macOS and Linux. [Installation](/docs/introduction/installation) lists every way to install it.
 
 ```sh
-# Install the latest release to ~/.retros/bin/retros.
-curl -fsSL https://raw.githubusercontent.com/wevm/retros/main/install.sh | sh
+# Install the latest release to ~/.uphill/bin/uphill.
+curl -fsSL https://raw.githubusercontent.com/wevm/uphill/main/install.sh | sh
 ```
 
 ## Add a Category
 
-A category groups metrics that one script measures. `retros.yaml` declares each category, its `run` command, and a target for each metric. Retros reads it from the project root or from `.agents/`.
+A category groups metrics that one script measures. `uphill.yaml` declares each category, its `run` command, and a target for each metric. Uphill reads it from the project root or from `.agents/`.
 
-```yaml title=".agents/retros.yaml"
+```yaml title=".agents/uphill.yaml"
 # The footprint category runs one script, which writes the bundle-size metric.
 footprint:
   run: sh .agents/metrics/footprint.sh
@@ -24,19 +24,19 @@ footprint:
 
 ## Write a Script
 
-A script measures with the tools the project already uses. It appends one metric line per measurement to the file at `$RETROS_METRICS`. Standard output and standard error are logs.
+A script measures with the tools the project already uses. It appends one metric line per measurement to the file at `$UPHILL_METRICS`. Standard output and standard error are logs.
 
 ```sh title=".agents/metrics/footprint.sh"
 # Measure the gzipped bundle and write one metric line.
-echo "bundle-size $(gzip -c dist/index.js | wc -c)B" >> "$RETROS_METRICS"
+echo "bundle-size $(gzip -c dist/index.js | wc -c)B" >> "$UPHILL_METRICS"
 ```
 
 ## Check the Script
 
-`retros check` runs each script once and checks the lines it writes. A misspelled metric, an unknown unit, or a metric that the script does not write fails the check with its file, line, and column.
+`uphill check` runs each script once and checks the lines it writes. A misspelled metric, an unknown unit, or a metric that the script does not write fails the check with its file, line, and column.
 
 ```text
-$ retros check
+$ uphill check
 ✓ footprint  1 metric
 
 1 passed
@@ -44,29 +44,29 @@ $ retros check
 
 ## Score the Project
 
-`retros` runs every category, scores each metric against its target, and lists opportunities: the changes that raise a category score most. A value at its target scores 90.
+`uphill` runs every category, scores each metric against its target, and lists opportunities: the changes that raise a category score most. A value at its target scores 90.
 
 ```text
-$ retros
+$ uphill
 ■  75  footprint
   ■  75  bundle-size  6.9 kB  target 5 kB
 
 Opportunities
   +15  footprint  bundle-size  6.9 kB → 5 kB
 
-No baseline yet. Run `retros --update` to record these values as the baseline.
+No baseline yet. Run `uphill --update` to record these values as the baseline.
 
-Wrote .retros/report.json, .retros/report.md, .retros/report.html
+Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
 ```
 
-Each run writes three reports to `.retros/` in the project root. `report.html` is one file that opens in a browser without network requests. Add `.retros/` to `.gitignore`.
+Each run writes three reports to `.uphill/` in the project root. `report.html` is one file that opens in a browser without network requests. Add `.uphill/` to `.gitignore`.
 
 ## Record a Baseline
 
-`retros --update` writes each metric's accepted value to its `baseline` key. Commit the configuration, and every later run reports what changed since then.
+`uphill --update` writes each metric's accepted value to its `baseline` key. Commit the configuration, and every later run reports what changed since then.
 
-```yaml title=".agents/retros.yaml"
-# retros --update added the baseline key.
+```yaml title=".agents/uphill.yaml"
+# uphill --update added the baseline key.
 footprint:
   run: sh .agents/metrics/footprint.sh
   bundle-size: { target: 5kB, baseline: 6.9kB }
@@ -74,11 +74,11 @@ footprint:
 
 ## Agent Setup
 
-`retros init` prints a brief that a person gives their agent. The brief asks the agent to find the project's surfaces, write a script per category with the project's own tools, and run `retros check` until it passes. `retros --compact` then prints the next step in a few lines.
+`uphill init` prints a brief that a person gives their agent. The brief asks the agent to find the project's surfaces, write a script per category with the project's own tools, and run `uphill check` until it passes. `uphill --compact` then prints the next step in a few lines.
 
 ```sh
 # Print the setup brief for this project.
-retros init
+uphill init
 ```
 
 ## More

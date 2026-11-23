@@ -8,8 +8,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  retros:
-    name: Retros
+  uphill:
+    name: Uphill
     permissions:
       contents: read
       pull-requests: write
@@ -22,20 +22,20 @@ jobs:
       - name: Install toolchain
         run: rustup show
 
-      # Retros' speed script is TypeScript run by Bun.
+      # Uphill's speed script is TypeScript run by Bun.
       - name: Install Bun
         uses: wevm/actions/vendor/oven-sh/setup-bun/v2.2.0@b518cf981b50a4c745a8b7335fc693f34b108a75
         with:
           bun-version: 1.4.4
 
-      # The action runs the retros this pull request builds, compares it with the base branch,
+      # The action runs the uphill this pull request builds, compares it with the base branch,
       # and keeps one comment on the pull request.
-      - name: Build Retros
+      - name: Build Uphill
         run: |
-          cargo build --release --locked -p retros
+          cargo build --release --locked -p uphill
           echo "$PWD/target/release" >> "$GITHUB_PATH"
 
-      - name: Run Retros
+      - name: Run Uphill
         uses: ./
         with:
           version: none

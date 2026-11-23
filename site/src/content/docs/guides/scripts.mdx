@@ -1,17 +1,17 @@
 # Writing Scripts
 
-A script measures a project and writes one metric line per measurement. Retros runs the script, reads the lines, and scores them.
+A script measures a project and writes one metric line per measurement. Uphill runs the script, reads the lines, and scores them.
 
 ## Overview
 
-A script runs the tools a project already uses, such as its bundler, test runner, or linter, and turns their output into metric lines. It appends each line to the file at `$RETROS_METRICS`. Retros creates a new file for each run.
+A script runs the tools a project already uses, such as its bundler, test runner, or linter, and turns their output into metric lines. It appends each line to the file at `$UPHILL_METRICS`. Uphill creates a new file for each run.
 
-Scripts can use any language. Retros runs each `run` command through `sh -c` from the project root, the directory that holds `retros.yaml` or `.agents/`. Standard output and standard error are logs.
+Scripts can use any language. Uphill runs each `run` command through `sh -c` from the project root, the directory that holds `uphill.yaml` or `.agents/`. Standard output and standard error are logs.
 
 <Tabs>
 <Tab title="Shell">
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # Run the script with sh.
 pages:
   run: sh metrics/pages.sh
@@ -21,14 +21,14 @@ pages:
 ```sh title="metrics/pages.sh"
 # Write the size of each built page as one item of page-size.
 for page in dist/*; do
-  echo "page-size ${page#dist/} $(wc -c < "$page")B" >> "$RETROS_METRICS"
+  echo "page-size ${page#dist/} $(wc -c < "$page")B" >> "$UPHILL_METRICS"
 done
 ```
 
 </Tab>
 <Tab title="TypeScript">
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # Run the script with Bun, which runs TypeScript without a build step.
 pages:
   run: bun metrics/pages.ts
@@ -41,14 +41,14 @@ import * as fs from 'node:fs'
 
 for (const name of fs.readdirSync('dist')) {
   const size = fs.statSync(`dist/${name}`).size
-  fs.appendFileSync(process.env.RETROS_METRICS!, `page-size ${name} ${size}B\n`)
+  fs.appendFileSync(process.env.UPHILL_METRICS!, `page-size ${name} ${size}B\n`)
 }
 ```
 
 </Tab>
 <Tab title="Rust">
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # Run the script as a Cargo example.
 pages:
   run: cargo run --quiet --example pages
@@ -60,7 +60,7 @@ pages:
 use std::{env, fs, io::Write};
 
 fn main() -> std::io::Result<()> {
-    let path = env::var("RETROS_METRICS").expect("retros sets RETROS_METRICS");
+    let path = env::var("UPHILL_METRICS").expect("uphill sets UPHILL_METRICS");
     let mut metrics = fs::OpenOptions::new().append(true).open(path)?;
 
     for entry in fs::read_dir("dist")? {
@@ -84,7 +84,7 @@ This walkthrough measures a static site in `dist/`. One script writes the size o
 
 The `pages` category lists both metrics. `page-size` has a target, so each page scores against 20 kB. `has-title` writes checks, which need no target: a list of checks scores the share of items that pass.
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # The pages category runs one script, which writes two metrics per page.
 pages:
   run: sh metrics/pages.sh
@@ -100,12 +100,12 @@ Each line names the metric, then the item, then the value. A size takes a unit, 
 # Write each page's size, and whether it has a <title>.
 for page in dist/*.html; do
   name=${page#dist/}
-  echo "page-size $name $(wc -c < "$page")B" >> "$RETROS_METRICS"
+  echo "page-size $name $(wc -c < "$page")B" >> "$UPHILL_METRICS"
 
   if grep -q '<title>' "$page"; then
-    echo "has-title $name pass" >> "$RETROS_METRICS"
+    echo "has-title $name pass" >> "$UPHILL_METRICS"
   else
-    echo "has-title $name fail note \"no <title> element\"" >> "$RETROS_METRICS"
+    echo "has-title $name fail note \"no <title> element\"" >> "$UPHILL_METRICS"
   fi
 done
 ```
@@ -123,10 +123,10 @@ has-title pricing.html pass
 
 ### Check the Script
 
-`retros check` runs each script once, without scoring. It fails on a line it cannot read, a metric the configuration lists but the script does not write, and a metric written with more than one kind of unit.
+`uphill check` runs each script once, without scoring. It fails on a line it cannot read, a metric the configuration lists but the script does not write, and a metric written with more than one kind of unit.
 
 ```text
-$ retros check
+$ uphill check
 ✓ pages  2 metrics
 
 1 passed
@@ -134,10 +134,10 @@ $ retros check
 
 ### Score the Pages
 
-`retros` scores each item against its target and ranks the items worst first. A list collapses to its p90 item, so one large page decides the score of `page-size`. The note shows under the failed check.
+`uphill` scores each item against its target and ranks the items worst first. A list collapses to its p90 item, so one large page decides the score of `page-size`. The note shows under the failed check.
 
 ```text
-$ retros
+$ uphill
 ■  68  pages
   ■  68  page-size  p90 31 kB (pricing.html)  target 20 kB
                     31 kB  pricing.html
@@ -165,17 +165,17 @@ links "blog/first post.html" pass
 
 ### Measure Timings
 
-When a script's first run writes a time, Retros runs it 5 times and scores the median of each timing. Sizes, counts, and checks come from the first run, unless the metric sets `varies: true`. A script needs no repeat loop of its own.
+When a script's first run writes a time, Uphill runs it 5 times and scores the median of each timing. Sizes, counts, and checks come from the first run, unless the metric sets `varies: true`. A script needs no repeat loop of its own.
 
 ```ts title="metrics/speed.ts"
-// Time one import of the built entry point. Retros repeats the script and takes the median.
+// Time one import of the built entry point. Uphill repeats the script and takes the median.
 import * as fs from 'node:fs'
 
 const start = performance.now()
 await import('../dist/index.js')
 const time = performance.now() - start
 
-fs.appendFileSync(process.env.RETROS_METRICS!, `import-time ${time.toFixed(2)}ms\n`)
+fs.appendFileSync(process.env.UPHILL_METRICS!, `import-time ${time.toFixed(2)}ms\n`)
 ```
 
 The category header names the rounds:
@@ -191,12 +191,12 @@ A line that starts with a name and a colon belongs to that subject. Each subject
 
 ```sh title="startup.sh"
 # Write the startup time on each runtime as its own subject.
-echo "node: startup 61ms" >> "$RETROS_METRICS"
-echo "bun: startup 18ms" >> "$RETROS_METRICS"
+echo "node: startup 61ms" >> "$UPHILL_METRICS"
+echo "bun: startup 18ms" >> "$UPHILL_METRICS"
 ```
 
 ```text
-$ retros
+$ uphill
 ■  82  node: speed  median of 5 rounds
   ■  82  startup  61 ms  target 50 ms
 
@@ -208,7 +208,7 @@ $ retros
 
 A top-level `run` applies to each category that sets none, and categories with the same `run` share one execution. Each line goes to the category that lists its metric.
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # Both categories read the lines of one run of bench.sh.
 run: sh bench.sh
 
@@ -221,19 +221,19 @@ speed:
 
 ### Fail a Run
 
-A script that exits with a non-zero status gives its category no score, which is different from a score of 0. The report names the failure and keeps the end of standard error, and `retros` exits with status 1.
+A script that exits with a non-zero status gives its category no score, which is different from a score of 0. The report names the failure and keeps the end of standard error, and `uphill` exits with status 1.
 
 ```text
-$ retros
+$ uphill
 ✗ quality  script exited with status 1
     src/index.ts: cannot find module './parse.js'
 ```
 
 ### Set a Timeout
 
-A script may run for 10 minutes by default. The `timeout` key changes the limit for one category, or for every category at the top level. When the limit passes, Retros stops the script and every process it started.
+A script may run for 10 minutes by default. The `timeout` key changes the limit for one category, or for every category at the top level. When the limit passes, Uphill stops the script and every process it started.
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # Give the end-to-end suite 30 minutes.
 e2e:
   run: sh metrics/e2e.sh
@@ -247,5 +247,5 @@ e2e:
   <Card title="Targets" to="/docs/guides/targets" description="Set a target for each item and read opportunities." />
   <Card title="Metric Lines" to="/docs/reference/metric-lines" description="The full line format and its errors." />
   <Card title="Units" to="/docs/reference/units" description="Sizes, times, counts, and checks." />
-  <Card title="Configuration" to="/docs/reference/configuration" description="Every key in retros.yaml and retros.toml." />
+  <Card title="Configuration" to="/docs/reference/configuration" description="Every key in uphill.yaml and uphill.toml." />
 </Cards>

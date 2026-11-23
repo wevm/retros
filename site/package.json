@@ -1,5 +1,5 @@
 {
-  "name": "@retros/site",
+  "name": "@uphill/site",
   "private": true,
   "type": "module",
   "scripts": {

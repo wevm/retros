@@ -2,7 +2,7 @@
 
 /** The site summary, used by the home page and the llms.txt files. */
 export const description =
-  'Continuous metrics and hill climbing. Retros runs a project’s measurement scripts, scores each metric against its target, and names the fixes worth the most points.'
+  'Continuous metrics and hill climbing. Uphill runs a project’s measurement scripts, scores each metric against its target, and names the fixes worth the most points.'
 
 /** Returns a page's title and description as route `head` tags. */
 export function page(options: page.Options) {

@@ -1,6 +1,6 @@
 # One category passes, one script exits with an error, and one is killed by a signal.
 footprint:
-  run: echo 'size 1kB' >> "$RETROS_METRICS"
+  run: echo 'size 1kB' >> "$UPHILL_METRICS"
   size: {}
 
 build:

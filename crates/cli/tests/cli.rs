@@ -1,4 +1,4 @@
-//! Runs the `retros` binary as a consumer does and checks its output and exit codes. Project
+//! Runs the `uphill` binary as a consumer does and checks its output and exit codes. Project
 //! tests copy a fixture from `tests/fixtures/` into a temporary directory and run real scripts.
 
 use std::fs;
@@ -8,26 +8,26 @@ use std::time::{Duration, Instant};
 
 use tempfile::TempDir;
 
-fn retros(args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_retros"))
+fn uphill(args: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_uphill"))
         .args(args)
         .output()
-        .expect("the retros binary runs")
+        .expect("the uphill binary runs")
 }
 
-/// Runs `retros` with `args` from `cwd`.
-fn retros_in(cwd: &Path, args: &[&str], envs: &[(&str, &Path)]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_retros"))
+/// Runs `uphill` with `args` from `cwd`.
+fn uphill_in(cwd: &Path, args: &[&str], envs: &[(&str, &Path)]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_uphill"))
         .args(args)
         .current_dir(cwd)
         .envs(envs.iter().copied())
         .output()
-        .expect("the retros binary runs")
+        .expect("the uphill binary runs")
 }
 
-/// Runs `retros check` from `cwd`.
+/// Runs `uphill check` from `cwd`.
 fn check(cwd: &Path, envs: &[(&str, &Path)]) -> Output {
-    retros_in(cwd, &["check"], envs)
+    uphill_in(cwd, &["check"], envs)
 }
 
 /// Copies the fixture project `name` into a new temporary directory.
@@ -68,7 +68,7 @@ fn copied(project: &Path) -> TempDir {
 fn copy(from: &Path, to: &Path) {
     for entry in fs::read_dir(from).unwrap() {
         let entry = entry.unwrap();
-        if [".retros", "node_modules", "target"].contains(&entry.file_name().to_str().unwrap()) {
+        if [".uphill", "node_modules", "target"].contains(&entry.file_name().to_str().unwrap()) {
             continue;
         }
         let target = to.join(entry.file_name());
@@ -101,9 +101,9 @@ fn git(dir: &Path, args: &[&str]) -> String {
     let output = Command::new("git")
         .args([
             "-c",
-            "user.name=Retros",
+            "user.name=Uphill",
             "-c",
-            "user.email=retros@example.com",
+            "user.email=uphill@example.com",
         ])
         .args(args)
         .current_dir(dir)
@@ -113,9 +113,9 @@ fn git(dir: &Path, args: &[&str]) -> String {
     stdout(&output)
 }
 
-/// Runs `retros --compare HEAD` in `dir`, and returns its output with the commit hash masked.
+/// Runs `uphill --compare HEAD` in `dir`, and returns its output with the commit hash masked.
 fn compare_head(dir: &Path, args: &[&str]) -> (Output, String) {
-    let output = retros_in(dir, &[&["--compare", "HEAD"], args].concat(), &[]);
+    let output = uphill_in(dir, &[&["--compare", "HEAD"], args].concat(), &[]);
     let text = masked(dir, &stdout(&output));
     (output, text)
 }
@@ -136,47 +136,47 @@ fn stderr(output: &Output) -> String {
 
 #[test]
 fn version() {
-    let output = retros(&["--version"]);
+    let output = uphill(&["--version"]);
 
     // `pnpm changeset:version` sets the version on each release.
     assert!(output.status.success());
     insta::assert_snapshot!(
         stdout(&output).replace(env!("CARGO_PKG_VERSION"), "[version]"),
-        @"retros [version]"
+        @"uphill [version]"
     );
 }
 
 #[test]
 fn help() {
-    let output = retros(&["--help"]);
+    let output = uphill(&["--help"]);
 
     assert!(output.status.success());
     insta::assert_snapshot!(stdout(&output), @"
-    Usage: retros [category] [--compare <ref>] [--compact] [--note] [--update]
+    Usage: uphill [category] [--compare <ref>] [--compact] [--note] [--update]
                   [--require-baseline] [--require-targets]
-           retros check
-           retros init
-           retros log <category> <metric> [item] [--subject <name>]
-           retros blame <category> <metric> [item] [--subject <name>] [--since <ref>]
+           uphill check
+           uphill init
+           uphill log <category> <metric> [item] [--subject <name>]
+           uphill blame <category> <metric> [item] [--subject <name>] [--since <ref>]
 
     Run each category's script, score its metrics, list the opportunities that would raise the
     scores most, and compare sizes, counts, checks, and line targets with each metric's baseline.
-    Retros reads retros.yaml or retros.toml, at the root or in .agents, from this directory or the
-    nearest parent. Reports go to .retros/report.json, report.md, and report.html. Name a category
+    Uphill reads uphill.yaml or uphill.toml, at the root or in .agents, from this directory or the
+    nearest parent. Reports go to .uphill/report.json, report.md, and report.html. Name a category
     to run only that one.
 
     Commands:
       blame  Name the commit that last moved a metric: from its baselines, or by measuring commits
              since <ref>, or every commit, in temporary checkouts and bisecting
       check  Run each script once and check the metric lines it writes
-      init   Print a brief for an agent to set up Retros in this project
+      init   Print a brief for an agent to set up Uphill in this project
       log    List the commits that changed a metric's baseline, or the runs noted for it
 
     Options:
       --compare <ref>     Compare with another revision: timings in interleaved pairs, and sizes,
                           counts, and checks with its baselines
       --compact           Print the scores, missed targets, and opportunities in a few lines
-      --note              Keep this run as a Git note on HEAD, for trends and `retros log`
+      --note              Keep this run as a Git note on HEAD, for trends and `uphill log`
       --update            Write this run's sizes, counts, checks, and line targets as baselines
       --require-baseline  Exit with status 1 when anything differs from the baselines
       --require-targets   Exit with status 1 when a metric misses its target or a script fails
@@ -187,37 +187,37 @@ fn help() {
 
 #[test]
 fn unknown_argument() {
-    let output = retros(&["--nope"]);
+    let output = uphill(&["--nope"]);
 
     assert_eq!(output.status.code(), Some(2));
     insta::assert_snapshot!(stderr(&output), @"
     error: unknown argument '--nope'
 
-    Usage: retros [category] [--compare <ref>] [--compact] [--note] [--update]
+    Usage: uphill [category] [--compare <ref>] [--compact] [--note] [--update]
                   [--require-baseline] [--require-targets]
-           retros check
-           retros init
-           retros log <category> <metric> [item] [--subject <name>]
-           retros blame <category> <metric> [item] [--subject <name>] [--since <ref>]
+           uphill check
+           uphill init
+           uphill log <category> <metric> [item] [--subject <name>]
+           uphill blame <category> <metric> [item] [--subject <name>] [--since <ref>]
 
     Run each category's script, score its metrics, list the opportunities that would raise the
     scores most, and compare sizes, counts, checks, and line targets with each metric's baseline.
-    Retros reads retros.yaml or retros.toml, at the root or in .agents, from this directory or the
-    nearest parent. Reports go to .retros/report.json, report.md, and report.html. Name a category
+    Uphill reads uphill.yaml or uphill.toml, at the root or in .agents, from this directory or the
+    nearest parent. Reports go to .uphill/report.json, report.md, and report.html. Name a category
     to run only that one.
 
     Commands:
       blame  Name the commit that last moved a metric: from its baselines, or by measuring commits
              since <ref>, or every commit, in temporary checkouts and bisecting
       check  Run each script once and check the metric lines it writes
-      init   Print a brief for an agent to set up Retros in this project
+      init   Print a brief for an agent to set up Uphill in this project
       log    List the commits that changed a metric's baseline, or the runs noted for it
 
     Options:
       --compare <ref>     Compare with another revision: timings in interleaved pairs, and sizes,
                           counts, and checks with its baselines
       --compact           Print the scores, missed targets, and opportunities in a few lines
-      --note              Keep this run as a Git note on HEAD, for trends and `retros log`
+      --note              Keep this run as a Git note on HEAD, for trends and `uphill log`
       --update            Write this run's sizes, counts, checks, and line targets as baselines
       --require-baseline  Exit with status 1 when anything differs from the baselines
       --require-targets   Exit with status 1 when a metric misses its target or a script fails
@@ -228,37 +228,37 @@ fn unknown_argument() {
 
 #[test]
 fn unknown_check_argument() {
-    let output = retros(&["check", "--fast"]);
+    let output = uphill(&["check", "--fast"]);
 
     assert_eq!(output.status.code(), Some(2));
     insta::assert_snapshot!(stderr(&output), @"
     error: unknown argument '--fast'
 
-    Usage: retros [category] [--compare <ref>] [--compact] [--note] [--update]
+    Usage: uphill [category] [--compare <ref>] [--compact] [--note] [--update]
                   [--require-baseline] [--require-targets]
-           retros check
-           retros init
-           retros log <category> <metric> [item] [--subject <name>]
-           retros blame <category> <metric> [item] [--subject <name>] [--since <ref>]
+           uphill check
+           uphill init
+           uphill log <category> <metric> [item] [--subject <name>]
+           uphill blame <category> <metric> [item] [--subject <name>] [--since <ref>]
 
     Run each category's script, score its metrics, list the opportunities that would raise the
     scores most, and compare sizes, counts, checks, and line targets with each metric's baseline.
-    Retros reads retros.yaml or retros.toml, at the root or in .agents, from this directory or the
-    nearest parent. Reports go to .retros/report.json, report.md, and report.html. Name a category
+    Uphill reads uphill.yaml or uphill.toml, at the root or in .agents, from this directory or the
+    nearest parent. Reports go to .uphill/report.json, report.md, and report.html. Name a category
     to run only that one.
 
     Commands:
       blame  Name the commit that last moved a metric: from its baselines, or by measuring commits
              since <ref>, or every commit, in temporary checkouts and bisecting
       check  Run each script once and check the metric lines it writes
-      init   Print a brief for an agent to set up Retros in this project
+      init   Print a brief for an agent to set up Uphill in this project
       log    List the commits that changed a metric's baseline, or the runs noted for it
 
     Options:
       --compare <ref>     Compare with another revision: timings in interleaved pairs, and sizes,
                           counts, and checks with its baselines
       --compact           Print the scores, missed targets, and opportunities in a few lines
-      --note              Keep this run as a Git note on HEAD, for trends and `retros log`
+      --note              Keep this run as a Git note on HEAD, for trends and `uphill log`
       --update            Write this run's sizes, counts, checks, and line targets as baselines
       --require-baseline  Exit with status 1 when anything differs from the baselines
       --require-targets   Exit with status 1 when a metric misses its target or a script fails
@@ -271,7 +271,7 @@ fn unknown_check_argument() {
 fn scores_every_category_and_writes_reports() {
     let project = fixture("scored");
 
-    let output = retros_in(project.path(), &[], &[]);
+    let output = uphill_in(project.path(), &[], &[]);
 
     assert_eq!(output.status.code(), Some(0));
     insta::assert_snapshot!(stdout(&output), @"
@@ -301,12 +301,12 @@ fn scores_every_category_and_writes_reports() {
       +3   footprint  export-size viem/chains    10 kB → 5 kB
       +3   footprint  export-size viem/op-stack  9 kB → 5 kB
 
-    No baseline yet. Run `retros --update` to record these values as the baseline.
+    No baseline yet. Run `uphill --update` to record these values as the baseline.
 
-    Wrote .retros/report.json, .retros/report.md, .retros/report.html
+    Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
     ");
 
-    let json = fs::read_to_string(project.path().join(".retros/report.json")).unwrap();
+    let json = fs::read_to_string(project.path().join(".uphill/report.json")).unwrap();
     insta::assert_snapshot!(json, @r#"
     {
       "version": 1,
@@ -578,9 +578,9 @@ fn scores_every_category_and_writes_reports() {
     }
     "#);
 
-    let markdown = fs::read_to_string(project.path().join(".retros/report.md")).unwrap();
+    let markdown = fs::read_to_string(project.path().join(".uphill/report.md")).unwrap();
     insta::assert_snapshot!(markdown, @"
-    # Retros report
+    # Uphill report
 
     | Category | Score |
     | --- | --- |
@@ -643,7 +643,7 @@ fn scores_one_category_from_a_subdirectory() {
     let project = fixture("scored");
     fs::create_dir(project.path().join("src")).unwrap();
 
-    let output = retros_in(&project.path().join("src"), &["footprint"], &[]);
+    let output = uphill_in(&project.path().join("src"), &["footprint"], &[]);
 
     assert_eq!(output.status.code(), Some(0));
     insta::assert_snapshot!(stdout(&output), @"
@@ -666,9 +666,9 @@ fn scores_one_category_from_a_subdirectory() {
       +3   footprint  export-size viem/chains    10 kB → 5 kB
       +3   footprint  export-size viem/op-stack  9 kB → 5 kB
 
-    No baseline yet. Run `retros --update` to record these values as the baseline.
+    No baseline yet. Run `uphill --update` to record these values as the baseline.
 
-    Wrote ../.retros/report.json, ../.retros/report.md, ../.retros/report.html
+    Wrote ../.uphill/report.json, ../.uphill/report.md, ../.uphill/report.html
     ");
 }
 
@@ -676,7 +676,7 @@ fn scores_one_category_from_a_subdirectory() {
 fn scoring_reports_failed_categories() {
     let project = fixture("failing");
 
-    let output = retros_in(project.path(), &[], &[]);
+    let output = uphill_in(project.path(), &[], &[]);
 
     assert_eq!(output.status.code(), Some(1));
     insta::assert_snapshot!(stdout(&output), @"
@@ -707,9 +707,9 @@ fn scoring_reports_failed_categories() {
 
     ✗ crash  script was stopped by signal 9
 
-    No baseline yet. Run `retros --update` to record these values as the baseline.
+    No baseline yet. Run `uphill --update` to record these values as the baseline.
 
-    Wrote .retros/report.json, .retros/report.md, .retros/report.html
+    Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
     ");
 }
 
@@ -723,11 +723,11 @@ fn baselines_record_line_targets_and_gate_every_change() {
         fs::write(&path, script.replace(from, to)).unwrap();
     };
 
-    let missing = retros_in(project.path(), &["footprint", "--require-baseline"], &[]);
+    let missing = uphill_in(project.path(), &["footprint", "--require-baseline"], &[]);
     assert_eq!(missing.status.code(), Some(1));
     assert!(
         stdout(&missing).ends_with(
-            "\n--require-baseline needs a baseline. Run `retros --update` to record one\n"
+            "\n--require-baseline needs a baseline. Run `uphill --update` to record one\n"
         )
     );
 
@@ -743,10 +743,10 @@ fn baselines_record_line_targets_and_gate_every_change() {
         "render encode 2ms",
         "render encode 2ms target 3ms",
     );
-    let recorded = retros_in(project.path(), &["--update"], &[]);
+    let recorded = uphill_in(project.path(), &["--update"], &[]);
 
     assert_eq!(recorded.status.code(), Some(0));
-    let config = fs::read_to_string(project.path().join("retros.yaml")).unwrap();
+    let config = fs::read_to_string(project.path().join("uphill.yaml")).unwrap();
     insta::assert_snapshot!(config, @r#"
     # Scores one value, a list, an unscored count, and a list of checks, then timings over 5 rounds
     # and a count where higher is better.
@@ -789,7 +789,7 @@ fn baselines_record_line_targets_and_gate_every_change() {
         "links about.html fail",
         "links about.html pass",
     );
-    let improved = retros_in(project.path(), &["footprint", "--require-baseline"], &[]);
+    let improved = uphill_in(project.path(), &["footprint", "--require-baseline"], &[]);
 
     assert_eq!(improved.status.code(), Some(1));
     assert!(stdout(&improved).ends_with(
@@ -797,20 +797,20 @@ fn baselines_record_line_targets_and_gate_every_change() {
 Since the baseline
   better  footprint  links about.html  fail → pass
 
-Wrote .retros/report.json, .retros/report.md, .retros/report.html
+Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
 
-1 change since the baseline. Run `retros --update` to accept it
+1 change since the baseline. Run `uphill --update` to accept it
 "
     ));
-    let accepted = retros_in(project.path(), &["footprint", "--update"], &[]);
+    let accepted = uphill_in(project.path(), &["footprint", "--update"], &[]);
     assert_eq!(accepted.status.code(), Some(0));
 
     // Updating again from the same code leaves the configuration as it is.
-    let config = fs::read_to_string(project.path().join("retros.yaml")).unwrap();
-    let again = retros_in(project.path(), &["footprint", "--update"], &[]);
+    let config = fs::read_to_string(project.path().join("uphill.yaml")).unwrap();
+    let again = uphill_in(project.path(), &["footprint", "--update"], &[]);
     assert_eq!(again.status.code(), Some(0));
     assert_eq!(
-        fs::read_to_string(project.path().join("retros.yaml")).unwrap(),
+        fs::read_to_string(project.path().join("uphill.yaml")).unwrap(),
         config
     );
 
@@ -829,7 +829,7 @@ Wrote .retros/report.json, .retros/report.md, .retros/report.html
         "export-size viem 1kB target 2kB",
         "export-size viem 1kB target 3kB",
     );
-    let gated = retros_in(project.path(), &["footprint", "--require-baseline"], &[]);
+    let gated = uphill_in(project.path(), &["footprint", "--require-baseline"], &[]);
 
     assert_eq!(gated.status.code(), Some(1));
     insta::assert_snapshot!(stdout(&gated), @"
@@ -855,13 +855,13 @@ Wrote .retros/report.json, .retros/report.md, .retros/report.html
       new     footprint  export-size viem/tempo   4 kB
       gone    footprint  export-size viem/window  6 kB
 
-    Wrote .retros/report.json, .retros/report.md, .retros/report.html
+    Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
 
-    4 changes since the baseline. Run `retros --update` to accept them
+    4 changes since the baseline. Run `uphill --update` to accept them
     ");
 
     // Accepting the changes rewrites only the lines of the items that changed.
-    let accepted = retros_in(project.path(), &["footprint", "--update"], &[]);
+    let accepted = uphill_in(project.path(), &["footprint", "--update"], &[]);
     assert_eq!(accepted.status.code(), Some(0));
     let expected = config
         .replace(
@@ -875,7 +875,7 @@ Wrote .retros/report.json, .retros/report.md, .retros/report.html
         )
         .replace("      viem/window: 6kB\n", "");
     assert_eq!(
-        fs::read_to_string(project.path().join("retros.yaml")).unwrap(),
+        fs::read_to_string(project.path().join("uphill.yaml")).unwrap(),
         expected
     );
 }
@@ -884,7 +884,7 @@ Wrote .retros/report.json, .retros/report.md, .retros/report.html
 fn subjects_share_one_run_and_score_on_their_own() {
     let project = fixture("subjects");
 
-    let output = retros_in(project.path(), &["--update"], &[]);
+    let output = uphill_in(project.path(), &["--update"], &[]);
 
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     // Both categories come from the same 5 runs: the startup times repeat the script.
@@ -915,11 +915,11 @@ fn subjects_share_one_run_and_score_on_their_own() {
       new     ts: footprint  install-size
       new     ts: footprint  wasm-size
 
-    Wrote .retros/report.json, .retros/report.md, .retros/report.html, retros.yaml
+    Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html, uphill.yaml
     ");
 
     // Baselines record each subject. zc's peak memory varies, so only ts's line target is kept.
-    let config = fs::read_to_string(project.path().join("retros.yaml")).unwrap();
+    let config = fs::read_to_string(project.path().join("uphill.yaml")).unwrap();
     insta::assert_snapshot!(config, @r#"
     # Two subjects, zc and ts, measured by one script that both categories share. zc's peak memory
     # varies from round to round, and ts writes a wasm size that zc does not. Footprint and its peak
@@ -949,9 +949,9 @@ fn subjects_share_one_run_and_score_on_their_own() {
           ts: 250kB
     "#);
 
-    let markdown = fs::read_to_string(project.path().join(".retros/report.md")).unwrap();
+    let markdown = fs::read_to_string(project.path().join(".uphill/report.md")).unwrap();
     insta::assert_snapshot!(markdown, @"
-    # Retros report
+    # Uphill report
 
     | Subject | Speed | Size and memory |
     | --- | --- | --- |
@@ -1010,7 +1010,7 @@ fn subjects_share_one_run_and_score_on_their_own() {
     ");
 
     // The page has a tab per subject, shows titles, and loads nothing from the network.
-    let html = fs::read_to_string(project.path().join(".retros/report.html")).unwrap();
+    let html = fs::read_to_string(project.path().join(".uphill/report.html")).unwrap();
     assert_eq!(html.matches("role=\"tab\"").count(), 2);
     assert!(html.contains(">zc</button>") && html.contains(">ts</button>"));
     assert!(html.contains("<h2>Size and memory</h2>"));
@@ -1018,7 +1018,7 @@ fn subjects_share_one_run_and_score_on_their_own() {
     assert!(!html.contains("http://") && !html.contains("https://"));
 
     // The next 5 runs write zc's memory as 6 to 10 MB, which is not a change.
-    let again = retros_in(project.path(), &["--require-baseline"], &[]);
+    let again = uphill_in(project.path(), &["--require-baseline"], &[]);
     assert_eq!(again.status.code(), Some(0), "{}", stdout(&again));
     assert!(stdout(&again).contains("\nNo changes since the baseline\n"));
 }
@@ -1027,7 +1027,7 @@ fn subjects_share_one_run_and_score_on_their_own() {
 fn require_targets_fails_on_each_missed_target_and_failed_script() {
     let dir = tempfile::tempdir().unwrap();
     fs::write(
-        dir.path().join("retros.yaml"),
+        dir.path().join("uphill.yaml"),
         "quality:\n  run: sh metrics.sh\n  size: { target: 2kB }\n  rate: { target: 2000, better: higher }\n  ok: {}\n",
     )
     .unwrap();
@@ -1036,19 +1036,19 @@ fn require_targets_fails_on_each_missed_target_and_failed_script() {
     // A value equal to its target meets it, in either direction.
     fs::write(
         &script,
-        "printf 'size 2kB\\nrate 2000\\nok pass\\n' >> \"$RETROS_METRICS\"\n",
+        "printf 'size 2kB\\nrate 2000\\nok pass\\n' >> \"$UPHILL_METRICS\"\n",
     )
     .unwrap();
-    let met = retros_in(dir.path(), &["--require-targets"], &[]);
+    let met = uphill_in(dir.path(), &["--require-targets"], &[]);
     assert_eq!(met.status.code(), Some(0), "{}", stdout(&met));
     assert!(!stdout(&met).contains("Missed targets"));
 
     fs::write(
         &script,
-        "printf 'size 2.1kB\\nrate 1999\\nok pass\\n' >> \"$RETROS_METRICS\"\n",
+        "printf 'size 2.1kB\\nrate 1999\\nok pass\\n' >> \"$UPHILL_METRICS\"\n",
     )
     .unwrap();
-    let past = retros_in(dir.path(), &["--require-targets"], &[]);
+    let past = uphill_in(dir.path(), &["--require-targets"], &[]);
     assert_eq!(past.status.code(), Some(1));
     assert!(stdout(&past).ends_with(
         "
@@ -1063,7 +1063,7 @@ Missed targets
     // A list misses at the item its roll-up selects, each failing check item is a miss, and each
     // miss shows its note.
     let scored = fixture("scored");
-    let output = retros_in(scored.path(), &["--require-targets"], &[]);
+    let output = uphill_in(scored.path(), &["--require-targets"], &[]);
     assert_eq!(output.status.code(), Some(1));
     assert!(stdout(&output).ends_with(
         "
@@ -1078,7 +1078,7 @@ Missed targets
     ));
 
     let failing = fixture("failing");
-    let output = retros_in(failing.path(), &["--require-targets"], &[]);
+    let output = uphill_in(failing.path(), &["--require-targets"], &[]);
     assert_eq!(output.status.code(), Some(1));
     assert!(stdout(&output).ends_with(
         "
@@ -1110,12 +1110,12 @@ fn compare_reports_what_changed_since_a_revision_and_leaves_timing_noise_out() {
       ●  98  encode  2 ms   target 3 ms
       ● 100  parse   10 ms  target 30 ms
 
-    No baseline yet. Run `retros --update` to record these values as the baseline.
+    No baseline yet. Run `uphill --update` to record these values as the baseline.
 
     No changes against HEAD (abc1234)
       2 timings within noise
 
-    Wrote .retros/report.json, .retros/report.md, .retros/report.html
+    Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
     ");
 
     // A larger bundle, a slower encode in every pair, and a parse time that is slower in only
@@ -1139,19 +1139,19 @@ fn compare_reports_what_changed_since_a_revision_and_leaves_timing_noise_out() {
       ●  95  encode  2.5 ms  target 3 ms
       ●  98  parse   20 ms   target 30 ms
 
-    No baseline yet. Run `retros --update` to record these values as the baseline.
+    No baseline yet. Run `uphill --update` to record these values as the baseline.
 
     Against HEAD (abc1234)
       worse  footprint  bundle  27.5 kB → 30 kB
       worse  speed      encode  2 ms → 2.5 ms (+25%)  8 of 8 pairs
       1 timing within noise
 
-    Wrote .retros/report.json, .retros/report.md, .retros/report.html
+    Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
     ");
 
     let markdown = masked(
         dir,
-        &fs::read_to_string(dir.join(".retros/report.md")).unwrap(),
+        &fs::read_to_string(dir.join(".uphill/report.md")).unwrap(),
     );
     let start = markdown.find("## Changes against").unwrap();
     let end = markdown.find("## Footprint").unwrap();
@@ -1168,7 +1168,7 @@ fn compare_reports_what_changed_since_a_revision_and_leaves_timing_noise_out() {
 
     let json = masked(
         dir,
-        &fs::read_to_string(dir.join(".retros/report.json")).unwrap(),
+        &fs::read_to_string(dir.join(".uphill/report.json")).unwrap(),
     );
     let start = json.find("\"comparison\"").unwrap();
     insta::assert_snapshot!(json[start..], @r#"
@@ -1222,7 +1222,7 @@ fn compare_uses_the_revision_baselines_and_always_removes_its_checkout() {
     let project = repository("compare");
     let dir = project.path();
     fs::write(dir.join(".ready"), "").unwrap();
-    let config = fs::read_to_string(dir.join("retros.yaml")).unwrap();
+    let config = fs::read_to_string(dir.join("uphill.yaml")).unwrap();
 
     // Without baselines the revision is measured, and a script that fails there leaves its
     // category out of the comparison.
@@ -1240,17 +1240,17 @@ fn compare_uses_the_revision_baselines_and_always_removes_its_checkout() {
       ●  93  bundle  27.5 kB  target 30 kB
         warning: footprint failed in HEAD (abc1234): script exited with status 3
 
-    No baseline yet. Run `retros --update` to record these values as the baseline.
+    No baseline yet. Run `uphill --update` to record these values as the baseline.
 
     No changes against HEAD (abc1234)
 
-    Wrote .retros/report.json, .retros/report.md, .retros/report.html
+    Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
     ");
     assert_eq!(git(dir, &["worktree", "list"]).lines().count(), 1);
 
     // The revision's baseline wins over measuring it, which would find the same 27.5 kB.
     fs::write(
-        dir.join("retros.yaml"),
+        dir.join("uphill.yaml"),
         config.replace("{ target: 30kB }", "{ target: 30kB, baseline: 25kB }"),
     )
     .unwrap();
@@ -1269,12 +1269,12 @@ fn compare_uses_the_revision_baselines_and_always_removes_its_checkout() {
     Against HEAD (abc1234)
       worse  footprint  bundle  25 kB → 27.5 kB
 
-    Wrote .retros/report.json, .retros/report.md, .retros/report.html
+    Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
     ");
 
     // A failed setup stops the run before any script.
     fs::write(
-        dir.join("retros.yaml"),
+        dir.join("uphill.yaml"),
         config.replace(
             "setup: touch .ready",
             "setup: echo 'no network' >&2; exit 4",
@@ -1289,7 +1289,7 @@ fn compare_uses_the_revision_baselines_and_always_removes_its_checkout() {
     ");
     assert_eq!(git(dir, &["worktree", "list"]).lines().count(), 1);
 
-    let output = retros_in(dir, &["--compare", "no-such-branch"], &[]);
+    let output = uphill_in(dir, &["--compare", "no-such-branch"], &[]);
     assert_eq!(output.status.code(), Some(2));
     insta::assert_snapshot!(stderr(&output), @"error: unknown revision 'no-such-branch'");
 }
@@ -1323,7 +1323,7 @@ fn blame_bisects_commits_until_baselines_record_the_metric_and_log_lists_them() 
             })
     };
 
-    let output = retros_in(dir, &["blame", "footprint", "bundle"], &[]);
+    let output = uphill_in(dir, &["blame", "footprint", "bundle"], &[]);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     insta::assert_snapshot!(named(&stdout(&output)), @"
     Bisecting footprint bundle across 4 commits, measuring each in a temporary checkout
@@ -1335,7 +1335,7 @@ fn blame_bisects_commits_until_baselines_record_the_metric_and_log_lists_them() 
       2026-01-02  feat: inline the icons
     ");
 
-    let output = retros_in(dir, &["blame", "speed", "encode"], &[]);
+    let output = uphill_in(dir, &["blame", "speed", "encode"], &[]);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     insta::assert_snapshot!(named(&stdout(&output)), @"
     Bisecting speed encode across 4 commits, measuring each in a temporary checkout
@@ -1349,7 +1349,7 @@ fn blame_bisects_commits_until_baselines_record_the_metric_and_log_lists_them() 
     ");
 
     // Parse writes the same times at every commit, so nothing moved it.
-    let output = retros_in(dir, &["blame", "speed", "parse"], &[]);
+    let output = uphill_in(dir, &["blame", "speed", "parse"], &[]);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     insta::assert_snapshot!(named(&stdout(&output)), @"
     Bisecting speed parse across 4 commits, measuring each in a temporary checkout
@@ -1360,30 +1360,30 @@ fn blame_bisects_commits_until_baselines_record_the_metric_and_log_lists_them() 
     ");
     assert_eq!(git(dir, &["worktree", "list"]).lines().count(), 1);
 
-    let output = retros_in(dir, &["log", "footprint", "bundle"], &[]);
-    insta::assert_snapshot!(stdout(&output), @"No baseline or note records footprint bundle. `retros --note` keeps each run, and `retros blame` measures commits");
+    let output = uphill_in(dir, &["log", "footprint", "bundle"], &[]);
+    insta::assert_snapshot!(stdout(&output), @"No baseline or note records footprint bundle. `uphill --note` keeps each run, and `uphill blame` measures commits");
 
     // Once baselines record the bundle, its history comes from them.
     fs::write(dir.join(".ready"), "").unwrap();
-    retros_in(dir, &["footprint", "--update"], &[]);
+    uphill_in(dir, &["footprint", "--update"], &[]);
     commit_as(dir, "chore: record baselines");
     fs::write(dir.join("bundle.txt"), "28kB\n").unwrap();
-    retros_in(dir, &["footprint", "--update"], &[]);
+    uphill_in(dir, &["footprint", "--update"], &[]);
     commit_as(dir, "perf: subset the font");
 
-    let output = retros_in(dir, &["log", "footprint", "bundle"], &[]);
+    let output = uphill_in(dir, &["log", "footprint", "bundle"], &[]);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     insta::assert_snapshot!(named(&stdout(&output)), @"
-    footprint bundle in the baselines of retros.yaml
+    footprint bundle in the baselines of uphill.yaml
 
       commit6  2026-01-06  28 kB  from 30 kB  perf: subset the font
       commit5  2026-01-05  30 kB              chore: record baselines
     ");
 
-    let output = retros_in(dir, &["blame", "footprint", "bundle"], &[]);
+    let output = uphill_in(dir, &["blame", "footprint", "bundle"], &[]);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     insta::assert_snapshot!(named(&stdout(&output)), @"
-    commit6 moved footprint bundle from 30 kB to 28 kB, by the baselines in retros.yaml
+    commit6 moved footprint bundle from 30 kB to 28 kB, by the baselines in uphill.yaml
       2026-01-06  perf: subset the font
     ");
 
@@ -1391,14 +1391,14 @@ fn blame_bisects_commits_until_baselines_record_the_metric_and_log_lists_them() 
     // declares.
     fs::create_dir(dir.join("scripts")).unwrap();
     fs::rename(dir.join("speed.sh"), dir.join("scripts/speed.sh")).unwrap();
-    let config = fs::read_to_string(dir.join("retros.yaml")).unwrap();
+    let config = fs::read_to_string(dir.join("uphill.yaml")).unwrap();
     fs::write(
-        dir.join("retros.yaml"),
+        dir.join("uphill.yaml"),
         config.replace("run: sh speed.sh", "run: sh scripts/speed.sh"),
     )
     .unwrap();
     commit_as(dir, "chore: move the scripts");
-    let output = retros_in(dir, &["blame", "speed", "encode"], &[]);
+    let output = uphill_in(dir, &["blame", "speed", "encode"], &[]);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     insta::assert_snapshot!(named(&stdout(&output)), @"
     Bisecting speed encode across 7 commits, measuring each in a temporary checkout
@@ -1412,13 +1412,13 @@ fn blame_bisects_commits_until_baselines_record_the_metric_and_log_lists_them() 
       2026-01-03  refactor: encode in one pass
     ");
 
-    let output = retros_in(dir, &["blame", "footprint", "size"], &[]);
+    let output = uphill_in(dir, &["blame", "footprint", "size"], &[]);
     assert_eq!(output.status.code(), Some(2));
     insta::assert_snapshot!(stderr(&output), @"error: unknown metric 'size'. footprint configures bundle");
 
-    let output = retros_in(dir, &["log", "footprint"], &[]);
+    let output = uphill_in(dir, &["log", "footprint"], &[]);
     assert_eq!(output.status.code(), Some(2));
-    insta::assert_snapshot!(stderr(&output).lines().next().unwrap(), @"error: log needs a category, a metric, and optionally an item, such as `retros log footprint bundle`");
+    insta::assert_snapshot!(stderr(&output).lines().next().unwrap(), @"error: log needs a category, a metric, and optionally an item, such as `uphill log footprint bundle`");
 }
 
 #[test]
@@ -1426,9 +1426,9 @@ fn notes_keep_runs_for_log_and_the_trends_in_report_html() {
     let project = repository("compare");
     let dir = project.path();
     fs::write(dir.join(".ready"), "").unwrap();
-    // `retros --note` commits to the notes ref with the repository's identity.
-    git(dir, &["config", "user.name", "Retros"]);
-    git(dir, &["config", "user.email", "retros@example.com"]);
+    // `uphill --note` commits to the notes ref with the repository's identity.
+    git(dir, &["config", "user.name", "Uphill"]);
+    git(dir, &["config", "user.email", "uphill@example.com"]);
     let mut day = 1;
     let mut dated = |dir: &Path, args: &[&str]| {
         let date = format!("2026-01-0{day}T12:00:00");
@@ -1454,10 +1454,10 @@ fn notes_keep_runs_for_log_and_the_trends_in_report_html() {
             })
     };
 
-    let output = retros_in(dir, &["--note"], &[]);
+    let output = uphill_in(dir, &["--note"], &[]);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     assert!(named(&stdout(&output)).ends_with("report.html, a note on commit1\n"));
-    insta::assert_snapshot!(git(dir, &["notes", "--ref", "refs/notes/retros", "show", "HEAD"]), @"
+    insta::assert_snapshot!(git(dir, &["notes", "--ref", "refs/notes/uphill", "show", "HEAD"]), @"
     [footprint 93]
     bundle 27.5kB
     [speed 99]
@@ -1469,24 +1469,24 @@ fn notes_keep_runs_for_log_and_the_trends_in_report_html() {
     fs::write(dir.join("encode.txt"), "2.5ms\n").unwrap();
     git(dir, &["add", "-A"]);
     dated(dir, &["commit", "-q", "-m", "refactor: encode in one pass"]);
-    retros_in(dir, &["--note"], &[]);
+    uphill_in(dir, &["--note"], &[]);
     fs::write(dir.join("bundle.txt"), "30kB\n").unwrap();
     git(dir, &["add", "-A"]);
     dated(dir, &["commit", "-q", "-m", "feat: inline the icons"]);
-    retros_in(dir, &["--note"], &[]);
+    uphill_in(dir, &["--note"], &[]);
 
-    let output = retros_in(dir, &["log", "speed", "encode"], &[]);
+    let output = uphill_in(dir, &["log", "speed", "encode"], &[]);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     insta::assert_snapshot!(named(&stdout(&output)), @"
-    speed encode in the runs noted in refs/notes/retros
+    speed encode in the runs noted in refs/notes/uphill
 
       commit3  2026-01-03  2.5 ms  feat: inline the icons
       commit2  2026-01-02  2.5 ms  refactor: encode in one pass
       commit1  2026-01-01  2 ms    feat: measure the bundle and speed
     ");
-    let output = retros_in(dir, &["log", "footprint", "bundle"], &[]);
+    let output = uphill_in(dir, &["log", "footprint", "bundle"], &[]);
     insta::assert_snapshot!(named(&stdout(&output)), @"
-    footprint bundle in the runs noted in refs/notes/retros
+    footprint bundle in the runs noted in refs/notes/uphill
 
       commit3  2026-01-03  30 kB    feat: inline the icons
       commit2  2026-01-02  27.5 kB  refactor: encode in one pass
@@ -1494,8 +1494,8 @@ fn notes_keep_runs_for_log_and_the_trends_in_report_html() {
     ");
 
     // The report leaves out the note on HEAD, which this run stands for.
-    retros_in(dir, &[], &[]);
-    let html = fs::read_to_string(dir.join(".retros/report.html")).unwrap();
+    uphill_in(dir, &[], &[]);
+    let html = fs::read_to_string(dir.join(".uphill/report.html")).unwrap();
     let trends: Vec<&str> = html
         .split("<div class=\"plot\"")
         .skip(1)
@@ -1512,7 +1512,7 @@ fn notes_keep_runs_for_log_and_the_trends_in_report_html() {
     "#);
 
     fs::write(dir.join("bundle.txt"), "31kB\n").unwrap();
-    let output = retros_in(dir, &["--note"], &[]);
+    let output = uphill_in(dir, &["--note"], &[]);
     assert_eq!(output.status.code(), Some(2));
     insta::assert_snapshot!(stderr(&output), @"error: --note needs tracked files that match HEAD, so the note describes that commit. Commit or stash the changes first");
 }
@@ -1522,7 +1522,7 @@ fn compact_prints_scores_misses_and_opportunities_in_a_few_lines() {
     let project = fixture("scored");
 
     // Each miss shows once, with its note, even when --require-targets fails the run.
-    let output = retros_in(project.path(), &["--compact", "--require-targets"], &[]);
+    let output = uphill_in(project.path(), &["--compact", "--require-targets"], &[]);
 
     assert_eq!(output.status.code(), Some(1));
     insta::assert_snapshot!(stdout(&output), @"
@@ -1541,9 +1541,9 @@ fn compact_prints_scores_misses_and_opportunities_in_a_few_lines() {
       +3   footprint  export-size viem/chains    10 kB → 5 kB
       +3   footprint  export-size viem/op-stack  9 kB → 5 kB
 
-    No baseline yet. Run `retros --update` to record these values as the baseline.
+    No baseline yet. Run `uphill --update` to record these values as the baseline.
 
-    Wrote .retros/report.json, .retros/report.md, .retros/report.html
+    Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
 
     4 targets missed
     ");
@@ -1558,7 +1558,7 @@ fn init_points_the_brief_at_the_closest_example() {
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(path, contents).unwrap();
         }
-        let output = retros_in(dir.path(), &["init"], &[]);
+        let output = uphill_in(dir.path(), &["init"], &[]);
         assert_eq!(output.status.code(), Some(0));
         let text = stdout(&output);
         text.lines()
@@ -1567,18 +1567,18 @@ fn init_points_the_brief_at_the_closest_example() {
             .to_owned()
     };
 
-    insta::assert_snapshot!(brief(&[("Cargo.toml", "[package]\n")]), @"The closest example is a Rust API: https://github.com/wevm/retros/tree/main/examples/rust-api. Read its `retros.yaml` and `metrics/` before writing anything.");
-    insta::assert_snapshot!(brief(&[("package.json", r#"{ "devDependencies": { "vite": "7.0.0" } }"#)]), @"The closest example is a website: https://github.com/wevm/retros/tree/main/examples/web-app. Read its `retros.yaml` and `metrics/` before writing anything.");
-    insta::assert_snapshot!(brief(&[("package.json", "{}"), ("pages/index.html", "")]), @"The closest example is a website: https://github.com/wevm/retros/tree/main/examples/web-app. Read its `retros.yaml` and `metrics/` before writing anything.");
-    insta::assert_snapshot!(brief(&[("package.json", r#"{ "name": "lib" }"#)]), @"The closest example is a TypeScript library: https://github.com/wevm/retros/tree/main/examples/typescript-library. Read its `retros.yaml` and `metrics/` before writing anything.");
-    insta::assert_snapshot!(brief(&[("README.md", "")]), @"Read the closest example before writing anything: a TypeScript library (https://github.com/wevm/retros/tree/main/examples/typescript-library), a website (https://github.com/wevm/retros/tree/main/examples/web-app), or a Rust API (https://github.com/wevm/retros/tree/main/examples/rust-api).");
-    insta::assert_snapshot!(brief(&[("package.json", "{}"), (".agents/retros.yaml", "a:\n  run: \"true\"\n  b: {}\n")]), @"The closest example is a TypeScript library: https://github.com/wevm/retros/tree/main/examples/typescript-library. Read its `retros.yaml` and `metrics/` before writing anything. This project already has `.agents/retros.yaml`. Extend it instead of starting over.");
+    insta::assert_snapshot!(brief(&[("Cargo.toml", "[package]\n")]), @"The closest example is a Rust API: https://github.com/wevm/uphill/tree/main/examples/rust-api. Read its `uphill.yaml` and `metrics/` before writing anything.");
+    insta::assert_snapshot!(brief(&[("package.json", r#"{ "devDependencies": { "vite": "7.0.0" } }"#)]), @"The closest example is a website: https://github.com/wevm/uphill/tree/main/examples/web-app. Read its `uphill.yaml` and `metrics/` before writing anything.");
+    insta::assert_snapshot!(brief(&[("package.json", "{}"), ("pages/index.html", "")]), @"The closest example is a website: https://github.com/wevm/uphill/tree/main/examples/web-app. Read its `uphill.yaml` and `metrics/` before writing anything.");
+    insta::assert_snapshot!(brief(&[("package.json", r#"{ "name": "lib" }"#)]), @"The closest example is a TypeScript library: https://github.com/wevm/uphill/tree/main/examples/typescript-library. Read its `uphill.yaml` and `metrics/` before writing anything.");
+    insta::assert_snapshot!(brief(&[("README.md", "")]), @"Read the closest example before writing anything: a TypeScript library (https://github.com/wevm/uphill/tree/main/examples/typescript-library), a website (https://github.com/wevm/uphill/tree/main/examples/web-app), or a Rust API (https://github.com/wevm/uphill/tree/main/examples/rust-api).");
+    insta::assert_snapshot!(brief(&[("package.json", "{}"), (".agents/uphill.yaml", "a:\n  run: \"true\"\n  b: {}\n")]), @"The closest example is a TypeScript library: https://github.com/wevm/uphill/tree/main/examples/typescript-library. Read its `uphill.yaml` and `metrics/` before writing anything. This project already has `.agents/uphill.yaml`. Extend it instead of starting over.");
 }
 
 #[test]
 fn rejects_an_invalid_baseline() {
     let project = fixture("scored");
-    let path = project.path().join("retros.yaml");
+    let path = project.path().join("uphill.yaml");
     let config = fs::read_to_string(&path).unwrap();
     fs::write(
         &path,
@@ -1589,11 +1589,11 @@ fn rejects_an_invalid_baseline() {
     )
     .unwrap();
 
-    let output = retros_in(project.path(), &["footprint"], &[]);
+    let output = uphill_in(project.path(), &["footprint"], &[]);
 
     assert_eq!(output.status.code(), Some(2));
     insta::assert_snapshot!(stderr(&output), @"
-    error[invalid-value] retros.yaml:6:36: expected a size, count, or check, optionally followed by `target <value>`, or a mapping of items or subjects to them. Run `retros --update` to rewrite the baseline
+    error[invalid-value] uphill.yaml:6:36: expected a size, count, or check, optionally followed by `target <value>`, or a mapping of items or subjects to them. Run `uphill --update` to rewrite the baseline
       6 |   bundle: { target: 5kB, baseline: 27.5 kilobytes }
         |                                    ^
     ");
@@ -1602,7 +1602,7 @@ fn rejects_an_invalid_baseline() {
 #[test]
 fn update_writes_toml_baselines_in_place() {
     let project = fixture("passing");
-    let path = project.path().join("retros.toml");
+    let path = project.path().join("uphill.toml");
     fs::write(
         &path,
         "[footprint]\nrun = \"sh metrics/footprint.sh\"\nexport-size = { target = \"5kB\" } # gzipped\nmodules = {}\n\n[speed]\nrun = \"sh metrics/speed.sh\"\n\n[speed.render]\ntarget = \"2ms\" # per item\n",
@@ -1617,7 +1617,7 @@ fn update_writes_toml_baselines_in_place() {
     .unwrap();
 
     // Inline tables take the baseline on their line, and a table with a header takes a new line.
-    let output = retros_in(project.path(), &["--update"], &[]);
+    let output = uphill_in(project.path(), &["--update"], &[]);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     let config = fs::read_to_string(&path).unwrap();
     insta::assert_snapshot!(config, @r#"
@@ -1636,7 +1636,7 @@ fn update_writes_toml_baselines_in_place() {
 
     // Without its line target, the timing records nothing, so its baseline goes.
     fs::write(&speed, script).unwrap();
-    let output = retros_in(project.path(), &["--update"], &[]);
+    let output = uphill_in(project.path(), &["--update"], &[]);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
@@ -1649,10 +1649,10 @@ fn update_writes_toml_baselines_in_place() {
         "export-size.target = \"5kB\"",
     );
     fs::write(&path, &dotted).unwrap();
-    let output = retros_in(project.path(), &["--update"], &[]);
+    let output = uphill_in(project.path(), &["--update"], &[]);
     assert_eq!(output.status.code(), Some(2));
     insta::assert_snapshot!(stderr(&output), @r#"
-    error[invalid-type] retros.toml:3:1: Retros cannot write the baseline of metric `export-size` in this form. Write the metric as an inline table, such as `export-size = { target = "5kB" }`, then run `retros --update` again
+    error[invalid-type] uphill.toml:3:1: Uphill cannot write the baseline of metric `export-size` in this form. Write the metric as an inline table, such as `export-size = { target = "5kB" }`, then run `uphill --update` again
       3 | export-size.target = "5kB" # gzipped
         | ^
     "#);
@@ -1663,10 +1663,10 @@ fn update_writes_toml_baselines_in_place() {
 fn unknown_category() {
     let project = fixture("scored");
 
-    let output = retros_in(project.path(), &["bench"], &[]);
+    let output = uphill_in(project.path(), &["bench"], &[]);
 
     assert_eq!(output.status.code(), Some(2));
-    insta::assert_snapshot!(stderr(&output), @"error: unknown category 'bench'. retros.yaml declares footprint, speed");
+    insta::assert_snapshot!(stderr(&output), @"error: unknown category 'bench'. uphill.yaml declares footprint, speed");
 }
 
 #[test]
@@ -1747,7 +1747,7 @@ fn check_reports_missing_and_unconfigured_metrics() {
     assert_eq!(output.status.code(), Some(1));
     insta::assert_snapshot!(stdout(&output), @"
     ✗ footprint  2 metrics, 1 error, 1 warning
-        error[metric-missing] retros.yaml:5:3: metric `modules` is configured, but the script did not write it
+        error[metric-missing] uphill.yaml:5:3: metric `modules` is configured, but the script did not write it
           5 |   modules: {}
             |   ^
         warning[unconfigured-metric] footprint metrics:2:1: metric `chunks` is written, but `footprint` does not configure it
@@ -1764,7 +1764,7 @@ fn check_kills_a_script_that_times_out() {
     let pid_file = project.path().join("pid");
     let started = Instant::now();
 
-    let output = check(project.path(), &[("RETROS_TEST_PID", &pid_file)]);
+    let output = check(project.path(), &[("UPHILL_TEST_PID", &pid_file)]);
 
     assert_eq!(output.status.code(), Some(1));
     assert!(started.elapsed() < Duration::from_secs(10));
@@ -1841,7 +1841,7 @@ fn check_without_a_config() {
     let output = check(dir.path(), &[]);
 
     assert_eq!(output.status.code(), Some(2));
-    insta::assert_snapshot!(stderr(&output), @"error: no retros.yaml or retros.toml, at the root or in .agents, in this directory or any parent directory");
+    insta::assert_snapshot!(stderr(&output), @"error: no uphill.yaml or uphill.toml, at the root or in .agents, in this directory or any parent directory");
 }
 
 #[test]
@@ -1849,7 +1849,7 @@ fn check_with_an_invalid_config_names_it_relative_to_the_current_directory() {
     let dir = tempfile::tempdir().unwrap();
     fs::create_dir_all(dir.path().join(".agents")).unwrap();
     fs::write(
-        dir.path().join(".agents/retros.yaml"),
+        dir.path().join(".agents/uphill.yaml"),
         "footprint:\n  run: \"true\"\n  size: { target: 50kb }\n",
     )
     .unwrap();
@@ -1859,7 +1859,7 @@ fn check_with_an_invalid_config_names_it_relative_to_the_current_directory() {
 
     assert_eq!(output.status.code(), Some(2));
     insta::assert_snapshot!(stderr(&output), @"
-    error[unknown-unit] ../.agents/retros.yaml:3:21: unknown unit `kb`, expected one of `B`, `kB`, `MB`, `GB`, `ns`, `µs`, `us`, `ms`, `s`
+    error[unknown-unit] ../.agents/uphill.yaml:3:21: unknown unit `kb`, expected one of `B`, `kB`, `MB`, `GB`, `ns`, `µs`, `us`, `ms`, `s`
       3 |   size: { target: 50kb }
         |                     ^
     ");
@@ -1870,20 +1870,20 @@ fn agents_config_runs_from_the_project_root_and_records_its_baselines_in_place()
     let dir = tempfile::tempdir().unwrap();
     fs::create_dir_all(dir.path().join(".agents/metrics")).unwrap();
     fs::write(
-        dir.path().join(".agents/retros.yaml"),
+        dir.path().join(".agents/uphill.yaml"),
         "footprint:\n  run: sh .agents/metrics/manifests.sh\n  manifests: { target: 2 }\n",
     )
     .unwrap();
     // The script counts manifests in the directory it runs from, which is the project root.
     fs::write(
         dir.path().join(".agents/metrics/manifests.sh"),
-        "echo \"manifests $(ls *.json | wc -l)\" >> \"$RETROS_METRICS\"\n",
+        "echo \"manifests $(ls *.json | wc -l)\" >> \"$UPHILL_METRICS\"\n",
     )
     .unwrap();
     fs::write(dir.path().join("package.json"), "{}").unwrap();
 
-    // Started inside `.agents`, Retros still runs from the directory above it.
-    let output = retros_in(&dir.path().join(".agents"), &["--update"], &[]);
+    // Started inside `.agents`, Uphill still runs from the directory above it.
+    let output = uphill_in(&dir.path().join(".agents"), &["--update"], &[]);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     insta::assert_snapshot!(stdout(&output), @"
     ●  99  footprint
@@ -1892,21 +1892,21 @@ fn agents_config_runs_from_the_project_root_and_records_its_baselines_in_place()
     Since the baseline
       new  footprint  manifests
 
-    Wrote ../.retros/report.json, ../.retros/report.md, ../.retros/report.html, ../.agents/retros.yaml
+    Wrote ../.uphill/report.json, ../.uphill/report.md, ../.uphill/report.html, ../.agents/uphill.yaml
     ");
-    insta::assert_snapshot!(fs::read_to_string(dir.path().join(".agents/retros.yaml")).unwrap(), @"
+    insta::assert_snapshot!(fs::read_to_string(dir.path().join(".agents/uphill.yaml")).unwrap(), @"
     footprint:
       run: sh .agents/metrics/manifests.sh
       manifests: { target: 2, baseline: 1 }
     ");
-    assert!(dir.path().join(".retros/report.html").exists());
+    assert!(dir.path().join(".uphill/report.html").exists());
 
     fs::write(
-        dir.path().join("retros.yaml"),
+        dir.path().join("uphill.yaml"),
         "speed:\n  run: \"true\"\n  m: {}\n",
     )
     .unwrap();
     let output = check(dir.path(), &[]);
     assert_eq!(output.status.code(), Some(2));
-    insta::assert_snapshot!(stderr(&output), @"error: retros.yaml and .agents/retros.yaml both exist. Keep one");
+    insta::assert_snapshot!(stderr(&output), @"error: uphill.yaml and .agents/uphill.yaml both exist. Keep one");
 }

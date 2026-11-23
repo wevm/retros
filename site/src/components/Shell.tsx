@@ -11,16 +11,16 @@ export function Shell(props: Shell.Props) {
     <div {...styles.page()}>
       <header {...styles.header()}>
         <div {...styles.bar()}>
-          <Link aria-label="Retros home" href="/" {...styles.brand()}>
+          <Link aria-label="Uphill home" href="/" {...styles.brand()}>
             <Mark />
-            Retros
+            Uphill
           </Link>
           <nav aria-label="Site" {...styles.navigation()}>
             <Link href="/docs/introduction/getting-started" {...styles.link()}>
               Docs
             </Link>
             <a
-              href="https://github.com/wevm/retros"
+              href="https://github.com/wevm/uphill"
               rel="noreferrer"
               target="_blank"
               {...styles.link()}
@@ -36,8 +36,8 @@ export function Shell(props: Shell.Props) {
       <footer {...styles.footer()}>
         <div {...styles.bar()}>
           <span>
-            Retros ·{' '}
-            <a href="https://github.com/wevm/retros/blob/main/LICENSE">
+            Uphill ·{' '}
+            <a href="https://github.com/wevm/uphill/blob/main/LICENSE">
               MIT License
             </a>
           </span>
@@ -52,7 +52,7 @@ export declare namespace Shell {
   type Props = { children: ReactNode }
 }
 
-/** The Retros mark: a line that climbs from left to right. */
+/** The Uphill mark: a line that climbs from left to right. */
 export function Mark() {
   return (
     <svg aria-hidden="true" viewBox="0 0 32 32" {...styles.mark()}>

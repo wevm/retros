@@ -1,4 +1,4 @@
-//! Metric lines: what a script writes to the file at `$RETROS_METRICS`.
+//! Metric lines: what a script writes to the file at `$UPHILL_METRICS`.
 //!
 //! Each line is `metric value` or `metric item value`, with fields separated by spaces or tabs.
 //! An item that contains a space is quoted, such as `"ABI Decode (500 results)"`, and a quoted
@@ -25,7 +25,7 @@ pub struct Line<'a> {
     pub metric: &'a str,
     /// Why the measurement is what it is, such as `hero.svg has no alt text`.
     pub note: Option<Cow<'a, str>>,
-    /// The line's own target, which takes the place of the metric's target in `retros.yaml`.
+    /// The line's own target, which takes the place of the metric's target in `uphill.yaml`.
     pub target: Option<Value>,
     /// The subject the measurement belongs to, such as `zc` in `zc: startup 0.76ms`.
     pub subject: Option<&'a str>,

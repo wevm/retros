@@ -1,15 +1,15 @@
 # Baselines
 
-A baseline is the last accepted value of a metric. Retros compares every run with the baselines, and `--require-baseline` fails a run that differs from them.
+A baseline is the last accepted value of a metric. Uphill compares every run with the baselines, and `--require-baseline` fails a run that differs from them.
 
 ## Overview
 
-`retros --update` writes each metric's `baseline` key into the configuration, next to its `target`. The configuration is committed, so accepting a regression or loosening a script's target is a reviewed change, like any other line of code.
+`uphill --update` writes each metric's `baseline` key into the configuration, next to its `target`. The configuration is committed, so accepting a regression or loosening a script's target is a reviewed change, like any other line of code.
 
 Baselines hold sizes, counts, checks, and the targets scripts write on their lines. These are the same on every machine. Timings differ between machines, so a baseline never holds them. The [Comparing Revisions](/docs/guides/comparing) guide compares timings instead.
 
-```yaml title="retros.yaml"
-# retros --update wrote the baseline key.
+```yaml title="uphill.yaml"
+# uphill --update wrote the baseline key.
 footprint:
   run: sh metrics/footprint.sh
   bundle-size: { target: 5kB, baseline: 6.9kB }
@@ -21,15 +21,15 @@ This walkthrough uses the `pages` category from [Writing Scripts](/docs/guides/s
 
 ### Record the Values
 
-`retros --update` runs every category and writes what it measured. A metric with items takes one line per item, so a later change to one item shows as one line in a diff. Retros keeps the comments and formatting of the rest of the file.
+`uphill --update` runs every category and writes what it measured. A metric with items takes one line per item, so a later change to one item shows as one line in a diff. Uphill keeps the comments and formatting of the rest of the file.
 
 ```text
-$ retros --update
+$ uphill --update
 ...
-Wrote .retros/report.json, .retros/report.md, .retros/report.html, retros.yaml
+Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html, uphill.yaml
 ```
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # The pages category runs one script, which writes two metrics per page.
 pages:
   run: sh metrics/pages.sh
@@ -48,10 +48,10 @@ pages:
 
 ### Read the Changes
 
-After a change adds a blog page, grows the pricing page, and gives the about page a title, `retros` lists each item that differs from its baseline. Each change is worse, better, new, or gone.
+After a change adds a blog page, grows the pricing page, and gives the about page a title, `uphill` lists each item that differs from its baseline. Each change is worse, better, new, or gone.
 
 ```text
-$ retros
+$ uphill
 ...
 Since the baseline
   worse   pages  page-size pricing.html  31 kB → 33 kB
@@ -65,16 +65,16 @@ Since the baseline
 `--require-baseline` exits with status 1 when anything differs from the baselines, better or worse, or when no metric has a baseline. The baselines on the main branch then always match its code, and each improvement becomes the new floor.
 
 ```text
-$ retros --require-baseline
+$ uphill --require-baseline
 ...
-4 changes since the baseline. Run `retros --update` to accept them
+4 changes since the baseline. Run `uphill --update` to accept them
 ```
 
 ### Accept the Change
 
-`retros --update` accepts the run. The diff of the configuration shows each accepted change on its own line, and the next run with `--require-baseline` passes.
+`uphill --update` accepts the run. The diff of the configuration shows each accepted change on its own line, and the next run with `--require-baseline` passes.
 
-```diff title="retros.yaml"
+```diff title="uphill.yaml"
      baseline:
        about.html: 9015B
 +      blog.html: 4034B
@@ -96,7 +96,7 @@ $ retros --require-baseline
 
 A baseline records the target a script writes on a line, after the value. When a script changes its own target, the run reports it as looser or tighter, so a loosened target cannot pass review unseen.
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # The chains entry point wrote a 15 kB target on its line.
 entry-size:
   target: 5kB
@@ -113,9 +113,9 @@ Since the baseline
 
 ### Varying Values
 
-A size or count that differs between runs, such as peak memory, sets `varies: true`. Retros takes its median across rounds like a time, and its baseline records only its line targets.
+A size or count that differs between runs, such as peak memory, sets `varies: true`. Uphill takes its median across rounds like a time, and its baseline records only its line targets.
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # Peak memory differs between runs, so it is scored on the median of 5 rounds.
 speed:
   run: sh metrics/speed.sh
@@ -124,10 +124,10 @@ speed:
 
 ### Baselines in TOML
 
-`retros --update` edits `retros.toml` in place too, and writes a baseline with items as an inline table. A metric written with dotted keys, such as `entry-size.target = "5kB"`, cannot take a baseline, so Retros writes nothing and names the metric.
+`uphill --update` edits `uphill.toml` in place too, and writes a baseline with items as an inline table. A metric written with dotted keys, such as `entry-size.target = "5kB"`, cannot take a baseline, so Uphill writes nothing and names the metric.
 
-```toml title="retros.toml"
-# retros --update added the baseline key.
+```toml title="uphill.toml"
+# uphill --update added the baseline key.
 [footprint.entry-size]
 target = "5kB"
 targets = { "chains" = "8kB" }
@@ -136,11 +136,11 @@ baseline = { chains = "12033B", index = "6112B", utils = "1132B" }
 
 ### Trace a Metric
 
-Each baseline lives in Git, so its history is the metric's history. `retros log` lists the commits that changed a baseline, and `retros blame` names the last one. With `--require-baseline` in CI, that commit is the change that moved the metric.
+Each baseline lives in Git, so its history is the metric's history. `uphill log` lists the commits that changed a baseline, and `uphill blame` names the last one. With `--require-baseline` in CI, that commit is the change that moved the metric.
 
 ```text
-$ retros log footprint source-size
-footprint source-size in the baselines of retros.yaml
+$ uphill log footprint source-size
+footprint source-size in the baselines of uphill.yaml
 
   fd268f9  2026-11-23  172 B  from 138 B  accept size
   84337c9  2026-11-23  138 B              init
@@ -148,11 +148,11 @@ footprint source-size in the baselines of retros.yaml
 
 ### Gate in CI
 
-A CI job that runs `retros --require-baseline` fails each pull request that changes a size, count, check, or line target without running `retros --update`. The [GitHub Actions](/docs/guides/github-actions) guide passes it through the `args` input.
+A CI job that runs `uphill --require-baseline` fails each pull request that changes a size, count, check, or line target without running `uphill --update`. The [GitHub Actions](/docs/guides/github-actions) guide passes it through the `args` input.
 
-```yaml title=".github/workflows/retros.yml"
+```yaml title=".github/workflows/uphill.yml"
 # Fail the pull request when a value differs from its baseline.
-- uses: wevm/retros@main
+- uses: wevm/uphill@main
   with:
     args: --require-baseline
 ```

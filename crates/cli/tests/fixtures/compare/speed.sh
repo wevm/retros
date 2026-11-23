@@ -6,4 +6,4 @@ echo "$round" > .round
 {
   echo "encode $(cat encode.txt)"
   echo "parse $(sed -n "$(( (round - 1) % 8 + 1 ))p" parse.txt)ms"
-} >> "$RETROS_METRICS"
+} >> "$UPHILL_METRICS"

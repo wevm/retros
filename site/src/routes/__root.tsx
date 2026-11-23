@@ -17,8 +17,8 @@ export const Route = createRootRoute({
       { charSet: 'utf-8' },
       { content: 'width=device-width, initial-scale=1', name: 'viewport' },
       // Pages set their own title and description with `Head.page`.
-      { title: 'Retros' },
-      { content: 'Retros', property: 'og:site_name' },
+      { title: 'Uphill' },
+      { content: 'Uphill', property: 'og:site_name' },
       { content: 'website', property: 'og:type' },
     ],
   }),

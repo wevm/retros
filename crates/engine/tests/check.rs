@@ -37,7 +37,7 @@ fn render(report: &Report, config: &str, metrics: &str) -> String {
 
     for (severity, finding) in findings {
         let (name, source) = match finding.source {
-            Source::Config => ("retros.yaml", config),
+            Source::Config => ("uphill.yaml", config),
             Source::Metrics => ("footprint metrics", metrics),
         };
         let _ = write!(
@@ -64,7 +64,7 @@ fn reports_a_configured_metric_that_was_not_written() {
 
     insta::assert_snapshot!(report, @"
     passed: false, metrics: 1
-    error [metric-missing] retros.yaml:4:3: metric `modules` is configured, but the script did not write it
+    error [metric-missing] uphill.yaml:4:3: metric `modules` is configured, but the script did not write it
       4 |   modules: {}
         |   ^
     ");
@@ -157,10 +157,10 @@ fn checks_target_patterns() {
     error [mixed-targets] footprint metrics:4:1: metric `modules` sets a target on some items but not this one. Set a target on every line, or a default `target` for the metric
       4 | modules zod 9
         | ^
-    error [target-unit] retros.yaml:3:39: metric `modules` is written as counts, but its target for `ox` is a size
+    error [target-unit] uphill.yaml:3:39: metric `modules` is written as counts, but its target for `ox` is a size
       3 |   modules: { targets: { "viem*": 500, "ox": "1kB", "abitype": 50 } }
         |                                       ^
-    warning [unmatched-pattern] retros.yaml:3:52: pattern `abitype` in the `targets` of metric `modules` matches no item
+    warning [unmatched-pattern] uphill.yaml:3:52: pattern `abitype` in the `targets` of metric `modules` matches no item
       3 |   modules: { targets: { "viem*": 500, "ox": "1kB", "abitype": 50 } }
         |                                                    ^
     "#);

@@ -40,7 +40,7 @@ pub struct Report {
 /// One category's scores for one subject, or the reason it has none.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CategoryReport {
-    /// What the category measures, from `retros.yaml`.
+    /// What the category measures, from `uphill.yaml`.
     pub description: Option<String>,
     /// The category name.
     pub name: String,
@@ -360,7 +360,7 @@ pub fn summary(report: &Report) -> String {
 
     match &report.changes {
         None => out.push_str(
-            "\nNo baseline yet. Run `retros --update` to record these values as the baseline.\n",
+            "\nNo baseline yet. Run `uphill --update` to record these values as the baseline.\n",
         ),
         Some(changes) if changes.is_empty() => out.push_str("\nNo changes since the baseline\n"),
         Some(changes) => {
@@ -550,7 +550,7 @@ pub fn json(report: &Report) -> String {
 /// changes since the baselines and against another revision, then a section per category with a
 /// table of metrics and the worst items of each list.
 pub fn markdown(report: &Report) -> String {
-    let mut out = String::from("# Retros report\n\n");
+    let mut out = String::from("# Uphill report\n\n");
     let score = |category: &CategoryReport| match &category.result {
         Ok(scored) => compact(scored.score),
         Err(failure) => format!("✗ {}", failure.message),
@@ -1009,7 +1009,7 @@ fn compact(score: Option<u8>) -> String {
 
 /// Formats a metric's collapsed value, such as `27.5 kB`, `p90 9 kB (viem/op-stack)`, or
 /// `2 of 3 pass`.
-/// Returns a metric's value as the HTML report's grid and `retros log` show it: `27.1 ms`, `pass`,
+/// Returns a metric's value as the HTML report's grid and `uphill log` show it: `27.1 ms`, `pass`,
 /// or `5 of 6 pass`.
 pub fn headline(metric: &MetricScore) -> String {
     if metric.kind == Kind::Check {

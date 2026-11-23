@@ -1,4 +1,4 @@
-//! `retros check`: runs each category's script once and checks the metric lines it writes.
+//! `uphill check`: runs each category's script once and checks the metric lines it writes.
 //! Categories that share a `run` command share one run.
 //!
 //! Each category prints one line as its script finishes, followed by the end of standard error
@@ -13,11 +13,11 @@ use std::process::ExitCode;
 use crate::measure::{self, count};
 use crate::project::Project;
 
-/// Runs `retros check` for `project`.
+/// Runs `uphill check` for `project`.
 ///
 /// # Errors
 ///
-/// Returns a message for the terminal when Retros cannot run a script at all, such as when `sh`
+/// Returns a message for the terminal when Uphill cannot run a script at all, such as when `sh`
 /// is missing. A script that fails is reported in the output, not returned.
 pub(crate) fn run(project: &Project) -> Result<ExitCode, String> {
     let width = project

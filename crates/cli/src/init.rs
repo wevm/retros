@@ -1,4 +1,4 @@
-//! `retros init`: prints a brief that a person gives their agent to set up Retros in the project.
+//! `uphill init`: prints a brief that a person gives their agent to set up Uphill in the project.
 //! The brief points at the example closest to the project in the current directory: a Rust API
 //! for a Cargo project, a website for a package with pages or a web framework, and a TypeScript
 //! library for any other package.
@@ -14,7 +14,7 @@ use crate::project;
 const BRIEF: &str = include_str!("init.md");
 
 /// Where the examples live.
-const EXAMPLES: &str = "https://github.com/wevm/retros/tree/main/examples";
+const EXAMPLES: &str = "https://github.com/wevm/uphill/tree/main/examples";
 
 /// Dependencies in `package.json` that mark a website.
 const WEB: [&str; 6] = [
@@ -32,7 +32,7 @@ pub(crate) fn run() -> ExitCode {
 
     let mut example = match closest(&cwd) {
         Some((name, kind)) => format!(
-            "The closest example is {kind}: {EXAMPLES}/{name}. Read its `retros.yaml` and `metrics/` before writing anything."
+            "The closest example is {kind}: {EXAMPLES}/{name}. Read its `uphill.yaml` and `metrics/` before writing anything."
         ),
         None => format!(
             "Read the closest example before writing anything: a TypeScript library ({EXAMPLES}/typescript-library), a website ({EXAMPLES}/web-app), or a Rust API ({EXAMPLES}/rust-api)."

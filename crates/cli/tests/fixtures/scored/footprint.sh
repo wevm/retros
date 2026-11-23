@@ -1,6 +1,6 @@
 # Writes a bundle size, ten export sizes whose p90 is 9 kB, a module count, and three link checks.
 # Notes say why the bundle, the largest export, and the failing link are what they are.
-cat >> "$RETROS_METRICS" <<'LINES'
+cat >> "$UPHILL_METRICS" <<'LINES'
 bundle 27.5kB note "includes all of lodash"
 export-size viem/actions 3kB
 export-size viem/chains 10kB note "bundles every chain definition"

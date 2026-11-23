@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Runs the retros binary for this machine, such as `binaries/linux-x64/retros`, with the same
+ * Runs the uphill binary for this machine, such as `binaries/linux-x64/uphill`, with the same
  * arguments, and exits with its status. Linux runs the static musl build, which needs no
  * particular C library, so one binary serves glibc and musl systems.
  * @module
@@ -11,14 +11,14 @@ import * as url from 'node:url'
 
 const platform = `${process.platform}-${process.arch}`
 const binary = url.fileURLToPath(
-  new URL(`../binaries/${platform}/retros`, import.meta.url),
+  new URL(`../binaries/${platform}/uphill`, import.meta.url),
 )
 
 // npm refuses other platforms through `os` and `cpu`, but `--force` and some package managers
 // install anyway.
 if (!fs.existsSync(binary)) {
   process.stderr.write(
-    `error: retros has no binary for ${platform}. Retros has binaries for macOS and Linux on arm64 and x64.\n`,
+    `error: uphill has no binary for ${platform}. Uphill has binaries for macOS and Linux on arm64 and x64.\n`,
   )
   process.exit(1)
 }

@@ -1,10 +1,10 @@
 # Scoring
 
-Retros scores each value from 0 to 100 against its target, collapses each list to one score, and averages metric scores into a category score. There is no overall score.
+Uphill scores each value from 0 to 100 against its target, collapses each list to one score, and averages metric scores into a category score. There is no overall score.
 
 ## Curve
 
-Each value scores on a log-normal curve with two control points: a value at its target scores 90, and twice the target scores 50. Smaller values approach 100 and larger values approach 0. Retros compares values, not rounded scores, so a value just past its target never passes as 90.
+Each value scores on a log-normal curve with two control points: a value at its target scores 90, and twice the target scores 50. Smaller values approach 100 and larger values approach 0. Uphill compares values, not rounded scores, so a value just past its target never passes as 90.
 
 | Value against a 5 kB target | Score | Band |
 | --- | --- | --- |
@@ -78,7 +78,7 @@ A metric without a target has no score and stays out of the mean. A category who
 
 ## Rounds
 
-When a script's first run writes a time, or a metric marked `varies`, Retros runs the script 5 times. It scores the median of each timing and each varying item. Notes and the other sizes, counts, and checks come from the first run.
+When a script's first run writes a time, or a metric marked `varies`, Uphill runs the script 5 times. It scores the median of each timing and each varying item. Notes and the other sizes, counts, and checks come from the first run.
 
 ```text
 ■  75  speed  median of 5 rounds

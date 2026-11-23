@@ -51,7 +51,7 @@ jobs:
   install:
     name: Install (${{ matrix.os }})
     env:
-      RETROS_VERSION: v${{ needs.release.outputs.version }}
+      UPHILL_VERSION: v${{ needs.release.outputs.version }}
     needs: [publish, release]
     runs-on: ${{ matrix.os }}
     strategy:
@@ -67,10 +67,11 @@ jobs:
           persist-credentials: false
 
       - name: Run install script
-        run: sh install.sh && ~/.retros/bin/retros --version
+        run: sh install.sh && ~/.uphill/bin/uphill --version
 
       - name: Run with npx
-        run: npx --yes "retros@${RETROS_VERSION#v}" --version
+        if: needs.release.outputs.publish == 'true'
+        run: npx --yes "uphill@${UPHILL_VERSION#v}" --version
 
       # Alpine has musl and only BusyBox wget. AlmaLinux 8 has glibc 2.28, the oldest the glibc
       # build supports. CentOS 7 has glibc 2.17, so it gets the musl build.
@@ -78,11 +79,11 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           for image in alpine:3 almalinux:8 centos:7; do
-            docker run --rm -e RETROS_VERSION -v "$PWD/install.sh:/install.sh:ro" "$image" sh -c 'sh /install.sh && ~/.retros/bin/retros --version'
+            docker run --rm -e UPHILL_VERSION -v "$PWD/install.sh:/install.sh:ro" "$image" sh -c 'sh /install.sh && ~/.uphill/bin/uphill --version'
           done
 
-  # Each run on main keeps Retros' own scores and values as a Git note on its commit, which the
-  # trends in report.html and `retros log` read. The workflow's concurrency runs one at a time.
+  # Each run on main keeps Uphill's own scores and values as a Git note on its commit, which the
+  # trends in report.html and `uphill log` read. The workflow's concurrency runs one at a time.
   note:
     name: Note
     runs-on: ubuntu-latest
@@ -105,21 +106,21 @@ jobs:
 
       - name: Note this run
         run: |
-          git fetch origin refs/notes/retros:refs/notes/retros || true
+          git fetch origin refs/notes/uphill:refs/notes/uphill || true
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          cargo run --release --locked --quiet -p retros -- --note
-          git push origin refs/notes/retros
+          cargo run --release --locked --quiet -p uphill -- --note
+          git push origin refs/notes/uphill
 
   # Creates the GitHub Release with the archives, and publishes the same binaries to npm. Each
-  # step skips work that a cancelled or failed run already finished, so a later run resumes it.
+  # part skips work that a cancelled or failed run already finished, so a later run resumes it.
   publish:
     name: Publish
     # Published packages must not consume build state from other CI jobs.
     cache-mode: none
     env:
       VERSION: ${{ needs.release.outputs.version }}
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.publish == 'true' }}
+    if: ${{ !cancelled() && !failure() && (needs.release.outputs.build == 'true' || needs.release.outputs.publish == 'true') }}
     needs: [binaries, release, verify]
     permissions:
       contents: write
@@ -143,30 +144,32 @@ jobs:
         with:
           merge-multiple: true
           path: dist
-          pattern: retros-*
+          pattern: uphill-*
 
       - name: Download release archives
         if: needs.binaries.result == 'skipped'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release download "v$VERSION" --dir dist --pattern 'retros-*.tar.gz' --repo "$GITHUB_REPOSITORY"
+        run: gh release download "v$VERSION" --dir dist --pattern 'uphill-*.tar.gz' --repo "$GITHUB_REPOSITORY"
 
-      # npm/src/bin.ts runs `npm/binaries/<process.platform>-<process.arch>/retros`. The static
+      # npm/src/bin.ts runs `npm/binaries/<process.platform>-<process.arch>/uphill`. The static
       # musl builds run on Linux with glibc or musl.
       - name: Stage binaries
+        if: needs.release.outputs.publish == 'true'
         run: |
           for entry in darwin-arm64:aarch64-apple-darwin darwin-x64:x86_64-apple-darwin linux-arm64:aarch64-unknown-linux-musl linux-x64:x86_64-unknown-linux-musl; do
             mkdir -p "npm/binaries/${entry%%:*}"
-            tar -xzf "dist/retros-${entry#*:}.tar.gz" -C "npm/binaries/${entry%%:*}" retros
+            tar -xzf "dist/uphill-${entry#*:}.tar.gz" -C "npm/binaries/${entry%%:*}" uphill
           done
 
       # Packs the package as `changeset publish` does, installs it on glibc and on musl, and runs
       # the launcher. pnpm marks only the files in `bin` and `publishConfig.executableFiles` as
       # executable. pnpm runs once, since a later `pnpm exec` installs from the prepared manifest.
       - name: Check package
+        if: needs.release.outputs.publish == 'true'
         run: |
           pnpm exec sh -euc 'zile publish:prepare --cwd npm && pnpm --dir npm pack --pack-destination "$RUNNER_TEMP" && zile publish:post --cwd npm'
-          check='cd "$(mktemp -d)" && npm init -y > /dev/null && npm install --no-audit --no-fund --loglevel=error /pack/retros-*.tgz && npx retros --version'
+          check='cd "$(mktemp -d)" && npm init -y > /dev/null && npm install --no-audit --no-fund --loglevel=error /pack/uphill-*.tgz && npx uphill --version'
           docker run --rm -v "$RUNNER_TEMP:/pack:ro" node:24 sh -euc "$check"
           docker run --rm -v "$RUNNER_TEMP:/pack:ro" node:24-alpine sh -euc "$check"
 
@@ -177,20 +180,22 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          (cd dist && sha256sum retros-*.tar.gz > sha256sums.txt)
+          (cd dist && sha256sum uphill-*.tar.gz > sha256sums.txt)
           touch npm/CHANGELOG.md
           awk -v heading="## $VERSION" '$0 == heading { found = 1; next } /^## / { found = 0 } found' npm/CHANGELOG.md > "$RUNNER_TEMP/notes.md"
           case "$VERSION" in *-*) prerelease=--prerelease ;; *) prerelease= ;; esac
-          gh release create "v$VERSION" dist/retros-*.tar.gz dist/sha256sums.txt --notes-file "$RUNNER_TEMP/notes.md" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "v$VERSION" $prerelease
+          gh release create "v$VERSION" dist/uphill-*.tar.gz dist/sha256sums.txt --notes-file "$RUNNER_TEMP/notes.md" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "v$VERSION" $prerelease
 
       # Without NPM_TOKEN, npm uses trusted publishing.
       - name: Authenticate with npm
+        if: needs.release.outputs.publish == 'true'
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: if [ -n "$NPM_TOKEN" ]; then npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN"; fi
 
       # The GitHub Release above holds the `v<version>` tag, so Changesets pushes no tags.
       - name: Publish package
+        if: needs.release.outputs.publish == 'true'
         uses: wevm/actions/vendor/changesets/action/v2@6d24d44bb98809270f8d2a19d584f29aeb384be5
         env:
           NPM_CONFIG_PROVENANCE: 'true'
@@ -200,8 +205,8 @@ jobs:
           publish-script: pnpm run changeset:publish
           push-git-tags: false
 
-  # A version is released once no changesets are pending and npm does not have it. A version
-  # with a GitHub Release keeps that release's archives, so npm gets the same binaries.
+  # A version is released once no changesets are pending. It gets a GitHub Release with new
+  # archives unless it has one, and npm gets the release's binaries unless npm has the version.
   release:
     name: Release
     outputs:
@@ -219,7 +224,7 @@ jobs:
           persist-credentials: false
 
       # npm accepts trusted publishing only for a package it already has, so the first publish
-      # needs NPM_TOKEN.
+      # needs NPM_TOKEN. Without either, the GitHub Release still goes out.
       - id: release
         name: Check for an unpublished version
         env:
@@ -229,15 +234,16 @@ jobs:
           version=$(node -p "require('./npm/package.json').version")
           echo "version=$version" >> "$GITHUB_OUTPUT"
           pending=$(find .changeset -name '*.md' ! -name README.md | head -n 1)
-          if [ -n "$pending" ] || [ -n "$(npm view "retros@$version" version 2> /dev/null)" ]; then exit 0; fi
-          if [ -z "$NPM_TOKEN" ] && [ -z "$(npm view retros name 2> /dev/null)" ]; then
-            echo "::warning::retros@$version is not on npm yet. Add the NPM_TOKEN secret for the first publish."
-            exit 0
-          fi
-          echo publish=true >> "$GITHUB_OUTPUT"
+          if [ -n "$pending" ]; then exit 0; fi
           if ! gh release view "v$version" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             echo build=true >> "$GITHUB_OUTPUT"
           fi
+          if [ -n "$(npm view "uphill@$version" version 2> /dev/null)" ]; then exit 0; fi
+          if [ -z "$NPM_TOKEN" ] && [ -z "$(npm view uphill name 2> /dev/null)" ]; then
+            echo "::warning::uphill@$version is not on npm yet. Add the NPM_TOKEN secret for the first publish."
+            exit 0
+          fi
+          echo publish=true >> "$GITHUB_OUTPUT"
 
   verify:
     name: Verify

@@ -1,17 +1,17 @@
 # Configuration
 
-`retros.yaml` or `retros.toml` declares the categories, the command that measures each one, and the target of each metric. Both formats accept the same keys.
+`uphill.yaml` or `uphill.toml` declares the categories, the command that measures each one, and the target of each metric. Both formats accept the same keys.
 
 ## Files
 
-Retros reads `retros.yaml` or `retros.toml`, at the project root or in `.agents/`, from the current directory or the nearest parent. One directory with more than one of these files is an error. The project root is the directory that holds the file or `.agents/`.
+Uphill reads `uphill.yaml` or `uphill.toml`, at the project root or in `.agents/`, from the current directory or the nearest parent. One directory with more than one of these files is an error. The project root is the directory that holds the file or `.agents/`.
 
-Scripts run from the project root, and reports go to `.retros/` in it. Each top-level key is a category, apart from `run`, `setup`, and `timeout`.
+Scripts run from the project root, and reports go to `.uphill/` in it. Each top-level key is a category, apart from `run`, `setup`, and `timeout`.
 
 <Tabs>
 <Tab title="YAML">
 
-```yaml title=".agents/retros.yaml"
+```yaml title=".agents/uphill.yaml"
 # Two categories, each measured by its own script.
 footprint:
   run: sh metrics/footprint.sh
@@ -25,7 +25,7 @@ speed:
 </Tab>
 <Tab title="TOML">
 
-```toml title=".agents/retros.toml"
+```toml title=".agents/uphill.toml"
 # Two categories, each measured by its own script.
 [footprint]
 run = "sh metrics/footprint.sh"
@@ -43,7 +43,7 @@ import-time = { target = "20ms" }
 
 A category or metric name starts with an ASCII letter or digit, and continues with ASCII letters, digits, `-`, `_`, and `.`. `report.md` and `report.html` show a name in words unless a `title` is set, so `request-out` reads "Request out".
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # Valid names: footprint, entry-size, p95_latency, and v2.startup.
 footprint:
   run: sh metrics/footprint.sh
@@ -59,7 +59,7 @@ footprint:
 
 The command for every category that sets no `run`. Categories with the same command share one run of it, and each line goes to the category that lists its metric. One metric in two categories that share a run is an error.
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # Both categories read the lines of one run of bench.sh.
 run: sh bench.sh
 
@@ -75,10 +75,10 @@ speed:
 - **Type:** string
 - **Default:** none
 
-A command that prepares each checkout that `--compare` and `retros blame` create, such as a package install. It runs once from the root of the new checkout, before any script, with the top-level `timeout`. A failed setup stops the run with exit status 2.
+A command that prepares each checkout that `--compare` and `uphill blame` create, such as a package install. It runs once from the root of the new checkout, before any script, with the top-level `timeout`. A failed setup stops the run with exit status 2.
 
-```yaml title="retros.yaml"
-# Install packages in each worktree that Retros creates.
+```yaml title="uphill.yaml"
+# Install packages in each worktree that Uphill creates.
 setup: bun install --frozen-lockfile
 ```
 
@@ -87,9 +87,9 @@ setup: bun install --frozen-lockfile
 - **Type:** duration, such as `500ms`, `30s`, `10m`, or `1h`
 - **Default:** `10m`
 
-The time each script may run in a category that sets no `timeout`, and the time `setup` may run. When the time passes, Retros stops the script and every process it started.
+The time each script may run in a category that sets no `timeout`, and the time `setup` may run. When the time passes, Uphill stops the script and every process it started.
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # Give every script 2 minutes.
 timeout: 2m
 ```
@@ -101,9 +101,9 @@ timeout: 2m
 - **Type:** string
 - **Default:** the top-level `run`
 
-The command that measures the category. Retros runs it through `sh -c` from the project root, with `$RETROS_METRICS` set to a new file for the script's metric lines. A category without a `run` and without a top-level `run` is an error.
+The command that measures the category. Uphill runs it through `sh -c` from the project root, with `$UPHILL_METRICS` set to a new file for the script's metric lines. A category without a `run` and without a top-level `run` is an error.
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # Measure the footprint category with a shell script.
 footprint:
   run: sh metrics/footprint.sh
@@ -117,7 +117,7 @@ footprint:
 
 The time the category's script may run.
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # Give the end-to-end suite 30 minutes.
 e2e:
   run: sh metrics/e2e.sh
@@ -132,7 +132,7 @@ e2e:
 
 The name that `report.md`, `report.html`, and `report.json` show. The terminal and baselines keep the name.
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # Show "Bundle footprint" in reports.
 footprint:
   run: sh metrics/footprint.sh
@@ -147,7 +147,7 @@ footprint:
 
 What the category measures, which `report.html` and `report.json` show.
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # Describe the category for readers of the report.
 footprint:
   run: sh metrics/footprint.sh
@@ -159,7 +159,7 @@ footprint:
 
 Every other key of a category is a metric. A metric is a mapping of the keys below. A metric without keys, such as `modules: {}`, shows its value and changes but has no score. A category must declare at least one metric.
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # bundle-size is scored, and modules is shown without a score.
 footprint:
   run: sh metrics/footprint.sh
@@ -174,7 +174,7 @@ footprint:
 
 The value that scores 90, for every item that has no target of its own. It is greater than zero and in the same kind of unit as the metric's values. A list of checks scores the share of items that pass, so a check has no target.
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # Each page scores 90 at 20 kB and 50 at 40 kB.
 page-size: { target: 20kB }
 ```
@@ -186,7 +186,7 @@ page-size: { target: 20kB }
 
 Targets by item, which replace the `target` key and the targets that scripts write on their lines. In a pattern, `*` matches any run of characters, and the first matching pattern applies. A pattern that matches no item gives a warning.
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # Each chain entry point scores against 1 kB, and the root entry point against 60 kB.
 export-size: { target: 5kB, targets: { "viem/chains/*": 1kB, viem: 60kB } }
 ```
@@ -198,7 +198,7 @@ export-size: { target: 5kB, targets: { "viem/chains/*": 1kB, viem: 60kB } }
 
 The direction that improves the metric. With `higher`, half the target scores 50, and a list collapses to its p10 by default.
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # More coverage is better.
 coverage: { target: 80, better: higher }
 ```
@@ -210,7 +210,7 @@ coverage: { target: 80, better: higher }
 
 How a list collapses to one score. Items rank by value against their own target, and a percentile takes the item at its nearest rank. A `sum` scores the total of the values against the total of the targets.
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # Score the total size of every chunk.
 chunk-size: { target: 25kB, score: sum }
 ```
@@ -222,7 +222,7 @@ chunk-size: { target: 25kB, score: sum }
 
 The metric's weight in the category score, which is the weighted mean of the metric scores. A metric with weight 0 still has a score, but the category mean leaves it out.
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # Count throughput twice.
 throughput: { target: 2000, better: higher, weight: 2 }
 ```
@@ -232,9 +232,9 @@ throughput: { target: 2000, better: higher, weight: 2 }
 - **Type:** `true` or `false`
 - **Default:** `false`
 
-Marks a size or count that differs between runs, such as peak memory. Retros repeats its script and takes the median like a time, and its baseline records only its line targets.
+Marks a size or count that differs between runs, such as peak memory. Uphill repeats its script and takes the median like a time, and its baseline records only its line targets.
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # Peak memory differs between runs.
 peak-memory: { target: 64MB, varies: true }
 ```
@@ -246,7 +246,7 @@ peak-memory: { target: 64MB, varies: true }
 
 The name that `report.md`, `report.html`, and `report.json` show.
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # Show "Time to first request" instead of "Request out".
 request-out: { target: 20ms, title: Time to first request }
 ```
@@ -258,7 +258,7 @@ request-out: { target: 20ms, title: Time to first request }
 
 What the metric measures, which `report.html` and `report.json` show.
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # Describe the metric for readers of the report.
 page-size: { target: 20kB, description: Bytes of HTML each page sends. }
 ```
@@ -268,10 +268,10 @@ page-size: { target: 20kB, description: Bytes of HTML each page sends. }
 - **Type:** a value, or a mapping of items to values
 - **Default:** none
 
-The last accepted value, which `retros --update` writes. A metric with items takes one line per item, and a line target follows its value. With subjects, each subject has its own entry. Timings have no baseline.
+The last accepted value, which `uphill --update` writes. A metric with items takes one line per item, and a line target follows its value. With subjects, each subject has its own entry. Timings have no baseline.
 
-```yaml title="retros.yaml"
-# Written by retros --update.
+```yaml title="uphill.yaml"
+# Written by uphill --update.
 bundle-size: { target: 5kB, baseline: 6.9kB }
 entry-size:
   target: 5kB

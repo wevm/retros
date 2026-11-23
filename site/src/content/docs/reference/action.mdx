@@ -1,25 +1,25 @@
 # GitHub Action
 
-`wevm/retros` is a composite action. It installs Retros, runs it with `--compare` on pull requests, and writes the report to the job summary and to one comment on the pull request.
+`wevm/uphill` is a composite action. It installs Uphill, runs it with `--compare` on pull requests, and writes the report to the job summary and to one comment on the pull request.
 
 ## Usage
 
 The job needs `pull-requests: write` for the comment, and `contents: read` to clone the repository.
 
-```yaml title=".github/workflows/retros.yml"
+```yaml title=".github/workflows/uphill.yml"
 # Score each pull request and keep one comment with the report.
-name: Retros
+name: Uphill
 on: pull_request
 
 jobs:
-  retros:
+  uphill:
     permissions:
       contents: read
       pull-requests: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: wevm/retros@main
+      - uses: wevm/uphill@main
         with:
           args: --require-targets
 ```
@@ -29,15 +29,15 @@ jobs:
 The action runs these steps in order:
 
 1. Install the release that `version` selects with the install script, unless `version` is `none`.
-2. Fetch `compare` when the clone lacks it, and run `retros --compare <ref>` with `args` in `working-directory`.
+2. Fetch `compare` when the clone lacks it, and run `uphill --compare <ref>` with `args` in `working-directory`.
 3. Write `report.md` to the job summary. A failed run adds its exit status and the last 60 lines of its output.
 4. On a pull request, create or update the comment when `comment` is `true`.
-5. Exit with the status of `retros`.
+5. Exit with the status of `uphill`.
 
-```yaml title=".github/workflows/retros.yml"
-# A step after the action runs only when Retros passed, unless it sets if: always().
-- uses: wevm/retros@main
-- run: echo "Retros passed"
+```yaml title=".github/workflows/uphill.yml"
+# A step after the action runs only when Uphill passed, unless it sets if: always().
+- uses: wevm/uphill@main
+- run: echo "Uphill passed"
 ```
 
 ## Inputs
@@ -47,7 +47,7 @@ The action runs these steps in order:
 - **Type:** string
 - **Default:** `''`
 
-More arguments for `retros`, separated by spaces, such as a category or a gate.
+More arguments for `uphill`, separated by spaces, such as a category or a gate.
 
 ```yaml
 # Score only the speed category, and fail on a missed target.
@@ -99,10 +99,10 @@ with:
 - **Type:** string
 - **Default:** the action's tag, or `latest`
 
-The release to install, such as `0.1.0`, or `latest`. At a release tag, such as `wevm/retros@v0.1.0`, the default is that release. Otherwise it is the latest release. `none` skips the install and runs the `retros` on `PATH`.
+The release to install, such as `0.1.0`, or `latest`. At a release tag, such as `wevm/uphill@v0.1.0`, the default is that release. Otherwise it is the latest release. `none` skips the install and runs the `uphill` on `PATH`.
 
 ```yaml
-# Run the retros that an earlier step built.
+# Run the uphill that an earlier step built.
 with:
   version: none
 ```
@@ -112,7 +112,7 @@ with:
 - **Type:** string
 - **Default:** `.`
 
-The project root, which holds `retros.yaml`, `retros.toml`, or `.agents/`. The comment marker holds this directory, so each project in a repository keeps its own comment.
+The project root, which holds `uphill.yaml`, `uphill.toml`, or `.agents/`. The comment marker holds this directory, so each project in a repository keeps its own comment.
 
 ```yaml
 # Score the project in the site directory.
@@ -126,13 +126,13 @@ with:
 
 - **Type:** string
 
-The exit status of `retros`: `0`, `1`, or `2`.
+The exit status of `uphill`: `0`, `1`, or `2`.
 
 ```yaml
 # Give the action step an id, then read its output in a later step.
-- id: retros
-  uses: wevm/retros@main
-- run: echo "retros exited with ${{ steps.retros.outputs.exit-code }}"
+- id: uphill
+  uses: wevm/uphill@main
+- run: echo "uphill exited with ${{ steps.uphill.outputs.exit-code }}"
 ```
 
 ### `report`
@@ -143,17 +143,17 @@ The absolute path of `report.md`.
 
 ```yaml
 # Print the report in a later step.
-- id: retros
-  uses: wevm/retros@main
-- run: cat "${{ steps.retros.outputs.report }}"
+- id: uphill
+  uses: wevm/uphill@main
+- run: cat "${{ steps.uphill.outputs.report }}"
 ```
 
 ## Comment
 
-The comment starts with a hidden marker, `<!-- retros: <working-directory> -->`, which the action finds on each later run. It then updates that comment instead of adding one. A report longer than a comment allows keeps its start, and the job summary keeps all of it.
+The comment starts with a hidden marker, `<!-- uphill: <working-directory> -->`, which the action finds on each later run. It then updates that comment instead of adding one. A report longer than a comment allows keeps its start, and the job summary keeps all of it.
 
 ```md
 <!-- The marker for working-directory ".". -->
-<!-- retros: . -->
-# Retros report
+<!-- uphill: . -->
+# Uphill report
 ```

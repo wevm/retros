@@ -102,7 +102,7 @@ for (const [entry, file] of Object.entries<string>(pkg.exports)) {
 }
 
 fs.rmSync(scratch, { force: true, recursive: true })
-fs.appendFileSync(process.env.RETROS_METRICS!, `${lines.join('\n')}\n`)
+fs.appendFileSync(process.env.UPHILL_METRICS!, `${lines.join('\n')}\n`)
 
 /** Runs a command and returns its standard output. A failing exit status is expected. */
 function run(command: string, args: string[]): string {

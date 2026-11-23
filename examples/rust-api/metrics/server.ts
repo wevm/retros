@@ -50,7 +50,7 @@ export async function start(): Promise<Server> {
   }
 }
 
-/** Appends metric lines to the file at `$RETROS_METRICS`. */
+/** Appends metric lines to the file at `$UPHILL_METRICS`. */
 export function write(lines: readonly string[]): void {
-  fs.appendFileSync(process.env.RETROS_METRICS!, `${lines.join('\n')}\n`)
+  fs.appendFileSync(process.env.UPHILL_METRICS!, `${lines.join('\n')}\n`)
 }

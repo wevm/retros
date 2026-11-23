@@ -1,4 +1,4 @@
-# Retros measures itself. Run `retros check` from any directory in this repository.
+# Uphill measures itself. Run `uphill check` from any directory in this repository.
 
 footprint:
   run: sh .agents/metrics/footprint.sh
@@ -9,7 +9,7 @@ footprint:
 
 speed:
   run: bun .agents/metrics/speed.ts
-  # Time from launch to exit of `retros --version`.
+  # Time from launch to exit of `uphill --version`.
   startup: { target: 1ms }
-  # Time `retros check` takes for one category whose script writes one line.
+  # Time `uphill check` takes for one category whose script writes one line.
   check: { target: 5ms }

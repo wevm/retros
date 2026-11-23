@@ -1,27 +1,27 @@
 # Implementation plan
 
-Retros is continuous metrics and hill climbing. A project's scripts measure it, and Retros scores each measurement against the target that fits it, remembers the accepted values, names the next step, and gates changes that slide back. This plan tracks Retros from foundations to release. Each phase ends with an acceptance gate, and a phase is complete only when its gate passes.
+Uphill is continuous metrics and hill climbing. A project's scripts measure it, and Uphill scores each measurement against the target that fits it, remembers the accepted values, names the next step, and gates changes that slide back. This plan tracks Uphill from foundations to release. Each phase ends with an acceptance gate, and a phase is complete only when its gate passes.
 
 ## The Loop
 
-Hill climbing is a loop, and every part of Retros serves one step of it. A person or an agent runs the loop on each change.
+Hill climbing is a loop, and every part of Uphill serves one step of it. A person or an agent runs the loop on each change.
 
-| Step | Question | How Retros answers | Status |
+| Step | Question | How Uphill answers | Status |
 | --- | --- | --- | --- |
-| Measure | What is the project like now? | Scripts write metric lines. Retros runs them and repeats timings. | Done |
+| Measure | What is the project like now? | Scripts write metric lines. Uphill runs them and repeats timings. | Done |
 | Score | How far is it from its targets? | Each item scores on Lighthouse's curve against its own target. Metrics roll up into categories. | Done |
 | Compare | What did this change move? | Each metric's `baseline` holds the accepted sizes, counts, and checks. Timings compare in interleaved pairs on one machine. | Done, CI runner check in Phase 6 |
 | Next step | What should change next? | Opportunities rank changes by the category points they add. Notes say why an item misses. | Done |
 | Gate | Can this change land? | `--require-baseline` fails on any change since the baselines, and `--require-targets` fails on a missed target. | Done |
 | Remember | Where has the project been, and what moved it? | Baselines in Git, a history of runs, and metric blame. | Baselines done, history in Phase 9 |
 
-## How Retros Maps to Lighthouse
+## How Uphill Maps to Lighthouse
 
-Retros keeps Lighthouse's scoring and depth, and replaces its fixed browser gatherers with the project's own scripts.
+Uphill keeps Lighthouse's scoring and depth, and replaces its fixed browser gatherers with the project's own scripts.
 
-| Lighthouse | Retros |
+| Lighthouse | Uphill |
 | --- | --- |
-| Category, such as Performance or Accessibility | A top-level key in `retros.yaml`, named by the project |
+| Category, such as Performance or Accessibility | A top-level key in `uphill.yaml`, named by the project |
 | Audit, such as Largest Contentful Paint or image alt text | A metric |
 | Audit details, such as each image without alt text | The metric's items, worst first |
 | The p10 and median control points of an audit | The target and twice the target |
@@ -41,44 +41,44 @@ Retros keeps Lighthouse's scoring and depth, and replaces its fixed browser gath
 | Contextual targets | Each item is scored against the target that fits it, not one number for every item. | Examples and viem |
 | Honest comparisons | Exact changes always show. Timing changes show only when repeated runs agree. | Baseline tests (done) and the Phase 6 gate |
 | Agents climb | An agent runs the loop unattended: it reads the next step, changes code, and confirms the climb. | Phase 8 gate |
-| Replace zepto's lighthouse | zepto's report comes from Retros with the same scores within noise. | Phase 10 gate |
+| Replace zepto's lighthouse | zepto's report comes from Uphill with the same scores within noise. | Phase 10 gate |
 | One binary | A single static binary with no runtime to install. | Release assets in Phase 11 |
 
 ## Decisions
 
-1. **Name.** Retros. Repository `wevm/retros`, binary `retros`, configuration `retros.yaml`, accepted values in each metric's `baseline`, and reports under `.retros/`. The names `retros` on npm and crates.io were free on 2026-11-22.
-2. **Scripts measure with existing tools, Retros scores.** Scripts run the tools a project already uses, such as Lighthouse, test runners, type checkers, linters, formatters, and benchmark harnesses, and turn their output into metric lines. A script measures a value itself only when no tool reports it. Retros has no built-in measures until the same script recurs across projects, and scripts remain the escape hatch after that. Decided 2026-11-22, with the preference for existing tools added the same day.
-3. **YAML or TOML configuration.** A project writes `retros.yaml` or `retros.toml`, and both parse into one tree of nodes with byte offsets, so every rule and error is shared and errors keep their line and column. YAML is the format most CI and agent configuration uses, and TOML is what Cargo users know. yaml-rust2's event parser adds four crates. Retros writes baselines into either format in place. Decided 2026-11-23.
-4. **Metrics go to a file.** Scripts append lines to the file at `$RETROS_METRICS`, not to standard output. Tools that scripts call print to standard output, and a standard output protocol lets any tool inject a metric. GitHub Actions moved from standard output commands to `$GITHUB_OUTPUT` for the same reason. Decided 2026-11-22.
+1. **Name.** Uphill. Repository `wevm/uphill`, binary `uphill`, configuration `uphill.yaml`, accepted values in each metric's `baseline`, and reports under `.uphill/`. The project was named Retros until 2026-11-23, when npm refused the unscoped name `retros` as too similar to `retry` and `metro`. npm accepts names at least 3 edits from popular packages, and `uphill` was free.
+2. **Scripts measure with existing tools, Uphill scores.** Scripts run the tools a project already uses, such as Lighthouse, test runners, type checkers, linters, formatters, and benchmark harnesses, and turn their output into metric lines. A script measures a value itself only when no tool reports it. Uphill has no built-in measures until the same script recurs across projects, and scripts remain the escape hatch after that. Decided 2026-11-22, with the preference for existing tools added the same day.
+3. **YAML or TOML configuration.** A project writes `uphill.yaml` or `uphill.toml`, and both parse into one tree of nodes with byte offsets, so every rule and error is shared and errors keep their line and column. YAML is the format most CI and agent configuration uses, and TOML is what Cargo users know. yaml-rust2's event parser adds four crates. Uphill writes baselines into either format in place. Decided 2026-11-23.
+4. **Metrics go to a file.** Scripts append lines to the file at `$UPHILL_METRICS`, not to standard output. Tools that scripts call print to standard output, and a standard output protocol lets any tool inject a metric. GitHub Actions moved from standard output commands to `$GITHUB_OUTPUT` for the same reason. Decided 2026-11-22.
 5. **One line per measurement.** The format is `metric [item] value [target <value>] [note <text>]`. An item or note with a space is quoted.
 6. **One target, scored like Lighthouse.** A target is a requirement the project must meet. A value at its target scores 90, twice the target scores 50, and four times the target scores 10. When higher is better, half the target scores 50. Lighthouse's p10 control point becomes the target and its median becomes twice the target. There is no overall score. Decided 2026-11-22, replacing the `target` and `limit` pair.
-7. **Targets are contextual.** A target in `retros.yaml` is the metric's default. A script that knows an item needs a different requirement writes the target on the line: a root entry point that bundles the whole library gets a larger target than a subpath, and a health endpoint gets a smaller one than a search endpoint. Each item is scored against its own target, and a list ranks its items by how far past their own targets they are, so a large item that meets a large target never hides a small item that misses a small one. When the project disagrees with a script, `targets` in `retros.yaml` sets targets by item pattern, such as `"viem/chains/*" = "1kB"`, and has the final say. A list where some items have a target and others do not, with no default, is an error. Decided 2026-11-22, with patterns added the same day.
+7. **Targets are contextual.** A target in `uphill.yaml` is the metric's default. A script that knows an item needs a different requirement writes the target on the line: a root entry point that bundles the whole library gets a larger target than a subpath, and a health endpoint gets a smaller one than a search endpoint. Each item is scored against its own target, and a list ranks its items by how far past their own targets they are, so a large item that meets a large target never hides a small item that misses a small one. When the project disagrees with a script, `targets` in `uphill.yaml` sets targets by item pattern, such as `"viem/chains/*" = "1kB"`, and has the final say. A list where some items have a target and others do not, with no default, is an error. Decided 2026-11-22, with patterns added the same day.
 8. **Exact metrics and line targets have baselines, timings are compared.** Each metric's `baseline` records sizes, counts, and checks, which are the same on every machine, and the targets scripts set on their lines. Baselines are committed and reviewed like code, so accepting a regression or loosening a script's target is a visible change in review. Timings differ between machines, so their values are never recorded and compare only within one run on one machine. Decided 2026-11-22, with baselines moved into the configuration on 2026-11-23 (decision 21).
-9. **Opportunities name the next step.** Retros lists the changes that would raise each category's score most, in category points: one item meeting its target, one metric meeting its target, or a whole list when no single item moves the score. Gains under half a point are left out. Decided 2026-11-22.
+9. **Opportunities name the next step.** Uphill lists the changes that would raise each category's score most, in category points: one item meeting its target, one metric meeting its target, or a whole list when no single item moves the score. Gains under half a point are left out. Decided 2026-11-22.
 10. **Gates compare values, and improvements lock in.** `--require-baseline` exits with status 1 when anything differs from the baselines, better or worse, or when no metric has one, like a snapshot test. The baselines on `main` then always match the code, every improvement becomes the new floor, and `--compare` can trust a revision's baselines. `--require-targets` exits with status 1 when a metric misses its target or has no value because its script failed. Both compare values, not rounded scores, so a value just past its target never passes as 90.
-11. **Retros owns repetition.** When a script's first run writes a time, Retros runs it 5 times for a score, and Phase 6 runs 8 interleaved pairs for a comparison. No project tunes noise by hand. Decided 2026-11-22, removing the `rounds` key.
-12. **TypeScript on Bun, no Python.** Scripts in this repository, including the dogfood scripts and the examples, are shell or TypeScript run by Bun. Projects that use Retros pick any language. Decided 2026-11-22.
+11. **Uphill owns repetition.** When a script's first run writes a time, Uphill runs it 5 times for a score, and Phase 6 runs 8 interleaved pairs for a comparison. No project tunes noise by hand. Decided 2026-11-22, removing the `rounds` key.
+12. **TypeScript on Bun, no Python.** Scripts in this repository, including the dogfood scripts and the examples, are shell or TypeScript run by Bun. Projects that use Uphill pick any language. Decided 2026-11-22.
 13. **Pure engine, thin command line.** `crates/engine` is deterministic and has no I/O. `crates/cli` runs scripts, reads and writes files, and drives Git.
 14. **Built like Ondine and zyzz.** AGENTS.md, lints, toolchain pin, and testing rules follow those repositories. Work lands directly on `main`.
 15. **Subjects.** A line may start with `subject:`, such as `zc: startup 0.64ms`, for projects that measure several harnesses, packages, or builds in one script. Each subject is scored on its own, reports compare subjects side by side, and a baseline records each subject under its name, such as `zc:`. A category may not mix lines with and without a subject, and a subject that does not write a metric has no score for it. Decided 2026-11-23 for zepto.
 16. **Shared runs.** A top-level `run` and `timeout` apply to every category that sets none, and categories with the same `run` share one execution. Each line goes to the category that lists its metric, so one metric in two categories that share a run is an error. Decided 2026-11-23, so zepto's one runner feeds five categories.
 17. **`varies`.** A size or count marked `varies = true`, such as peak memory, takes its median across rounds like a time, and its baseline records only its line target. Decided 2026-11-23.
-18. **Descriptions.** Categories and metrics take a `description`, and every report shows it, so a reader knows what a number measures without opening `retros.yaml`. Decided 2026-11-23.
-19. **`.agents/`.** Retros reads `retros.yaml` or `retros.toml`, at the project root or in `.agents/`, from the current directory or the nearest parent, and it is an error for one directory to have more than one. Scripts run from the project root, the directory that holds the configuration or `.agents`, so a configuration kept with a project's agent files still measures the whole project. Reports go to `.retros/` in the project root. Decided 2026-11-23.
+18. **Descriptions.** Categories and metrics take a `description`, and every report shows it, so a reader knows what a number measures without opening `uphill.yaml`. Decided 2026-11-23.
+19. **`.agents/`.** Uphill reads `uphill.yaml` or `uphill.toml`, at the project root or in `.agents/`, from the current directory or the nearest parent, and it is an error for one directory to have more than one. Scripts run from the project root, the directory that holds the configuration or `.agents`, so a configuration kept with a project's agent files still measures the whole project. Reports go to `.uphill/` in the project root. Decided 2026-11-23.
 20. **Titles.** Categories and metrics take a `title`, such as `Time to first request`, which the HTML and Markdown reports show. Without one, the name shows in words: `request-out` reads `Request out`. The terminal, baselines, and metric lines keep names. Decided 2026-11-23.
-21. **Baselines live in the configuration.** Each metric's `baseline` key holds what `retros --update` accepted, next to its `target`, so one file holds a metric's requirement and its last accepted value. Retros edits the file in place and keeps its comments and formatting. A baseline with items or subjects takes one line per entry, so a change shows as one line in a diff. When an edit would change anything else, Retros writes nothing. This replaces `retros.lock`. Decided 2026-11-23.
-22. **`--compare` adds to a run.** `retros --compare <ref>` measures `<ref>` in a temporary Git worktree with this checkout's categories and commands. Timings run 8 interleaved pairs, alternating which side runs first. Exact metrics compare with `<ref>`'s baselines, or with its run when it has none. The gates keep their meaning. Decided 2026-11-23.
-23. **`setup`.** A top-level `setup` command, such as `bun install --frozen-lockfile`, runs once in each checkout Retros creates, with the top-level `timeout`. The current checkout is assumed ready. A failed setup stops the run with status 2, and `setup` is no longer a category name. Decided 2026-11-23.
+21. **Baselines live in the configuration.** Each metric's `baseline` key holds what `uphill --update` accepted, next to its `target`, so one file holds a metric's requirement and its last accepted value. Uphill edits the file in place and keeps its comments and formatting. A baseline with items or subjects takes one line per entry, so a change shows as one line in a diff. When an edit would change anything else, Uphill writes nothing. This replaces `uphill.lock`. Decided 2026-11-23.
+22. **`--compare` adds to a run.** `uphill --compare <ref>` measures `<ref>` in a temporary Git worktree with this checkout's categories and commands. Timings run 8 interleaved pairs, alternating which side runs first. Exact metrics compare with `<ref>`'s baselines, or with its run when it has none. The gates keep their meaning. Decided 2026-11-23.
+23. **`setup`.** A top-level `setup` command, such as `bun install --frozen-lockfile`, runs once in each checkout Uphill creates, with the top-level `timeout`. The current checkout is assumed ready. A failed setup stops the run with status 2, and `setup` is no longer a category name. Decided 2026-11-23.
 24. **Notes.** A line may end with `note <text>`, after any target, such as `note "hero.svg has no alt text"`. Scripts take the note from the tool that found the miss. Notes come from the first round, stay out of baselines, and show under their item in every report. Decided 2026-11-23.
-25. **`--compact` for agents.** `retros --compact` prints the scores on one line, each missed target with its note, the opportunities, and the changes, instead of each category's metrics. An agent reads it every pass, so it stays a few lines. `report.md` keeps the full detail for people. Decided 2026-11-23.
-26. **No skill.** Retros ships no agent skill. `retros init` sets a project up, `--compact` names the next step, and `retros --compare HEAD` judges each change, so an agent climbs with the commands alone. Decided 2026-11-23, removing the `climbing-with-retros` skill.
-27. **Log and blame.** `retros log` lists the commits that changed a metric's baseline. `retros blame` names the last, or bisects commits measured in temporary worktrees when no baseline records the metric. A time is unchanged within noise of `HEAD` in interleaved pairs. Each commit runs its own configuration's `run`. Decided 2026-11-23.
-28. **Runs live in Git notes.** `retros --note` keeps a run's scores and values as a Git note on `HEAD` under `refs/notes/retros`. Notes need no service, travel with the repository, and never expire like CI artifacts. CI on `main` writes and pushes them, with write access and a full clone. Decided 2026-11-23.
-29. **Releases through Changesets.** A change that users see adds a changeset. The Main workflow keeps a version pull request open, and merging it releases: `binaries.yml` builds the archives, the Main workflow creates the `v<version>` GitHub Release, and Changesets publishes `retros` to npm with the same binaries. `npm/version.ts` keeps the Cargo version equal to the npm version. One package with four binaries needs no npm scope, and an install downloads about 2.5 MB. Decided 2026-11-23, replacing tag-triggered releases and per-platform packages.
+25. **`--compact` for agents.** `uphill --compact` prints the scores on one line, each missed target with its note, the opportunities, and the changes, instead of each category's metrics. An agent reads it every pass, so it stays a few lines. `report.md` keeps the full detail for people. Decided 2026-11-23.
+26. **No skill.** Uphill ships no agent skill. `uphill init` sets a project up, `--compact` names the next step, and `uphill --compare HEAD` judges each change, so an agent climbs with the commands alone. Decided 2026-11-23, removing the `climbing-with-uphill` skill.
+27. **Log and blame.** `uphill log` lists the commits that changed a metric's baseline. `uphill blame` names the last, or bisects commits measured in temporary worktrees when no baseline records the metric. A time is unchanged within noise of `HEAD` in interleaved pairs. Each commit runs its own configuration's `run`. Decided 2026-11-23.
+28. **Runs live in Git notes.** `uphill --note` keeps a run's scores and values as a Git note on `HEAD` under `refs/notes/uphill`. Notes need no service, travel with the repository, and never expire like CI artifacts. CI on `main` writes and pushes them, with write access and a full clone. Decided 2026-11-23.
+29. **Releases through Changesets.** A change that users see adds a changeset. The Main workflow keeps a version pull request open, and merging it releases: `binaries.yml` builds the archives, the Main workflow creates the `v<version>` GitHub Release, and Changesets publishes `uphill` to npm with the same binaries. `npm/version.ts` keeps the Cargo version equal to the npm version. One package with four binaries needs no npm scope, and an install downloads about 2.5 MB. Decided 2026-11-23, replacing tag-triggered releases and per-platform packages.
 
 ## The Contract
 
-A project adds `retros.yaml` or `retros.toml`, at its root or in `.agents/`. Each top-level key is a category, `run` is the script that measures it, and every other key is a metric the script writes. A metric with a target gets a score, and a metric without one shows its value and change only.
+A project adds `uphill.yaml` or `uphill.toml`, at its root or in `.agents/`. Each top-level key is a category, `run` is the script that measures it, and every other key is a metric the script writes. A metric with a target gets a score, and a metric without one shows its value and change only.
 
 ```yaml
 # Two categories, each measured by its own script.
@@ -87,7 +87,7 @@ footprint:
   # Gzipped bytes of each export. The script sets its own target for exports that need one, and
   # `targets` overrides any item by pattern.
   export-size: { target: 5kB, targets: { "viem/chains/*": 1kB } }
-  # `retros --update` writes the baseline, the accepted value each run compares with.
+  # `uphill --update` writes the baseline, the accepted value each run compares with.
   install-size: { target: 10MB, baseline: 45.6MB }
 
 speed:
@@ -95,7 +95,7 @@ speed:
   import-time: { target: 20ms }
 ```
 
-The script appends lines to the file at `$RETROS_METRICS`, each `[subject:] metric [item] value [target <value>] [note <text>]`. The values below are viem's from the earlier applied metrics trial, and the line target is an example:
+The script appends lines to the file at `$UPHILL_METRICS`, each `[subject:] metric [item] value [target <value>] [note <text>]`. The values below are viem's from the earlier applied metrics trial, and the line target is an example:
 
 ```text
 install-size 45.6MB
@@ -105,31 +105,31 @@ bench-time "ABI Decode (500 results)" 1.82ms
 ```
 
 - **Values and units:** `B`, `kB`, `MB`, and `GB` for sizes (decimal), `ns`, `µs`, `us`, `ms`, and `s` for time, no unit for counts, and `pass` or `fail` for checks. One metric uses one kind of unit.
-- **Items:** a line with an item adds one entry to a list metric. Retros scores each entry, collapses the list to one score, and lists the entries worst first.
-- **Targets:** `target <value>` at the end of a line sets that item's target, in the metric's kind of unit. It overrides the default `target` in `retros.yaml`, and the first matching pattern in `targets` overrides it. In a pattern, `*` matches any run of characters. A target of 0 is an error.
-- **Logs:** standard output and standard error are logs. Retros keeps the end of standard error for a failed run.
+- **Items:** a line with an item adds one entry to a list metric. Uphill scores each entry, collapses the list to one score, and lists the entries worst first.
+- **Targets:** `target <value>` at the end of a line sets that item's target, in the metric's kind of unit. It overrides the default `target` in `uphill.yaml`, and the first matching pattern in `targets` overrides it. In a pattern, `*` matches any run of characters. A target of 0 is an error.
+- **Logs:** standard output and standard error are logs. Uphill keeps the end of standard error for a failed run.
 - **Failure:** a script that exits with a non-zero status gives its category no score.
-- **Runs:** each script runs through `sh -c` from the project root, the directory that holds `retros.yaml` or `.agents`, in its own process group. Retros kills the group when the script exits or times out, so background processes do not outlive the run.
+- **Runs:** each script runs through `sh -c` from the project root, the directory that holds `uphill.yaml` or `.agents`, in its own process group. Uphill kills the group when the script exits or times out, so background processes do not outlive the run.
 - **Subjects:** a line that starts with `subject:` belongs to that subject, and each subject is scored on its own.
-- **Optional metric keys:** `targets` (item patterns and their targets), `weight` (default 1), `score` (how a list collapses: `p90` by default, or `p10`, `median`, `max`, `min`, `sum`), `better = "higher"` for metrics where more is better, `varies = true` for a size or count that differs between runs, `title`, `description`, and `baseline`, which `retros --update` writes. A `better = "higher"` list collapses to its p10 by default.
+- **Optional metric keys:** `targets` (item patterns and their targets), `weight` (default 1), `score` (how a list collapses: `p90` by default, or `p10`, `median`, `max`, `min`, `sum`), `better = "higher"` for metrics where more is better, `varies = true` for a size or count that differs between runs, `title`, `description`, and `baseline`, which `uphill --update` writes. A `better = "higher"` list collapses to its p10 by default.
 - **Optional category keys:** `timeout` (default `10m`), `title`, and `description`. A top-level `run` and `timeout` apply to every category that sets none, and categories with the same `run` share one execution.
 - **Setup:** a top-level `setup` command prepares each checkout that `--compare` creates, such as by installing packages.
 
 The command line:
 
 ```text
-retros [category] [--compare <ref>] [--compact] [--update] [--require-baseline] [--require-targets]
-retros check
-retros init
+uphill [category] [--compare <ref>] [--compact] [--update] [--require-baseline] [--require-targets]
+uphill check
+uphill init
 ```
 
-- **Baselines:** `retros --update` writes each metric's `baseline` into the configuration, which is committed. A recorded line target follows its value, as in `viem/chains: 61kB target 80kB`.
-- **Files:** `.retros/report.html`, `report.json`, and `report.md` are written on every run and ignored by Git.
-- **Exit status:** 0 when every category passes, 1 when a category fails or a gate fails, and 2 when Retros cannot run, such as for an unknown argument or an invalid `retros.yaml`.
+- **Baselines:** `uphill --update` writes each metric's `baseline` into the configuration, which is committed. A recorded line target follows its value, as in `viem/chains: 61kB target 80kB`.
+- **Files:** `.uphill/report.html`, `report.json`, and `report.md` are written on every run and ignored by Git.
+- **Exit status:** 0 when every category passes, 1 when a category fails or a gate fails, and 2 when Uphill cannot run, such as for an unknown argument or an invalid `uphill.yaml`.
 
 ## Scoring
 
-1. **Repeat timings.** When a script's first run writes a time or a metric marked `varies`, Retros runs it 5 times and takes the median of each timing item and each varying item. Other sizes, counts, and checks come from the first run.
+1. **Repeat timings.** When a script's first run writes a time or a metric marked `varies`, Uphill runs it 5 times and takes the median of each timing item and each varying item. Other sizes, counts, and checks come from the first run.
 2. **Score each measurement.** Lighthouse's `getLogNormalScore`, ported with its `erf` approximation, scores each value against its own target. Smaller values approach 100 and larger values approach 0. A `better = "higher"` metric scores the reciprocal.
 3. **Collapse lists.** Items rank by how far past their own target they are: value divided by target, or target divided by value when higher is better. The roll-up takes the item at its nearest rank, so the p90 is the item with at most a tenth of the list further past its target, and the median is the upper middle. The report names the selected item, such as `p90 9 kB (viem/op-stack)`. A `sum` scores the total of the values against the total of the targets. A check scores the share of items that pass.
 4. **Average categories.** Like Lighthouse, a metric's score is rounded to a whole number, and a category is the weighted mean of those scores, rounded. Metrics without a target are shown but not scored, a metric with weight 0 is scored but left out of the mean, and a failed metric drops out instead of counting as zero.
@@ -146,21 +146,21 @@ retros init
 Changes are reported separately from scores:
 
 - **Exact units:** sizes, counts, and checks compare with their baselines on every run, item by item, labeled worse, better, new, or gone.
-- **Timings:** `--compare <ref>` runs 8 interleaved base and head pairs, and the side that runs first alternates between pairs. Retros reports a change when the medians differ by at least 5% and at least 7 of 8 pairs agree on its direction. Otherwise the change reads "within noise". The rule comes from an earlier zepto trial on one machine, so Phase 6 checks it on CI runners.
+- **Timings:** `--compare <ref>` runs 8 interleaved base and head pairs, and the side that runs first alternates between pairs. Uphill reports a change when the medians differ by at least 5% and at least 7 of 8 pairs agree on its direction. Otherwise the change reads "within noise". The rule comes from an earlier zepto trial on one machine, so Phase 6 checks it on CI runners.
 - **Items:** per-item changes always show, so one regressed export is never hidden by the collapsed value.
 
 ## Phase 0: Foundations
 
 Set up the repository, conventions, and checks that every later phase builds on.
 
-- [x] Cargo workspace with `crates/engine` (pure library) and `crates/cli` (the `retros` binary).
+- [x] Cargo workspace with `crates/engine` (pure library) and `crates/cli` (the `uphill` binary).
 - [x] Rust 1.97.0 pinned in `rust-toolchain.toml`, `rustfmt.toml`, and workspace lints from Ondine.
 - [x] `clippy.toml` purity bans for the engine, confirmed by a probe: `std::fs` and `HashMap` fail Clippy in `crates/engine` and pass in `crates/cli`.
 - [x] AGENTS.md adapted from Ondine and zyzz, including the writing, documentation, and prose conventions, with `CLAUDE.md` linked to it.
 - [x] README, MIT LICENSE, `.gitignore`, and this plan.
 - [x] Integration test harness: `insta` inline snapshots and binary tests for `--version`, `--help`, and argument errors.
 - [x] Verify workflow (format, Clippy, tests) on pushes to `main` and on pull requests.
-- [x] `wevm/retros` on GitHub with the first commit on `main`.
+- [x] `wevm/uphill` on GitHub with the first commit on `main`.
 - [ ] `.agents/setup` that installs the pinned toolchain and Bun in Amp orbs.
 
 **Gate:** `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo test --workspace` pass locally and in CI on `main`.
@@ -169,10 +169,10 @@ Set up the repository, conventions, and checks that every later phase builds on.
 
 Read the configuration, run each script once, and read what it wrote.
 
-- [x] `engine::config`: typed `retros.yaml`, unknown keys rejected, defaults applied, errors with line and column.
+- [x] `engine::config`: typed `uphill.yaml`, unknown keys rejected, defaults applied, errors with line and column.
 - [x] `engine::lines`: the metric line parser, with items, quoting, units, and checks.
-- [x] `cli`: run each `run` command through `sh -c` in its own process group, from the directory that holds `retros.yaml`, with a fresh `$RETROS_METRICS` file and a timeout that kills the group.
-- [x] `retros check`: run each script once and confirm that every configured metric was written with one kind of unit. List metrics written but not configured.
+- [x] `cli`: run each `run` command through `sh -c` in its own process group, from the directory that holds `uphill.yaml`, with a fresh `$UPHILL_METRICS` file and a timeout that kills the group.
+- [x] `uphill check`: run each script once and confirm that every configured metric was written with one kind of unit. List metrics written but not configured.
 - [x] Fixture projects under `crates/cli/tests/fixtures/`: passing, failing, malformed line, missing metric, and timeout.
 
 **Gate:** integration tests cover each fixture. Every error message is snapshotted and reviewed, and names its file, line, and column.
@@ -184,8 +184,8 @@ Turn metric lines into scores and write the first reports.
 - [x] Rounds and medians for timing metrics.
 - [x] List roll-ups: `p90`, `p10`, `median`, `max`, `min`, and `sum`.
 - [x] The scoring curve, checks, `better = "higher"`, weights, and categories.
-- [x] `retros` runs every category and `retros <category>` runs one.
-- [x] Terminal summary, `.retros/report.json`, and `.retros/report.md`.
+- [x] `uphill` runs every category and `uphill <category>` runs one.
+- [x] Terminal summary, `.uphill/report.json`, and `.uphill/report.md`.
 
 **Gate:** curve tests match values computed by Lighthouse's `shared/statistics.js` at `896399bc` and zepto's `bench/metrics.zig` at `c8a97f7` for the same inputs. Report snapshots for a fixture project are reviewed.
 
@@ -195,20 +195,20 @@ Remember accepted values, name the next step, and score each item against the ta
 
 - [x] Per-line targets (`target <value>`), with errors for a zero target, a target in the wrong kind of unit, and a list that mixes lines with and without targets when the metric has no default.
 - [x] Lists rank items by value against their own target, and reports name the selected item.
-- [x] Baselines: sizes, counts, and checks sorted by name, written by `retros --update`, with no timings, so the same code writes the same file on every machine.
+- [x] Baselines: sizes, counts, and checks sorted by name, written by `uphill --update`, with no timings, so the same code writes the same file on every machine.
 - [x] Changes against the baselines, labeled worse, better, new, or gone, in the terminal summary, `report.json`, and `report.md`.
 - [x] `--require-baseline` exits with status 1 when anything differs from the baselines, better or worse, or when no metric has one.
 - [x] Baselines record the targets scripts set on their lines, including a timing's, and reports a changed one as looser or tighter.
-- [x] `targets` in `retros.yaml`: item patterns that have the final say over line targets, with errors for a target in the wrong kind of unit and warnings for a pattern that matches no item.
+- [x] `targets` in `uphill.yaml`: item patterns that have the final say over line targets, with errors for a target in the wrong kind of unit and warnings for a pattern that matches no item.
 - [x] The `rounds` key is gone, and timings always run 5 times.
 - [x] Opportunities: the top 5 in the terminal and the top 10 in `report.md`, each with the category points it adds.
-- [x] Baselines move from `retros.lock` into each metric's `baseline` key, which `retros --update` writes into YAML or TOML in place (decision 21).
+- [x] Baselines move from `uphill.lock` into each metric's `baseline` key, which `uphill --update` writes into YAML or TOML in place (decision 21).
 
-**Gate:** met. Engine tests cover line targets, patterns overriding them, ranking each item against its own target, mixed targets, and opportunity gains. CLI tests cover `--update` in YAML and TOML, baselines with line targets, an improvement alone failing `--require-baseline` until it is accepted, a planted regression and loosened target that rewrite only their own lines, a missing baseline, an invalid baseline, and a TOML form Retros cannot edit.
+**Gate:** met. Engine tests cover line targets, patterns overriding them, ranking each item against its own target, mixed targets, and opportunity gains. CLI tests cover `--update` in YAML and TOML, baselines with line targets, an improvement alone failing `--require-baseline` until it is accepted, a planted regression and loosened target that rewrite only their own lines, a missing baseline, an invalid baseline, and a TOML form Uphill cannot edit.
 
 ## Phase 4: Examples and README
 
-Show what a rich, Lighthouse-level setup looks like for common kinds of projects, and describe Retros plainly.
+Show what a rich, Lighthouse-level setup looks like for common kinds of projects, and describe Uphill plainly.
 
 - [x] Ban Python in AGENTS.md: scripts are shell or TypeScript on Bun. The dogfood `metrics/speed.py` is now `metrics/speed.ts`, and the verify workflow installs Bun 1.4.4.
 - [x] Examples run real tools instead of hand-rolled measures: Lighthouse for the web app, TypeScript, oxlint, oxfmt, mitata, and Bun's test runner for the library, and clippy, rustfmt, and `cargo test` for the API.
@@ -218,17 +218,17 @@ Show what a rich, Lighthouse-level setup looks like for common kinds of projects
 - [x] Each example misses a few targets on purpose, so its report shows misses, opportunities, and contextual targets.
 - [x] README: the tagline "Continuous metrics and hill climbing", a Features section in the style of zyzz's README, "any project" under Philosophy, target-only scoring, targets, baselines, and usage.
 
-**Gate:** CI runs `retros check` in every example through the CLI tests. Every miss in each example's report names its item, its value, and its target. Waiting on review of the README and the example reports.
+**Gate:** CI runs `uphill check` in every example through the CLI tests. Every miss in each example's report names its item, its value, and its target. Waiting on review of the README and the example reports.
 
 ## Phase 5: viem
 
-Run Retros on a real TypeScript library, fanning out over every public export and function. jxom set this scope on 2026-11-23: rolldown, entry size for every export, no install size, CPU and memory, waterfalls, and types per export.
+Run Uphill on a real TypeScript library, fanning out over every public export and function. jxom set this scope on 2026-11-23: rolldown, entry size for every export, no install size, CPU and memory, waterfalls, and types per export.
 
 - [ ] `footprint`: `entry-size` for each of the 1,916 runtime exports of the 26 entry points, and for each whole entry. rolldown bundles and minifies each import, and the size is gzipped. No export size and no install size.
 - [ ] `speed`: `call-time` in CPU time and `call-memory` in heap bytes per call for every public function, replaying the arguments viem's tests call it with. `benched` fails for a function with no replayable call. `import-time` and `import-memory` for each entry point.
 - [ ] `latency`: `waterfalls`, a check per async function that fails when it awaits independent work in sequence instead of in one `Promise.all`.
 - [ ] `types`: `instantiations`, `check-time`, and `check-memory` for every public export, values and types, each checked in its own program. viem's attest benches score against their pinned counts.
-- [ ] `retros.yaml` with baselines in a local viem checkout. Nothing is committed to viem without approval.
+- [ ] `uphill.yaml` with baselines in a local viem checkout. Nothing is committed to viem without approval.
 
 **Gate:** with viem 2.58.5, `entry-size` covers all 1,916 runtime exports. A planted regression in one module shows as worse in the items that bundle it, and nothing else changes. The top opportunities and waterfall findings name changes a viem maintainer agrees are worth making.
 
@@ -236,12 +236,12 @@ Run Retros on a real TypeScript library, fanning out over every public export an
 
 Compare timings honestly between two revisions, and fail CI on missed targets.
 
-- [x] `retros --compare <ref>` checks out `<ref>` in a temporary Git worktree. Timing metrics run 8 interleaved pairs with the verdict rule above. Exact metrics compare with `<ref>`'s baselines read from Git, and `<ref>` is measured only when it has none (decision 22). A top-level `setup` prepares the new checkout (decision 23).
-- [x] A warning when `retros.yaml`, apart from its baselines, or a file a `run` command names differs between the two revisions.
+- [x] `uphill --compare <ref>` checks out `<ref>` in a temporary Git worktree. Timing metrics run 8 interleaved pairs with the verdict rule above. Exact metrics compare with `<ref>`'s baselines read from Git, and `<ref>` is measured only when it has none (decision 22). A top-level `setup` prepares the new checkout (decision 23).
+- [x] A warning when `uphill.yaml`, apart from its baselines, or a file a `run` command names differs between the two revisions.
 - [x] The worktree is removed after success or failure.
 - [x] Timing changes appear in the terminal summary, `report.json`, `report.md`, and `report.html`.
 - [x] `--require-targets` exits with status 1 when a metric misses its target or has no value, and lists each miss with its item. It works with and without `--compare`.
-- [x] The verdict rule holds on a GitHub Actions runner: Retros' CI compares each commit with itself and fails on any reported change. It read "No changes" on every push from 59aad1e to 2244a46.
+- [x] The verdict rule holds on a GitHub Actions runner: Uphill's CI compares each commit with itself and fails on any reported change. It read "No changes" on every push from 59aad1e to 2244a46.
 
 **Gate:** an unchanged revision reports no changes. A planted slowdown is reported, and a noisy timing fixture reads "within noise", on both a local machine and a GitHub Actions runner. A failing script leaves no worktree behind. With `--require-targets`, a fixture that misses one target exits with status 1 and names that metric and item, and a fixture that meets every target exits with status 0.
 
@@ -251,7 +251,7 @@ Explain each miss, and write the report people open.
 
 - [x] Notes: a line can say why an item misses, such as `alt-text /pricing fail note "hero.svg has no alt text"`. Notes appear under their items in every report (decision 24). The examples write the reasons their tools give: Lighthouse audit titles, oxlint and TypeScript messages, uncovered lines, and the status a request got.
 - [x] Metric descriptions in reports, from the `description` key (decision 18).
-- [x] One self-contained `.retros/report.html`: a comparison table and one tab per subject, a gauge per category, score bands, opportunities, and changes. Each category shows its metrics as a grid, each value on a bar against its target, descriptions behind Expand view, and a collapsible row per list with its items worst first against their targets and their notes.
+- [x] One self-contained `.uphill/report.html`: a comparison table and one tab per subject, a gauge per category, score bands, opportunities, and changes. Each category shows its metrics as a grid, each value on a bar against its target, descriptions behind Expand view, and a collapsible row per list with its items worst first against their targets and their notes.
 - [x] Titles for categories and metrics, from the `title` key (decision 20).
 - [x] Light and dark schemes, phone layout, keyboard access to the tabs, and reduced motion.
 
@@ -259,62 +259,62 @@ Explain each miss, and write the report people open.
 
 ## Phase 8: Agents
 
-Let the agent a person already works with set up Retros and climb.
+Let the agent a person already works with set up Uphill and climb.
 
-- [x] `retros init` prints a brief for the user's agent: find the project's surfaces (entry points, pages, endpoints, or commands), write one script per category in the project's language or TypeScript on Bun that runs the tools the project already uses, set a target per item where context differs and record the reason beside it, and run `retros check` until it passes. The brief points the agent at the closest example from Phase 4.
+- [x] `uphill init` prints a brief for the user's agent: find the project's surfaces (entry points, pages, endpoints, or commands), write one script per category in the project's language or TypeScript on Bun that runs the tools the project already uses, set a target per item where context differs and record the reason beside it, and run `uphill check` until it passes. The brief points the agent at the closest example from Phase 4.
 - [x] A compact report for agent loops: scores, misses, and the top opportunities in a few lines, from `--compact` (decision 25).
-- [x] The loop needs no skill: `--compact` names the next step, and `retros --compare HEAD` judges each change (decision 26).
+- [x] The loop needs no skill: `--compact` names the next step, and `uphill --compare HEAD` judges each change (decision 26).
 
-**Gate:** an agent given only the brief sets up a project it has not seen until `retros check` passes. Given an example's report, an agent raises a category score without making any metric worse.
+**Gate:** an agent given only the brief sets up a project it has not seen until `uphill check` passes. Given an example's report, an agent raises a category score without making any metric worse.
 
-On 2026-11-23, an agent given only the brief set up kleur until `retros check` passed. Its scripts run kleur's own benchmark harness, uvu, c8, and npm. The run found gaps in the brief, which now says checks always score, targets are above zero, and timings run 5 times.
+On 2026-11-23, an agent given only the brief set up kleur until `uphill check` passed. Its scripts run kleur's own benchmark harness, uvu, c8, and npm. The run found gaps in the brief, which now says checks always score, targets are above zero, and timings run 5 times.
 
-Another agent climbed the TypeScript library example from quality 95 to 99 in two commits, and `retros --compare` against the start read nothing worse. It rejected a change that cut `call-time weekday` by 98%, because four sizes grew a few bytes within their targets.
+Another agent climbed the TypeScript library example from quality 95 to 99 in two commits, and `uphill --compare` against the start read nothing worse. It rejected a change that cut `call-time weekday` by 98%, because four sizes grew a few bytes within their targets.
 
 ## Phase 9: History and Blame
 
 Remember where the project has been and what moved it.
 
-- [x] Each run on `main` keeps its scores and values in a Git note under `refs/notes/retros` (decision 28). `retros --note` writes it, and CI pushes it.
-- [x] `retros log <category> <metric> [item]` prints a metric's values across commits. Exact metrics come from the Git history of their baselines, so they need no stored runs (decision 27). Other metrics, such as timings, come from notes.
-- [x] `retros blame <category> <metric> [item]` names the commit that moved a metric: from baseline history for exact metrics, and by measuring and bisecting otherwise (decision 27). `--subject` picks a subject, and `--since <ref>` limits the commits.
+- [x] Each run on `main` keeps its scores and values in a Git note under `refs/notes/uphill` (decision 28). `uphill --note` writes it, and CI pushes it.
+- [x] `uphill log <category> <metric> [item]` prints a metric's values across commits. Exact metrics come from the Git history of their baselines, so they need no stored runs (decision 27). Other metrics, such as timings, come from notes.
+- [x] `uphill blame <category> <metric> [item]` names the commit that moved a metric: from baseline history for exact metrics, and by measuring and bisecting otherwise (decision 27). `--subject` picks a subject, and `--since <ref>` limits the commits.
 - [x] Trends in the HTML report: each category and metric charts its last 100 runs, with its target and its change since the first, and names each run's commit, date, and value on hover or with the arrow keys.
 
-**Gate:** on Retros' own history, `retros blame footprint dependencies` names the commit that added a dependency, and `retros log` shows the change.
+**Gate:** on Uphill's own history, `uphill blame footprint dependencies` names the commit that added a dependency, and `uphill log` shows the change.
 
-On 2026-11-23, blame measured 7 of 45 commits and named 78a79ab, which moved dependencies from 17 to 21 by adding yaml-rust2. `retros log` shows nothing there, because Retros commits no baselines of its own.
+On 2026-11-23, blame measured 7 of 45 commits and named 78a79ab, which moved dependencies from 17 to 21 by adding yaml-rust2. `uphill log` shows nothing there, because Uphill commits no baselines of its own.
 
 ## Phase 10: zepto
 
-Replace zepto's harness metrics report with Retros.
+Replace zepto's harness metrics report with Uphill.
 
 - [x] Subjects, shared runs, and `varies` (decisions 15 to 17). The HTML report shows one tab per subject.
-- [x] `zig build metrics` writes metric lines for each harness. zc-mock, the harness commands, and the crash and resume scenario stay in zepto, and its `retros.yaml` holds the targets.
-- [x] zepto's CI runs `retros` and publishes `report.html` to GitHub Pages per run.
+- [x] `zig build metrics` writes metric lines for each harness. zc-mock, the harness commands, and the crash and resume scenario stay in zepto, and its `uphill.yaml` holds the targets.
+- [x] zepto's CI runs `uphill` and publishes `report.html` to GitHub Pages per run.
 - [x] Pages history through Phase 9. Each metrics run on main keeps a note, and the Pages report charts every category and metric across the noted runs. On 2026-11-23, zepto's report for `5f3ecea` drew 56 trends from `5ed3e96`'s note and its own run.
 
-**Gate:** Retros scores zc, the Zig SDK, and the TypeScript package from one run of `zig build metrics` per round, and zepto removes its scoring and report code. Scores move because each metric has one target instead of zepto's `good` and `median` pair, which jxom accepted on 2026-11-23. On one orb, `retros` took 48 s and scored the TypeScript package's speed 85, from 91, since its first request misses a 20 ms target.
+**Gate:** Uphill scores zc, the Zig SDK, and the TypeScript package from one run of `zig build metrics` per round, and zepto removes its scoring and report code. Scores move because each metric has one target instead of zepto's `good` and `median` pair, which jxom accepted on 2026-11-23. On one orb, `uphill` took 48 s and scored the TypeScript package's speed 85, from 91, since its first request misses a 20 ms target.
 
 ## Phase 11: Distribution
 
-Make Retros easy to install and run in CI.
+Make Uphill easy to install and run in CI.
 
-- [x] Release binaries for Linux (x64 and arm64, glibc and musl) and macOS (x64 and arm64) on GitHub Releases. `.github/workflows/binaries.yml` builds each target on its own runner and checks the binary's version against `package.json`. The Main workflow attaches one `retros-<target>.tar.gz` per target and `sha256sums.txt` to the `v<version>` GitHub Release (decision 29). glibc builds link in a manylinux_2_28 container, so they run on glibc 2.28 and later. musl builds are static. A manual run builds and checks every archive without releasing, and the first one passed on 2026-11-23.
-- [x] An install script and an npm package, so `npx retros` works. `install.sh` picks the archive for the machine, takes the musl build on musl and on glibc older than 2.28, and checks its digest. The `retros` package is the `npm/` workspace package, built with zile and versioned with Changesets from the zile template. It holds the macOS builds and the static Linux musl builds, and `npm/src/bin.ts` runs the one for the machine. The Main workflow packs it with pnpm and installs it on glibc and musl before it publishes. Through a local registry, `changeset publish` published it, and `npx` and `bunx` ran it on glibc and `npx` on Alpine. After publishing, the workflow runs `install.sh` and `npx retros` on clean macOS and Linux runners, Alpine, AlmaLinux 8, and CentOS 7.
-- [x] A GitHub Action that runs `retros --compare` on pull requests and keeps one updating comment. `action.yml` installs the release that matches the action's tag, fetches the base branch when the clone lacks it, and runs `retros --compare origin/<base>` with the `args` input. It writes `report.md`, and the output of a failed run, to the job summary and to one comment that it finds again by a marker. A token that cannot comment, such as a fork's, gives a warning, and the job exits with the status of `retros`. The Pull Request workflow runs it on this repository with the `retros` each pull request builds. Under act, the action fetched the base branch into a shallow clone, compared with it, and set its outputs. Posting the comment waits for a test pull request.
+- [x] Release binaries for Linux (x64 and arm64, glibc and musl) and macOS (x64 and arm64) on GitHub Releases. `.github/workflows/binaries.yml` builds each target on its own runner and checks the binary's version against `package.json`. The Main workflow attaches one `uphill-<target>.tar.gz` per target and `sha256sums.txt` to the `v<version>` GitHub Release (decision 29). glibc builds link in a manylinux_2_28 container, so they run on glibc 2.28 and later. musl builds are static. A manual run builds and checks every archive without releasing, and the first one passed on 2026-11-23.
+- [x] An install script and an npm package, so `npx uphill` works. `install.sh` picks the archive for the machine, takes the musl build on musl and on glibc older than 2.28, and checks its digest. The `uphill` package is the `npm/` workspace package, built with zile and versioned with Changesets from the zile template. It holds the macOS builds and the static Linux musl builds, and `npm/src/bin.ts` runs the one for the machine. The Main workflow packs it with pnpm and installs it on glibc and musl before it publishes. Through a local registry, `changeset publish` published it, and `npx` and `bunx` ran it on glibc and `npx` on Alpine. After publishing, the workflow runs `install.sh` and `npx uphill` on clean macOS and Linux runners, Alpine, AlmaLinux 8, and CentOS 7.
+- [x] A GitHub Action that runs `uphill --compare` on pull requests and keeps one updating comment. `action.yml` installs the release that matches the action's tag, fetches the base branch when the clone lacks it, and runs `uphill --compare origin/<base>` with the `args` input. It writes `report.md`, and the output of a failed run, to the job summary and to one comment that it finds again by a marker. A token that cannot comment, such as a fork's, gives a warning, and the job exits with the status of `uphill`. The Pull Request workflow runs it on this repository with the `uphill` each pull request builds. Under act, the action fetched the base branch into a shallow clone, compared with it, and set its outputs. Posting the comment waits for a test pull request.
 - [x] The documentation site, following the Writing Documentation conventions. `site/` is a TanStack Start app styled with Zyzz for Cloudflare Workers, like Ondine's site. It has Getting Started and Installation, guides for scripts, targets, baselines, comparing revisions, and GitHub Actions, and reference pages for the configuration, metric lines, units, scoring, reports, the CLI, and the action. Every page has a Markdown twin at its path plus `.md`, and the site serves `llms.txt` and a sitemap. Each output on a page comes from a run of the release binary on the page's example. The Verify workflow builds the site, and deploying it waits for a domain and Cloudflare credentials.
 
-**Gate:** clean Linux and macOS machines install and run Retros. The Action posts and updates a comment on a test pull request.
+**Gate:** clean Linux and macOS machines install and run Uphill. The Action posts and updates a comment on a test pull request.
 
 ## Later
 
-These are not scheduled: built-in measures, such as `retros time` and `retros size` helpers that write metric lines, once the same script recurs across projects; re-measuring only items whose inputs changed; peak memory; and Windows.
+These are not scheduled: built-in measures, such as `uphill time` and `uphill size` helpers that write metric lines, once the same script recurs across projects; re-measuring only items whose inputs changed; peak memory; and Windows.
 
 ## Risks
 
 - **Scripts can measure wrong.** An esbuild code-splitting mistake inflated small viem exports by up to 20×. Earliest signal: a value far from what an existing tool reports for the same thing. Fix: scripts run established tools instead of hand-rolled measures, examples plant controls, and built-in measures come later.
 - **Contextual targets can be loosened to pass.** Earliest signal: a pull request that raises a target in a script. Fix: done. Baselines record line targets, so a loosened one is a reviewed change.
-- **`--update` edits the configuration.** Earliest signal: an update that changes a line outside a `baseline` key. Fix: done. Retros parses the file it would write and writes nothing unless only baselines changed.
+- **`--update` edits the configuration.** Earliest signal: an update that changes a line outside a `baseline` key. Fix: done. Uphill parses the file it would write and writes nothing unless only baselines changed.
 - **List metrics are slow.** Export size for 1,912 viem exports took 174 s in an orb. Earliest signal: a viem run over 10 minutes. Fix: partly done. `--compare` reads exact metrics from `<ref>`'s baselines instead of measuring it. Re-measuring only changed items comes later.
 - **A stopped run leaves its worktree.** A signal ends `--compare` or `blame` before it removes its checkout. Earliest signal: `git worktree list` shows checkouts in the temporary directory. Fix: remove them on SIGINT and SIGTERM.
 - **Timings are noisy on shared runners.** Earliest signal: most timing comparisons read "within noise". Fix: more pairs, or a dedicated runner.

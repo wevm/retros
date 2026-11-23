@@ -1,6 +1,6 @@
 [package]
 name = "engine"
-description = "Pure Retros engine: configuration, metric lines, scoring, comparison, and reports."
+description = "Pure Uphill engine: configuration, metric lines, scoring, comparison, and reports."
 edition.workspace = true
 license.workspace = true
 publish.workspace = true

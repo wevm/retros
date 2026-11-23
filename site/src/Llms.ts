@@ -4,7 +4,7 @@ import * as Head from './Head.js'
 import * as Manifest from './Manifest.js'
 import * as Markdown from './Markdown.js'
 
-const header = ['# Retros', '', `> ${Head.description}`, '']
+const header = ['# Uphill', '', `> ${Head.description}`, '']
 
 /**
  * Answers `/llms.txt` with the site summary and one link per page, grouped as in the sidebar.

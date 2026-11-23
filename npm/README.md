@@ -1,15 +1,15 @@
-# Retros
+# Uphill
 
-Continuous metrics and hill climbing. Retros runs a project's measurement scripts, scores each metric against its target, and names the fixes worth the most points.
+Continuous metrics and hill climbing. Uphill runs a project's measurement scripts, scores each metric against its target, and names the fixes worth the most points.
 
 ```sh
-# Run Retros without installing it.
-npx retros
+# Run Uphill without installing it.
+npx uphill
 
 # Or add it to a project.
-npm install --save-dev retros
+npm install --save-dev uphill
 ```
 
-This package holds the `retros` binaries for macOS and Linux on arm64 and x64, and runs the one for the machine. Linux runs the static musl build, which works with glibc and musl.
+This package holds the `uphill` binaries for macOS and Linux on arm64 and x64, and runs the one for the machine. Linux runs the static musl build, which works with glibc and musl.
 
-See [github.com/wevm/retros](https://github.com/wevm/retros) for configuration and usage.
+See [github.com/wevm/uphill](https://github.com/wevm/uphill) for configuration and usage.

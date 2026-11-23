@@ -84,7 +84,7 @@ try {
   server.stop(true)
 }
 
-fs.appendFileSync(process.env.RETROS_METRICS!, `${lines.join('\n')}\n`)
+fs.appendFileSync(process.env.UPHILL_METRICS!, `${lines.join('\n')}\n`)
 
 /** Quotes a note for a metric line, escaping `"` and `\\`. */
 function quote(text: string): string {

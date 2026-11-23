@@ -1,4 +1,4 @@
-//! Comparisons with another revision, for `retros --compare <ref>`: exact changes against the
+//! Comparisons with another revision, for `uphill --compare <ref>`: exact changes against the
 //! revision's baselines, and timings measured in interleaved pairs of runs on one machine.
 //!
 //! Each pair runs both revisions back to back, and the order alternates between pairs, so a

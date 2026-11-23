@@ -1,13 +1,13 @@
 # Reports
 
-Each run prints a summary and writes three reports to `.retros/` in the project root: `report.json`, `report.md`, and `report.html`. The reports make no network requests.
+Each run prints a summary and writes three reports to `.uphill/` in the project root: `report.json`, `report.md`, and `report.html`. The reports make no network requests.
 
 ## Terminal
 
 The summary lists each category with its score, then each metric with its value and target. A list shows its 3 worst items, and a failed check shows its note. Then come the top 5 opportunities, up to 10 changes since the baselines, and the changes against `--compare`.
 
 ```text
-$ retros
+$ uphill
 ▲  43  footprint
   ▲   3  bundle       27.5 kB                   target 5 kB
   ■  58  export-size  p90 9 kB (viem/op-stack)  target 5 kB
@@ -35,7 +35,7 @@ Since the baseline
   worse  footprint  export-size viem/chains  10 kB → 12 kB
   new    speed      throughput
 
-Wrote .retros/report.json, .retros/report.md, .retros/report.html
+Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
 ```
 
 ## `report.md`
@@ -43,7 +43,7 @@ Wrote .retros/report.json, .retros/report.md, .retros/report.html
 The Markdown report suits a pull request comment or a job summary. It lists category scores, the top 10 opportunities, and the changes since the baselines and against `--compare`. Each category then has a table of metrics and the 3 worst items of each list.
 
 ```md
-# Retros report
+# Uphill report
 
 | Category | Score |
 | --- | --- |
@@ -66,7 +66,7 @@ The HTML report is one file with inline styles and scripts, so it opens from dis
 
 ```sh
 # Open the report on macOS. On Linux, use xdg-open.
-open .retros/report.html
+open .uphill/report.html
 ```
 
 The page follows the system's light or dark scheme, fits a phone screen, and respects reduced motion. With subjects, it has one tab per subject and a table that compares them.
@@ -75,10 +75,10 @@ Each list expands to its items, worst first, with their targets and notes. A lis
 
 ## Run History
 
-`retros --note` keeps each run as a Git note on its commit, under `refs/notes/retros`. The note holds each category's score and each item's value, in the metric line format under one header per category.
+`uphill --note` keeps each run as a Git note on its commit, under `refs/notes/uphill`. The note holds each category's score and each item's value, in the metric line format under one header per category.
 
 ```text
-$ git notes --ref retros show HEAD
+$ git notes --ref uphill show HEAD
 [footprint 100]
 source-size 172B
 [speed 50]

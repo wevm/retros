@@ -1,5 +1,5 @@
-//! Past runs, kept as Git notes on the commits they measured. `retros --note` writes one, and the
-//! HTML report and `retros log` read them.
+//! Past runs, kept as Git notes on the commits they measured. `uphill --note` writes one, and the
+//! HTML report and `uphill log` read them.
 //!
 //! A note holds one section for each category and subject: a header with the score the run
 //! reported, such as `[footprint 93]` or `[zc: speed 85]`, then the value of each item, or of a

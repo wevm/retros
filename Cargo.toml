@@ -6,7 +6,7 @@ resolver = "3"
 edition = "2024"
 license = "MIT"
 publish = false
-repository = "https://github.com/wevm/retros"
+repository = "https://github.com/wevm/uphill"
 rust-version = "1.97.0"
 version = "0.1.0"
 
@@ -15,7 +15,7 @@ engine = { path = "crates/engine" }
 insta = "1"
 rustix = { version = "1", features = ["process"] }
 tempfile = "3"
-# preserve_order keeps categories and metrics in the order retros.toml declares them.
+# preserve_order keeps categories and metrics in the order uphill.toml declares them.
 toml = { version = "1", default-features = false, features = ["parse", "preserve_order", "std"] }
 yaml-rust2 = { version = "0.13.2", default-features = false }
 

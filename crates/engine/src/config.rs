@@ -1,12 +1,12 @@
-//! The configuration: `retros.yaml` or `retros.toml`, which describe the same categories.
+//! The configuration: `uphill.yaml` or `uphill.toml`, which describe the same categories.
 //!
 //! Each top-level key is a category. A category's `run` key is the command that measures it,
 //! `timeout` and `description` are optional, and every other key is a metric. A top-level `run`
 //! and `timeout` apply to every category that sets none, and categories with the same command
 //! share one run of it. A top-level `setup` command prepares each checkout that
-//! `retros --compare` creates. A metric is a mapping of optional keys: `target`, `targets`,
+//! `uphill --compare` creates. A metric is a mapping of optional keys: `target`, `targets`,
 //! `weight`, `score`, `better`, `varies`, `title`, `description`, and `baseline`, which
-//! `retros --update` writes. `target` is the default for every item, a metric line can set its
+//! `uphill --update` writes. `target` is the default for every item, a metric line can set its
 //! own, and `targets` sets targets by item pattern and has the final say.
 //!
 //! ```yaml
@@ -50,9 +50,9 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_mins(10);
 /// The format of a configuration file.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Format {
-    /// `retros.toml`.
+    /// `uphill.toml`.
     Toml,
-    /// `retros.yaml`.
+    /// `uphill.yaml`.
     Yaml,
 }
 
@@ -71,7 +71,7 @@ impl Format {
 pub struct Config {
     /// Categories in the order the file declares them.
     pub categories: Vec<Category>,
-    /// The command that prepares a checkout `retros --compare` creates, such as installing
+    /// The command that prepares a checkout `uphill --compare` creates, such as installing
     /// packages, or `None` when it needs nothing.
     pub setup: Option<Setup>,
 }
@@ -81,7 +81,7 @@ pub struct Config {
 pub struct Setup {
     /// The shell command, run once from the project root of each new checkout.
     pub run: String,
-    /// How long it may take before Retros stops it: the top-level `timeout`, or 10 minutes.
+    /// How long it may take before Uphill stops it: the top-level `timeout`, or 10 minutes.
     pub timeout: Duration,
 }
 
@@ -127,7 +127,7 @@ pub struct Category {
     pub name: String,
     /// The shell command that runs the script. Categories with the same command share one run.
     pub run: String,
-    /// How long one run may take before Retros stops it. Defaults to 10 minutes.
+    /// How long one run may take before Uphill stops it. Defaults to 10 minutes.
     pub timeout: Duration,
     /// The name reports show, such as `Best Practices`.
     pub title: Option<String>,
@@ -143,7 +143,7 @@ impl Category {
 /// A configured metric.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Metric {
-    /// The sizes, counts, checks, and line targets that `retros --update` last accepted, or `None`
+    /// The sizes, counts, checks, and line targets that `uphill --update` last accepted, or `None`
     /// before the first update.
     pub baseline: Option<Baseline>,
     /// Which direction is better. Defaults to lower.
@@ -272,7 +272,7 @@ pub fn parse(source: &str, format: Format) -> Result<Config, Error> {
             Code::InvalidType,
             source,
             document.offset,
-            "retros.yaml must map category names to categories, such as `footprint:`".to_owned(),
+            "uphill.yaml must map category names to categories, such as `footprint:`".to_owned(),
         ));
     };
 
@@ -328,7 +328,7 @@ pub fn parse(source: &str, format: Format) -> Result<Config, Error> {
                     code: Code::DuplicateMetric,
                     location: Some(metric.location),
                     message: format!(
-                        "metric `{}` is in `{}` and `{}`, which share the same `run`, so Retros cannot tell which category its lines belong to",
+                        "metric `{}` is in `{}` and `{}`, which share the same `run`, so Uphill cannot tell which category its lines belong to",
                         metric.name, other.name, category.name
                     ),
                 });

@@ -40,11 +40,11 @@ jobs:
       - name: Build in manylinux
         if: endsWith(matrix.target, '-linux-gnu')
         run: |
-          docker run --rm -e TARGET -v "$PWD:/retros" -w /retros "quay.io/pypa/manylinux_2_28_$(uname -m)" sh -euc '
+          docker run --rm -e TARGET -v "$PWD:/uphill" -w /uphill "quay.io/pypa/manylinux_2_28_$(uname -m)" sh -euc '
             curl -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain none --profile minimal
             . "$HOME/.cargo/env"
-            cargo build --release --locked -p retros --target "$TARGET"
-            "target/$TARGET/release/retros" --version
+            cargo build --release --locked -p uphill --target "$TARGET"
+            "target/$TARGET/release/uphill" --version
           '
 
       # musl builds link statically, so they need no C library on the machine that runs them.
@@ -52,17 +52,17 @@ jobs:
         if: ${{ !endsWith(matrix.target, '-linux-gnu') }}
         run: |
           rustup target add "$TARGET"
-          cargo build --release --locked -p retros --target "$TARGET"
+          cargo build --release --locked -p uphill --target "$TARGET"
 
       - name: Run on Alpine
         if: endsWith(matrix.target, '-linux-musl')
-        run: docker run --rm -v "$PWD/target/$TARGET/release:/retros:ro" alpine:3 /retros/retros --version
+        run: docker run --rm -v "$PWD/target/$TARGET/release:/uphill:ro" alpine:3 /uphill/uphill --version
 
       # `pnpm changeset:version` sets the Cargo version to the version in npm/package.json.
       - name: Check version
         run: |
-          version=$("target/$TARGET/release/retros" --version)
-          expected="retros $(node -p "require('./npm/package.json').version")"
+          version=$("target/$TARGET/release/uphill" --version)
+          expected="uphill $(node -p "require('./npm/package.json').version")"
           echo "$version"
           if [ "$version" != "$expected" ]; then
             echo "::error::The binary prints '$version', but npm/package.json expects '$expected'. Run 'bun npm/version.ts'."
@@ -70,14 +70,14 @@ jobs:
           fi
 
       - name: Package
-        run: tar -czf "retros-$TARGET.tar.gz" -C "target/$TARGET/release" retros -C "$GITHUB_WORKSPACE" LICENSE
+        run: tar -czf "uphill-$TARGET.tar.gz" -C "target/$TARGET/release" uphill -C "$GITHUB_WORKSPACE" LICENSE
 
       - name: Upload archive
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           if-no-files-found: error
-          name: retros-${{ matrix.target }}
-          path: retros-${{ matrix.target }}.tar.gz
+          name: uphill-${{ matrix.target }}
+          path: uphill-${{ matrix.target }}.tar.gz
           retention-days: 7
 
 permissions:

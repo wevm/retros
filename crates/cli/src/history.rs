@@ -1,9 +1,9 @@
-//! `retros log` and `retros blame`: one metric across the commits of the repository, and the notes
-//! under `refs/notes/retros` that keep past runs.
+//! `uphill log` and `uphill blame`: one metric across the commits of the repository, and the notes
+//! under `refs/notes/uphill` that keep past runs.
 //!
 //! `log` reads the metric's baseline in each version of the configuration on the first-parent
 //! history, so it lists the commits that accepted a new value. A metric without baselines, such as
-//! a timing, comes from the runs `retros --note` kept. `blame` names the commit that last
+//! a timing, comes from the runs `uphill --note` kept. `blame` names the commit that last
 //! moved the metric. It reads the same baselines when they record the metric. Otherwise it checks
 //! out commits in temporary worktrees, measures each, and bisects. Each commit runs the category's
 //! `run` command from its own configuration when that declares the category, so a script that
@@ -156,7 +156,7 @@ pub(crate) fn log(project: &Project, selector: &Selector) -> Result<ExitCode, St
         if rows.is_empty() {
             let _ = writeln!(
                 out,
-                "No baseline or note records {name}. `retros --note` keeps each run, and `retros blame` measures commits"
+                "No baseline or note records {name}. `uphill --note` keeps each run, and `uphill blame` measures commits"
             );
         } else {
             let _ = writeln!(out, "{name} in the runs noted in {NOTES}\n");
@@ -292,7 +292,7 @@ fn points(project: &Project, selector: &Selector) -> Result<Vec<Point>, String> 
 }
 
 /// The ref that holds the notes of past runs.
-const NOTES: &str = "refs/notes/retros";
+const NOTES: &str = "refs/notes/uphill";
 
 /// Reads the runs noted on the first-parent history of `HEAD`, at most `limit` of them, oldest
 /// first. With `skip_head`, it leaves out a note on `HEAD`, which the current run stands for.
@@ -457,7 +457,7 @@ impl Bisect<'_> {
     ///
     /// # Errors
     ///
-    /// Returns a message for the terminal when Retros cannot run the script at all.
+    /// Returns a message for the terminal when Uphill cannot run the script at all.
     fn probe(&self, commit: &Commit) -> Result<Probe, String> {
         let (group, index) = (&self.group, self.index);
         let checkout = checkout(self.project, &commit.hash);

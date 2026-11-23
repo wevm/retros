@@ -1,7 +1,7 @@
-//! `retros [category]`: runs each category's script, scores its metrics for each subject, prints
+//! `uphill [category]`: runs each category's script, scores its metrics for each subject, prints
 //! each category as it finishes, then the opportunities and the changes since the baselines.
-//! Categories that share a `run` command share one run. It writes `.retros/report.json`,
-//! `.retros/report.md`, and `.retros/report.html` in the project root. With `--update`, it writes
+//! Categories that share a `run` command share one run. It writes `.uphill/report.json`,
+//! `.uphill/report.md`, and `.uphill/report.html` in the project root. With `--update`, it writes
 //! this run's sizes, counts, checks, and line targets to each metric's `baseline` in the
 //! configuration. With `--compare <ref>`, it also checks out `<ref>` in a temporary worktree,
 //! runs timings in interleaved pairs there and here, and compares sizes, counts, and checks with
@@ -35,7 +35,7 @@ use crate::{history, measure};
 /// How many past runs the HTML report's trends show, with this one.
 const TRENDS: usize = 99;
 
-/// What `retros [category]` was asked to do.
+/// What `uphill [category]` was asked to do.
 #[derive(Default)]
 #[expect(
     clippy::struct_excessive_bools,
@@ -62,7 +62,7 @@ pub(crate) struct Options {
 ///
 /// # Errors
 ///
-/// Returns a message for the terminal when the category is unknown, when Retros cannot run a
+/// Returns a message for the terminal when the category is unknown, when Uphill cannot run a
 /// script at all, when it cannot check out or set up the revision to compare with, when it cannot
 /// write a baseline into the configuration, or when it cannot write a file.
 pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, String> {
@@ -262,19 +262,19 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
     let _ = io::stdout().write_all(engine::report::summary(&report).as_bytes());
 
     report.history = history::runs(project, TRENDS, true);
-    let dir = project.root.join(".retros");
+    let dir = project.root.join(".uphill");
     let write = |file: &str, contents: String| {
         std::fs::write(dir.join(file), contents)
-            .map_err(|error| format!("error: could not write .retros/{file}: {error}"))
+            .map_err(|error| format!("error: could not write .uphill/{file}: {error}"))
     };
     std::fs::create_dir_all(&dir)
-        .map_err(|error| format!("error: could not create .retros: {error}"))?;
+        .map_err(|error| format!("error: could not create .uphill: {error}"))?;
     write("report.json", engine::report::json(&report))?;
     write("report.md", engine::report::markdown(&report))?;
     write("report.html", engine::html::html(&report))?;
 
     let mut written = format!(
-        "{prefix}.retros/report.json, {prefix}.retros/report.md, {prefix}.retros/report.html"
+        "{prefix}.uphill/report.json, {prefix}.uphill/report.md, {prefix}.uphill/report.html"
     );
     if options.update {
         let name = &project.name;
@@ -316,11 +316,11 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
     if options.require_baseline && !options.update {
         let message = match &report.changes {
             None => Some(
-                "--require-baseline needs a baseline. Run `retros --update` to record one"
+                "--require-baseline needs a baseline. Run `uphill --update` to record one"
                     .to_owned(),
             ),
             Some(changes) if !changes.is_empty() => Some(format!(
-                "{} since the baseline. Run `retros --update` to accept {}",
+                "{} since the baseline. Run `uphill --update` to accept {}",
                 measure::count(changes.len(), "change"),
                 if changes.len() == 1 { "it" } else { "them" }
             )),

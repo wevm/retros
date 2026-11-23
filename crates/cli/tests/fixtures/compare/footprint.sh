@@ -3,4 +3,4 @@ if [ ! -f .ready ]; then
   echo "run setup first" >&2
   exit 1
 fi
-echo "bundle $(cat bundle.txt)" >> "$RETROS_METRICS"
+echo "bundle $(cat bundle.txt)" >> "$UPHILL_METRICS"

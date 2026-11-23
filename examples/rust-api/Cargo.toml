@@ -1,11 +1,11 @@
 [package]
 name = "harbor"
-description = "A small harbor forecast API, measured by Retros."
+description = "A small harbor forecast API, measured by Uphill."
 edition = "2024"
 publish = false
 version = "0.1.0"
 
-# The example builds on its own, outside the Retros workspace that contains it.
+# The example builds on its own, outside the Uphill workspace that contains it.
 [workspace]
 
 [profile.release]

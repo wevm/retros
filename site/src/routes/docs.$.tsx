@@ -28,10 +28,10 @@ export const Route = createFileRoute('/docs/$')({
   },
   head: (entry) => {
     const { loaderData } = entry
-    if (!loaderData) return { meta: [{ title: 'Docs · Retros' }] }
+    if (!loaderData) return { meta: [{ title: 'Docs · Uphill' }] }
 
     const { description, title } = loaderData
-    return Head.page({ description, title: `${title} · Retros` })
+    return Head.page({ description, title: `${title} · Uphill` })
   },
 })
 

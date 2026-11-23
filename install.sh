@@ -1,15 +1,15 @@
 #!/bin/sh
-# Installs the retros binary from GitHub Releases on Linux and macOS.
+# Installs the uphill binary from GitHub Releases on Linux and macOS.
 #
-#   curl -fsSL https://raw.githubusercontent.com/wevm/retros/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/wevm/uphill/main/install.sh | sh
 #
-# RETROS_VERSION selects a release, such as 0.1.0, and defaults to the latest one. RETROS_INSTALL
-# selects the directory, and defaults to ~/.retros, so the binary goes to ~/.retros/bin/retros.
+# UPHILL_VERSION selects a release, such as 0.1.0, and defaults to the latest one. UPHILL_INSTALL
+# selects the directory, and defaults to ~/.uphill, so the binary goes to ~/.uphill/bin/uphill.
 set -eu
 
-repo=wevm/retros
-version=${RETROS_VERSION:-latest}
-dir=${RETROS_INSTALL:-$HOME/.retros}
+repo=wevm/uphill
+version=${UPHILL_VERSION:-latest}
+dir=${UPHILL_INSTALL:-$HOME/.uphill}
 
 fail() {
   echo "error: $1" >&2
@@ -62,16 +62,16 @@ case "$(uname -s)" in
     os=apple-darwin
     ;;
   Linux) os=unknown-linux-$(libc) ;;
-  *) fail "Retros has no build for $(uname -s). Install it with Cargo instead: cargo install --locked --git https://github.com/$repo retros" ;;
+  *) fail "Uphill has no build for $(uname -s). Install it with Cargo instead: cargo install --locked --git https://github.com/$repo uphill" ;;
 esac
 
 case "$arch" in
   x86_64 | amd64) arch=x86_64 ;;
   arm64 | aarch64) arch=aarch64 ;;
-  *) fail "Retros has no build for $arch. Install it with Cargo instead: cargo install --locked --git https://github.com/$repo retros" ;;
+  *) fail "Uphill has no build for $arch. Install it with Cargo instead: cargo install --locked --git https://github.com/$repo uphill" ;;
 esac
 
-asset=retros-$arch-$os.tar.gz
+asset=uphill-$arch-$os.tar.gz
 case "$version" in
   latest) url=https://github.com/$repo/releases/latest/download ;;
   *) url=https://github.com/$repo/releases/download/v${version#v} ;;
@@ -88,12 +88,12 @@ expected=$(awk -v asset="$asset" '$2 == asset { print $1 }' "$tmp/sha256sums.txt
 [ -n "$expected" ] || fail "sha256sums.txt has no digest for $asset"
 [ "$(digest "$tmp/$asset")" = "$expected" ] || fail "the digest of $asset does not match sha256sums.txt"
 
-tar -xzf "$tmp/$asset" -C "$tmp" retros
+tar -xzf "$tmp/$asset" -C "$tmp" uphill
 mkdir -p "$dir/bin"
-mv "$tmp/retros" "$dir/bin/retros"
-chmod +x "$dir/bin/retros"
+mv "$tmp/uphill" "$dir/bin/uphill"
+chmod +x "$dir/bin/uphill"
 
-echo "Installed $("$dir/bin/retros" --version) to $dir/bin/retros"
+echo "Installed $("$dir/bin/uphill" --version) to $dir/bin/uphill"
 case ":$PATH:" in
   *":$dir/bin:"*) ;;
   *) echo "Add it to PATH in your shell profile: export PATH=\"$dir/bin:\$PATH\"" ;;

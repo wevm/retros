@@ -52,4 +52,4 @@ for (const benchmark of benchmarks)
     `call-time ${benchmark.alias} ${benchmark.runs[0]!.stats!.p50.toFixed(1)}ns`,
   )
 
-fs.appendFileSync(process.env.RETROS_METRICS!, `${lines.join('\n')}\n`)
+fs.appendFileSync(process.env.UPHILL_METRICS!, `${lines.join('\n')}\n`)

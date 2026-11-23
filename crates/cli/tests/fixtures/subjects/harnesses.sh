@@ -2,7 +2,7 @@
 # writes zc's peak memory as the run's number in megabytes.
 echo run >> runs.txt
 round=$(wc -l < runs.txt | tr -d ' ')
-cat >> "$RETROS_METRICS" <<LINES
+cat >> "$UPHILL_METRICS" <<LINES
 zc: startup 1ms
 zc: install-size 2MB
 zc: turn-rss ${round}MB

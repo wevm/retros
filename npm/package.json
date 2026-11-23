@@ -3,14 +3,14 @@
     "build": "zile"
   },
   "[!start-pkg]": "",
-  "name": "retros",
+  "name": "uphill",
   "description": "Continuous metrics and hill climbing",
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/wevm/retros.git",
+    "url": "git+https://github.com/wevm/uphill.git",
     "directory": "npm"
   },
   "os": [
@@ -22,8 +22,8 @@
     "x64"
   ],
   "bin": {
-    "retros": "./dist/bin.js",
-    "retros.src": "./src/bin.ts"
+    "uphill": "./dist/bin.js",
+    "uphill.src": "./src/bin.ts"
   },
   "files": [
     "binaries",
@@ -32,10 +32,10 @@
   ],
   "publishConfig": {
     "executableFiles": [
-      "./binaries/darwin-arm64/retros",
-      "./binaries/darwin-x64/retros",
-      "./binaries/linux-arm64/retros",
-      "./binaries/linux-x64/retros"
+      "./binaries/darwin-arm64/uphill",
+      "./binaries/darwin-x64/uphill",
+      "./binaries/linux-arm64/uphill",
+      "./binaries/linux-x64/uphill"
     ]
   },
   "sideEffects": false,

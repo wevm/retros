@@ -171,7 +171,7 @@ function Outline(props: Outline.Props) {
         </li>
         <li>
           <a
-            href={`https://github.com/wevm/retros/edit/main/site/src/content/docs/${path}.mdx`}
+            href={`https://github.com/wevm/uphill/edit/main/site/src/content/docs/${path}.mdx`}
             rel="noreferrer"
             target="_blank"
             {...styles.outlineLink()}

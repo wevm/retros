@@ -1,4 +1,4 @@
-//! Finds and reads the project's `retros.yaml` or `retros.toml`, at the project root or in its
+//! Finds and reads the project's `uphill.yaml` or `uphill.toml`, at the project root or in its
 //! `.agents` directory.
 
 use std::io;
@@ -8,10 +8,10 @@ use engine::config::{self, Config, Format};
 
 /// Where a project keeps its configuration, relative to its root, and the format of each file.
 const PLACES: [(&str, Format); 4] = [
-    ("retros.yaml", Format::Yaml),
-    ("retros.toml", Format::Toml),
-    (".agents/retros.yaml", Format::Yaml),
-    (".agents/retros.toml", Format::Toml),
+    ("uphill.yaml", Format::Yaml),
+    ("uphill.toml", Format::Toml),
+    (".agents/uphill.yaml", Format::Yaml),
+    (".agents/uphill.toml", Format::Toml),
 ];
 
 /// A project: its parsed configuration, its root, and the directory that holds the configuration.
@@ -21,35 +21,35 @@ pub(crate) struct Project {
     /// The format of the configuration.
     pub(crate) format: Format,
     /// The path of the configuration relative to the current directory, such as
-    /// `../.agents/retros.yaml`.
+    /// `../.agents/uphill.yaml`.
     pub(crate) name: String,
-    /// The path of the configuration, where `retros --update` writes baselines.
+    /// The path of the configuration, where `uphill --update` writes baselines.
     pub(crate) path: PathBuf,
     /// The path of the root relative to the current directory, such as `../`, or empty.
     pub(crate) prefix: String,
     /// The directory that holds the configuration or the `.agents` directory with it. Scripts
-    /// run from here, and reports go to its `.retros` directory.
+    /// run from here, and reports go to its `.uphill` directory.
     pub(crate) root: PathBuf,
     /// The text of the configuration, for errors that point into it.
     pub(crate) source: String,
 }
 
-/// Finds `retros.yaml` or `retros.toml`, at the root or in `.agents`, in `cwd` or the nearest
+/// Finds `uphill.yaml` or `uphill.toml`, at the root or in `.agents`, in `cwd` or the nearest
 /// parent directory that has one, and parses it.
 ///
 /// # Errors
 ///
 /// Returns a message for the terminal when no directory has a configuration, when one directory
 /// has more than one, when the file cannot be read, or when it is invalid. A configuration error
-/// names the file relative to `cwd`, such as `../.agents/retros.yaml`, with its line and column.
+/// names the file relative to `cwd`, such as `../.agents/uphill.yaml`, with its line and column.
 pub(crate) fn find(cwd: &Path) -> Result<Project, String> {
     for (depth, root) in cwd.ancestors().enumerate() {
         let prefix = "../".repeat(depth);
         let mut found: Option<(&str, Format, String)> = None;
 
         for (place, format) in PLACES {
-            // `.agents/retros.yaml` belongs to the directory above `.agents`, so scripts run
-            // from the project root even when Retros starts inside `.agents`.
+            // `.agents/uphill.yaml` belongs to the directory above `.agents`, so scripts run
+            // from the project root even when Uphill starts inside `.agents`.
             if !place.contains('/') && root.file_name().is_some_and(|name| name == ".agents") {
                 continue;
             }
@@ -89,7 +89,7 @@ pub(crate) fn find(cwd: &Path) -> Result<Project, String> {
     }
 
     Err(
-        "error: no retros.yaml or retros.toml, at the root or in .agents, in this directory or any parent directory"
+        "error: no uphill.yaml or uphill.toml, at the root or in .agents, in this directory or any parent directory"
             .to_owned(),
     )
 }

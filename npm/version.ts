@@ -1,6 +1,6 @@
 /**
- * Sets the version of the Rust workspace to the version of the `retros` npm package, so
- * `retros --version` matches the npm version and the GitHub Release tag. `pnpm changeset:version`
+ * Sets the version of the Rust workspace to the version of the `uphill` npm package, so
+ * `uphill --version` matches the npm version and the GitHub Release tag. `pnpm changeset:version`
  * runs it after `changeset version` raises the package version: `bun npm/version.ts`.
  * @module
  */

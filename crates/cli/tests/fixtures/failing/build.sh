@@ -1,5 +1,5 @@
 # Writes a metric, logs 25 lines to standard error, and fails.
-echo 'size 1kB' >> "$RETROS_METRICS"
+echo 'size 1kB' >> "$UPHILL_METRICS"
 
 i=1
 while [ "$i" -le 25 ]; do

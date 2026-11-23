@@ -9,7 +9,7 @@ use crate::lines::Line;
 /// The text a finding points into.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Source {
-    /// `retros.yaml`.
+    /// `uphill.yaml`.
     Config,
     /// The metric lines the category's script wrote.
     Metrics,

@@ -1,7 +1,7 @@
 /**
- * Times the release binary: `retros --version`, and `retros check` on a one-category project.
+ * Times the release binary: `uphill --version`, and `uphill check` on a one-category project.
  * Each value is the median of 20 runs, measured from Bun, so it includes the cost of starting a
- * process. Retros runs the script 5 times and takes the median of those values.
+ * process. Uphill runs the script 5 times and takes the median of those values.
  *
  * @module
  */
@@ -12,13 +12,13 @@ import * as path from 'node:path'
 
 const runs = 20
 
-run(['cargo', 'build', '--release', '--locked', '--quiet', '-p', 'retros'])
-const binary = path.resolve('target/release/retros')
+run(['cargo', 'build', '--release', '--locked', '--quiet', '-p', 'uphill'])
+const binary = path.resolve('target/release/uphill')
 
-const project = fs.mkdtempSync(path.join(os.tmpdir(), 'retros-'))
+const project = fs.mkdtempSync(path.join(os.tmpdir(), 'uphill-'))
 fs.writeFileSync(
-  path.join(project, 'retros.yaml'),
-  `one:\n  run: echo 'value 1' >> "$RETROS_METRICS"\n  value: {}\n`,
+  path.join(project, 'uphill.yaml'),
+  `one:\n  run: echo 'value 1' >> "$UPHILL_METRICS"\n  value: {}\n`,
 )
 
 try {
@@ -26,7 +26,7 @@ try {
   const check = medianMs([binary, 'check'], project)
 
   fs.appendFileSync(
-    process.env.RETROS_METRICS!,
+    process.env.UPHILL_METRICS!,
     `startup ${startup.toFixed(3)}ms\ncheck ${check.toFixed(3)}ms\n`,
   )
 } finally {

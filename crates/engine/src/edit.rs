@@ -1,4 +1,4 @@
-//! Writes metric baselines into the configuration text in place, so `retros --update` keeps the
+//! Writes metric baselines into the configuration text in place, so `uphill --update` keeps the
 //! file's comments, order, and style. Lines outside a metric's `baseline` stay as they were.
 //!
 //! In YAML, a baseline with items or subjects takes one line per entry, so a change shows as one

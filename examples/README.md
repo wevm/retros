@@ -1,6 +1,6 @@
 # Examples
 
-Each example is a small project with a `retros.yaml` and the scripts it runs. Retros reads `retros.toml` the same way. The scripts are TypeScript run by [Bun](https://bun.sh). They run the tools each project already uses and turn what those tools report into metric lines.
+Each example is a small project with an `uphill.yaml` and the scripts it runs. Uphill reads `uphill.toml` the same way. The scripts are TypeScript run by [Bun](https://bun.sh). They run the tools each project already uses and turn what those tools report into metric lines.
 
 Every example misses a few targets on purpose, so its report shows how misses, opportunities, and contextual targets read.
 
@@ -11,14 +11,14 @@ Every example misses a few targets on purpose, so its report shows how misses, o
 | [`rust-api`](rust-api) | Cargo, clippy, rustfmt | Footprint, latency, reliability, and quality of an HTTP API on Rust's standard library | Each endpoint's latency target comes from the work it does, and its tail may take three times as long. |
 
 ```sh
-# Install the example's tools, then score every category and write .retros/report.md.
+# Install the example's tools, then score every category and write .uphill/report.md.
 cd examples/web-app
 bun install
-retros
+uphill
 ```
 
-A target comes from one of three places. `target` in `retros.yaml` is the default for every item. A script can write its own target on a line, such as `latency /health 0.29ms target 500µs`, when it knows the context. `targets` in `retros.yaml` sets targets by item pattern, such as `{ index.html: 8kB }`, and has the final say.
+A target comes from one of three places. `target` in `uphill.yaml` is the default for every item. A script can write its own target on a line, such as `latency /health 0.29ms target 500µs`, when it knows the context. `targets` in `uphill.yaml` sets targets by item pattern, such as `{ index.html: 8kB }`, and has the final say.
 
-The web app needs Chrome. Lighthouse finds an installed Chrome, or the one at `CHROME_PATH`. Its performance category writes times, so Retros runs it 5 times, and a full run takes about 3 minutes.
+The web app needs Chrome. Lighthouse finds an installed Chrome, or the one at `CHROME_PATH`. Its performance category writes times, so Uphill runs it 5 times, and a full run takes about 3 minutes.
 
-Retros itself is measured the same way. Its [`.agents/retros.yaml`](../.agents/retros.yaml) tracks the release binary size, its dependencies, and its startup time.
+Uphill itself is measured the same way. Its [`.agents/uphill.yaml`](../.agents/uphill.yaml) tracks the release binary size, its dependencies, and its startup time.

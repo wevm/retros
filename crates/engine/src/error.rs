@@ -62,21 +62,21 @@ pub enum Code {
     NothingConfigured,
     /// A category without a `run` command.
     RunMissing,
-    /// TOML syntax in `retros.toml` that does not parse.
+    /// TOML syntax in `uphill.toml` that does not parse.
     Toml,
-    /// A metric the script wrote that `retros.yaml` does not configure.
+    /// A metric the script wrote that `uphill.yaml` does not configure.
     UnconfiguredMetric,
     /// A target that is not greater than zero. The scoring curve needs a positive target.
     TargetRange,
     /// A target that is a check, or that does not match the unit the script writes.
     TargetUnit,
-    /// A key that `retros.yaml` does not define.
+    /// A key that `uphill.yaml` does not define.
     UnexpectedKey,
     /// A pattern in a metric's `targets` that matches no item the script wrote.
     UnmatchedPattern,
     /// A unit that is not a size, time, or check unit.
     UnknownUnit,
-    /// YAML in `retros.yaml` that does not parse, or that Retros does not accept, such as a
+    /// YAML in `uphill.yaml` that does not parse, or that Uphill does not accept, such as a
     /// duplicate key or a tag.
     Yaml,
 }

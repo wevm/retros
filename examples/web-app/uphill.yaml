@@ -4,7 +4,7 @@
 # that blocks rendering, and the about page skips a heading level, has a "click here" link, no
 # description, and no icon, so the browser logs a 404 for /favicon.ico.
 
-# Installs packages in each checkout that `retros --compare` and `retros blame` create.
+# Installs packages in each checkout that `uphill --compare` and `uphill blame` create.
 setup: bun install --frozen-lockfile
 
 performance:

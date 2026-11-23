@@ -1,4 +1,4 @@
-/** Introduces Retros with its loop: configure, measure, and score. @module */
+/** Introduces Uphill with its loop: configure, measure, and score. @module */
 import { createFileRoute } from '@tanstack/react-router'
 import { Link } from '../components/Link.js'
 import { Shell } from '../components/Shell.js'
@@ -10,7 +10,7 @@ export const Route = createFileRoute('/')({
   head: () =>
     Head.page({
       description: Head.description,
-      title: 'Retros · Continuous Metrics and Hill Climbing',
+      title: 'Uphill · Continuous Metrics and Hill Climbing',
     }),
 })
 
@@ -20,17 +20,17 @@ const steps = [
     code: `footprint:
   run: sh .agents/metrics/footprint.sh
   bundle-size: { target: 5kB }`,
-    label: '.agents/retros.yaml',
+    label: '.agents/uphill.yaml',
     title: 'Set a target',
   },
   {
     code: `echo "bundle-size $(gzip -c dist/index.js | wc -c)B" \\
-  >> "$RETROS_METRICS"`,
+  >> "$UPHILL_METRICS"`,
     label: '.agents/metrics/footprint.sh',
     title: 'Measure with a script',
   },
   {
-    code: `$ retros
+    code: `$ uphill
 ■  75  footprint
   ■  75  bundle-size  6.9 kB  target 5 kB
 
@@ -74,9 +74,9 @@ function Home() {
       <section {...styles.hero()}>
         <h1 {...styles.title()}>Continuous metrics and hill climbing</h1>
         <p {...styles.lede()}>
-          Retros scores a project against its own targets. A metric is anything
+          Uphill scores a project against its own targets. A metric is anything
           a script can measure: bundle size, page load time, request latency,
-          test coverage, or lint warnings. Retros scores each one from 0 to 100
+          test coverage, or lint warnings. Uphill scores each one from 0 to 100
           and names the fixes worth the most points.
         </p>
         <div {...styles.actions()}>
@@ -84,7 +84,7 @@ function Home() {
             Get Started
           </Link>
           <a
-            href="https://github.com/wevm/retros"
+            href="https://github.com/wevm/uphill"
             rel="noreferrer"
             target="_blank"
             {...styles.secondary()}
@@ -94,7 +94,7 @@ function Home() {
         </div>
         <pre {...styles.install()}>
           <code>
-            cargo install --locked --git https://github.com/wevm/retros retros
+            cargo install --locked --git https://github.com/wevm/uphill uphill
           </code>
         </pre>
       </section>

@@ -1,16 +1,16 @@
 # Comparing Revisions
 
-`retros --compare <ref>` measures another revision on the same machine and reports what changed, including timings, which baselines cannot hold.
+`uphill --compare <ref>` measures another revision on the same machine and reports what changed, including timings, which baselines cannot hold.
 
 ## Overview
 
 Timings differ between machines, so a comparison needs both revisions measured in one place. `--compare` checks out `<ref>` in a temporary Git worktree, runs both revisions in interleaved pairs, and reports a timing change only when the pairs agree on it.
 
-Sizes, counts, and checks are exact, so they compare with the baselines that `<ref>` committed. When `<ref>` has no baselines, Retros measures it once. The changes appear in an "Against" section of every report.
+Sizes, counts, and checks are exact, so they compare with the baselines that `<ref>` committed. When `<ref>` has no baselines, Uphill measures it once. The changes appear in an "Against" section of every report.
 
 ```sh
 # Compare the current checkout with the main branch.
-retros --compare main
+uphill --compare main
 ```
 
 ## Walkthrough
@@ -21,7 +21,7 @@ This walkthrough times a `slugify` function in a Git repository. A branch adds a
 
 The script times 100,000 calls and writes the time per call. A second category writes the size of the source, and its baseline is committed on `main`.
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # One category writes a size with a baseline, and one writes a time.
 footprint:
   run: sh metrics/footprint.sh
@@ -41,7 +41,7 @@ const start = performance.now()
 for (let i = 0; i < 100_000; i++) slugify(`Crème brûlée ${i}`)
 const time = ((performance.now() - start) * 1e6) / 100_000
 
-fs.appendFileSync(process.env.RETROS_METRICS!, `slugify-time ${time.toFixed(0)}ns\n`)
+fs.appendFileSync(process.env.UPHILL_METRICS!, `slugify-time ${time.toFixed(0)}ns\n`)
 ```
 
 ### Change the Code
@@ -62,10 +62,10 @@ export function slugify(text: string): string {
 
 ### Compare with Main
 
-On the branch, `retros --compare main` runs the `speed` category in 8 pairs, and alternates which revision runs first. The source size compares with the baseline on `main`, so Retros does not measure it there.
+On the branch, `uphill --compare main` runs the `speed` category in 8 pairs, and alternates which revision runs first. The source size compares with the baseline on `main`, so Uphill does not measure it there.
 
 ```text
-$ retros --compare main
+$ uphill --compare main
 Comparing with main (ac66366)
 
 ● 100  footprint
@@ -89,10 +89,10 @@ Against main (ac66366)
 
 A timing changes only when the medians differ by at least 5% and at least 7 of 8 pairs agree on the direction. Otherwise it reads "within noise". A comparison never fails the run by itself, so a gate needs `--require-targets` or `--require-baseline`.
 
-After the branch accepts its new size with `retros --update`, a comparison of the branch with itself reports no change:
+After the branch accepts its new size with `uphill --update`, a comparison of the branch with itself reports no change:
 
 ```text
-$ retros --compare normalize
+$ uphill --compare normalize
 ...
 No changes against normalize (fd268f9)
   1 timing within noise
@@ -102,10 +102,10 @@ No changes against normalize (fd268f9)
 
 ### Prepare Checkouts
 
-A new worktree has only the files Git tracks. A top-level `setup` command, such as a package install, runs once in each worktree that `--compare` or `retros blame` creates, before any script. The current checkout is assumed ready. A failed setup stops the run with status 2.
+A new worktree has only the files Git tracks. A top-level `setup` command, such as a package install, runs once in each worktree that `--compare` or `uphill blame` creates, before any script. The current checkout is assumed ready. A failed setup stops the run with status 2.
 
-```yaml title="retros.yaml"
-# Install packages in each worktree that Retros creates.
+```yaml title="uphill.yaml"
+# Install packages in each worktree that Uphill creates.
 setup: bun install --frozen-lockfile
 
 speed:
@@ -118,7 +118,7 @@ speed:
 `--require-targets` exits with status 1 when a metric misses its target or a script fails, and lists each miss. It works with and without `--compare`.
 
 ```text
-$ retros --compare main --require-targets
+$ uphill --compare main --require-targets
 ...
 Missed targets
   speed  slugify-time  917 ns  target 500 ns
@@ -130,20 +130,20 @@ Missed targets
 
 `<ref>` is any revision Git resolves, such as a branch, a tag, or a commit. Both revisions run the categories and commands of the current checkout.
 
-When `retros.yaml`, apart from its baselines, or a file that a `run` command names differs in `<ref>`, Retros prints a warning. Here, the current checkout has a tighter target:
+When `uphill.yaml`, apart from its baselines, or a file that a `run` command names differs in `<ref>`, Uphill prints a warning. Here, the current checkout has a tighter target:
 
 ```text
-$ retros --compare v1.2.0
+$ uphill --compare v1.2.0
 Comparing with v1.2.0 (ac66366)
-warning: retros.yaml differs in v1.2.0 (ac66366). Both revisions run the categories and commands of this checkout
+warning: uphill.yaml differs in v1.2.0 (ac66366). Both revisions run the categories and commands of this checkout
 ```
 
 ### Find the Commit
 
-`retros blame` finds the commit that moved a timing. It measures commits in temporary worktrees and bisects for the first one within noise of `HEAD` in interleaved pairs. `--since <ref>` limits the search, such as to the commits since the last release.
+`uphill blame` finds the commit that moved a timing. It measures commits in temporary worktrees and bisects for the first one within noise of `HEAD` in interleaved pairs. `--since <ref>` limits the search, such as to the commits since the last release.
 
 ```text
-$ retros blame speed slugify-time
+$ uphill blame speed slugify-time
 Bisecting speed slugify-time across 4 commits, measuring each in a temporary checkout
   HEAD     1.1 µs
   84337c9  510.5 ns
@@ -158,9 +158,9 @@ fa8deea moved speed slugify-time from 476 ns to 1.1 µs
 
 The GitHub Action compares each pull request with its base branch and posts the report as a comment. A clone needs the base revision, and the action fetches it when the clone lacks it.
 
-```yaml title=".github/workflows/retros.yml"
+```yaml title=".github/workflows/uphill.yml"
 # Compare with the base branch, which is the default on pull requests.
-- uses: wevm/retros@main
+- uses: wevm/uphill@main
 ```
 
 ## More

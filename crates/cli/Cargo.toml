@@ -1,6 +1,6 @@
 [package]
-name = "retros"
-description = "The retros command line: runs measurement scripts, scores metrics against targets, and writes reports."
+name = "uphill"
+description = "The uphill command line: runs measurement scripts, scores metrics against targets, and writes reports."
 edition.workspace = true
 license.workspace = true
 publish.workspace = true

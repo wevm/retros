@@ -1,14 +1,14 @@
 # Targets
 
-A target is a requirement the project must meet. Retros scores each item against its own target, and opportunities name the changes that raise a score most.
+A target is a requirement the project must meet. Uphill scores each item against its own target, and opportunities name the changes that raise a score most.
 
 ## Overview
 
-A value at its target scores 90, twice the target scores 50, and four times the target scores 10. Smaller values approach 100. The `target` key in `retros.yaml` is the default for every item of a metric.
+A value at its target scores 90, twice the target scores 50, and four times the target scores 10. Smaller values approach 100. The `target` key in `uphill.yaml` is the default for every item of a metric.
 
 Items can need different targets. A script that knows an item needs a larger or smaller target writes it on the line. When the project disagrees with a script, the `targets` key sets targets by item pattern and has the final say.
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # Each entry point scores against 5 kB, except chains, which scores against 8 kB.
 footprint:
   run: sh metrics/footprint.sh
@@ -23,7 +23,7 @@ This walkthrough scores the gzipped size of three entry points: `index`, `utils`
 
 The `target` key gives every item the same target. The list collapses to its p90 item, and `chains` is the worst item, so it decides the score.
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # Every entry point scores against 5 kB.
 footprint:
   run: sh metrics/footprint.sh
@@ -33,12 +33,12 @@ footprint:
 ```sh title="metrics/footprint.sh"
 # Write the gzipped size of each entry point.
 for entry in index utils chains; do
-  echo "entry-size $entry $(gzip -c dist/$entry.js | wc -c)B" >> "$RETROS_METRICS"
+  echo "entry-size $entry $(gzip -c dist/$entry.js | wc -c)B" >> "$UPHILL_METRICS"
 done
 ```
 
 ```text
-$ retros
+$ uphill
 ▲  37  footprint
   ▲  37  entry-size  p90 12 kB (chains)  target 5 kB
                      12 kB   chains
@@ -56,13 +56,13 @@ The script knows that `chains` holds every chain, so it writes a 15 kB target on
 ```sh title="metrics/footprint.sh"
 # The chains entry bundles every chain, so its line sets a larger target.
 for entry in index utils; do
-  echo "entry-size $entry $(gzip -c dist/$entry.js | wc -c)B" >> "$RETROS_METRICS"
+  echo "entry-size $entry $(gzip -c dist/$entry.js | wc -c)B" >> "$UPHILL_METRICS"
 done
-echo "entry-size chains $(gzip -c dist/chains.js | wc -c)B target 15kB" >> "$RETROS_METRICS"
+echo "entry-size chains $(gzip -c dist/chains.js | wc -c)B target 15kB" >> "$UPHILL_METRICS"
 ```
 
 ```text
-$ retros
+$ uphill
 ■  82  footprint
   ■  82  entry-size  p90 6.1 kB (index)  target 5 kB
                      6.1 kB  index
@@ -77,7 +77,7 @@ Opportunities
 
 The project decides that `chains` must stay under 8 kB. A pattern in `targets` replaces the line target, and `chains` is the worst item again. In a pattern, `*` matches any run of characters, and the first matching pattern applies.
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # The project's target for chains replaces the script's.
 footprint:
   run: sh metrics/footprint.sh
@@ -85,7 +85,7 @@ footprint:
 ```
 
 ```text
-$ retros
+$ uphill
 ■  70  footprint
   ■  70  entry-size  p90 12 kB (chains)  target 8 kB
                      12 kB   chains  target 8 kB
@@ -115,7 +115,7 @@ Opportunities
 
 A metric where more is better, such as test coverage or throughput, sets `better: higher`. Half the target then scores 50, and a list collapses to its p10 item, the one furthest below its target.
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # Each file needs at least 80% line coverage.
 quality:
   run: sh metrics/coverage.sh
@@ -123,7 +123,7 @@ quality:
 ```
 
 ```text
-$ retros
+$ uphill
 ■  78  quality
   ■  78  coverage  p10 61 (src/cache.ts)  target 80
                    61  src/cache.ts
@@ -135,7 +135,7 @@ $ retros
 
 The `score` key picks how a list collapses: `p90`, `p10`, `median`, `max`, `min`, or `sum`. A `sum` scores the total of the values against the total of the targets, so each item with the default target adds that target to the total.
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # Score the total size of every chunk. Two chunks give a total target of 50 kB.
 footprint:
   run: sh metrics/chunks.sh
@@ -143,7 +143,7 @@ footprint:
 ```
 
 ```text
-$ retros
+$ uphill
 ■  88  footprint
   ■  88  chunk-size  sum 53 kB  target 50 kB
                      31 kB  main
@@ -154,7 +154,7 @@ $ retros
 
 A category score is the weighted mean of its metric scores. The `weight` key defaults to 1. A metric with weight 0 still has a score, but the category mean leaves it out.
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # Throughput counts twice as much as render time.
 speed:
   run: sh metrics/speed.sh
@@ -166,7 +166,7 @@ speed:
 
 A metric without a target shows its value and its changes, but has no score. A check needs no target, because a list of checks scores the share of items that pass.
 
-```yaml title="retros.yaml"
+```yaml title="uphill.yaml"
 # modules has no score, and links scores the share of pages whose links resolve.
 footprint:
   run: sh metrics/footprint.sh

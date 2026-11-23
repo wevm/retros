@@ -18,10 +18,10 @@ use crate::script::{self, Outcome};
 pub(crate) struct Measured {
     /// The number of distinct metrics the first round wrote for the category.
     pub(crate) metrics: usize,
-    /// The text each round wrote to `$RETROS_METRICS`, in the order the rounds ran. A shared run
+    /// The text each round wrote to `$UPHILL_METRICS`, in the order the rounds ran. A shared run
     /// holds the lines of every category that shares it.
     pub(crate) sources: Vec<String>,
-    /// Rendered warnings from the first round, such as metrics `retros.yaml` does not configure.
+    /// Rendered warnings from the first round, such as metrics `uphill.yaml` does not configure.
     pub(crate) warnings: Vec<String>,
 }
 
@@ -46,7 +46,7 @@ pub(crate) fn groups<'c>(categories: &[&'c Category]) -> Vec<Vec<&'c Category>> 
 ///
 /// # Errors
 ///
-/// Returns a message for the terminal when Retros cannot run the script at all. A script that
+/// Returns a message for the terminal when Uphill cannot run the script at all. A script that
 /// fails fails every category in the group. Lines that fail one category's checks fail only that
 /// category.
 pub(crate) fn group(
@@ -74,7 +74,7 @@ pub(crate) fn group(
 ///
 /// # Errors
 ///
-/// Returns a message for the terminal when Retros cannot run the script at all.
+/// Returns a message for the terminal when Uphill cannot run the script at all.
 pub(crate) fn pairs(
     project: &Project,
     head: &Path,
@@ -120,7 +120,7 @@ struct Run<'a> {
     root: &'a Path,
     /// How many rounds have run, or would have run after the script failed.
     rounds: usize,
-    /// The text each round wrote to `$RETROS_METRICS`.
+    /// The text each round wrote to `$UPHILL_METRICS`.
     sources: Vec<String>,
     /// Whether the script failed, which fails every category and ends the run.
     stopped: bool,

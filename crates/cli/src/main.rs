@@ -1,4 +1,4 @@
-//! The `retros` command line.
+//! The `uphill` command line.
 //!
 //! The command line is a thin adapter around the engine. It finds the configuration, runs measurement
 //! scripts, reads the files they write, prints what the engine reports, and writes the report
@@ -20,31 +20,31 @@ use std::process::ExitCode;
 use engine::error::Error;
 
 const USAGE: &str = "\
-Usage: retros [category] [--compare <ref>] [--compact] [--note] [--update]
+Usage: uphill [category] [--compare <ref>] [--compact] [--note] [--update]
               [--require-baseline] [--require-targets]
-       retros check
-       retros init
-       retros log <category> <metric> [item] [--subject <name>]
-       retros blame <category> <metric> [item] [--subject <name>] [--since <ref>]
+       uphill check
+       uphill init
+       uphill log <category> <metric> [item] [--subject <name>]
+       uphill blame <category> <metric> [item] [--subject <name>] [--since <ref>]
 
 Run each category's script, score its metrics, list the opportunities that would raise the
 scores most, and compare sizes, counts, checks, and line targets with each metric's baseline.
-Retros reads retros.yaml or retros.toml, at the root or in .agents, from this directory or the
-nearest parent. Reports go to .retros/report.json, report.md, and report.html. Name a category
+Uphill reads uphill.yaml or uphill.toml, at the root or in .agents, from this directory or the
+nearest parent. Reports go to .uphill/report.json, report.md, and report.html. Name a category
 to run only that one.
 
 Commands:
   blame  Name the commit that last moved a metric: from its baselines, or by measuring commits
          since <ref>, or every commit, in temporary checkouts and bisecting
   check  Run each script once and check the metric lines it writes
-  init   Print a brief for an agent to set up Retros in this project
+  init   Print a brief for an agent to set up Uphill in this project
   log    List the commits that changed a metric's baseline, or the runs noted for it
 
 Options:
   --compare <ref>     Compare with another revision: timings in interleaved pairs, and sizes,
                       counts, and checks with its baselines
   --compact           Print the scores, missed targets, and opportunities in a few lines
-  --note              Keep this run as a Git note on HEAD, for trends and `retros log`
+  --note              Keep this run as a Git note on HEAD, for trends and `uphill log`
   --update            Write this run's sizes, counts, checks, and line targets as baselines
   --require-baseline  Exit with status 1 when anything differs from the baselines
   --require-targets   Exit with status 1 when a metric misses its target or a script fails
@@ -61,7 +61,7 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         [flag] if flag == "--version" || flag == "-V" => {
-            let _ = writeln!(std::io::stdout(), "retros {}", env!("CARGO_PKG_VERSION"));
+            let _ = writeln!(std::io::stdout(), "uphill {}", env!("CARGO_PKG_VERSION"));
             ExitCode::SUCCESS
         }
         [command] if command == "check" => with_project(check::run),
@@ -99,7 +99,7 @@ fn main() -> ExitCode {
     }
 }
 
-/// Runs `retros log` or `retros blame` with the arguments after the command.
+/// Runs `uphill log` or `uphill blame` with the arguments after the command.
 fn history(command: &str, args: &[String]) -> ExitCode {
     let mut names = Vec::new();
     let (mut since, mut subject) = (None, None);
@@ -126,7 +126,7 @@ fn history(command: &str, args: &[String]) -> ExitCode {
         (names.next(), names.next(), names.next(), names.next())
     else {
         return usage(&format!(
-            "{command} needs a category, a metric, and optionally an item, such as `retros {command} footprint bundle`"
+            "{command} needs a category, a metric, and optionally an item, such as `uphill {command} footprint bundle`"
         ));
     };
     let selector = history::Selector {

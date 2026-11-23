@@ -28,7 +28,7 @@ pub fn html(report: &Report) -> String {
     if !report.history.is_empty() {
         out.push_str(TREND_DEFS);
     }
-    out.push_str("<main>\n<h1>Retros report</h1>\n");
+    out.push_str("<main>\n<h1>Uphill report</h1>\n");
 
     if named {
         compare(&mut out, report, &subjects);
@@ -314,7 +314,7 @@ fn category(out: &mut String, category: &CategoryReport, id: &str, history: &[Ru
     out.push_str("</section>\n");
 }
 
-/// Writes a category's metrics as a grid in the order `retros.yaml` declares them.
+/// Writes a category's metrics as a grid in the order `uphill.yaml` declares them.
 fn metrics(
     out: &mut String,
     scored: &CategoryScore,
@@ -907,7 +907,7 @@ const HEAD: &str = r#"<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>Retros report</title>
+<title>Uphill report</title>
 <style>
 :root{--bg:#fff;--fg:#212121;--muted:#5f6368;--line:#e0e0e0;--soft:#f5f5f5;--focus:#1a73e8;--good:#0c6;--good-fg:#008800;--good-bg:#e5f9ee;--average:#fa3;--average-fg:#c33300;--average-bg:#fff3e0;--poor:#f33;--poor-fg:#c00;--poor-bg:#ffebee;--none:#9e9e9e;--none-fg:#5f6368;--none-bg:#eee}
 @media (prefers-color-scheme:dark){:root{--bg:#202124;--fg:#e8eaed;--muted:#9aa0a6;--line:#3c4043;--soft:#2a2b2e;--focus:#8ab4f8;--good-fg:#0c6;--good-bg:rgba(0,204,102,.15);--average-fg:#ffa400;--average-bg:rgba(255,164,0,.15);--poor-fg:#ff4e42;--poor-bg:rgba(255,78,66,.15);--none-fg:#9aa0a6;--none-bg:#3c4043}}

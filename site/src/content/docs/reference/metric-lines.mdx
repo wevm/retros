@@ -1,6 +1,6 @@
 # Metric Lines
 
-A metric line is one measurement that a script appends to the file at `$RETROS_METRICS`. Retros reads the file after the script exits.
+A metric line is one measurement that a script appends to the file at `$UPHILL_METRICS`. Uphill reads the file after the script exits.
 
 ## Format
 
@@ -34,7 +34,7 @@ bun: startup 18ms
 
 - **Format:** a name, such as `export-size`
 
-A metric that the category lists in the configuration. A name starts with an ASCII letter or digit, and continues with ASCII letters, digits, `-`, `_`, and `.`. A metric the category does not list gives a warning in `retros check`.
+A metric that the category lists in the configuration. A name starts with an ASCII letter or digit, and continues with ASCII letters, digits, `-`, `_`, and `.`. A metric the category does not list gives a warning in `uphill check`.
 
 ```text
 modules 412
@@ -95,10 +95,10 @@ heading "Say \"hello\"" fail note "C:\\site\\index.html has no heading"
 
 ## Errors
 
-A line that Retros cannot read gives its category no score, and the other categories still run. The error names the category's metrics file, the line, and the column, and points at the field.
+A line that Uphill cannot read gives its category no score, and the other categories still run. The error names the category's metrics file, the line, and the column, and points at the field.
 
 ```text
-$ retros check
+$ uphill check
 ✗ footprint  invalid metric line
     error[unknown-unit] footprint metrics:1:16: unknown unit `KB`, expected one of `B`, `kB`, `MB`, `GB`, `ns`, `µs`, `us`, `ms`, `s`
       1 | bundle-size 6.9KB
@@ -110,9 +110,9 @@ $ retros check
 The configuration and the lines must also agree. A metric the configuration lists but the script does not write is an error, and a metric the script writes but the configuration does not list is a warning.
 
 ```text
-$ retros check
+$ uphill check
 ✗ footprint  2 metrics, 1 error, 1 warning
-    error[metric-missing] retros.yaml:4:3: metric `modules` is configured, but the script did not write it
+    error[metric-missing] uphill.yaml:4:3: metric `modules` is configured, but the script did not write it
       4 |   modules: {}
         |   ^
     warning[unconfigured-metric] footprint metrics:2:1: metric `chunks` is written, but `footprint` does not configure it

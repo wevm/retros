@@ -1,4 +1,4 @@
-//! Checks out another revision for `retros --compare` and `retros blame`: a detached Git worktree
+//! Checks out another revision for `uphill --compare` and `uphill blame`: a detached Git worktree
 //! in a temporary directory, removed when the command is done with it, whether it succeeded or
 //! failed.
 

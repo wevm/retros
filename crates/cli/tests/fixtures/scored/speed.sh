@@ -14,4 +14,4 @@ fi
   echo "render parse ${parse}ms"
   echo "render encode 2ms note \"reuses one buffer\""
   echo "throughput $throughput"
-} >> "$RETROS_METRICS"
+} >> "$UPHILL_METRICS"

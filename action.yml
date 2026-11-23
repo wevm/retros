@@ -1,5 +1,5 @@
-name: Retros
-description: Run Retros, compare a pull request with its base branch, and keep one comment with the report.
+name: Uphill
+description: Run Uphill, compare a pull request with its base branch, and keep one comment with the report.
 author: wevm
 branding:
   color: gray-dark
@@ -8,7 +8,7 @@ branding:
 inputs:
   args:
     default: ''
-    description: More arguments for retros, such as a category or `--require-targets`.
+    description: More arguments for uphill, such as a category or `--require-targets`.
   comment:
     default: 'true'
     description: Keep one comment on the pull request with the report. The job summary always has it.
@@ -20,14 +20,14 @@ inputs:
     description: The token that writes the comment. It needs the `pull-requests` write permission.
   version:
     default: ''
-    description: The Retros release to install, such as `0.1.0`, or `latest`. It defaults to the action's own tag, or `latest` when the action is not used at a release tag. `none` uses the retros already on PATH.
+    description: The Uphill release to install, such as `0.1.0`, or `latest`. It defaults to the action's own tag, or `latest` when the action is not used at a release tag. `none` uses the uphill already on PATH.
   working-directory:
     default: .
-    description: The project root, which holds retros.yaml, retros.toml, or the .agents directory.
+    description: The project root, which holds uphill.yaml, uphill.toml, or the .agents directory.
 
 outputs:
   exit-code:
-    description: The exit status of retros.
+    description: The exit status of uphill.
     value: ${{ steps.run.outputs.exit-code }}
   report:
     description: The path of report.md.
@@ -36,12 +36,12 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: Install Retros
+    - name: Install Uphill
       if: inputs.version != 'none'
       shell: sh
       env:
         ACTION_REF: ${{ github.action_ref }}
-        RETROS_INSTALL: ${{ runner.temp }}/retros
+        UPHILL_INSTALL: ${{ runner.temp }}/uphill
         VERSION: ${{ inputs.version }}
       run: |
         case "$VERSION:$ACTION_REF" in
@@ -49,10 +49,10 @@ runs:
           :*) version=latest ;;
           *) version=$VERSION ;;
         esac
-        RETROS_VERSION=$version sh "$GITHUB_ACTION_PATH/install.sh"
-        echo "$RETROS_INSTALL/bin" >> "$GITHUB_PATH"
+        UPHILL_VERSION=$version sh "$GITHUB_ACTION_PATH/install.sh"
+        echo "$UPHILL_INSTALL/bin" >> "$GITHUB_PATH"
 
-    - name: Run Retros
+    - name: Run Uphill
       id: run
       shell: bash
       working-directory: ${{ inputs.working-directory }}
@@ -60,7 +60,7 @@ runs:
         ARGS: ${{ inputs.args }}
         COMPARE: ${{ inputs.compare }}
       run: |
-        command=(retros)
+        command=(uphill)
 
         # `--compare` checks out the revision in a worktree, so the clone must have it.
         # actions/checkout fetches only the head commit by default.
@@ -79,7 +79,7 @@ runs:
         command+=("${args[@]}")
 
         log=$(mktemp)
-        rm -f .retros/report.md
+        rm -f .uphill/report.md
         set +e
         "${command[@]}" 2>&1 | tee "$log"
         status=${PIPESTATUS[0]}
@@ -88,7 +88,7 @@ runs:
           echo "command=${command[*]}"
           echo "exit-code=$status"
           echo "log=$log"
-          echo "report=$PWD/.retros/report.md"
+          echo "report=$PWD/.uphill/report.md"
         } >> "$GITHUB_OUTPUT"
 
     - name: Post report
@@ -102,14 +102,14 @@ runs:
         GH_TOKEN: ${{ inputs.github-token }}
         HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         LOG: ${{ steps.run.outputs.log }}
-        MARKER: '<!-- retros: ${{ inputs.working-directory }} -->'
+        MARKER: '<!-- uphill: ${{ inputs.working-directory }} -->'
         NUMBER: ${{ github.event.pull_request.number }}
         REPORT: ${{ steps.run.outputs.report }}
       run: |
         body=$(mktemp)
         {
           echo "$MARKER"
-          if [ -f "$REPORT" ]; then cat "$REPORT"; else echo '# Retros report'; fi
+          if [ -f "$REPORT" ]; then cat "$REPORT"; else echo '# Uphill report'; fi
 
           if [ "$EXIT_CODE" != 0 ]; then
             printf '\n> [!CAUTION]\n> `%s` exited with status %s.\n\n' "$COMMAND" "$EXIT_CODE"
@@ -135,7 +135,7 @@ runs:
         # The comment is a convenience, so a failure to write it warns instead of failing the job.
         comments=repos/$GITHUB_REPOSITORY/issues/$NUMBER/comments
         if ! ids=$(gh api --paginate "$comments" --jq '.[] | select(.body | startswith(env.MARKER)) | .id'); then
-          echo "::warning::Retros could not read the comments on the pull request. The job summary has the report."
+          echo "::warning::Uphill could not read the comments on the pull request. The job summary has the report."
           exit 0
         fi
 
@@ -144,9 +144,9 @@ runs:
           gh api --method PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F "body=@$body" > /dev/null
         else
           gh api "$comments" -F "body=@$body" > /dev/null
-        fi || echo "::warning::Retros could not comment on the pull request, and a pull request from a fork has a read-only token. The job summary has the report."
+        fi || echo "::warning::Uphill could not comment on the pull request, and a pull request from a fork has a read-only token. The job summary has the report."
 
-    - name: Exit with the status of retros
+    - name: Exit with the status of uphill
       if: steps.run.outputs.exit-code != '0'
       shell: sh
       env:

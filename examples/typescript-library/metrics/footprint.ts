@@ -54,7 +54,7 @@ for (const name of names) {
 }
 
 fs.rmSync(scratch, { force: true, recursive: true })
-fs.appendFileSync(process.env.RETROS_METRICS!, `${lines.join('\n')}\n`)
+fs.appendFileSync(process.env.UPHILL_METRICS!, `${lines.join('\n')}\n`)
 
 /** Writes a module that imports one export from `file`, and returns its path. */
 function consumer(name: string, file: string): string {
