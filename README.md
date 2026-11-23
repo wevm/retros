@@ -54,9 +54,6 @@ npx retros
 cargo install --locked --git https://github.com/wevm/retros retros
 ```
 
-> [!NOTE]
-> The npm packages are not published yet, so `npx retros` does not work for now.
-
 ## Usage
 
 Retros reads `retros.yaml` or `retros.toml`, at the project root or in `.agents/`, from the current directory or the nearest parent. Scripts run from the project root. Add `.retros/` to `.gitignore`.
@@ -99,21 +96,6 @@ retros log footprint bundle
 retros blame speed startup
 ```
 
-- **Metric line:** `[subject:] metric [item] value [target <value>] [note <text>]`. Quote an item or note that contains a space. A note says why, such as `alt-text /pricing fail note "hero.svg has no alt text"`, and every report shows it under its item.
-- **Values:** sizes in `B`, `kB`, `MB`, or `GB`, times in `ns`, `µs`, `ms`, or `s`, counts without a unit, and checks as `pass` or `fail`.
-- **Category keys:** `run`, `timeout` (default `10m`), `title`, and `description`. A top-level `run` and `timeout` apply to categories that set none.
-- **Setup:** a top-level `setup` command, such as `bun install --frozen-lockfile`, prepares each checkout that `--compare` and `blame` create.
-- **Metric keys:** `target`, `targets`, `weight` (default 1), `score` (`p90` by default, or `p10`, `median`, `max`, `min`, `sum`), `better`, `varies`, `title`, `description`, and `baseline`.
-- **Baselines:** `retros --update` writes each metric's `baseline` into the configuration, one line per item. Commit them, so each run reports what changed.
-- **Comparisons:** `--compare <ref>` checks out `<ref>` in a temporary Git worktree. Timings change only when the medians differ by at least 5% and 7 of 8 pairs agree.
-- **History:** `retros --note` keeps a run under `refs/notes/retros`, and `git push origin refs/notes/retros` shares it. `report.html` draws trends from the last 100 runs. `retros blame` measures commits in temporary worktrees when no baseline records the metric. Each commit runs the `run` command its own configuration declares, so a moved script still runs. `--since <ref>` limits the commits.
-- **Files:** reports go to `.retros/` in the project root.
-
-[`examples/`](examples) has a TypeScript library, a website, and a Rust API. Retros measures itself with [`.agents/retros.yaml`](.agents/retros.yaml).
-
-> [!NOTE]
-> Retros is in development. The [implementation plan](.agents/plan.md) lists each phase and its acceptance gate.
-
 ## GitHub Action
 
 The action runs `retros --compare` against the base branch of each pull request, and keeps one comment on the pull request with `report.md`. The job summary also has the report, and the job fails when `retros` fails.
@@ -136,12 +118,6 @@ jobs:
         with:
           args: --require-targets
 ```
-
-- **`args`:** more arguments for `retros`, such as a category or `--require-targets`.
-- **`compare`:** the branch, tag, or commit to compare with. It defaults to the base branch, which the action fetches when the clone lacks it. An empty value skips the comparison.
-- **`comment`:** `false` keeps the report in the job summary only.
-- **`version`:** the release to install. It defaults to the action's tag, or the latest release. `none` uses the `retros` on `PATH`.
-- **`working-directory`:** the project root.
 
 ## License
 
