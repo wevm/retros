@@ -59,6 +59,3 @@ jobs:
         run: |
           pnpm --filter uphill build
           git diff --exit-code npm/package.json
-
-      - name: Build documentation site
-        run: pnpm --filter @uphill/site build

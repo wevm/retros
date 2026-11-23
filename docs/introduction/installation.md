@@ -51,14 +51,14 @@ cargo install --locked --git https://github.com/wevm/uphill uphill
 
 Each GitHub Release has one `uphill-<target>.tar.gz` archive per target and a `sha256sums.txt` file. Each archive holds the `uphill` binary.
 
-| Target | Platform |
-| --- | --- |
-| `aarch64-apple-darwin` | macOS on Apple silicon |
-| `x86_64-apple-darwin` | macOS on Intel |
-| `aarch64-unknown-linux-gnu` | Linux on arm64 with glibc 2.28 or later |
-| `x86_64-unknown-linux-gnu` | Linux on x64 with glibc 2.28 or later |
-| `aarch64-unknown-linux-musl` | Linux on arm64, static |
-| `x86_64-unknown-linux-musl` | Linux on x64, static |
+| Target                       | Platform                                |
+| ---------------------------- | --------------------------------------- |
+| `aarch64-apple-darwin`       | macOS on Apple silicon                  |
+| `x86_64-apple-darwin`        | macOS on Intel                          |
+| `aarch64-unknown-linux-gnu`  | Linux on arm64 with glibc 2.28 or later |
+| `x86_64-unknown-linux-gnu`   | Linux on x64 with glibc 2.28 or later   |
+| `aarch64-unknown-linux-musl` | Linux on arm64, static                  |
+| `x86_64-unknown-linux-musl`  | Linux on x64, static                    |
 
 The musl builds link statically, so they also run on Alpine and on systems with a glibc older than 2.28. The install script selects them on those systems, and the npm package runs them on every Linux system.
 

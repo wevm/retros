@@ -8,7 +8,6 @@ import { defineConfig } from 'vite-plus'
 
 const ignorePatterns = [
   '**/*.md',
-  '**/*.mdx',
   '**/*.toml',
   '**/dist/**',
   'crates/**',

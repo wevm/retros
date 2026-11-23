@@ -6,14 +6,14 @@ Uphill scores each value from 0 to 100 against its target, collapses each list t
 
 Each value scores on a log-normal curve with two control points: a value at its target scores 90, and twice the target scores 50. Smaller values approach 100 and larger values approach 0. Uphill compares values, not rounded scores, so a value just past its target never passes as 90.
 
-| Value against a 5 kB target | Score | Band |
-| --- | --- | --- |
-| 2.5 kB | 99 | good |
-| 5 kB, the target | 90 | good |
-| 7.5 kB | 70 | needs work |
-| 10 kB, twice the target | 50 | needs work |
-| 20 kB, four times the target | 10 | poor |
-| 27.5 kB | 3 | poor |
+| Value against a 5 kB target  | Score | Band       |
+| ---------------------------- | ----- | ---------- |
+| 2.5 kB                       | 99    | good       |
+| 5 kB, the target             | 90    | good       |
+| 7.5 kB                       | 70    | needs work |
+| 10 kB, twice the target      | 50    | needs work |
+| 20 kB, four times the target | 10    | poor       |
+| 27.5 kB                      | 3     | poor       |
 
 ```text
   ●  99  a  2.5 kB   target 5 kB
@@ -28,13 +28,13 @@ Each value scores on a log-normal curve with two control points: a value at its 
 
 Each score falls in a band, which reports mark with a shape so the band reads without color.
 
-| Shape | Band | Scores |
-| --- | --- | --- |
-| ● | good | 90 to 100 |
-| ■ | needs work | 50 to 89 |
-| ▲ | poor | 0 to 49 |
-| – | no score | a metric without a target |
-| ✗ | failed | a category whose script failed |
+| Shape | Band       | Scores                         |
+| ----- | ---------- | ------------------------------ |
+| ●     | good       | 90 to 100                      |
+| ■     | needs work | 50 to 89                       |
+| ▲     | poor       | 0 to 49                        |
+| –     | no score   | a metric without a target      |
+| ✗     | failed     | a category whose script failed |
 
 ## Higher Is Better
 

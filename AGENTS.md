@@ -18,7 +18,7 @@ Sources: https://github.com/wevm/ondine/blob/main/AGENTS.md at `51ba8db369fd8b35
 
 ## TypeScript Conventions
 
-These apply to the documentation site, scripts, examples, the npm package, and the GitHub Action as they are added.
+These apply to scripts, examples, the npm package, and the GitHub Action as they are added.
 
 - Treat `exactOptionalPropertyTypes` and `noUncheckedIndexedAccess` as design constraints. Include `| undefined` when an optional property can explicitly receive `undefined`, and narrow indexed reads before use.
 - Use `readonly T[]` for array types. Preserve mutable arrays only when mutation is part of the contract.
@@ -170,14 +170,14 @@ Uphill is written in Rust. These conventions draw on zyzz, Ondine, oxc, ruff, an
 
 ## Writing Documentation
 
-Applies to the documentation site, the README, and other Markdown documentation. Prose Conventions also apply.
+Applies to `docs/`, the README, and other Markdown documentation. Prose Conventions also apply.
 
 ### Voice and Terms
 
 - Write for developers who maintain a project and already run tests, benchmarks, or size checks. Use Lighthouse's terms, such as score, metric, and category, without redefining them.
 - Use Uphill's own terms consistently: script, metric line, item, target, round, and comparison. Define each one once, on the page that introduces it.
 - Explain behavior through `uphill.yaml`, the metric lines a script writes, and the report that results. Leave engine internals to the pages that document them.
-- Keep guides language-neutral. When setup differs by language or ecosystem, show every one, such as in tabs for shell, TypeScript, and Rust, rather than assuming one.
+- Keep guides language-neutral. When setup differs by language or ecosystem, show every one, such as in `####` subsections for shell, TypeScript, and Rust, rather than assuming one.
 - Do not state the obvious. When a feature differs by platform, state that limit directly.
 - Do not mention other measurement tools in guides. Name them only on a Comparisons page and in migration guides.
 
@@ -192,15 +192,15 @@ Applies to the documentation site, the README, and other Markdown documentation.
 
 ### Headings
 
-- Write page titles and every heading in Title Case with fewer than four words, so they fit the sidebar and the "On this page" outline. Lowercase articles, coordinating conjunctions, and prepositions of four or fewer letters unless they begin or end the heading. Product names keep their own casing.
+- Write page titles and every heading in Title Case with fewer than four words, so they fit the documentation index and the outline GitHub shows. Lowercase articles, coordinating conjunctions, and prepositions of four or fewer letters unless they begin or end the heading. Product names keep their own casing.
 
 ### Guide Structure
 
 - Organize each guide into these `##` sections, in order:
-  - **Overview:** Introduces the feature in at most three paragraphs and ends with a basic example. Use one code block, or tabs when the example spans files or languages.
+  - **Overview:** Introduces the feature in at most three paragraphs and ends with a basic example. Use one code block, or one subsection per file or language when the example spans several.
   - **Walkthrough:** Builds one complete example step by step, from `uphill.yaml` and a script to the report.
   - **Recipes:** Lists focused tasks the feature supports, each under its own `###` heading.
-  - **More:** Links to related guides and reference pages as a group of cards, not a bulleted list.
+  - **More:** Links to related guides and reference pages, one per line, each with a short description.
 - When a guide has no recipes, hoist its sections to `##` headings between Overview and More.
 - Group guides by topic, and preserve recipe coverage when consolidating pages.
 - Write migration guides as one `##` section per pattern, each with a before-and-after pair: the other tool's setup first, then the Uphill equivalent. Highlight and comment the corresponding lines in both.
@@ -208,9 +208,9 @@ Applies to the documentation site, the README, and other Markdown documentation.
 ### Navigation
 
 - Order documentation by common tasks: getting started, writing scripts, scoring, and comparing before reference pages. Preserve this reading order instead of alphabetizing navigation.
-- Maintain three sidebar groups: Introduction, Guides, and Reference. Reference covers `uphill.yaml` keys, the metric line format, units, scoring, report formats, and CLI commands.
+- Maintain three groups in `docs/README.md`: Introduction, Guides, and Reference. Reference covers `uphill.yaml` keys, the metric line format, units, scoring, report formats, and CLI commands.
 - Give each configuration key, CLI flag, and report field its own subheading, type, description, and small usage snippet. Document defaults where applicable.
-- Until the documentation site exists, the README is the documentation. Once it exists, link to its pages from Markdown outside the site.
+- Link pages with relative paths, such as `../reference/scoring.md#curve`, so links work on GitHub and in a checkout. Link to `docs/` pages from Markdown outside it.
 
 ### Code Examples
 
@@ -281,7 +281,7 @@ Applies to documentation, comments, TSDoc, interface copy, commit messages, and 
 - The HTML report is one file with inline CSS and JavaScript and no network requests. It follows Lighthouse's report layout: a gauge per category, score bands, a grid of metrics with each value against its target, and a collapsible row per list metric with its items worst first.
 - Support light and dark schemes through `prefers-color-scheme`, and respect reduced-motion preferences.
 - Use accessible native controls. Implement keyboard activation, visible focus, disabled behavior, and accessible names alongside each control.
-- The documentation site, once it exists, writes every style with Zyzz. The HTML report embeds its own stylesheet, because it ships inside the binary as one file.
+- The HTML report embeds its own stylesheet, because it ships inside the binary as one file.
 
 ## Repository Layout
 
@@ -292,7 +292,7 @@ Applies to documentation, comments, TSDoc, interface copy, commit messages, and 
 - `npm/`: the `uphill` npm package, a pnpm workspace package built with zile from the zile template. `npm/src/bin.ts` runs the binary for the machine from `npm/binaries/<platform>-<arch>/`, which the Main workflow fills from the release archives. Its version is the release version, and `npm/version.ts` copies it into `Cargo.toml` and `Cargo.lock`. Changesets reads `.changeset/` at the repository root.
 - `install.sh`, `.github/workflows/main.yml`, and `.github/workflows/binaries.yml`: the install script, and the release. A change that users see adds a changeset with `pnpm changeset`. On `main`, the Main workflow keeps a `chore: version packages` pull request open, and merging it builds the archives with `binaries.yml`, creates the `v<version>` GitHub Release, and publishes `uphill` to npm. The changesets bot owns that branch and pull request.
 - `action.yml`: the GitHub Action, which runs `uphill --compare` on a pull request and keeps one comment with the report.
-- `site/`: the documentation site, a TanStack Start app on Cloudflare Workers styled with Zyzz. Each page is an MDX file under `site/src/content/docs/`, listed in sidebar order in `site/src/Docs.ts`, and served with a Markdown twin at the same path plus `.md`.
+- `docs/`: the documentation, one Markdown page per topic, which GitHub renders. `docs/README.md` lists the pages in reading order.
 
 ## Tooling
 
@@ -306,6 +306,5 @@ Applies to documentation, comments, TSDoc, interface copy, commit messages, and 
 - `cargo fmt --all --check` and `cargo clippy --workspace --all-targets -- -D warnings` check formatting and lints.
 - `cargo build --release` builds the release binary at `target/release/uphill`.
 - `cargo run -p uphill -- check` runs Uphill on itself with `.agents/uphill.yaml`.
-- `pnpm install` installs the TypeScript tooling. `pnpm check` formats and lints TypeScript with Vite Plus, and `pnpm check:types` checks types, including the site's.
-- `pnpm --filter @uphill/site dev` serves the documentation site on port 3000, and `pnpm --filter @uphill/site build` builds it.
+- `pnpm install` installs the TypeScript tooling. `pnpm check` formats and lints TypeScript with Vite Plus, and `pnpm check:types` checks types.
 - `pnpm --filter uphill build` builds the npm launcher with zile. `pnpm changeset` writes a changeset, a release note for the next version.

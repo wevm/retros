@@ -52,8 +52,8 @@ The branch removes accents before it replaces other characters, which adds two p
 // Normalize accented letters to their base letters before slugifying.
 export function slugify(text: string): string {
   return text
-    .normalize('NFKD') // [!code hl]
-    .replace(/[\u0300-\u036f]/g, '') // [!code hl]
+    .normalize('NFKD') 
+    .replace(/[\u0300-\u036f]/g, '') 
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
@@ -165,9 +165,7 @@ The GitHub Action compares each pull request with its base branch and posts the 
 
 ## More
 
-<Cards>
-  <Card title="GitHub Actions" to="/docs/guides/github-actions" description="Compare pull requests and keep one comment." />
-  <Card title="Baselines" to="/docs/guides/baselines" description="Record accepted sizes, counts, and checks." />
-  <Card title="Reports" to="/docs/reference/reports" description="The comparison in report.json and report.md." />
-  <Card title="CLI" to="/docs/reference/cli" description="Every flag and exit status." />
-</Cards>
+- [GitHub Actions](./github-actions.md): Compare pull requests and keep one comment.
+- [Baselines](./baselines.md): Record accepted sizes, counts, and checks.
+- [Reports](../reference/reports.md): The comparison in report.json and report.md.
+- [CLI](../reference/cli.md): Every flag and exit status.

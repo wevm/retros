@@ -8,8 +8,7 @@ Uphill reads `uphill.yaml` or `uphill.toml`, at the project root or in `.agents/
 
 Scripts run from the project root, and reports go to `.uphill/` in it. Each top-level key is a category, apart from `run`, `setup`, and `timeout`.
 
-<Tabs>
-<Tab title="YAML">
+#### YAML
 
 ```yaml title=".agents/uphill.yaml"
 # Two categories, each measured by its own script.
@@ -22,8 +21,7 @@ speed:
   import-time: { target: 20ms }
 ```
 
-</Tab>
-<Tab title="TOML">
+#### TOML
 
 ```toml title=".agents/uphill.toml"
 # Two categories, each measured by its own script.
@@ -35,9 +33,6 @@ entry-size = { target = "5kB", targets = { "chains" = "8kB" } }
 run = "bun metrics/speed.ts"
 import-time = { target = "20ms" }
 ```
-
-</Tab>
-</Tabs>
 
 ## Names
 

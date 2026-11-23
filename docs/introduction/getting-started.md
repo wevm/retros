@@ -4,7 +4,7 @@ Uphill scores a project against its own targets. Scripts measure the project, Up
 
 ## Install
 
-Uphill is one binary for macOS and Linux. [Installation](/docs/introduction/installation) lists every way to install it.
+Uphill is one binary for macOS and Linux. [Installation](./installation.md) lists every way to install it.
 
 ```sh
 # Install the latest release to ~/.uphill/bin/uphill.
@@ -83,9 +83,7 @@ uphill init
 
 ## More
 
-<Cards>
-  <Card title="Writing Scripts" to="/docs/guides/scripts" description="Write metric lines for lists, subjects, timings, and checks." />
-  <Card title="Targets" to="/docs/guides/targets" description="Set targets per item and read opportunities." />
-  <Card title="Baselines" to="/docs/guides/baselines" description="Record accepted values and gate on changes." />
-  <Card title="GitHub Actions" to="/docs/guides/github-actions" description="Compare pull requests and keep one comment." />
-</Cards>
+- [Writing Scripts](../guides/scripts.md): Write metric lines for lists, subjects, timings, and checks.
+- [Targets](../guides/targets.md): Set targets per item and read opportunities.
+- [Baselines](../guides/baselines.md): Record accepted values and gate on changes.
+- [GitHub Actions](../guides/github-actions.md): Compare pull requests and keep one comment.

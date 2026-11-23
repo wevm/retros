@@ -6,7 +6,7 @@ A baseline is the last accepted value of a metric. Uphill compares every run wit
 
 `uphill --update` writes each metric's `baseline` key into the configuration, next to its `target`. The configuration is committed, so accepting a regression or loosening a script's target is a reviewed change, like any other line of code.
 
-Baselines hold sizes, counts, checks, and the targets scripts write on their lines. These are the same on every machine. Timings differ between machines, so a baseline never holds them. The [Comparing Revisions](/docs/guides/comparing) guide compares timings instead.
+Baselines hold sizes, counts, checks, and the targets scripts write on their lines. These are the same on every machine. Timings differ between machines, so a baseline never holds them. The [Comparing Revisions](./comparing.md) guide compares timings instead.
 
 ```yaml title="uphill.yaml"
 # uphill --update wrote the baseline key.
@@ -17,7 +17,7 @@ footprint:
 
 ## Walkthrough
 
-This walkthrough uses the `pages` category from [Writing Scripts](/docs/guides/scripts), which writes `page-size` and `has-title` for each page in `dist/`.
+This walkthrough uses the `pages` category from [Writing Scripts](./scripts.md), which writes `page-size` and `has-title` for each page in `dist/`.
 
 ### Record the Values
 
@@ -148,7 +148,7 @@ footprint source-size in the baselines of uphill.yaml
 
 ### Gate in CI
 
-A CI job that runs `uphill --require-baseline` fails each pull request that changes a size, count, check, or line target without running `uphill --update`. The [GitHub Actions](/docs/guides/github-actions) guide passes it through the `args` input.
+A CI job that runs `uphill --require-baseline` fails each pull request that changes a size, count, check, or line target without running `uphill --update`. The [GitHub Actions](./github-actions.md) guide passes it through the `args` input.
 
 ```yaml title=".github/workflows/uphill.yml"
 # Fail the pull request when a value differs from its baseline.
@@ -159,9 +159,7 @@ A CI job that runs `uphill --require-baseline` fails each pull request that chan
 
 ## More
 
-<Cards>
-  <Card title="Comparing Revisions" to="/docs/guides/comparing" description="Compare timings with another revision." />
-  <Card title="Targets" to="/docs/guides/targets" description="Set targets per item and by pattern." />
-  <Card title="Configuration" to="/docs/reference/configuration" description="The baseline key and its format." />
-  <Card title="CLI" to="/docs/reference/cli" description="--update, --require-baseline, and exit status." />
-</Cards>
+- [Comparing Revisions](./comparing.md): Compare timings with another revision.
+- [Targets](./targets.md): Set targets per item and by pattern.
+- [Configuration](../reference/configuration.md): The baseline key and its format.
+- [CLI](../reference/cli.md): --update, --require-baseline, and exit status.

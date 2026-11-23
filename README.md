@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="#overview">Overview</a> · <a href="#problem">Problem</a> · <a href="#solution">Solution</a> · <a href="#install">Install</a> · <a href="#usage">Usage</a> · <a href="#github-action">GitHub Action</a>
+  <a href="#overview">Overview</a> · <a href="#problem">Problem</a> · <a href="#solution">Solution</a> · <a href="#install">Install</a> · <a href="#usage">Usage</a> · <a href="#github-action">GitHub Action</a> · <a href="docs/README.md">Documentation</a>
 </p>
 
 ## Overview
@@ -118,6 +118,10 @@ jobs:
         with:
           args: --require-targets
 ```
+
+## Documentation
+
+[`docs/`](docs/README.md) has a guide for each task, from writing scripts to comparing revisions, and a reference page for every key, flag, and report field.
 
 ## License
 

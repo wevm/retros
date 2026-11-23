@@ -182,9 +182,7 @@ footprint:
 
 ## More
 
-<Cards>
-  <Card title="Baselines" to="/docs/guides/baselines" description="Record accepted values and line targets." />
-  <Card title="Scoring" to="/docs/reference/scoring" description="The curve, the bands, and how lists collapse." />
-  <Card title="Configuration" to="/docs/reference/configuration" description="Every key a metric accepts." />
-  <Card title="Metric Lines" to="/docs/reference/metric-lines" description="Write a target on a line." />
-</Cards>
+- [Baselines](./baselines.md): Record accepted values and line targets.
+- [Scoring](../reference/scoring.md): The curve, the bands, and how lists collapse.
+- [Configuration](../reference/configuration.md): Every key a metric accepts.
+- [Metric Lines](../reference/metric-lines.md): Write a target on a line.

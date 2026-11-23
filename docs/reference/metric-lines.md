@@ -55,7 +55,7 @@ bench-time "ABI Decode (500 results)" 1.82ms
 
 - **Format:** a number with an optional unit, `pass`, or `fail`
 
-The measured value. One metric uses one kind of unit for every line. [Units](/docs/reference/units) lists every unit.
+The measured value. One metric uses one kind of unit for every line. [Units](./units.md) lists every unit.
 
 ```text
 install-size 45.6MB

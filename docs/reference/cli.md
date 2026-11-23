@@ -260,11 +260,11 @@ uphill --version
 
 ## Exit Status
 
-| Status | Meaning |
-| --- | --- |
-| 0 | Every category ran and every gate passed |
-| 1 | A category failed, or `--require-baseline` or `--require-targets` failed |
-| 2 | Uphill could not run, such as for an unknown argument, an invalid configuration, or a failed `setup` |
+| Status | Meaning                                                                                              |
+| ------ | ---------------------------------------------------------------------------------------------------- |
+| 0      | Every category ran and every gate passed                                                             |
+| 1      | A category failed, or `--require-baseline` or `--require-targets` failed                             |
+| 2      | Uphill could not run, such as for an unknown argument, an invalid configuration, or a failed `setup` |
 
 ```sh
 # Print the exit status of the last run.

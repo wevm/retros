@@ -5,7 +5,7 @@
     "changeset:publish": "zile publish:prepare --cwd npm && changeset publish && zile publish:post --cwd npm",
     "changeset:version": "changeset version && bun npm/version.ts",
     "check": "vp check --fix",
-    "check:types": "tsc && pnpm --filter @uphill/site check:types"
+    "check:types": "tsc"
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",

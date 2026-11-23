@@ -4,12 +4,12 @@ A value's unit sets its kind: a size, a time, a count, or a check. Uphill conver
 
 ## Kinds
 
-| Kind | Units | Base unit | Example |
-| --- | --- | --- | --- |
-| Size | `B`, `kB`, `MB`, `GB` | bytes | `45.6MB` |
-| Time | `ns`, `µs`, `us`, `ms`, `s` | nanoseconds | `1.82ms` |
-| Count | no unit | the number | `412` |
-| Check | `pass`, `fail` | pass or fail | `pass` |
+| Kind  | Units                       | Base unit    | Example  |
+| ----- | --------------------------- | ------------ | -------- |
+| Size  | `B`, `kB`, `MB`, `GB`       | bytes        | `45.6MB` |
+| Time  | `ns`, `µs`, `us`, `ms`, `s` | nanoseconds  | `1.82ms` |
+| Count | no unit                     | the number   | `412`    |
+| Check | `pass`, `fail`              | pass or fail | `pass`   |
 
 Units are case-sensitive, so `KB` and `Ms` are errors. A unit follows the number without a space.
 

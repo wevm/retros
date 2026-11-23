@@ -8,8 +8,7 @@ A script runs the tools a project already uses, such as its bundler, test runner
 
 Scripts can use any language. Uphill runs each `run` command through `sh -c` from the project root, the directory that holds `uphill.yaml` or `.agents/`. Standard output and standard error are logs.
 
-<Tabs>
-<Tab title="Shell">
+#### Shell
 
 ```yaml title="uphill.yaml"
 # Run the script with sh.
@@ -25,8 +24,7 @@ for page in dist/*; do
 done
 ```
 
-</Tab>
-<Tab title="TypeScript">
+#### TypeScript
 
 ```yaml title="uphill.yaml"
 # Run the script with Bun, which runs TypeScript without a build step.
@@ -45,8 +43,7 @@ for (const name of fs.readdirSync('dist')) {
 }
 ```
 
-</Tab>
-<Tab title="Rust">
+#### Rust
 
 ```yaml title="uphill.yaml"
 # Run the script as a Cargo example.
@@ -72,9 +69,6 @@ fn main() -> std::io::Result<()> {
     Ok(())
 }
 ```
-
-</Tab>
-</Tabs>
 
 ## Walkthrough
 
@@ -243,9 +237,7 @@ e2e:
 
 ## More
 
-<Cards>
-  <Card title="Targets" to="/docs/guides/targets" description="Set a target for each item and read opportunities." />
-  <Card title="Metric Lines" to="/docs/reference/metric-lines" description="The full line format and its errors." />
-  <Card title="Units" to="/docs/reference/units" description="Sizes, times, counts, and checks." />
-  <Card title="Configuration" to="/docs/reference/configuration" description="Every key in uphill.yaml and uphill.toml." />
-</Cards>
+- [Targets](./targets.md): Set a target for each item and read opportunities.
+- [Metric Lines](../reference/metric-lines.md): The full line format and its errors.
+- [Units](../reference/units.md): Sizes, times, counts, and checks.
+- [Configuration](../reference/configuration.md): Every key in uphill.yaml and uphill.toml.

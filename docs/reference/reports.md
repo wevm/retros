@@ -115,16 +115,16 @@ The version of the JSON format, which is `1`.
 
 One object per category and subject, in the order the configuration declares them.
 
-| Field | Type | Description |
-| --- | --- | --- |
-| `name` | string | The category name, such as `footprint` |
-| `title` | string | The `title` key, or the name in words |
-| `subject` | string or `null` | The subject, such as `node` |
-| `description` | string or `null` | The `description` key |
-| `score` | number or `null` | The category score, or `null` when it failed or no metric has a score |
-| `rounds` | number | How many times the script ran, when the category scored |
-| `metrics` | array | The metrics, in the order the configuration declares them, when the category scored |
-| `error` | object | The `message` and `details` of a failure, such as the end of standard error, when the category failed |
+| Field         | Type             | Description                                                                                           |
+| ------------- | ---------------- | ----------------------------------------------------------------------------------------------------- |
+| `name`        | string           | The category name, such as `footprint`                                                                |
+| `title`       | string           | The `title` key, or the name in words                                                                 |
+| `subject`     | string or `null` | The subject, such as `node`                                                                           |
+| `description` | string or `null` | The `description` key                                                                                 |
+| `score`       | number or `null` | The category score, or `null` when it failed or no metric has a score                                 |
+| `rounds`      | number           | How many times the script ran, when the category scored                                               |
+| `metrics`     | array            | The metrics, in the order the configuration declares them, when the category scored                   |
+| `error`       | object           | The `message` and `details` of a failure, such as the end of standard error, when the category failed |
 
 ```json
 {
@@ -142,22 +142,22 @@ One object per category and subject, in the order the configuration declares the
 
 Each object in `metrics` describes one metric and its items.
 
-| Field | Type | Description |
-| --- | --- | --- |
-| `name` | string | The metric name |
-| `title` | string | The `title` key, or the name in words |
-| `description` | string or `null` | The `description` key |
-| `kind` | string | `size`, `time`, `count`, or `check` |
-| `unit` | string or `null` | `B` for sizes, `ns` for times, and `null` for counts and checks |
-| `value` | number | The collapsed value, or the share of checks that pass, from 0 to 1 |
-| `item` | string or `null` | The item the roll-up selected |
-| `score` | number or `null` | The metric score, or `null` without a target |
-| `target` | number or `null` | The target of the selected item, or the total for a `sum` |
-| `note` | string or `null` | The note of a metric written without items |
-| `better` | string | `lower` or `higher` |
-| `weight` | number | The `weight` key |
-| `rollup` | string or `null` | `p90`, `p10`, `median`, `max`, `min`, or `sum`, and `null` for checks |
-| `items` | array | Each item's `name`, `value`, `target`, and `note`, worst first |
+| Field         | Type             | Description                                                           |
+| ------------- | ---------------- | --------------------------------------------------------------------- |
+| `name`        | string           | The metric name                                                       |
+| `title`       | string           | The `title` key, or the name in words                                 |
+| `description` | string or `null` | The `description` key                                                 |
+| `kind`        | string           | `size`, `time`, `count`, or `check`                                   |
+| `unit`        | string or `null` | `B` for sizes, `ns` for times, and `null` for counts and checks       |
+| `value`       | number           | The collapsed value, or the share of checks that pass, from 0 to 1    |
+| `item`        | string or `null` | The item the roll-up selected                                         |
+| `score`       | number or `null` | The metric score, or `null` without a target                          |
+| `target`      | number or `null` | The target of the selected item, or the total for a `sum`             |
+| `note`        | string or `null` | The note of a metric written without items                            |
+| `better`      | string           | `lower` or `higher`                                                   |
+| `weight`      | number           | The `weight` key                                                      |
+| `rollup`      | string or `null` | `p90`, `p10`, `median`, `max`, `min`, or `sum`, and `null` for checks |
+| `items`       | array            | Each item's `name`, `value`, `target`, and `note`, worst first        |
 
 An item's `target` is its own target, from its line or a `targets` pattern, and `null` when it uses the metric's `target`. A check item's `value` is `true` or `false`.
 

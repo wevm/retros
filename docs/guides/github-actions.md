@@ -245,9 +245,7 @@ The reports stay in `.uphill/` after the action runs, so a later step can upload
 
 ## More
 
-<Cards>
-  <Card title="Action Reference" to="/docs/reference/action" description="Every input and output." />
-  <Card title="Comparing Revisions" to="/docs/guides/comparing" description="How timings compare in pairs." />
-  <Card title="Baselines" to="/docs/guides/baselines" description="Gate on accepted values." />
-  <Card title="Installation" to="/docs/introduction/installation" description="The install script the action runs." />
-</Cards>
+- [Action Reference](../reference/action.md): Every input and output.
+- [Comparing Revisions](./comparing.md): How timings compare in pairs.
+- [Baselines](./baselines.md): Gate on accepted values.
+- [Installation](../introduction/installation.md): The install script the action runs.
