@@ -84,7 +84,7 @@ retros --compare main
 retros check
 ```
 
-- **Metric line:** `[subject:] metric [item] value [target <value>]`. Quote an item that contains a space.
+- **Metric line:** `[subject:] metric [item] value [target <value>] [note <text>]`. Quote an item or note that contains a space. A note says why, such as `alt-text /pricing fail note "hero.svg has no alt text"`, and every report shows it under its item.
 - **Values:** sizes in `B`, `kB`, `MB`, or `GB`, times in `ns`, `µs`, `ms`, or `s`, counts without a unit, and checks as `pass` or `fail`.
 - **Category keys:** `run`, `timeout` (default `10m`), `title`, and `description`. A top-level `run` and `timeout` apply to categories that set none.
 - **Setup:** a top-level `setup` command, such as `bun install --frozen-lockfile`, prepares each checkout that `--compare` creates.

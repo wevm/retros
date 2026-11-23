@@ -30,8 +30,11 @@ try {
       (response) => response.status,
       () => 0,
     )
+    const answered = status === 0 ? 'no answer' : `status ${status}`
     lines.push(
-      `status ${entry.path} ${status === entry.status ? 'pass' : 'fail'}`,
+      status === entry.status
+        ? `status ${entry.path} pass`
+        : `status ${entry.path} fail note "${answered}, expected ${entry.status}"`,
     )
   }
 

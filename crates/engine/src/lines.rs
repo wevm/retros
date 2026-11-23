@@ -3,9 +3,11 @@
 //! Each line is `metric value` or `metric item value`, with fields separated by spaces or tabs.
 //! An item that contains a space is quoted, such as `"ABI Decode (500 results)"`, and a quoted
 //! item escapes `"` and `\` with a backslash. A line may end with `target <value>` to set that
-//! measurement's own target, such as `entry-size "." 408B target 2kB`. A line may start with a
-//! subject and a colon, such as `zc: startup 0.76ms`, when one script measures several things
-//! that each get their own scores. Blank lines are ignored.
+//! measurement's own target, such as `entry-size "." 408B target 2kB`, and then with
+//! `note <text>` to say why the measurement is what it is, such as
+//! `alt-text /pricing fail note "hero.svg has no alt text"`. A line may start with a subject and
+//! a colon, such as `zc: startup 0.76ms`, when one script measures several things that each get
+//! their own scores. Blank lines are ignored.
 
 use std::borrow::Cow;
 
@@ -21,6 +23,8 @@ pub struct Line<'a> {
     pub location: Location,
     /// The metric name.
     pub metric: &'a str,
+    /// Why the measurement is what it is, such as `hero.svg has no alt text`.
+    pub note: Option<Cow<'a, str>>,
     /// The line's own target, which takes the place of the metric's target in `retros.yaml`.
     pub target: Option<Value>,
     /// The subject the measurement belongs to, such as `zc` in `zc: startup 0.76ms`.
@@ -33,8 +37,8 @@ pub struct Line<'a> {
 ///
 /// # Errors
 ///
-/// Returns the first line that is not `[subject:] metric [item] value [target <value>]`, or whose
-/// subject, name, value, or target is invalid.
+/// Returns the first line that is not `[subject:] metric [item] value [target <value>]
+/// [note <text>]`, or whose subject, name, value, target, or note is invalid.
 pub fn parse(source: &str) -> Result<Vec<Line<'_>>, Error> {
     let mut lines = Vec::new();
     let mut start = 0;
@@ -99,7 +103,31 @@ fn line<'a>(source: &'a str, start: usize, text: &'a str) -> Result<Line<'a>, Er
         _ => None,
     };
 
-    let (fields, target) = match fields.as_slice() {
+    let (fields, note) = match fields.as_slice() {
+        [rest @ .., keyword, note] if rest.len() >= 2 && keyword.text == "note" => {
+            if note.text.trim().is_empty() {
+                return Err(Error::at(
+                    Code::LineSyntax,
+                    source,
+                    note.offset,
+                    "a note must not be empty".to_owned(),
+                ));
+            }
+            (rest, Some(note))
+        }
+        [.., keyword] if fields.len() >= 3 && keyword.text == "note" => {
+            return Err(Error::at(
+                Code::LineSyntax,
+                source,
+                keyword.offset + keyword.text.len(),
+                "expected text after `note`, such as `note \"hero.svg has no alt text\"`"
+                    .to_owned(),
+            ));
+        }
+        all => (all, None),
+    };
+
+    let (fields, target) = match fields {
         [rest @ .., keyword, target] if rest.len() >= 2 && keyword.text == "target" => {
             (rest, Some(target))
         }
@@ -130,7 +158,7 @@ fn line<'a>(source: &'a str, start: usize, text: &'a str) -> Result<Line<'a>, Er
                 Code::LineSyntax,
                 source,
                 extra.offset,
-                "expected `metric [item] value [target <value>]`, found more fields. Quote an item that contains spaces"
+                "expected `metric [item] value [target <value>] [note <text>]`, found more fields. Quote an item or note that contains spaces"
                     .to_owned(),
             ));
         }
@@ -196,6 +224,7 @@ fn line<'a>(source: &'a str, start: usize, text: &'a str) -> Result<Line<'a>, Er
         item: item.map(|item| item.text.clone()),
         location: Location::of(source, metric.offset),
         metric: name,
+        note: note.map(|note| note.text.clone()),
         subject,
         target,
         value: parsed,
@@ -234,7 +263,7 @@ fn fields<'a>(source: &'a str, start: usize, text: &'a str) -> Result<Vec<Field<
                     Code::LineSyntax,
                     source,
                     offset,
-                    "unterminated or invalid quoted item. Escape only `\"` and `\\` with `\\`"
+                    "unterminated or invalid quoted field. Escape only `\"` and `\\` with `\\`"
                         .to_owned(),
                 )
             })?;
@@ -245,7 +274,7 @@ fn fields<'a>(source: &'a str, start: usize, text: &'a str) -> Result<Vec<Field<
                     Code::LineSyntax,
                     source,
                     start + (text.len() - rest.len()),
-                    "expected a space after the quoted item".to_owned(),
+                    "expected a space after the quoted field".to_owned(),
                 ));
             }
 

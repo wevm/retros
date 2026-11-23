@@ -28,6 +28,7 @@ fn parses_values_in_base_units() {
                 line: 1,
             },
             metric: "export-size",
+            note: None,
             target: None,
             subject: None,
             value: Size(
@@ -41,6 +42,7 @@ fn parses_values_in_base_units() {
                 line: 2,
             },
             metric: "bundle",
+            note: None,
             target: None,
             subject: None,
             value: Size(
@@ -54,6 +56,7 @@ fn parses_values_in_base_units() {
                 line: 3,
             },
             metric: "boot",
+            note: None,
             target: None,
             subject: None,
             value: Time(
@@ -67,6 +70,7 @@ fn parses_values_in_base_units() {
                 line: 4,
             },
             metric: "request",
+            note: None,
             target: None,
             subject: None,
             value: Time(
@@ -80,6 +84,7 @@ fn parses_values_in_base_units() {
                 line: 5,
             },
             metric: "idle",
+            note: None,
             target: None,
             subject: None,
             value: Time(
@@ -93,6 +98,7 @@ fn parses_values_in_base_units() {
                 line: 6,
             },
             metric: "retries",
+            note: None,
             target: None,
             subject: None,
             value: Count(
@@ -106,6 +112,7 @@ fn parses_values_in_base_units() {
                 line: 7,
             },
             metric: "ratio",
+            note: None,
             target: None,
             subject: None,
             value: Count(
@@ -119,6 +126,7 @@ fn parses_values_in_base_units() {
                 line: 8,
             },
             metric: "lint",
+            note: None,
             target: None,
             subject: None,
             value: Check(
@@ -146,6 +154,7 @@ fn parses_items_quotes_tabs_and_blank_lines() {
                 line: 1,
             },
             metric: "render",
+            note: None,
             target: None,
             subject: None,
             value: Time(
@@ -161,6 +170,7 @@ fn parses_items_quotes_tabs_and_blank_lines() {
                 line: 3,
             },
             metric: "render",
+            note: None,
             target: None,
             subject: None,
             value: Time(
@@ -176,6 +186,7 @@ fn parses_items_quotes_tabs_and_blank_lines() {
                 line: 5,
             },
             metric: "lint",
+            note: None,
             target: None,
             subject: None,
             value: Check(
@@ -195,25 +206,25 @@ fn rejects_malformed_lines() {
     ");
 
     insta::assert_snapshot!(error("render ABI Decode 1.82ms\n"), @"
-    [line-syntax] footprint metrics:1:19: expected `metric [item] value [target <value>]`, found more fields. Quote an item that contains spaces
+    [line-syntax] footprint metrics:1:19: expected `metric [item] value [target <value>] [note <text>]`, found more fields. Quote an item or note that contains spaces
       1 | render ABI Decode 1.82ms
         |                   ^
     ");
 
     insta::assert_snapshot!(error("render \"ABI Decode 1.82ms\n"), @r#"
-    [line-syntax] footprint metrics:1:8: unterminated or invalid quoted item. Escape only `"` and `\` with `\`
+    [line-syntax] footprint metrics:1:8: unterminated or invalid quoted field. Escape only `"` and `\` with `\`
       1 | render "ABI Decode 1.82ms
         |        ^
     "#);
 
     insta::assert_snapshot!(error("render \"ABI\"Decode 1.82ms\n"), @r#"
-    [line-syntax] footprint metrics:1:13: expected a space after the quoted item
+    [line-syntax] footprint metrics:1:13: expected a space after the quoted field
       1 | render "ABI"Decode 1.82ms
         |             ^
     "#);
 
     insta::assert_snapshot!(error("render \"bad \\n escape\" 1.82ms\n"), @r#"
-    [line-syntax] footprint metrics:1:8: unterminated or invalid quoted item. Escape only `"` and `\` with `\`
+    [line-syntax] footprint metrics:1:8: unterminated or invalid quoted field. Escape only `"` and `\` with `\`
       1 | render "bad \n escape" 1.82ms
         |        ^
     "#);
@@ -290,6 +301,61 @@ fn parses_line_targets() {
 }
 
 #[test]
+fn parses_notes_after_values_and_targets() {
+    let source = r#"alt-text /pricing fail note "hero.svg has no alt text"
+entry-size "." 408B target 2kB note "bundles every chain"
+boot 1.2ms note cold
+entry-size note 5kB
+links "note" pass note "says \"moved\""
+"#;
+
+    let lines = lines::parse(source).unwrap();
+    let notes: Vec<String> = lines
+        .iter()
+        .map(|line| {
+            format!(
+                "{} {:?} {:?} {:?} {:?}",
+                line.metric, line.item, line.value, line.target, line.note
+            )
+        })
+        .collect();
+
+    insta::assert_debug_snapshot!(notes, @r#"
+    [
+        "alt-text Some(\"/pricing\") Check(false) None Some(\"hero.svg has no alt text\")",
+        "entry-size Some(\".\") Size(408.0) Some(Size(2000.0)) Some(\"bundles every chain\")",
+        "boot None Time(1200000.0) None Some(\"cold\")",
+        "entry-size Some(\"note\") Size(5000.0) None None",
+        "links Some(\"note\") Check(true) None Some(\"says \\\"moved\\\"\")",
+    ]
+    "#);
+}
+
+#[test]
+fn rejects_invalid_notes() {
+    insta::assert_snapshot!(error("boot 1.2ms note\n"), @r#"
+    [line-syntax] footprint metrics:1:16: expected text after `note`, such as `note "hero.svg has no alt text"`
+      1 | boot 1.2ms note
+        |                ^
+    "#);
+    insta::assert_snapshot!(error("boot 1.2ms note \"\"\n"), @r#"
+    [line-syntax] footprint metrics:1:17: a note must not be empty
+      1 | boot 1.2ms note ""
+        |                 ^
+    "#);
+    insta::assert_snapshot!(error("boot 1.2ms note slow start\n"), @"
+    [line-syntax] footprint metrics:1:17: expected `metric [item] value [target <value>] [note <text>]`, found more fields. Quote an item or note that contains spaces
+      1 | boot 1.2ms note slow start
+        |                 ^
+    ");
+    insta::assert_snapshot!(error("boot 1.2ms note \"cold\" target 1ms\n"), @r#"
+    [line-syntax] footprint metrics:1:17: expected `metric [item] value [target <value>] [note <text>]`, found more fields. Quote an item or note that contains spaces
+      1 | boot 1.2ms note "cold" target 1ms
+        |                 ^
+    "#);
+}
+
+#[test]
 fn rejects_invalid_line_targets() {
     insta::assert_snapshot!(error("entry-size \".\" 408B target\n"), @r#"
     [line-syntax] footprint metrics:1:27: expected a value after `target`
@@ -360,7 +426,7 @@ fn rejects_invalid_subjects() {
         | ^
     ");
     insta::assert_snapshot!(error("z c: startup 1ms\n"), @"
-    [line-syntax] footprint metrics:1:14: expected `metric [item] value [target <value>]`, found more fields. Quote an item that contains spaces
+    [line-syntax] footprint metrics:1:14: expected `metric [item] value [target <value>] [note <text>]`, found more fields. Quote an item or note that contains spaces
       1 | z c: startup 1ms
         |              ^
     ");

@@ -254,24 +254,42 @@ pub fn terminal(category: &CategoryReport) -> String {
             target(metric)
         );
         let _ = writeln!(out, "{}", line.trim_end());
+        // The terminal explains misses: a note sits under a metric or item that misses its
+        // target, in the column of its value or item name.
+        if let Some(note) = metric.note.as_ref().filter(|_| falls_short(metric)) {
+            let _ = writeln!(out, "  {:5}  {:name_width$}  {note}", "", "");
+        }
 
-        let items: Vec<(String, String)> = worst(metric)
+        let items: Vec<(String, String, Option<&str>)> = worst(metric)
             .into_iter()
             .map(|item| {
                 let target = item
                     .target
                     .map(|target| format!("  target {}", format::value(target)))
                     .unwrap_or_default();
-                (format::value(item.value), format!("{}{target}", item.name))
+                (
+                    format::value(item.value),
+                    format!("{}{target}", item.name),
+                    item.note
+                        .as_deref()
+                        .filter(|_| misses_target(item, metric) == Some(true)),
+                )
             })
             .collect();
-        let item_width = width(items.iter().map(|(value, _)| value.as_str()));
-        for (value, name) in items {
+        let item_width = width(items.iter().map(|(value, _, _)| value.as_str()));
+        for (value, name, note) in items {
             let _ = writeln!(
                 out,
                 "  {:5}  {:name_width$}  {value:item_width$}  {name}",
                 "", ""
             );
+            if let Some(note) = note {
+                let _ = writeln!(
+                    out,
+                    "  {:5}  {:name_width$}  {:item_width$}  {note}",
+                    "", "", ""
+                );
+            }
         }
     }
 
@@ -648,15 +666,22 @@ pub fn markdown(report: &Report) -> String {
             );
         }
 
-        out.push_str("| Score | Metric | Value | Target |\n| --- | --- | --- | --- |\n");
+        // A Note column only when a metric has a note.
+        let noted = scored.metrics.iter().any(|metric| metric.note.is_some());
+        out.push_str(if noted {
+            "| Score | Metric | Value | Target | Note |\n| --- | --- | --- | --- | --- |\n"
+        } else {
+            "| Score | Metric | Value | Target |\n| --- | --- | --- | --- |\n"
+        });
         for metric in &scored.metrics {
             let _ = writeln!(
                 out,
-                "| {} | {} | {} | {} |",
+                "| {} | {} | {} | {} |{}",
                 compact(metric.score),
                 escape(&metric.metric.title()),
                 escape(&value(metric)),
-                metric.target.map(format::value).unwrap_or_default()
+                metric.target.map(format::value).unwrap_or_default(),
+                note_cell(noted, metric.note.as_deref())
             );
         }
 
@@ -671,21 +696,28 @@ pub fn markdown(report: &Report) -> String {
             } else {
                 "Worst items"
             };
+            let noted = items.iter().any(|item| item.note.is_some());
             let _ = write!(
                 out,
-                "\n{heading} of {}:\n\n| Item | Value | Target |\n| --- | --- | --- |\n",
-                metric.metric.title()
+                "\n{heading} of {}:\n\n{}",
+                metric.metric.title(),
+                if noted {
+                    "| Item | Value | Target | Note |\n| --- | --- | --- | --- |\n"
+                } else {
+                    "| Item | Value | Target |\n| --- | --- | --- |\n"
+                }
             );
             for item in items {
                 let _ = writeln!(
                     out,
-                    "| {} | {} | {} |",
+                    "| {} | {} | {} |{}",
                     escape(&item.name),
                     format::value(item.value),
                     item.target
                         .or(metric.metric.target)
                         .map(format::value)
-                        .unwrap_or_default()
+                        .unwrap_or_default(),
+                    note_cell(noted, item.note.as_deref())
                 );
             }
         }
@@ -973,6 +1005,47 @@ pub(crate) fn target(metric: &MetricScore) -> String {
     parts.join(", ")
 }
 
+/// Returns a Markdown table's Note cell, such as ` hero.svg has no alt text |`, or nothing for a
+/// table without a Note column.
+fn note_cell(noted: bool, note: Option<&str>) -> String {
+    if noted {
+        format!(" {} |", escape(note.unwrap_or_default()))
+    } else {
+        String::new()
+    }
+}
+
+/// Returns whether an item misses its target: a check that fails, or a value past its own target.
+/// `None` for a value without a target.
+pub(crate) fn misses_target(item: &score::Item, metric: &MetricScore) -> Option<bool> {
+    match item.value {
+        Value::Check(passed) => Some(!passed),
+        value => {
+            let target = item.target.or(metric.metric.target)?.amount()?;
+            let amount = value.amount()?;
+            Some(match metric.metric.better {
+                Better::Lower => amount > target,
+                Better::Higher => amount < target,
+            })
+        }
+    }
+}
+
+/// Returns whether a metric written without items misses its target: a check that fails, or a
+/// value past its target.
+fn falls_short(metric: &MetricScore) -> bool {
+    if metric.kind == Kind::Check {
+        return metric.value < 1.0;
+    }
+    metric
+        .target
+        .and_then(Value::amount)
+        .is_some_and(|target| match metric.metric.better {
+            Better::Higher => metric.value < target,
+            Better::Lower => metric.value > target,
+        })
+}
+
 /// Returns the items a report lists: the worst numbers of a list, or the failed checks.
 fn worst(metric: &MetricScore) -> Vec<&score::Item> {
     metric
@@ -995,6 +1068,7 @@ fn metric_json(metric: &MetricScore) -> Json {
             ("name", Json::String(item.name.clone())),
             ("value", value_json(item.value)),
             ("target", item.target.map_or(Json::Null, value_json)),
+            ("note", optional(item.note.as_deref())),
         ])
     });
 
@@ -1011,6 +1085,7 @@ fn metric_json(metric: &MetricScore) -> Json {
         ("item", optional(metric.at.as_deref())),
         ("score", score_json(metric.score)),
         ("target", metric.target.map_or(Json::Null, value_json)),
+        ("note", optional(metric.note.as_deref())),
         (
             "better",
             Json::String(

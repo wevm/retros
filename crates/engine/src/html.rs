@@ -11,7 +11,7 @@ use crate::baseline::{Change, Direction};
 use crate::config::Better;
 use crate::format;
 use crate::report::{self, CategoryReport, Report};
-use crate::score::{CategoryScore, Item, MetricScore};
+use crate::score::{CategoryScore, MetricScore};
 use crate::value::{Kind, Value};
 
 /// How many items of a list the page shows under its metric, worst first.
@@ -304,7 +304,8 @@ fn metrics(out: &mut String, scored: &CategoryScore, id: &str) {
 }
 
 /// Writes one metric of the grid: its band, title, and score, its value in its band's color, its
-/// value against its target, and its description, which shows in the expanded view.
+/// value against its target, its line's note, and its description, which shows in the expanded
+/// view.
 fn card(out: &mut String, metric: &MetricScore) {
     let band = band_class(metric.score);
     let _ = write!(
@@ -350,6 +351,9 @@ fn card(out: &mut String, metric: &MetricScore) {
         (_, None) => "No target".to_owned(),
     };
     let _ = write!(out, "<div class=\"metric-foot\">{}</div>", escape(&goal));
+    if let Some(note) = &metric.note {
+        let _ = write!(out, "<p class=\"why\">{}</p>", inline(note));
+    }
 
     if let Some(description) = &metric.metric.description {
         let _ = write!(
@@ -387,7 +391,7 @@ fn lists(out: &mut String, scored: &CategoryScore) {
             let judged: Vec<bool> = metric
                 .items
                 .iter()
-                .filter_map(|item| missed(item, metric))
+                .filter_map(|item| report::misses_target(item, metric))
                 .collect();
             !judged.is_empty() && !judged.contains(&true)
         });
@@ -420,7 +424,7 @@ fn audit(out: &mut String, metric: &MetricScore) {
     let judged: Vec<bool> = metric
         .items
         .iter()
-        .filter_map(|item| missed(item, metric))
+        .filter_map(|item| report::misses_target(item, metric))
         .collect();
     let misses = judged.iter().filter(|missed| **missed).count();
     let check = metric.kind == Kind::Check;
@@ -470,7 +474,10 @@ fn audit(out: &mut String, metric: &MetricScore) {
                 escape(&format::value(value))
             ),
         };
-        let _ = writeln!(out, "<tr><td>{}</td>{cells}</tr>", escape(&item.name));
+        let note = item.note.as_deref().map_or_else(String::new, |note| {
+            format!("<div class=\"why\">{}</div>", inline(note))
+        });
+        let _ = writeln!(out, "<tr><td>{}{note}</td>{cells}</tr>", escape(&item.name));
     }
     out.push_str("</tbody>\n</table></div>\n");
 
@@ -482,22 +489,6 @@ fn audit(out: &mut String, metric: &MetricScore) {
         );
     }
     out.push_str("</details></li>\n");
-}
-
-/// Returns whether an item misses its target: a check that fails, or a value past its own target.
-/// `None` for a value without a target.
-fn missed(item: &Item, metric: &MetricScore) -> Option<bool> {
-    match item.value {
-        Value::Check(passed) => Some(!passed),
-        value => {
-            let target = item.target.or(metric.metric.target)?.amount()?;
-            let amount = value.amount()?;
-            Some(match metric.metric.better {
-                Better::Lower => amount > target,
-                Better::Higher => amount < target,
-            })
-        }
-    }
 }
 
 /// Renders a value against its target on a bar of the three score bands. Where lower is better,
@@ -700,6 +691,7 @@ th{font-weight:600}
 .ratio>span{display:block;height:100%;background:var(--good)}
 .metric-foot{font-size:13px;color:var(--muted)}
 .metric-description{display:none;margin:8px 0 0;font-size:14px;color:var(--muted)}
+.why{margin:4px 0 0;font-size:13px;color:var(--muted);overflow-wrap:anywhere}
 .category.expanded .metric-description{display:block}
 code{font:13px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--soft);padding:1px 4px;border-radius:4px}
 .shape{display:inline-block;flex:none;width:12px;height:12px;background:var(--none);border-radius:50%}

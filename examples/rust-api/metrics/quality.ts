@@ -2,7 +2,7 @@
  * Runs Cargo's own tools and writes what they report: clippy's warnings in each source file, the
  * calls clippy's restriction lints find that can panic, rustfmt's verdict on each file, and
  * whether each test passes. A failing check is a measurement, so the script still exits with
- * status 0.
+ * status 0. A file clippy flags carries its first warning as the note.
  *
  * @module
  */
@@ -37,19 +37,29 @@ const warnings = run('cargo', [
   .filter((line) => line.startsWith('{'))
   .map((line) => JSON.parse(line))
   .filter((message) => message.reason === 'compiler-message')
-  .map((message) => ({
-    code: message.message.code?.code as string | undefined,
-    file: message.message.spans.find(
+  .map((message) => {
+    const span = message.message.spans.find(
       (span: { is_primary: boolean }) => span.is_primary,
-    )?.file_name as string | undefined,
-  }))
+    )
+    return {
+      code: message.message.code?.code as string | undefined,
+      file: span?.file_name as string | undefined,
+      line: span?.line_start as number | undefined,
+      text: message.message.message as string,
+    }
+  })
   .filter((warning) => warning.file)
 
 for (const file of sources) {
-  const failed = warnings.some(
+  const warning = warnings.find(
     (warning) => warning.file === file && !panics.includes(warning.code!),
   )
-  lines.push(`clippy ${file} ${failed ? 'fail' : 'pass'}`)
+  const note = `line ${warning?.line}: ${warning?.text}`
+    .replaceAll('\\', '\\\\')
+    .replaceAll('"', '\\"')
+  lines.push(
+    warning ? `clippy ${file} fail note "${note}"` : `clippy ${file} pass`,
+  )
 }
 lines.push(
   `panic-sites ${warnings.filter((warning) => panics.includes(warning.code!)).length}`,

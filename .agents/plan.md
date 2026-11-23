@@ -11,7 +11,7 @@ Hill climbing is a loop, and every part of Retros serves one step of it. A perso
 | Measure | What is the project like now? | Scripts write metric lines. Retros runs them and repeats timings. | Done |
 | Score | How far is it from its targets? | Each item scores on Lighthouse's curve against its own target. Metrics roll up into categories. | Done |
 | Compare | What did this change move? | Each metric's `baseline` holds the accepted sizes, counts, and checks. Timings compare in interleaved pairs on one machine. | Done, CI runner check in Phase 6 |
-| Next step | What should change next? | Opportunities rank changes by the category points they add. Notes say why an item misses. | Opportunities done, notes in Phase 7 |
+| Next step | What should change next? | Opportunities rank changes by the category points they add. Notes say why an item misses. | Done |
 | Gate | Can this change land? | `--require-baseline` fails on any change since the baselines, and `--require-targets` fails on a missed target. | Done |
 | Remember | Where has the project been, and what moved it? | Baselines in Git, a history of runs, and metric blame. | Baselines done, history in Phase 9 |
 
@@ -26,7 +26,7 @@ Retros keeps Lighthouse's scoring and depth, and replaces its fixed browser gath
 | Audit details, such as each image without alt text | The metric's items, worst first |
 | The p10 and median control points of an audit | The target and twice the target |
 | Opportunities with estimated savings | Opportunities with the category points they add |
-| Audit descriptions and help text | Notes on metric lines (Phase 7) |
+| Audit descriptions and help text | Notes on metric lines |
 | Passed audits | Metrics at or better than their targets |
 | Lighthouse CI assertions | `--require-targets` and `--require-baseline` |
 | Chrome traces and DevTools protocol gatherers | Project scripts in any language, which can run Lighthouse itself |
@@ -50,7 +50,7 @@ Retros keeps Lighthouse's scoring and depth, and replaces its fixed browser gath
 2. **Scripts measure with existing tools, Retros scores.** Scripts run the tools a project already uses, such as Lighthouse, test runners, type checkers, linters, formatters, and benchmark harnesses, and turn their output into metric lines. A script measures a value itself only when no tool reports it. Retros has no built-in measures until the same script recurs across projects, and scripts remain the escape hatch after that. Decided 2026-11-22, with the preference for existing tools added the same day.
 3. **YAML or TOML configuration.** A project writes `retros.yaml` or `retros.toml`, and both parse into one tree of nodes with byte offsets, so every rule and error is shared and errors keep their line and column. YAML is the format most CI and agent configuration uses, and TOML is what Cargo users know. yaml-rust2's event parser adds four crates. Retros writes baselines into either format in place. Decided 2026-11-23.
 4. **Metrics go to a file.** Scripts append lines to the file at `$RETROS_METRICS`, not to standard output. Tools that scripts call print to standard output, and a standard output protocol lets any tool inject a metric. GitHub Actions moved from standard output commands to `$GITHUB_OUTPUT` for the same reason. Decided 2026-11-22.
-5. **One line per measurement.** The format is `metric [item] value [target <value>]`. An item with a space is quoted.
+5. **One line per measurement.** The format is `metric [item] value [target <value>] [note <text>]`. An item or note with a space is quoted.
 6. **One target, scored like Lighthouse.** A target is a requirement the project must meet. A value at its target scores 90, twice the target scores 50, and four times the target scores 10. When higher is better, half the target scores 50. Lighthouse's p10 control point becomes the target and its median becomes twice the target. There is no overall score. Decided 2026-11-22, replacing the `target` and `limit` pair.
 7. **Targets are contextual.** A target in `retros.yaml` is the metric's default. A script that knows an item needs a different requirement writes the target on the line: a root entry point that bundles the whole library gets a larger target than a subpath, and a health endpoint gets a smaller one than a search endpoint. Each item is scored against its own target, and a list ranks its items by how far past their own targets they are, so a large item that meets a large target never hides a small item that misses a small one. When the project disagrees with a script, `targets` in `retros.yaml` sets targets by item pattern, such as `"viem/chains/*" = "1kB"`, and has the final say. A list where some items have a target and others do not, with no default, is an error. Decided 2026-11-22, with patterns added the same day.
 8. **Exact metrics and line targets have baselines, timings are compared.** Each metric's `baseline` records sizes, counts, and checks, which are the same on every machine, and the targets scripts set on their lines. Baselines are committed and reviewed like code, so accepting a regression or loosening a script's target is a visible change in review. Timings differ between machines, so their values are never recorded and compare only within one run on one machine. Decided 2026-11-22, with baselines moved into the configuration on 2026-11-23 (decision 21).
@@ -69,6 +69,7 @@ Retros keeps Lighthouse's scoring and depth, and replaces its fixed browser gath
 21. **Baselines live in the configuration.** Each metric's `baseline` key holds what `retros --update` accepted, next to its `target`, so one file holds a metric's requirement and its last accepted value. Retros edits the file in place and keeps its comments and formatting. A baseline with items or subjects takes one line per entry, so a change shows as one line in a diff. When an edit would change anything else, Retros writes nothing. This replaces `retros.lock`. Decided 2026-11-23.
 22. **`--compare` adds to a run.** `retros --compare <ref>` measures `<ref>` in a temporary Git worktree with this checkout's categories and commands. Timings run 8 interleaved pairs, alternating which side runs first. Exact metrics compare with `<ref>`'s baselines, or with its run when it has none. The gates keep their meaning. Decided 2026-11-23.
 23. **`setup`.** A top-level `setup` command, such as `bun install --frozen-lockfile`, runs once in each checkout Retros creates, with the top-level `timeout`. The current checkout is assumed ready. A failed setup stops the run with status 2, and `setup` is no longer a category name. Decided 2026-11-23.
+24. **Notes.** A line may end with `note <text>`, after any target, such as `note "hero.svg has no alt text"`. Scripts take the note from the tool that found the miss. Notes come from the first round, stay out of baselines, and show under their item in every report. Decided 2026-11-23.
 
 ## The Contract
 
@@ -89,7 +90,7 @@ speed:
   import-time: { target: 20ms }
 ```
 
-The script appends lines to the file at `$RETROS_METRICS`, each `[subject:] metric [item] value [target <value>]`. The values below are viem's from the earlier applied metrics trial, and the line target is an example:
+The script appends lines to the file at `$RETROS_METRICS`, each `[subject:] metric [item] value [target <value>] [note <text>]`. The values below are viem's from the earlier applied metrics trial, and the line target is an example:
 
 ```text
 install-size 45.6MB
@@ -241,9 +242,9 @@ Compare timings honestly between two revisions, and fail CI on missed targets.
 
 Explain each miss, and write the report people open.
 
-- [ ] Notes: a line can say why an item misses, such as `alt-text /pricing fail note "hero.svg has no alt text"`. Notes appear under their items in every report. The syntax is decided at the start of this phase.
+- [x] Notes: a line can say why an item misses, such as `alt-text /pricing fail note "hero.svg has no alt text"`. Notes appear under their items in every report (decision 24). The examples write the reasons their tools give: Lighthouse audit titles, oxlint and TypeScript messages, uncovered lines, and the status a request got.
 - [x] Metric descriptions in reports, from the `description` key (decision 18).
-- [x] One self-contained `.retros/report.html`: a comparison table and one tab per subject, a gauge per category, score bands, opportunities, and changes. Each category shows its metrics as a grid, each value on a bar against its target, descriptions behind Expand view, and a collapsible row per list with its items worst first against their targets. Notes join the items once they exist.
+- [x] One self-contained `.retros/report.html`: a comparison table and one tab per subject, a gauge per category, score bands, opportunities, and changes. Each category shows its metrics as a grid, each value on a bar against its target, descriptions behind Expand view, and a collapsible row per list with its items worst first against their targets and their notes.
 - [x] Titles for categories and metrics, from the `title` key (decision 20).
 - [x] Light and dark schemes, phone layout, keyboard access to the tabs, and reduced motion.
 

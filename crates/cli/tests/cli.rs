@@ -243,13 +243,16 @@ fn scores_every_category_and_writes_reports() {
     insta::assert_snapshot!(stdout(&output), @"
     ▲  43  footprint
       ▲   3  bundle       27.5 kB                   target 5 kB
+                          includes all of lodash
       ■  58  export-size  p90 9 kB (viem/op-stack)  target 5 kB
                           10 kB  viem/chains
+                                 bundles every chain definition
                           9 kB   viem/op-stack
                           8 kB   viem/utils
           –  modules      412
       ■  67  links        2 of 3 pass
                           fail  about.html
+                                links to /team, which is gone
 
     ■  75  speed  median of 5 rounds
       ▲  34  render      p90 5 ms (parse)  target 2 ms
@@ -292,6 +295,7 @@ fn scores_every_category_and_writes_reports() {
               "item": null,
               "score": 3,
               "target": 5000,
+              "note": "includes all of lodash",
               "better": "lower",
               "weight": 1,
               "rollup": "p90",
@@ -307,6 +311,7 @@ fn scores_every_category_and_writes_reports() {
               "item": "viem/op-stack",
               "score": 58,
               "target": 5000,
+              "note": null,
               "better": "lower",
               "weight": 1,
               "rollup": "p90",
@@ -314,52 +319,62 @@ fn scores_every_category_and_writes_reports() {
                 {
                   "name": "viem/chains",
                   "value": 10000,
-                  "target": null
+                  "target": null,
+                  "note": "bundles every chain definition"
                 },
                 {
                   "name": "viem/op-stack",
                   "value": 9000,
-                  "target": null
+                  "target": null,
+                  "note": null
                 },
                 {
                   "name": "viem/utils",
                   "value": 8000,
-                  "target": null
+                  "target": null,
+                  "note": null
                 },
                 {
                   "name": "viem/zksync",
                   "value": 7000,
-                  "target": null
+                  "target": null,
+                  "note": null
                 },
                 {
                   "name": "viem/window",
                   "value": 6000,
-                  "target": null
+                  "target": null,
+                  "note": null
                 },
                 {
                   "name": "viem/siwe",
                   "value": 5000,
-                  "target": null
+                  "target": null,
+                  "note": null
                 },
                 {
                   "name": "viem/ens",
                   "value": 4000,
-                  "target": null
+                  "target": null,
+                  "note": null
                 },
                 {
                   "name": "viem/actions",
                   "value": 3000,
-                  "target": null
+                  "target": null,
+                  "note": null
                 },
                 {
                   "name": "viem/accounts",
                   "value": 2000,
-                  "target": null
+                  "target": null,
+                  "note": null
                 },
                 {
                   "name": "viem",
                   "value": 1000,
-                  "target": null
+                  "target": null,
+                  "note": null
                 }
               ]
             },
@@ -373,6 +388,7 @@ fn scores_every_category_and_writes_reports() {
               "item": null,
               "score": null,
               "target": null,
+              "note": null,
               "better": "lower",
               "weight": 1,
               "rollup": "p90",
@@ -388,6 +404,7 @@ fn scores_every_category_and_writes_reports() {
               "item": null,
               "score": 67,
               "target": null,
+              "note": null,
               "better": "lower",
               "weight": 1,
               "rollup": null,
@@ -395,17 +412,20 @@ fn scores_every_category_and_writes_reports() {
                 {
                   "name": "about.html",
                   "value": false,
-                  "target": null
+                  "target": null,
+                  "note": "links to /team, which is gone"
                 },
                 {
                   "name": "index.html",
                   "value": true,
-                  "target": null
+                  "target": null,
+                  "note": null
                 },
                 {
                   "name": "blog/first post.html",
                   "value": true,
-                  "target": null
+                  "target": null,
+                  "note": null
                 }
               ]
             }
@@ -429,6 +449,7 @@ fn scores_every_category_and_writes_reports() {
               "item": "parse",
               "score": 34,
               "target": 2000000,
+              "note": null,
               "better": "lower",
               "weight": 1,
               "rollup": "p90",
@@ -436,12 +457,14 @@ fn scores_every_category_and_writes_reports() {
                 {
                   "name": "parse",
                   "value": 5000000,
-                  "target": null
+                  "target": null,
+                  "note": null
                 },
                 {
                   "name": "encode",
                   "value": 2000000,
-                  "target": null
+                  "target": null,
+                  "note": "reuses one buffer"
                 }
               ]
             },
@@ -455,6 +478,7 @@ fn scores_every_category_and_writes_reports() {
               "item": null,
               "score": 96,
               "target": 2000,
+              "note": null,
               "better": "higher",
               "weight": 2,
               "rollup": "p10",
@@ -541,26 +565,26 @@ fn scores_every_category_and_writes_reports() {
 
     ## Footprint
 
-    | Score | Metric | Value | Target |
-    | --- | --- | --- | --- |
-    | ▲ 3 | Bundle | 27.5 kB | 5 kB |
-    | ■ 58 | Export size | p90 9 kB (viem/op-stack) | 5 kB |
-    | – | Modules | 412 |  |
-    | ■ 67 | Links | 2 of 3 pass |  |
+    | Score | Metric | Value | Target | Note |
+    | --- | --- | --- | --- | --- |
+    | ▲ 3 | Bundle | 27.5 kB | 5 kB | includes all of lodash |
+    | ■ 58 | Export size | p90 9 kB (viem/op-stack) | 5 kB |  |
+    | – | Modules | 412 |  |  |
+    | ■ 67 | Links | 2 of 3 pass |  |  |
 
     Worst items of Export size:
 
-    | Item | Value | Target |
-    | --- | --- | --- |
-    | viem/chains | 10 kB | 5 kB |
-    | viem/op-stack | 9 kB | 5 kB |
-    | viem/utils | 8 kB | 5 kB |
+    | Item | Value | Target | Note |
+    | --- | --- | --- | --- |
+    | viem/chains | 10 kB | 5 kB | bundles every chain definition |
+    | viem/op-stack | 9 kB | 5 kB |  |
+    | viem/utils | 8 kB | 5 kB |  |
 
     Failed items of Links:
 
-    | Item | Value | Target |
-    | --- | --- | --- |
-    | about.html | fail |  |
+    | Item | Value | Target | Note |
+    | --- | --- | --- | --- |
+    | about.html | fail |  | links to /team, which is gone |
 
     ## Speed
 
@@ -573,10 +597,10 @@ fn scores_every_category_and_writes_reports() {
 
     Worst items of Render:
 
-    | Item | Value | Target |
-    | --- | --- | --- |
-    | parse | 5 ms | 2 ms |
-    | encode | 2 ms | 2 ms |
+    | Item | Value | Target | Note |
+    | --- | --- | --- | --- |
+    | parse | 5 ms | 2 ms |  |
+    | encode | 2 ms | 2 ms | reuses one buffer |
     ");
 }
 
@@ -591,13 +615,16 @@ fn scores_one_category_from_a_subdirectory() {
     insta::assert_snapshot!(stdout(&output), @"
     ▲  43  footprint
       ▲   3  bundle       27.5 kB                   target 5 kB
+                          includes all of lodash
       ■  58  export-size  p90 9 kB (viem/op-stack)  target 5 kB
                           10 kB  viem/chains
+                                 bundles every chain definition
                           9 kB   viem/op-stack
                           8 kB   viem/utils
           –  modules      412
       ■  67  links        2 of 3 pass
                           fail  about.html
+                                links to /team, which is gone
 
     Opportunities
       +29  footprint  bundle                     27.5 kB → 5 kB
@@ -774,8 +801,10 @@ Wrote .retros/report.json, .retros/report.md, .retros/report.html
     insta::assert_snapshot!(stdout(&gated), @"
     ■  54  footprint
       ▲   3  bundle       27.5 kB                   target 5 kB
+                          includes all of lodash
       ■  58  export-size  p90 9 kB (viem/op-stack)  target 5 kB
                           12 kB  viem/chains
+                                 bundles every chain definition
                           9 kB   viem/op-stack
                           8 kB   viem/utils
           –  modules      412

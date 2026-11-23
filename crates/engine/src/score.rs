@@ -47,6 +47,8 @@ pub struct MetricScore {
     pub line_target: Option<Value>,
     /// The metric's configuration.
     pub metric: Metric,
+    /// The note the line sets, for a metric written without items.
+    pub note: Option<String>,
     /// The score from 0 to 100. A check always has one, and other metrics have one when every
     /// measurement has a target.
     pub score: Option<u8>,
@@ -62,6 +64,8 @@ pub struct MetricScore {
 pub struct Item {
     /// The item name, such as `viem/chains`.
     pub name: String,
+    /// Why the item is what it is, from its line in the first round.
+    pub note: Option<String>,
     /// The item's own target instead of the metric's default: from the first pattern in
     /// `targets` that matches it, or else from its line.
     pub target: Option<Value>,
@@ -91,6 +95,7 @@ pub struct Opportunity {
 #[derive(Clone, Debug)]
 struct Measure {
     name: Option<String>,
+    note: Option<String>,
     own: Option<Value>,
     target: Option<f64>,
     value: Value,
@@ -333,16 +338,16 @@ fn metric(metric: &Metric, rounds: &[Vec<Line<'_>>]) -> Option<MetricScore> {
 
             Measure {
                 name: line.item.as_deref().map(str::to_owned),
+                note: line.note.as_deref().map(str::to_owned),
                 own,
                 target: own.and_then(Value::amount).or(default),
                 value,
             }
         })
         .collect();
-    let line_target = lines
-        .first()
-        .filter(|line| line.item.is_none())
-        .and_then(|line| line.target);
+    let unlisted = lines.first().filter(|line| line.item.is_none());
+    let line_target = unlisted.and_then(|line| line.target);
+    let note = unlisted.and_then(|line| line.note.as_deref().map(str::to_owned));
 
     let evaluated = evaluate(metric, kind, &measures);
     let at = evaluated
@@ -370,6 +375,7 @@ fn metric(metric: &Metric, rounds: &[Vec<Line<'_>>]) -> Option<MetricScore> {
             .filter_map(|measure| {
                 Some(Item {
                     name: measure.name?,
+                    note: measure.note,
                     target: measure.own,
                     value: measure.value,
                 })
@@ -378,6 +384,7 @@ fn metric(metric: &Metric, rounds: &[Vec<Line<'_>>]) -> Option<MetricScore> {
         kind,
         line_target,
         metric: metric.clone(),
+        note,
         score: evaluated.score,
         target: evaluated.target.map(|target| Value::of(kind, target)),
         value: evaluated.value,
@@ -461,6 +468,7 @@ fn measures(metric: &MetricScore) -> Vec<Measure> {
         };
         return vec![Measure {
             name: None,
+            note: None,
             own: metric.line_target,
             target: metric.line_target.and_then(Value::amount).or(default),
             value,
@@ -472,6 +480,7 @@ fn measures(metric: &MetricScore) -> Vec<Measure> {
         .iter()
         .map(|item| Measure {
             name: Some(item.name.clone()),
+            note: None,
             own: item.target,
             target: item.target.and_then(Value::amount).or(default),
             value: item.value,
