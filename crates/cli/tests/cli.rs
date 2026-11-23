@@ -338,6 +338,7 @@ fn scores_every_category_and_writes_reports() {
               "item": null,
               "score": 3,
               "target": 5000,
+              "default": 5000,
               "note": "includes all of lodash",
               "better": "lower",
               "weight": 1,
@@ -354,6 +355,7 @@ fn scores_every_category_and_writes_reports() {
               "item": "viem/op-stack",
               "score": 57,
               "target": 5000,
+              "default": 5000,
               "note": null,
               "better": "lower",
               "weight": 1,
@@ -431,6 +433,7 @@ fn scores_every_category_and_writes_reports() {
               "item": null,
               "score": null,
               "target": null,
+              "default": null,
               "note": null,
               "better": "lower",
               "weight": 1,
@@ -447,6 +450,7 @@ fn scores_every_category_and_writes_reports() {
               "item": null,
               "score": 67,
               "target": null,
+              "default": null,
               "note": null,
               "better": "lower",
               "weight": 1,
@@ -492,6 +496,7 @@ fn scores_every_category_and_writes_reports() {
               "item": "parse",
               "score": 33,
               "target": 2000000,
+              "default": 2000000,
               "note": null,
               "better": "lower",
               "weight": 1,
@@ -521,6 +526,7 @@ fn scores_every_category_and_writes_reports() {
               "item": null,
               "score": 96,
               "target": 2000,
+              "default": 2000,
               "note": null,
               "better": "higher",
               "weight": 2,
@@ -1017,6 +1023,16 @@ fn subjects_share_one_run_and_score_on_their_own() {
     | ● 100 | Install size | 4 MB | 10 MB |
     | ● 97 | Wasm size | 250 kB | 350 kB |
     ");
+
+    // ts's peak memory is scored against its line target, and `default` keeps the metric's target.
+    let json = fs::read_to_string(project.path().join(".uphill/report.json")).unwrap();
+    let metric = json.rfind("\"name\": \"turn-rss\"").unwrap();
+    let start = metric + json[metric..].find("\"target\"").unwrap();
+    let end = metric + json[metric..].find("\"note\"").unwrap();
+    insta::assert_snapshot!(json[start..end], @r#"
+    "target": 57000000,
+              "default": 16000000,
+    "#);
 
     // The page has a tab per subject, shows titles, and loads nothing from the network.
     let html = fs::read_to_string(project.path().join(".uphill/report.html")).unwrap();

@@ -1162,6 +1162,10 @@ fn metric_json(metric: &MetricScore) -> Json {
         ("item", optional(metric.at.as_deref())),
         ("score", score_json(metric.score)),
         ("target", metric.target.map_or(Json::Null, value_json)),
+        (
+            "default",
+            metric.metric.target.map_or(Json::Null, value_json),
+        ),
         ("note", optional(metric.note.as_deref())),
         (
             "better",
