@@ -16,12 +16,12 @@ curl -fsSL https://raw.githubusercontent.com/wevm/uphill/main/install.sh | sh
 
 If `~/.uphill/bin` is not on `PATH`, the script prints the line to add to the shell profile. Two environment variables change what it installs:
 
-- **`UPHILL_VERSION`:** The release to install, such as `0.1.0`. The default is the latest release.
+- **`UPHILL_VERSION`:** The release to install, such as `0.0.1`. The default is the latest release.
 - **`UPHILL_INSTALL`:** The install directory. The binary goes to its `bin` directory. The default is `~/.uphill`.
 
 ```sh
-# Install release 0.1.0 to /opt/uphill/bin/uphill.
-curl -fsSL https://raw.githubusercontent.com/wevm/uphill/main/install.sh | UPHILL_VERSION=0.1.0 UPHILL_INSTALL=/opt/uphill sh
+# Install release 0.0.1 to /opt/uphill/bin/uphill.
+curl -fsSL https://raw.githubusercontent.com/wevm/uphill/main/install.sh | UPHILL_VERSION=0.0.1 UPHILL_INSTALL=/opt/uphill sh
 ```
 
 ## npm

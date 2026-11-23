@@ -99,7 +99,7 @@ with:
 - **Type:** string
 - **Default:** the action's tag, or `latest`
 
-The release to install, such as `0.1.0`, or `latest`. At a release tag, such as `wevm/uphill@v0.1.0`, the default is that release. Otherwise it is the latest release. `none` skips the install and runs the `uphill` on `PATH`.
+The release to install, such as `0.0.1`, or `latest`. At a release tag, such as `wevm/uphill@v0.0.1`, the default is that release. Otherwise it is the latest release. `none` skips the install and runs the `uphill` on `PATH`.
 
 ```yaml
 # Run the uphill that an earlier step built.

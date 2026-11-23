@@ -174,7 +174,8 @@ jobs:
           docker run --rm -v "$RUNNER_TEMP:/pack:ro" node:24-alpine sh -euc "$check"
 
       # The release notes are the version's section of npm/CHANGELOG.md. A version with a suffix,
-      # such as 0.2.0-rc.0, makes a prerelease, which `latest` skips.
+      # such as 0.0.2-rc.0, makes a prerelease, which `latest` skips. Any other version becomes
+      # the release that `releases/latest` serves, whatever the versions of older releases.
       - name: Create GitHub Release
         if: needs.binaries.result == 'success'
         env:
@@ -183,8 +184,8 @@ jobs:
           (cd dist && sha256sum uphill-*.tar.gz > sha256sums.txt)
           touch npm/CHANGELOG.md
           awk -v heading="## $VERSION" '$0 == heading { found = 1; next } /^## / { found = 0 } found' npm/CHANGELOG.md > "$RUNNER_TEMP/notes.md"
-          case "$VERSION" in *-*) prerelease=--prerelease ;; *) prerelease= ;; esac
-          gh release create "v$VERSION" dist/uphill-*.tar.gz dist/sha256sums.txt --notes-file "$RUNNER_TEMP/notes.md" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "v$VERSION" $prerelease
+          case "$VERSION" in *-*) kind=--prerelease ;; *) kind=--latest ;; esac
+          gh release create "v$VERSION" dist/uphill-*.tar.gz dist/sha256sums.txt --notes-file "$RUNNER_TEMP/notes.md" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "v$VERSION" $kind
 
       # Without NPM_TOKEN, npm uses trusted publishing.
       - name: Authenticate with npm
@@ -197,8 +198,9 @@ jobs:
       - name: Publish package
         if: needs.release.outputs.publish == 'true'
         uses: wevm/actions/vendor/changesets/action/v2@6d24d44bb98809270f8d2a19d584f29aeb384be5
+        # pnpm reads its settings from `PNPM_CONFIG_*` variables, not `NPM_CONFIG_*`.
         env:
-          NPM_CONFIG_PROVENANCE: 'true'
+          PNPM_CONFIG_PROVENANCE: 'true'
         with:
           create-github-releases: false
           github-token: ${{ secrets.GITHUB_TOKEN }}

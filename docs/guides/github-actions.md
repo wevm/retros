@@ -133,13 +133,13 @@ A repository with more than one project runs the action once per project with `w
 
 ### Pin a Version
 
-The action installs the release that matches its own tag, such as `v0.1.0`. At a branch, such as `main`, it installs the latest release. The `version` input selects another release.
+The action installs the release that matches its own tag, such as `v0.0.1`. At a branch, such as `main`, it installs the latest release. The `version` input selects another release.
 
 ```yaml title=".github/workflows/uphill.yml"
-# Install Uphill 0.1.0.
+# Install Uphill 0.0.1.
 - uses: wevm/uphill@main
   with:
-    version: 0.1.0
+    version: 0.0.1
 ```
 
 ### Local Builds

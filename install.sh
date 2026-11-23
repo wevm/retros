@@ -3,7 +3,7 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/wevm/uphill/main/install.sh | sh
 #
-# UPHILL_VERSION selects a release, such as 0.1.0, and defaults to the latest one. UPHILL_INSTALL
+# UPHILL_VERSION selects a release, such as 0.0.1, and defaults to the latest one. UPHILL_INSTALL
 # selects the directory, and defaults to ~/.uphill, so the binary goes to ~/.uphill/bin/uphill.
 set -eu
 

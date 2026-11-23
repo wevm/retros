@@ -20,7 +20,7 @@ inputs:
     description: The token that writes the comment. It needs the `pull-requests` write permission.
   version:
     default: ''
-    description: The Uphill release to install, such as `0.1.0`, or `latest`. It defaults to the action's own tag, or `latest` when the action is not used at a release tag. `none` uses the uphill already on PATH.
+    description: The Uphill release to install, such as `0.0.1`, or `latest`. It defaults to the action's own tag, or `latest` when the action is not used at a release tag. `none` uses the uphill already on PATH.
   working-directory:
     default: .
     description: The project root, which holds uphill.yaml, uphill.toml, or the .agents directory.
