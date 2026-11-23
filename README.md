@@ -43,7 +43,10 @@ Opportunities
 
 Each run also writes `.uphill/report.html`, with a gauge per category and the opportunities worth the most points. This report scores a web dashboard on page speed, CPU, memory, UI/UX checks, and bundle size.
 
-![A report.html with gauges for performance, CPU, memory, UI/UX, and bundle, then its opportunities](.github/report.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/report-dark.png">
+  <img alt="A report.html with gauges for performance, CPU, memory, UI/UX, and bundle, then its opportunities" src=".github/report-light.png">
+</picture>
 
 ## Install
 

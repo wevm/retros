@@ -155,5 +155,5 @@ The comment starts with a hidden marker, `<!-- uphill: <working-directory> -->`,
 ```md
 <!-- The marker for working-directory ".". -->
 <!-- uphill: . -->
-# Uphill report
+# Hill climb report
 ```

@@ -43,7 +43,7 @@ Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
 The Markdown report suits a pull request comment or a job summary. It lists category scores, the top 10 opportunities, and the changes since the baselines and against `--compare`. Each category then has a table of metrics and the 3 worst items of each list.
 
 ```md
-# Uphill report
+# Hill climb report
 
 | Category | Score |
 | --- | --- |

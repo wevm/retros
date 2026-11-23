@@ -109,7 +109,7 @@ runs:
         body=$(mktemp)
         {
           echo "$MARKER"
-          if [ -f "$REPORT" ]; then cat "$REPORT"; else echo '# Uphill report'; fi
+          if [ -f "$REPORT" ]; then cat "$REPORT"; else echo '# Hill climb report'; fi
 
           if [ "$EXIT_CODE" != 0 ]; then
             printf '\n> [!CAUTION]\n> `%s` exited with status %s.\n\n' "$COMMAND" "$EXIT_CODE"

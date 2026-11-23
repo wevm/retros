@@ -595,7 +595,7 @@ fn scores_every_category_and_writes_reports() {
 
     let markdown = fs::read_to_string(project.path().join(".uphill/report.md")).unwrap();
     insta::assert_snapshot!(markdown, @"
-    # Uphill report
+    # Hill climb report
 
     | Category | Score |
     | --- | --- |
@@ -966,7 +966,7 @@ fn subjects_share_one_run_and_score_on_their_own() {
 
     let markdown = fs::read_to_string(project.path().join(".uphill/report.md")).unwrap();
     insta::assert_snapshot!(markdown, @"
-    # Uphill report
+    # Hill climb report
 
     | Subject | Speed | Size and memory |
     | --- | --- | --- |

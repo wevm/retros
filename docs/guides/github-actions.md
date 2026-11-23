@@ -80,7 +80,7 @@ The last line names the command, the commit, and the workflow run. This excerpt 
 ```md
 <!-- The next line is the marker that the action finds the comment by. -->
 <!-- uphill: . -->
-# Uphill report
+# Hill climb report
 
 | Category | Score |
 | --- | --- |

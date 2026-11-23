@@ -556,7 +556,7 @@ pub fn json(report: &Report) -> String {
 /// changes since the baselines and against another revision, then a section per category with a
 /// table of metrics and the worst items of each list.
 pub fn markdown(report: &Report) -> String {
-    let mut out = String::from("# Uphill report\n\n");
+    let mut out = String::from("# Hill climb report\n\n");
     let score = |category: &CategoryReport| match &category.result {
         Ok(scored) => compact(scored.score),
         Err(failure) => format!("✗ {}", failure.message),
