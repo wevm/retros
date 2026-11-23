@@ -1,20 +1,20 @@
 //! `retros [category]`: runs each category's script, scores its metrics for each subject, prints
-//! each category as it finishes, then the opportunities and the changes since `retros.lock`.
+//! each category as it finishes, then the opportunities and the changes since the baselines.
 //! Categories that share a `run` command share one run. It writes `.retros/report.json`,
-//! `.retros/report.md`, and `.retros/report.html` in the project root, and with `--update`
-//! records this run's sizes, counts, checks, and line targets in `retros.lock` beside
-//! `retros.yaml`.
+//! `.retros/report.md`, and `.retros/report.html` in the project root. With `--update`, it writes
+//! this run's sizes, counts, checks, and line targets to each metric's `baseline` in the
+//! configuration.
 //!
 //! The command exits with status 0 when every category ran and passed its checks, and with
 //! status 1 when any category failed. With `--require-baseline`, it also exits with status 1 when
-//! anything differs from `retros.lock`, or when there is no lock. Scores do not change the exit
+//! anything differs from the baselines, or when no metric has one. Scores do not change the exit
 //! status.
 
 use std::io::{self, Write as _};
 use std::process::ExitCode;
 
+use engine::baseline;
 use engine::config::Category;
-use engine::lock;
 use engine::report::{CategoryReport, Report};
 
 use crate::measure;
@@ -25,9 +25,9 @@ use crate::project::Project;
 pub(crate) struct Options {
     /// The category to run, or `None` for every category.
     pub(crate) category: Option<String>,
-    /// Whether any difference from `retros.lock` fails the run.
+    /// Whether any difference from the baselines fails the run.
     pub(crate) require_baseline: bool,
-    /// Whether to record this run in `retros.lock`.
+    /// Whether to write this run's values to the baselines.
     pub(crate) update: bool,
 }
 
@@ -35,20 +35,11 @@ pub(crate) struct Options {
 ///
 /// # Errors
 ///
-/// Returns a message for the terminal when the category is unknown, when `retros.lock` is
-/// invalid, when Retros cannot run a script at all, or when it cannot write a file.
+/// Returns a message for the terminal when the category is unknown, when Retros cannot run a
+/// script at all, when it cannot write a baseline into the configuration, or when it cannot write
+/// a file.
 pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, String> {
     let prefix = &project.prefix;
-    let lock_name = &project.lock_name;
-    let lock_path = project.dir.join("retros.lock");
-    let previous = match std::fs::read_to_string(&lock_path) {
-        Ok(source) => Some(
-            lock::parse(&source)
-                .map_err(|error| crate::diagnostic("error", &error, lock_name, &source))?,
-        ),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => None,
-        Err(error) => return Err(format!("error: could not read {lock_name}: {error}")),
-    };
 
     let categories: Vec<&Category> = match options.category.as_deref() {
         None => project.config.categories.iter().collect(),
@@ -155,12 +146,9 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
         }
     }
 
-    // A first `--update` compares with an empty lock, so it lists every metric it records as new.
-    report.changes = match (&previous, options.update) {
-        (Some(lock), _) => Some(lock::compare(lock, &report)),
-        (None, true) => Some(lock::compare(&lock::Lock::default(), &report)),
-        (None, false) => None,
-    };
+    // A first `--update` lists every metric it records as new.
+    report.changes = (baseline::recorded(&project.config) || options.update)
+        .then(|| baseline::compare(&project.config, &report));
     let _ = io::stdout().write_all(engine::report::summary(&report).as_bytes());
 
     let dir = project.root.join(".retros");
@@ -178,11 +166,15 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
         "{prefix}.retros/report.json, {prefix}.retros/report.md, {prefix}.retros/report.html"
     );
     if options.update {
-        let updated = lock::update(previous.as_ref(), &project.config, &report);
-        std::fs::write(&lock_path, lock::render(&updated))
-            .map_err(|error| format!("error: could not write {lock_name}: {error}"))?;
-        written.push_str(", ");
-        written.push_str(lock_name);
+        let name = &project.name;
+        let updated = baseline::write(&project.source, project.format, &project.config, &report)
+            .map_err(|error| crate::diagnostic("error", &error, name, &project.source))?;
+        if updated != project.source {
+            std::fs::write(&project.path, updated)
+                .map_err(|error| format!("error: could not write {name}: {error}"))?;
+            written.push_str(", ");
+            written.push_str(name);
+        }
     }
     let _ = writeln!(io::stdout(), "\nWrote {written}");
 
@@ -195,11 +187,12 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
     // recorded and become the new floor.
     if options.require_baseline && !options.update {
         let message = match &report.changes {
-            None => Some(format!(
-                "--require-baseline needs {lock_name}. Run `retros --update` to record one"
-            )),
+            None => Some(
+                "--require-baseline needs a baseline. Run `retros --update` to record one"
+                    .to_owned(),
+            ),
             Some(changes) if !changes.is_empty() => Some(format!(
-                "{} since {lock_name}. Run `retros --update` to accept {}",
+                "{} since the baseline. Run `retros --update` to accept {}",
                 measure::count(changes.len(), "change"),
                 if changes.len() == 1 { "it" } else { "them" }
             )),

@@ -17,7 +17,7 @@ footprint:
   # Bytes an export costs when imported from the root instead of its own entry point. Anything above
   # zero is code that tree-shaking failed to drop.
   unused-bytes: { target: 50B }
-  # Every export of the root entry point. No target: retros.lock records the count, so an added or
+  # Every export of the root entry point. No target: its baseline records the count, so an added or
   # removed export shows in review.
   exports: {}
 

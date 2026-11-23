@@ -108,17 +108,17 @@ fn help() {
            retros check
 
     Run each category's script, score its metrics, list the opportunities that would raise the
-    scores most, and compare sizes, counts, checks, and line targets with retros.lock. Retros reads
-    retros.yaml or retros.toml, at the root or in .agents, from this directory or the nearest
-    parent. Reports go to .retros/report.json, report.md, and report.html. Name a category to run
-    only that one.
+    scores most, and compare sizes, counts, checks, and line targets with each metric's baseline.
+    Retros reads retros.yaml or retros.toml, at the root or in .agents, from this directory or the
+    nearest parent. Reports go to .retros/report.json, report.md, and report.html. Name a category
+    to run only that one.
 
     Commands:
       check  Run each script once and check the metric lines it writes
 
     Options:
-      --update            Record this run's sizes, counts, checks, and line targets in retros.lock
-      --require-baseline  Exit with status 1 when anything differs from retros.lock
+      --update            Write this run's sizes, counts, checks, and line targets as baselines
+      --require-baseline  Exit with status 1 when anything differs from the baselines
       -h, --help          Print help
       -V, --version       Print version
     ");
@@ -136,17 +136,17 @@ fn unknown_argument() {
            retros check
 
     Run each category's script, score its metrics, list the opportunities that would raise the
-    scores most, and compare sizes, counts, checks, and line targets with retros.lock. Retros reads
-    retros.yaml or retros.toml, at the root or in .agents, from this directory or the nearest
-    parent. Reports go to .retros/report.json, report.md, and report.html. Name a category to run
-    only that one.
+    scores most, and compare sizes, counts, checks, and line targets with each metric's baseline.
+    Retros reads retros.yaml or retros.toml, at the root or in .agents, from this directory or the
+    nearest parent. Reports go to .retros/report.json, report.md, and report.html. Name a category
+    to run only that one.
 
     Commands:
       check  Run each script once and check the metric lines it writes
 
     Options:
-      --update            Record this run's sizes, counts, checks, and line targets in retros.lock
-      --require-baseline  Exit with status 1 when anything differs from retros.lock
+      --update            Write this run's sizes, counts, checks, and line targets as baselines
+      --require-baseline  Exit with status 1 when anything differs from the baselines
       -h, --help          Print help
       -V, --version       Print version
     ");
@@ -164,17 +164,17 @@ fn unknown_check_argument() {
            retros check
 
     Run each category's script, score its metrics, list the opportunities that would raise the
-    scores most, and compare sizes, counts, checks, and line targets with retros.lock. Retros reads
-    retros.yaml or retros.toml, at the root or in .agents, from this directory or the nearest
-    parent. Reports go to .retros/report.json, report.md, and report.html. Name a category to run
-    only that one.
+    scores most, and compare sizes, counts, checks, and line targets with each metric's baseline.
+    Retros reads retros.yaml or retros.toml, at the root or in .agents, from this directory or the
+    nearest parent. Reports go to .retros/report.json, report.md, and report.html. Name a category
+    to run only that one.
 
     Commands:
       check  Run each script once and check the metric lines it writes
 
     Options:
-      --update            Record this run's sizes, counts, checks, and line targets in retros.lock
-      --require-baseline  Exit with status 1 when anything differs from retros.lock
+      --update            Write this run's sizes, counts, checks, and line targets as baselines
+      --require-baseline  Exit with status 1 when anything differs from the baselines
       -h, --help          Print help
       -V, --version       Print version
     ");
@@ -211,7 +211,7 @@ fn scores_every_category_and_writes_reports() {
       +3   footprint  export-size viem/chains    10 kB → 5 kB
       +3   footprint  export-size viem/op-stack  9 kB → 5 kB
 
-    No retros.lock yet. Run `retros --update` to record these values as the baseline.
+    No baseline yet. Run `retros --update` to record these values as the baseline.
 
     Wrote .retros/report.json, .retros/report.md, .retros/report.html
     ");
@@ -551,7 +551,7 @@ fn scores_one_category_from_a_subdirectory() {
       +3   footprint  export-size viem/chains    10 kB → 5 kB
       +3   footprint  export-size viem/op-stack  9 kB → 5 kB
 
-    No retros.lock yet. Run `retros --update` to record these values as the baseline.
+    No baseline yet. Run `retros --update` to record these values as the baseline.
 
     Wrote ../.retros/report.json, ../.retros/report.md, ../.retros/report.html
     ");
@@ -592,7 +592,7 @@ fn scoring_reports_failed_categories() {
 
     ✗ crash  script was stopped by signal 9
 
-    No retros.lock yet. Run `retros --update` to record these values as the baseline.
+    No baseline yet. Run `retros --update` to record these values as the baseline.
 
     Wrote .retros/report.json, .retros/report.md, .retros/report.html
     ");
@@ -610,11 +610,14 @@ fn baselines_record_line_targets_and_gate_every_change() {
 
     let missing = retros_in(project.path(), &["footprint", "--require-baseline"], &[]);
     assert_eq!(missing.status.code(), Some(1));
-    assert!(stdout(&missing).ends_with(
-        "\n--require-baseline needs retros.lock. Run `retros --update` to record one\n"
-    ));
+    assert!(
+        stdout(&missing).ends_with(
+            "\n--require-baseline needs a baseline. Run `retros --update` to record one\n"
+        )
+    );
 
-    // The lock records the targets lines set, including a timing's, whose value it leaves out.
+    // Each metric's baseline records the targets lines set, including a timing's, whose value it
+    // leaves out. A baseline with items takes one line per item, so a flow metric becomes a block.
     edit(
         "footprint.sh",
         "export-size viem 1kB\n",
@@ -628,37 +631,41 @@ fn baselines_record_line_targets_and_gate_every_change() {
     let recorded = retros_in(project.path(), &["--update"], &[]);
 
     assert_eq!(recorded.status.code(), Some(0));
-    let lock = fs::read_to_string(project.path().join("retros.lock")).unwrap();
-    insta::assert_snapshot!(lock, @r#"
-    # The accepted value of every size, count, and check, and the targets scripts set on their
-    # lines. `retros --update` writes this file. Commit it, so each run reports what changed since.
+    let config = fs::read_to_string(project.path().join("retros.yaml")).unwrap();
+    insta::assert_snapshot!(config, @r#"
+    # Scores one value, a list, an unscored count, and a list of checks, then timings over 5 rounds
+    # and a count where higher is better.
 
-    [footprint]
-    bundle = "27500B"
-    modules = 412
+    footprint:
+      run: sh footprint.sh
+      bundle: { target: 5kB, baseline: 27.5kB }
+      export-size:
+        target: 5kB
+        baseline:
+          viem: 1kB target 2kB
+          viem/accounts: 2kB
+          viem/actions: 3kB
+          viem/chains: 10kB
+          viem/ens: 4kB
+          viem/op-stack: 9kB
+          viem/siwe: 5kB
+          viem/utils: 8kB
+          viem/window: 6kB
+          viem/zksync: 7kB
+      modules: { baseline: 412 }
+      links:
+        baseline:
+          about.html: fail
+          "blog/first post.html": pass
+          index.html: pass
 
-    [footprint.export-size]
-    "viem" = "1000B target 2000B"
-    "viem/accounts" = "2000B"
-    "viem/actions" = "3000B"
-    "viem/chains" = "10000B"
-    "viem/ens" = "4000B"
-    "viem/op-stack" = "9000B"
-    "viem/siwe" = "5000B"
-    "viem/utils" = "8000B"
-    "viem/window" = "6000B"
-    "viem/zksync" = "7000B"
-
-    [footprint.links]
-    "about.html" = "fail"
-    "blog/first post.html" = "pass"
-    "index.html" = "pass"
-
-    [speed]
-    throughput = 2588
-
-    [speed.render]
-    "encode" = "target 3000000ns"
+    speed:
+      run: sh speed.sh
+      render:
+        target: 2ms
+        baseline:
+          encode: target 3ms
+      throughput: { target: 2000, better: higher, weight: 2, baseline: 2588 }
     "#);
 
     // An improvement alone fails the gate until it is accepted, so it becomes the new floor.
@@ -672,16 +679,25 @@ fn baselines_record_line_targets_and_gate_every_change() {
     assert_eq!(improved.status.code(), Some(1));
     assert!(stdout(&improved).ends_with(
         "
-Since retros.lock
+Since the baseline
   better  footprint  links about.html  fail → pass
 
 Wrote .retros/report.json, .retros/report.md, .retros/report.html
 
-1 change since retros.lock. Run `retros --update` to accept it
+1 change since the baseline. Run `retros --update` to accept it
 "
     ));
     let accepted = retros_in(project.path(), &["footprint", "--update"], &[]);
     assert_eq!(accepted.status.code(), Some(0));
+
+    // Updating again from the same code leaves the configuration as it is.
+    let config = fs::read_to_string(project.path().join("retros.yaml")).unwrap();
+    let again = retros_in(project.path(), &["footprint", "--update"], &[]);
+    assert_eq!(again.status.code(), Some(0));
+    assert_eq!(
+        fs::read_to_string(project.path().join("retros.yaml")).unwrap(),
+        config
+    );
 
     edit(
         "footprint.sh",
@@ -716,7 +732,7 @@ Wrote .retros/report.json, .retros/report.md, .retros/report.html
       +3   footprint  export-size viem/chains    12 kB → 5 kB
       +3   footprint  export-size viem/op-stack  9 kB → 5 kB
 
-    Since retros.lock
+    Since the baseline
       worse   footprint  export-size viem/chains  10 kB → 12 kB
       looser  footprint  export-size viem         target 2 kB → 3 kB
       new     footprint  export-size viem/tempo   4 kB
@@ -724,8 +740,27 @@ Wrote .retros/report.json, .retros/report.md, .retros/report.html
 
     Wrote .retros/report.json, .retros/report.md, .retros/report.html
 
-    4 changes since retros.lock. Run `retros --update` to accept them
+    4 changes since the baseline. Run `retros --update` to accept them
     ");
+
+    // Accepting the changes rewrites only the lines of the items that changed.
+    let accepted = retros_in(project.path(), &["footprint", "--update"], &[]);
+    assert_eq!(accepted.status.code(), Some(0));
+    let expected = config
+        .replace(
+            "      viem: 1kB target 2kB\n",
+            "      viem: 1kB target 3kB\n",
+        )
+        .replace("      viem/chains: 10kB\n", "      viem/chains: 12kB\n")
+        .replace(
+            "      viem/siwe: 5kB\n",
+            "      viem/siwe: 5kB\n      viem/tempo: 4kB\n",
+        )
+        .replace("      viem/window: 6kB\n", "");
+    assert_eq!(
+        fs::read_to_string(project.path().join("retros.yaml")).unwrap(),
+        expected
+    );
 }
 
 #[test]
@@ -757,28 +792,44 @@ fn subjects_share_one_run_and_score_on_their_own() {
     Opportunities
       +13  ts: speed  startup  40 ms → 30 ms
 
-    Since retros.lock
+    Since the baseline
       looser  ts: footprint  turn-rss      target 16 MB → 57 MB
       new     zc: footprint  install-size
       new     ts: footprint  install-size
       new     ts: footprint  wasm-size
 
-    Wrote .retros/report.json, .retros/report.md, .retros/report.html, retros.lock
+    Wrote .retros/report.json, .retros/report.md, .retros/report.html, retros.yaml
     ");
 
-    // zc's peak memory varies, so the lock leaves it out and keeps ts's line target.
-    let lock = fs::read_to_string(project.path().join("retros.lock")).unwrap();
-    insta::assert_snapshot!(lock, @r#"
-    # The accepted value of every size, count, and check, and the targets scripts set on their
-    # lines. `retros --update` writes this file. Commit it, so each run reports what changed since.
+    // Baselines record each subject. zc's peak memory varies, so only ts's line target is kept.
+    let config = fs::read_to_string(project.path().join("retros.yaml")).unwrap();
+    insta::assert_snapshot!(config, @r#"
+    # Two subjects, zc and ts, measured by one script that both categories share. zc's peak memory
+    # varies from round to round, and ts writes a wasm size that zc does not. Footprint and its peak
+    # memory have titles, and the other names show in words.
+    run: sh harnesses.sh
 
-    ["zc: footprint"]
-    install-size = "2000000B"
+    speed:
+      description: Time the harness spends that is not the model's.
+      startup: { target: 30ms, description: "Spawn to exit of `--version`." }
 
-    ["ts: footprint"]
-    turn-rss = "target 57000000B"
-    install-size = "4000000B"
-    wasm-size = "250000B"
+    footprint:
+      title: Size and memory
+      turn-rss:
+        target: 16MB
+        varies: true
+        title: "Peak memory, one turn"
+        baseline:
+          ts: target 57MB
+      install-size:
+        target: 10MB
+        baseline:
+          zc: 2MB
+          ts: 4MB
+      wasm-size:
+        target: 350kB
+        baseline:
+          ts: 250kB
     "#);
 
     let markdown = fs::read_to_string(project.path().join(".retros/report.md")).unwrap();
@@ -796,7 +847,7 @@ fn subjects_share_one_run_and_score_on_their_own() {
     | --- | --- | --- | --- | --- |
     | +13 | ts: Speed | Startup | 40 ms | 30 ms |
 
-    ## Changes since retros.lock
+    ## Changes since the baseline
 
     | Change | Category | Metric | Before | After |
     | --- | --- | --- | --- | --- |
@@ -852,26 +903,91 @@ fn subjects_share_one_run_and_score_on_their_own() {
     // The next 5 runs write zc's memory as 6 to 10 MB, which is not a change.
     let again = retros_in(project.path(), &["--require-baseline"], &[]);
     assert_eq!(again.status.code(), Some(0), "{}", stdout(&again));
-    assert!(stdout(&again).contains("\nNo changes since retros.lock\n"));
+    assert!(stdout(&again).contains("\nNo changes since the baseline\n"));
 }
 
 #[test]
-fn rejects_an_invalid_lock() {
+fn rejects_an_invalid_baseline() {
     let project = fixture("scored");
+    let path = project.path().join("retros.yaml");
+    let config = fs::read_to_string(&path).unwrap();
     fs::write(
-        project.path().join("retros.lock"),
-        "[footprint]\nbundle = \"27.5 kilobytes\"\n",
+        &path,
+        config.replace(
+            "bundle: { target: 5kB }",
+            "bundle: { target: 5kB, baseline: 27.5 kilobytes }",
+        ),
     )
     .unwrap();
 
     let output = retros_in(project.path(), &["footprint"], &[]);
 
     assert_eq!(output.status.code(), Some(2));
-    insta::assert_snapshot!(stderr(&output), @r#"
-    error[invalid-value] retros.lock:2:10: expected a size, count, or check, optionally followed by `target <value>`. Run `retros --update` to rewrite retros.lock
-      2 | bundle = "27.5 kilobytes"
-        |          ^
+    insta::assert_snapshot!(stderr(&output), @"
+    error[invalid-value] retros.yaml:6:36: expected a size, count, or check, optionally followed by `target <value>`, or a mapping of items or subjects to them. Run `retros --update` to rewrite the baseline
+      6 |   bundle: { target: 5kB, baseline: 27.5 kilobytes }
+        |                                    ^
+    ");
+}
+
+#[test]
+fn update_writes_toml_baselines_in_place() {
+    let project = fixture("passing");
+    let path = project.path().join("retros.toml");
+    fs::write(
+        &path,
+        "[footprint]\nrun = \"sh metrics/footprint.sh\"\nexport-size = { target = \"5kB\" } # gzipped\nmodules = {}\n\n[speed]\nrun = \"sh metrics/speed.sh\"\n\n[speed.render]\ntarget = \"2ms\" # per item\n",
+    )
+    .unwrap();
+    let speed = project.path().join("metrics/speed.sh");
+    let script = fs::read_to_string(&speed).unwrap();
+    fs::write(
+        &speed,
+        script.replace("render encode 236us", "render encode 236us target 300us"),
+    )
+    .unwrap();
+
+    // Inline tables take the baseline on their line, and a table with a header takes a new line.
+    let output = retros_in(project.path(), &["--update"], &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    let config = fs::read_to_string(&path).unwrap();
+    insta::assert_snapshot!(config, @r#"
+    [footprint]
+    run = "sh metrics/footprint.sh"
+    export-size = { target = "5kB", baseline = { viem = "4.2kB", "viem/chains" = "61kB" } } # gzipped
+    modules = { baseline = 412 }
+
+    [speed]
+    run = "sh metrics/speed.sh"
+
+    [speed.render]
+    target = "2ms" # per item
+    baseline = { encode = "target 300µs" }
     "#);
+
+    // Without its line target, the timing records nothing, so its baseline goes.
+    fs::write(&speed, script).unwrap();
+    let output = retros_in(project.path(), &["--update"], &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    assert_eq!(
+        fs::read_to_string(&path).unwrap(),
+        config.replace("baseline = { encode = \"target 300µs\" }\n", "")
+    );
+
+    // A metric defined with dotted keys is left alone, and nothing is written.
+    let dotted = config.replace(
+        "export-size = { target = \"5kB\", baseline = { viem = \"4.2kB\", \"viem/chains\" = \"61kB\" } }",
+        "export-size.target = \"5kB\"",
+    );
+    fs::write(&path, &dotted).unwrap();
+    let output = retros_in(project.path(), &["--update"], &[]);
+    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(stderr(&output), @r#"
+    error[invalid-type] retros.toml:3:1: Retros cannot write the baseline of metric `export-size` in this form. Write the metric as an inline table, such as `export-size = { target = "5kB" }`, then run `retros --update` again
+      3 | export-size.target = "5kB" # gzipped
+        | ^
+    "#);
+    assert_eq!(fs::read_to_string(&path).unwrap(), dotted);
 }
 
 #[test]
@@ -1081,7 +1197,7 @@ fn check_with_an_invalid_config_names_it_relative_to_the_current_directory() {
 }
 
 #[test]
-fn agents_config_runs_from_the_project_root_and_keeps_its_lock_beside_it() {
+fn agents_config_runs_from_the_project_root_and_records_its_baselines_in_place() {
     let dir = tempfile::tempdir().unwrap();
     fs::create_dir_all(dir.path().join(".agents/metrics")).unwrap();
     fs::write(
@@ -1104,17 +1220,15 @@ fn agents_config_runs_from_the_project_root_and_keeps_its_lock_beside_it() {
     ●  99  footprint
       ●  99  manifests  1  target 2
 
-    Since retros.lock
+    Since the baseline
       new  footprint  manifests
 
-    Wrote ../.retros/report.json, ../.retros/report.md, ../.retros/report.html, ../.agents/retros.lock
+    Wrote ../.retros/report.json, ../.retros/report.md, ../.retros/report.html, ../.agents/retros.yaml
     ");
-    insta::assert_snapshot!(fs::read_to_string(dir.path().join(".agents/retros.lock")).unwrap(), @"
-    # The accepted value of every size, count, and check, and the targets scripts set on their
-    # lines. `retros --update` writes this file. Commit it, so each run reports what changed since.
-
-    [footprint]
-    manifests = 1
+    insta::assert_snapshot!(fs::read_to_string(dir.path().join(".agents/retros.yaml")).unwrap(), @"
+    footprint:
+      run: sh .agents/metrics/manifests.sh
+      manifests: { target: 2, baseline: 1 }
     ");
     assert!(dir.path().join(".retros/report.html").exists());
 

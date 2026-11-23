@@ -46,16 +46,16 @@ Opportunities
 Retros reads `retros.yaml` or `retros.toml`, at the project root or in `.agents/`, from the current directory or the nearest parent. Scripts run from the project root. Add `.retros/` to `.gitignore`.
 
 ```sh
-# Score every category, list opportunities, and compare with retros.lock.
+# Score every category, list opportunities, and compare with each metric's baseline.
 retros
 
 # Score one category.
 retros speed
 
-# Accept this run: record its values and line targets in retros.lock.
+# Accept this run: write its values and line targets to each metric's baseline.
 retros --update
 
-# Fail when anything differs from retros.lock.
+# Fail when anything differs from the baselines.
 retros --require-baseline
 
 # Run each script once and check its lines, without scoring.
@@ -65,8 +65,9 @@ retros check
 - **Metric line:** `[subject:] metric [item] value [target <value>]`. Quote an item that contains a space.
 - **Values:** sizes in `B`, `kB`, `MB`, or `GB`, times in `ns`, `µs`, `ms`, or `s`, counts without a unit, and checks as `pass` or `fail`.
 - **Category keys:** `run`, `timeout` (default `10m`), `title`, and `description`. A top-level `run` and `timeout` apply to categories that set none.
-- **Metric keys:** `target`, `targets`, `weight` (default 1), `score` (`p90` by default, or `p10`, `median`, `max`, `min`, `sum`), `better`, `varies`, `title`, and `description`.
-- **Files:** `retros.lock` sits beside the configuration. Reports go to `.retros/` in the project root.
+- **Metric keys:** `target`, `targets`, `weight` (default 1), `score` (`p90` by default, or `p10`, `median`, `max`, `min`, `sum`), `better`, `varies`, `title`, `description`, and `baseline`.
+- **Baselines:** `retros --update` writes each metric's `baseline` into the configuration, one line per item. Commit them, so each run reports what changed.
+- **Files:** reports go to `.retros/` in the project root.
 
 [`examples/`](examples) has a TypeScript library, a website, and a Rust API. Retros measures itself with [`.agents/retros.yaml`](.agents/retros.yaml).
 

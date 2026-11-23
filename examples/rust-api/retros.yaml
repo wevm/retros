@@ -37,7 +37,7 @@ quality:
   # Whether clippy's default lints find nothing in each source file.
   clippy: {}
   # Calls that can panic, found by clippy's restriction lints such as `unwrap_used`. No target:
-  # retros.lock records the count, so a new one shows in review.
+  # its baseline records the count, so a new one shows in review.
   panic-sites: {}
   # Whether rustfmt leaves each source file unchanged.
   formatted: {}

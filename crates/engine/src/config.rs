@@ -4,8 +4,9 @@
 //! `timeout` and `description` are optional, and every other key is a metric. A top-level `run`
 //! and `timeout` apply to every category that sets none, and categories with the same command
 //! share one run of it. A metric is a mapping of optional keys: `target`, `targets`, `weight`,
-//! `score`, `better`, `varies`, and `description`. `target` is the default for every item, a
-//! metric line can set its own, and `targets` sets targets by item pattern and has the final say.
+//! `score`, `better`, `varies`, `title`, `description`, and `baseline`, which `retros --update`
+//! writes. `target` is the default for every item, a metric line can set its own, and `targets`
+//! sets targets by item pattern and has the final say.
 //!
 //! ```yaml
 //! footprint:
@@ -23,13 +24,15 @@ use std::time::Duration;
 
 use yaml_rust2::Yaml;
 
+use crate::baseline::Baseline;
 use crate::document::{self, Kind, Node};
 use crate::error::{Code, Error, Location};
 use crate::lines::is_name;
 use crate::value::{self, Value};
 
 /// Keys a metric accepts, in the order error messages list them.
-const METRIC_KEYS: [&str; 8] = [
+const METRIC_KEYS: [&str; 9] = [
+    "baseline",
     "better",
     "description",
     "score",
@@ -54,7 +57,7 @@ pub enum Format {
 
 impl Format {
     /// Returns the example for `format`: `yaml` for YAML and `toml` for TOML.
-    fn pick(self, yaml: String, toml: String) -> String {
+    pub(crate) fn pick(self, yaml: String, toml: String) -> String {
         match self {
             Self::Toml => toml,
             Self::Yaml => yaml,
@@ -98,6 +101,9 @@ impl Category {
 /// A configured metric.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Metric {
+    /// The sizes, counts, checks, and line targets that `retros --update` last accepted, or `None`
+    /// before the first update.
+    pub baseline: Option<Baseline>,
     /// Which direction is better. Defaults to lower.
     pub better: Better,
     /// What the metric measures, for reports.
@@ -118,7 +124,7 @@ pub struct Metric {
     /// The name reports show, such as `Time to first token`.
     pub title: Option<String>,
     /// Whether a size or count differs between runs, such as peak memory. Like a time, it takes
-    /// its median across rounds and stays out of `retros.lock`. Defaults to false.
+    /// its median across rounds, and its baseline records only line targets. Defaults to false.
     pub varies: bool,
     /// The metric's weight in its category. Defaults to 1.
     pub weight: f64,
@@ -401,6 +407,7 @@ fn metric(
     name: &str,
     keys: &[(Node, Node)],
 ) -> Result<Metric, Error> {
+    let mut baseline = None;
     let mut better = Better::Lower;
     let mut description = None;
     let mut score = None;
@@ -412,6 +419,7 @@ fn metric(
 
     for (field, value) in keys {
         match self::key(source, field)? {
+            "baseline" => baseline = Some(crate::baseline::parse(source, value)?),
             "better" => {
                 better = match string(source, value, "better")? {
                     "higher" => Better::Higher,
@@ -506,6 +514,7 @@ fn metric(
     }
 
     Ok(Metric {
+        baseline,
         better,
         description,
         location: Location::of(source, key.offset),

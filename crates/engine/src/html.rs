@@ -2,14 +2,14 @@
 //! makes no network requests. It follows Lighthouse's report: a tab per subject, a gauge per
 //! category, and for each category a grid of metrics, each with its value against its target, then
 //! a collapsible row per list of items. Opportunities and the changes
-//! since `retros.lock` come first. Like the other reports, it has no timestamps or paths, so the
+//! since the baselines come first. Like the other reports, it has no timestamps or paths, so the
 //! same scores always produce the same bytes.
 
 use std::fmt::Write;
 
+use crate::baseline::{Change, Direction};
 use crate::config::Better;
 use crate::format;
-use crate::lock::{Change, Direction};
 use crate::report::{self, CategoryReport, Report};
 use crate::score::{CategoryScore, Item, MetricScore};
 use crate::value::{Kind, Value};
@@ -164,7 +164,7 @@ fn panel(out: &mut String, report: &Report, subject: Option<&str>, index: usize)
             .into_iter()
             .filter(|change| change.subject.as_deref() == subject)
             .collect();
-        out.push_str("<section class=\"block\">\n<h2>Changes since retros.lock</h2>\n");
+        out.push_str("<section class=\"block\">\n<h2>Changes since the baseline</h2>\n");
         if changes.is_empty() {
             out.push_str("<p class=\"muted\">No changes.</p>\n");
         } else {

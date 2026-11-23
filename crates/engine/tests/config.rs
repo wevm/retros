@@ -1,8 +1,10 @@
 //! Integration tests for parsing `retros.yaml` and `retros.toml`: typed categories with defaults, and every
 //! configuration error rendered with its file, line, and column.
 
+use engine::baseline::{Baseline, Record};
 use engine::config::{self, Config, Format};
 use engine::error::Location;
+use engine::value::Value;
 
 /// Parses `source` as TOML and renders the error it must produce, prefixed with its code.
 fn toml_error(source: &str) -> String {
@@ -71,6 +73,7 @@ footprint:
                 },
                 metrics: [
                     Metric {
+                        baseline: None,
                         better: Higher,
                         description: None,
                         location: Location {
@@ -90,6 +93,7 @@ footprint:
                         weight: 2.0,
                     },
                     Metric {
+                        baseline: None,
                         better: Lower,
                         description: None,
                         location: Location {
@@ -118,6 +122,7 @@ footprint:
                 },
                 metrics: [
                     Metric {
+                        baseline: None,
                         better: Lower,
                         description: None,
                         location: Location {
@@ -158,6 +163,7 @@ footprint:
                         weight: 1.0,
                     },
                     Metric {
+                        baseline: None,
                         better: Lower,
                         description: None,
                         location: Location {
@@ -177,6 +183,7 @@ footprint:
                         weight: 1.0,
                     },
                     Metric {
+                        baseline: None,
                         better: Lower,
                         description: None,
                         location: Location {
@@ -312,13 +319,13 @@ fn rejects_invalid_category_settings() {
 #[test]
 fn rejects_invalid_metric_settings() {
     insta::assert_snapshot!(error("footprint:\n  run: \"true\"\n  size: { target: 5kB, goal: 1 }\n"), @"
-    [unexpected-key] retros.yaml:3:24: unknown key `goal` in metric `size`, expected one of `better`, `description`, `score`, `target`, `targets`, `title`, `varies`, `weight`
+    [unexpected-key] retros.yaml:3:24: unknown key `goal` in metric `size`, expected one of `baseline`, `better`, `description`, `score`, `target`, `targets`, `title`, `varies`, `weight`
       3 |   size: { target: 5kB, goal: 1 }
         |                        ^
     ");
 
     insta::assert_snapshot!(error("footprint:\n  run: \"true\"\n  size: { target: 5kB, limit: 50kB }\n"), @"
-    [unexpected-key] retros.yaml:3:24: unknown key `limit` in metric `size`, expected one of `better`, `description`, `score`, `target`, `targets`, `title`, `varies`, `weight`
+    [unexpected-key] retros.yaml:3:24: unknown key `limit` in metric `size`, expected one of `baseline`, `better`, `description`, `score`, `target`, `targets`, `title`, `varies`, `weight`
       3 |   size: { target: 5kB, limit: 50kB }
         |                        ^
     ");
@@ -455,9 +462,14 @@ speed:
 footprint:
   run: sh footprint.sh
   timeout: 90s
-  entry-size: { target: 1kB, targets: { ".": 3kB, "./chains/*": 500B } }
-  peak-memory: { target: 16MB, varies: true }
-  modules: {}
+  entry-size:
+    target: 1kB
+    targets: { ".": 3kB, "./chains/*": 500B }
+    baseline:
+      zc: { ".": 2.5kB target 3kB }
+      ts: { ".": 3kB }
+  peak-memory: { target: 16MB, varies: true, baseline: target 20MB }
+  modules: { baseline: 412 }
 "#;
     let toml = r#"
 run = "sh metrics.sh"
@@ -471,14 +483,38 @@ throughput = { target = 2_000, better = "higher", score = "median" }
 [footprint]
 run = "sh footprint.sh"
 timeout = "90s"
-entry-size = { target = "1kB", targets = { "." = "3kB", "./chains/*" = "500B" } }
-peak-memory = { target = "16MB", varies = true }
-modules = {}
+entry-size = { target = "1kB", targets = { "." = "3kB", "./chains/*" = "500B" }, baseline = { zc = { "." = "2.5kB target 3kB" }, ts = { "." = "3kB" } } }
+peak-memory = { target = "16MB", varies = true, baseline = "target 20MB" }
+modules = { baseline = 412 }
 "#;
 
+    let parsed = config::parse(yaml, Format::Yaml).unwrap();
     assert_eq!(
         without_locations(config::parse(toml, Format::Toml).unwrap()),
-        without_locations(config::parse(yaml, Format::Yaml).unwrap()),
+        without_locations(parsed.clone()),
+    );
+
+    // A baseline maps subjects to items, and each record keeps its line target in base units.
+    let record = |value, target| Baseline::Record(Record { target, value });
+    let item = |value, target| Baseline::Map(vec![(".".to_owned(), record(value, target))]);
+    let footprint = &parsed.categories[1].metrics;
+    assert_eq!(
+        footprint[0].baseline,
+        Some(Baseline::Map(vec![
+            (
+                "zc".to_owned(),
+                item(Some(Value::Size(2500.0)), Some(Value::Size(3000.0)))
+            ),
+            ("ts".to_owned(), item(Some(Value::Size(3000.0)), None)),
+        ])),
+    );
+    assert_eq!(
+        footprint[1].baseline,
+        Some(record(None, Some(Value::Size(20e6))))
+    );
+    assert_eq!(
+        footprint[2].baseline,
+        Some(record(Some(Value::Count(412.0)), None))
     );
 }
 

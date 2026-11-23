@@ -62,7 +62,7 @@ pub enum Code {
     NothingConfigured,
     /// A category without a `run` command.
     RunMissing,
-    /// TOML syntax in `retros.lock` that does not parse.
+    /// TOML syntax in `retros.toml` that does not parse.
     Toml,
     /// A metric the script wrote that `retros.yaml` does not configure.
     UnconfiguredMetric,
@@ -111,7 +111,7 @@ impl Code {
     }
 }
 
-/// An error in `retros.yaml`, `retros.lock`, or the metric lines that a script writes.
+/// An error in the configuration or in the metric lines that a script writes.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Error {
     /// The kind of error.

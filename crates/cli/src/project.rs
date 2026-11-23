@@ -18,15 +18,13 @@ const PLACES: [(&str, Format); 4] = [
 pub(crate) struct Project {
     /// The parsed configuration.
     pub(crate) config: Config,
-    /// The directory that holds the configuration and `retros.lock`: the root or its `.agents`
-    /// directory.
-    pub(crate) dir: PathBuf,
-    /// The path of `retros.lock` relative to the current directory, such as
-    /// `../.agents/retros.lock`.
-    pub(crate) lock_name: String,
+    /// The format of the configuration.
+    pub(crate) format: Format,
     /// The path of the configuration relative to the current directory, such as
     /// `../.agents/retros.yaml`.
     pub(crate) name: String,
+    /// The path of the configuration, where `retros --update` writes baselines.
+    pub(crate) path: PathBuf,
     /// The path of the root relative to the current directory, such as `../`, or empty.
     pub(crate) prefix: String,
     /// The directory that holds the configuration or the `.agents` directory with it. Scripts
@@ -75,20 +73,13 @@ pub(crate) fn find(cwd: &Path) -> Result<Project, String> {
             continue;
         };
         let name = format!("{prefix}{place}");
-        let folder = place.rsplit_once('/').map_or("", |(folder, _)| folder);
-        let dir = root.join(folder);
-        let lock_name = Path::new(&prefix)
-            .join(folder)
-            .join("retros.lock")
-            .to_string_lossy()
-            .into_owned();
 
         return match config::parse(&source, format) {
             Ok(config) => Ok(Project {
                 config,
-                dir,
-                lock_name,
+                format,
                 name,
+                path: root.join(place),
                 prefix,
                 root: root.to_owned(),
                 source,

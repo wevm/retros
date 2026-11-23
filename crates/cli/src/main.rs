@@ -21,17 +21,17 @@ Usage: retros [category] [--update] [--require-baseline]
        retros check
 
 Run each category's script, score its metrics, list the opportunities that would raise the
-scores most, and compare sizes, counts, checks, and line targets with retros.lock. Retros reads
-retros.yaml or retros.toml, at the root or in .agents, from this directory or the nearest
-parent. Reports go to .retros/report.json, report.md, and report.html. Name a category to run
-only that one.
+scores most, and compare sizes, counts, checks, and line targets with each metric's baseline.
+Retros reads retros.yaml or retros.toml, at the root or in .agents, from this directory or the
+nearest parent. Reports go to .retros/report.json, report.md, and report.html. Name a category
+to run only that one.
 
 Commands:
   check  Run each script once and check the metric lines it writes
 
 Options:
-  --update            Record this run's sizes, counts, checks, and line targets in retros.lock
-  --require-baseline  Exit with status 1 when anything differs from retros.lock
+  --update            Write this run's sizes, counts, checks, and line targets as baselines
+  --require-baseline  Exit with status 1 when anything differs from the baselines
   -h, --help          Print help
   -V, --version       Print version
 ";

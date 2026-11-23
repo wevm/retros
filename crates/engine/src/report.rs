@@ -1,14 +1,14 @@
 //! Reports rendered from scored categories: the terminal output, `report.json`, and `report.md`.
 //! [`crate::html`] renders `report.html` from the same data.
 //! Each report shows the scores, the opportunities that would raise them most, and the changes
-//! since `retros.lock`. Rendering is deterministic, with no timestamps or paths, so the same
+//! since the baselines. Rendering is deterministic, with no timestamps or paths, so the same
 //! scores always produce the same bytes.
 
 use std::fmt::Write;
 
+use crate::baseline::{Change, Direction};
 use crate::config::{self, Better, Rollup};
 use crate::format;
-use crate::lock::{Change, Direction};
 use crate::score::{self, CategoryScore, MetricScore, Opportunity};
 use crate::value::{Kind, Value};
 
@@ -27,7 +27,7 @@ const TERMINAL_CHANGES: usize = 10;
 pub struct Report {
     /// Categories in the order they ran.
     pub categories: Vec<CategoryReport>,
-    /// The changes since `retros.lock`, or `None` when the project has no lock.
+    /// The changes since the baselines, or `None` when no metric has a baseline.
     pub changes: Option<Vec<Change>>,
 }
 
@@ -156,7 +156,7 @@ pub fn terminal(category: &CategoryReport) -> String {
 }
 
 /// Renders the end of the terminal output: the opportunities that would raise scores most, and
-/// the changes since `retros.lock`.
+/// the changes since the baselines.
 pub fn summary(report: &Report) -> String {
     let mut out = String::new();
 
@@ -184,11 +184,11 @@ pub fn summary(report: &Report) -> String {
 
     match &report.changes {
         None => out.push_str(
-            "\nNo retros.lock yet. Run `retros --update` to record these values as the baseline.\n",
+            "\nNo baseline yet. Run `retros --update` to record these values as the baseline.\n",
         ),
-        Some(changes) if changes.is_empty() => out.push_str("\nNo changes since retros.lock\n"),
+        Some(changes) if changes.is_empty() => out.push_str("\nNo changes since the baseline\n"),
         Some(changes) => {
-            out.push_str("\nSince retros.lock\n");
+            out.push_str("\nSince the baseline\n");
             let sorted = sorted(changes);
             let rows: Vec<[String; 4]> = sorted
                 .iter()
@@ -303,7 +303,7 @@ pub fn json(report: &Report) -> String {
 }
 
 /// Renders the report as Markdown: a summary table of categories, the top opportunities, the
-/// changes since `retros.lock`, then a section per category with a table of metrics and the worst
+/// changes since the baselines, then a section per category with a table of metrics and the worst
 /// items of each list.
 pub fn markdown(report: &Report) -> String {
     let mut out = String::from("# Retros report\n\n");
@@ -386,7 +386,7 @@ pub fn markdown(report: &Report) -> String {
         .filter(|changes| !changes.is_empty())
     {
         out.push_str(
-            "\n## Changes since retros.lock\n\n| Change | Category | Metric | Before | After |\n| --- | --- | --- | --- | --- |\n",
+            "\n## Changes since the baseline\n\n| Change | Category | Metric | Before | After |\n| --- | --- | --- | --- | --- |\n",
         );
         for change in sorted(changes) {
             let (category, metric) = titles(report, change);

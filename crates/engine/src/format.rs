@@ -5,10 +5,10 @@ use std::time::Duration;
 use crate::value::{Kind, Value};
 
 /// Size units for display, in bytes.
-const SIZES: [(&str, f64); 4] = [("B", 1.0), ("kB", 1e3), ("MB", 1e6), ("GB", 1e9)];
+pub(crate) const SIZES: [(&str, f64); 4] = [("B", 1.0), ("kB", 1e3), ("MB", 1e6), ("GB", 1e9)];
 
 /// Time units for display, in nanoseconds.
-const TIMES: [(&str, f64); 4] = [("ns", 1.0), ("µs", 1e3), ("ms", 1e6), ("s", 1e9)];
+pub(crate) const TIMES: [(&str, f64); 4] = [("ns", 1.0), ("µs", 1e3), ("ms", 1e6), ("s", 1e9)];
 
 /// Formats a duration in the largest unit that shows it exactly, such as `300ms`, `30s`, or `10m`.
 pub fn duration(duration: Duration) -> String {
