@@ -1,5 +1,5 @@
 [package]
-name = "cli"
+name = "retros"
 description = "The retros command line: runs measurement scripts, scores metrics against targets, and writes reports."
 edition.workspace = true
 license.workspace = true
@@ -7,10 +7,6 @@ publish.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 version.workspace = true
-
-[[bin]]
-name = "retros"
-path = "src/main.rs"
 
 [dependencies]
 engine.workspace = true

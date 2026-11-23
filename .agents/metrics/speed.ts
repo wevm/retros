@@ -12,7 +12,7 @@ import * as path from 'node:path'
 
 const runs = 20
 
-run(['cargo', 'build', '--release', '--locked', '--quiet', '-p', 'cli'])
+run(['cargo', 'build', '--release', '--locked', '--quiet', '-p', 'retros'])
 const binary = path.resolve('target/release/retros')
 
 const project = fs.mkdtempSync(path.join(os.tmpdir(), 'retros-'))

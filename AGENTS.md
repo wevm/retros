@@ -262,7 +262,7 @@ Applies to documentation, comments, TSDoc, interface copy, commit messages, and 
 
 ## Workflow Conventions
 
-- Use the smallest command that covers the changed behavior. Run focused tests while iterating, such as `cargo test -p cli`.
+- Use the smallest command that covers the changed behavior. Run focused tests while iterating, such as `cargo test -p retros`.
 - Run `cargo clippy --workspace --all-targets -- -D warnings` after Rust changes, and `pnpm check:types` after TypeScript changes once TypeScript packages exist.
 - Run `cargo fmt --all` before committing. Inspect and keep only task-related changes.
 - Run `git diff --check` and inspect the final diff before reporting completion.
@@ -298,8 +298,8 @@ Applies to documentation, comments, TSDoc, interface copy, commit messages, and 
 
 ## Commands
 
-- `cargo run -p cli -- --help` runs the `retros` binary from source.
+- `cargo run -p retros -- --help` runs the `retros` binary from source.
 - `cargo test --workspace` runs every integration test.
 - `cargo fmt --all --check` and `cargo clippy --workspace --all-targets -- -D warnings` check formatting and lints.
 - `cargo build --release` builds the release binary at `target/release/retros`.
-- `cargo run -p cli -- check` runs Retros on itself with `.agents/retros.yaml`.
+- `cargo run -p retros -- check` runs Retros on itself with `.agents/retros.yaml`.

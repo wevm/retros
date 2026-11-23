@@ -21,16 +21,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
 
 [[package]]
-name = "cli"
-version = "0.0.0"
-dependencies = [
- "engine",
- "insta",
- "rustix",
- "tempfile",
-]
-
-[[package]]
 name = "console"
 version = "0.16.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -176,6 +166,16 @@ name = "r-efi"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
+
+[[package]]
+name = "retros"
+version = "0.0.0"
+dependencies = [
+ "engine",
+ "insta",
+ "rustix",
+ "tempfile",
+]
 
 [[package]]
 name = "rustix"
