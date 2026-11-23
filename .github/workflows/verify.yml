@@ -34,5 +34,5 @@ jobs:
       # runner. This checks the verdict rule of `--compare` on real timings.
       - name: Compare with the same commit
         run: |
-          cargo run --release --locked --quiet -p cli -- --compare HEAD | tee compare.txt
+          cargo run --release --locked --quiet -p retros -- --compare HEAD | tee compare.txt
           grep -q '^No changes against' compare.txt
