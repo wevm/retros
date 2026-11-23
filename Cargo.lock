@@ -39,7 +39,7 @@ checksum = "34aa73646ffb006b8f5147f3dc182bd4bcb190227ce861fc4a4844bf8e3cb2c0"
 
 [[package]]
 name = "engine"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "insta",
  "toml",
@@ -169,7 +169,7 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
 name = "retros"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "engine",
  "insta",

@@ -139,7 +139,7 @@ fn version() {
     let output = retros(&["--version"]);
 
     assert!(output.status.success());
-    insta::assert_snapshot!(stdout(&output), @"retros 0.0.0");
+    insta::assert_snapshot!(stdout(&output), @"retros 0.1.0");
 }
 
 #[test]
