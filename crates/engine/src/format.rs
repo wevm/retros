@@ -29,11 +29,7 @@ pub fn duration(duration: Duration) -> String {
 /// Formats an amount in base units for display, such as `593 kB`, `1.8 ms`, or `2588`. Sizes and
 /// times use the largest unit that keeps the number at 1 or more, with one decimal place.
 pub fn amount(kind: Kind, amount: f64) -> String {
-    match kind {
-        Kind::Check | Kind::Count => decimal(amount, 2),
-        Kind::Size => scaled(amount, &SIZES),
-        Kind::Time => scaled(amount, &TIMES),
-    }
+    precise(kind, amount, 0)
 }
 
 /// Formats a value for display, such as `61 kB` or `pass`.
@@ -47,21 +43,62 @@ pub fn value(value: Value) -> String {
     }
 }
 
-fn scaled(amount: f64, units: &[(&str, f64)]) -> String {
+/// Formats two values of a change so that they read differently when they differ, with up to three
+/// more decimal places than [`value`], such as `2.2 kB` and `2.18 kB` instead of `2.2 kB` twice, or
+/// else in base units.
+pub fn pair(before: Value, after: Value) -> (String, String) {
+    let shown = (value(before), value(after));
+    if let (Some(first), Some(second), true) = (before.amount(), after.amount(), shown.0 == shown.1)
+    {
+        for extra in 1..=3 {
+            let more = (
+                precise(before.kind(), first, extra),
+                precise(after.kind(), second, extra),
+            );
+            if more.0 != more.1 {
+                return more;
+            }
+        }
+        // A tiny change to a large value shows in base units, such as `1000001 B`.
+        return (base(before.kind(), first), base(after.kind(), second));
+    }
+    shown
+}
+
+/// Formats an amount in its base unit, such as `1000001 B` or `2.5 ns`.
+fn base(kind: Kind, amount: f64) -> String {
+    match kind {
+        Kind::Check | Kind::Count => decimal(amount, 6),
+        Kind::Size => format!("{} B", decimal(amount, 3)),
+        Kind::Time => format!("{} ns", decimal(amount, 3)),
+    }
+}
+
+/// Formats an amount like [`amount`], with `extra` more decimal places.
+fn precise(kind: Kind, amount: f64, extra: usize) -> String {
+    match kind {
+        Kind::Check | Kind::Count => decimal(amount, 2 + extra),
+        Kind::Size => scaled(amount, &SIZES, 1 + extra),
+        Kind::Time => scaled(amount, &TIMES, 1 + extra),
+    }
+}
+
+fn scaled(amount: f64, units: &[(&str, f64)], places: usize) -> String {
     let mut index = units
         .iter()
         .rposition(|(_, factor)| amount.abs() >= *factor)
         .unwrap_or_default();
 
     // Rounding can carry into the next unit, such as 999.96 kB, which shows as 1 MB.
+    let scale: f64 = (0..places).fold(1.0, |scale, _| scale * 10.0);
     if let (Some((_, factor)), Some(_)) = (units.get(index), units.get(index + 1))
-        && (amount.abs() / factor * 10.0).round() >= 10_000.0
+        && (amount.abs() / factor * scale).round() >= 1000.0 * scale
     {
         index += 1;
     }
 
     let (unit, factor) = units.get(index).copied().unwrap_or(("", 1.0));
-    format!("{} {unit}", decimal(amount / factor, 1))
+    format!("{} {unit}", decimal(amount / factor, places))
 }
 
 /// Formats a number with at most `places` decimal places and no trailing zeros.

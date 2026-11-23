@@ -1,7 +1,7 @@
 //! Integration tests for formatting values in reports.
 
 use engine::format;
-use engine::value::Kind;
+use engine::value::{Kind, Value};
 
 #[test]
 fn formats_sizes_times_and_counts() {
@@ -40,6 +40,48 @@ fn formats_sizes_times_and_counts() {
         "2588",
         "0.25",
         "0.33",
+    ]
+    "#);
+}
+
+#[test]
+fn pairs_read_differently_when_their_values_differ() {
+    let pairs = [
+        (Value::Size(2200.0), Value::Size(2179.0)),
+        (Value::Size(27_500.0), Value::Size(30_000.0)),
+        (Value::Time(1_000_000.0), Value::Time(1_000_400.0)),
+        (Value::Count(84.6), Value::Count(84.604)),
+        (Value::Size(1_000_000.0), Value::Size(1_000_001.0)),
+        (Value::Size(2200.0), Value::Size(2200.0)),
+    ]
+    .map(|(before, after)| format::pair(before, after));
+
+    insta::assert_debug_snapshot!(pairs, @r#"
+    [
+        (
+            "2.2 kB",
+            "2.18 kB",
+        ),
+        (
+            "27.5 kB",
+            "30 kB",
+        ),
+        (
+            "1 ms",
+            "1.0004 ms",
+        ),
+        (
+            "84.6",
+            "84.604",
+        ),
+        (
+            "1000000 B",
+            "1000001 B",
+        ),
+        (
+            "2200 B",
+            "2200 B",
+        ),
     ]
     "#);
 }

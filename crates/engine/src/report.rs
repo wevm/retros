@@ -637,8 +637,8 @@ pub fn markdown(report: &Report) -> String {
                 change.direction.as_str(),
                 escape(&label(change.subject.as_deref(), &category)),
                 escape(&titled(&metric, change.item.as_deref(), 1)),
-                side_cell(change, change.before),
-                side_cell(change, change.after)
+                cells(change).0,
+                cells(change).1
             );
         }
     }
@@ -660,8 +660,8 @@ pub fn markdown(report: &Report) -> String {
                     change.direction.as_str(),
                     escape(&label(change.subject.as_deref(), &category)),
                     escape(&titled(&metric, change.item.as_deref(), 1)),
-                    side_cell(change, change.before),
-                    side_cell(change, change.after),
+                    cells(change).0,
+                    cells(change).1,
                     timing.map(percent).unwrap_or_default(),
                     timing.map(agreement).unwrap_or_default()
                 );
@@ -921,32 +921,43 @@ pub(crate) fn titles(report: &Report, change: &Change) -> (String, String) {
 /// Formats a change's values, such as `61 kB → 64 kB`, one value for a new or gone item, or the
 /// targets of a target change, such as `target 5 kB → 8 kB`.
 pub(crate) fn values(change: &Change) -> String {
+    let (before, after) = sides(change);
     if change.direction.is_target() {
-        return format!("target {} → {}", side(change.before), side(change.after));
+        return format!("target {before} → {after}");
     }
 
     match (change.before, change.after) {
-        (Some(before), Some(after)) => {
-            format!("{} → {}", format::value(before), format::value(after))
-        }
-        (Some(value), None) | (None, Some(value)) => format::value(value),
-        (None, None) => String::new(),
+        (Some(_), Some(_)) => format!("{before} → {after}"),
+        (Some(_), None) => before,
+        (None, _) => after,
     }
 }
 
-/// Formats one side of a change for a Markdown cell: a value, a target such as `target 5 kB`, or
-/// `none` for a target change to or from no target.
-fn side_cell(change: &Change, value: Option<Value>) -> String {
+/// Formats both sides of a change for Markdown cells: values, or targets such as `target 5 kB`.
+fn cells(change: &Change) -> (String, String) {
+    let (before, after) = sides(change);
     if change.direction.is_target() {
-        format!("target {}", side(value))
+        (format!("target {before}"), format!("target {after}"))
     } else {
-        value.map(format::value).unwrap_or_default()
+        (before, after)
     }
 }
 
-/// Formats a target, or `none` without one.
-fn side(target: Option<Value>) -> String {
-    target.map_or_else(|| "none".to_owned(), format::value)
+/// Formats both sides of a change so that values that differ read differently. A target change
+/// to or from no target shows `none`, and a new or gone value shows nothing on its empty side.
+fn sides(change: &Change) -> (String, String) {
+    let missing = if change.direction.is_target() {
+        "none"
+    } else {
+        ""
+    };
+    match (change.before, change.after) {
+        (Some(before), Some(after)) => format::pair(before, after),
+        (before, after) => (
+            before.map_or_else(|| missing.to_owned(), format::value),
+            after.map_or_else(|| missing.to_owned(), format::value),
+        ),
+    }
 }
 
 /// Writes rows as aligned columns, each line indented by two spaces.
