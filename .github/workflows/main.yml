@@ -69,16 +69,18 @@ jobs:
       - name: Run install script
         run: sh install.sh && ~/.uphill/bin/uphill --version
 
-      # The registry serves a new version a few minutes after the publish, so the step waits up
-      # to 10 minutes for it.
+      # npx resolves versions from the registry's install metadata, the document npm sends for
+      # this Accept header. It lists a new version a few minutes after the publish, later than
+      # other documents, so the step waits up to 10 minutes for it.
       - name: Run with npx
         if: needs.release.outputs.publish == 'true'
         run: |
-          for attempt in $(seq 40); do
-            curl -sf "https://registry.npmjs.org/uphill/${UPHILL_VERSION#v}" > /dev/null && break
+          version=${UPHILL_VERSION#v}
+          for _ in $(seq 40); do
+            curl -sf -H 'Accept: application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*' https://registry.npmjs.org/uphill | jq -e --arg version "$version" '.versions[$version]' > /dev/null && break
             sleep 15
           done
-          npx --yes "uphill@${UPHILL_VERSION#v}" --version
+          npx --yes "uphill@$version" --version
 
       # Alpine has musl and only BusyBox wget. AlmaLinux 8 has glibc 2.28, the oldest the glibc
       # build supports. CentOS 7 has glibc 2.17, so it gets the musl build.
