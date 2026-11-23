@@ -55,7 +55,7 @@ cargo install --locked --git https://github.com/wevm/retros retros
 ```
 
 > [!NOTE]
-> The first release is not published yet, so only the Cargo command works for now.
+> The npm packages are not published yet, so `npx retros` does not work for now.
 
 ## Usage
 

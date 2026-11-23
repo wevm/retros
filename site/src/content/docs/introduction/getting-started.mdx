@@ -7,12 +7,9 @@ Retros scores a project against its own targets. Scripts measure the project, Re
 Retros is one binary for macOS and Linux. [Installation](/docs/introduction/installation) lists every way to install it.
 
 ```sh
-# Build and install the retros binary from source.
-cargo install --locked --git https://github.com/wevm/retros retros
+# Install the latest release to ~/.retros/bin/retros.
+curl -fsSL https://raw.githubusercontent.com/wevm/retros/main/install.sh | sh
 ```
-
-> [!NOTE]
-> The first release is not published yet. Until it is, the install script and `npx retros` have nothing to download, so Cargo is the way to install Retros.
 
 ## Add a Category
 
