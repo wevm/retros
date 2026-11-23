@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="#overview">Overview</a> · <a href="#problem">Problem</a> · <a href="#solution">Solution</a> · <a href="#philosophy">Philosophy</a> · <a href="#features">Features</a> · <a href="#usage">Usage</a>
+  <a href="#overview">Overview</a> · <a href="#problem">Problem</a> · <a href="#solution">Solution</a> · <a href="#philosophy">Philosophy</a> · <a href="#usage">Usage</a>
 </p>
 
 ## Overview
@@ -47,104 +47,6 @@ Opportunities
 - **Items differ:** A root entry point and a small subpath need different targets. Each item gets its own.
 - **Any project:** Retros measures nothing itself. Scripts run Lighthouse, a test runner, a linter, or any other tool, and write what it reports.
 - **Progress sticks:** An accepted improvement becomes the new baseline. Accepting a regression takes a reviewed change to `retros.lock`.
-
-## Features
-
-- [**Scores**](#scoring): 0 to 100 for each metric and category.
-- [**Item targets**](#targets): `3kB` for the root, `1kB` elsewhere.
-- [**Item lists**](#scoring): thousands of exports or pages, worst first.
-- [**Subjects**](#subjects): native and Node builds, scored side by side.
-- [**Opportunities**](#opportunities): the next fix and the points it adds.
-- [**Baselines**](#baselines): accepted values, committed in `retros.lock`.
-- [**CI gate**](#baselines): fails on any change not in `retros.lock`.
-- [**Reports**](#reports): terminal, HTML, JSON, and Markdown.
-
-### Scoring
-
-A metric scores 90 at its target, 50 at twice the target, and 10 at four times it. The curve and the bands come from Lighthouse: 90 to 100 is good, 50 to 89 needs work, and 0 to 49 is poor.
-
-| Value, against a 5 kB target | Score |
-| --- | --- |
-| 2.5 kB | 99 |
-| 5 kB | 90 |
-| 10 kB | 50 |
-| 20 kB | 10 |
-
-A list of items scores one item, the 90th percentile by default, ranked by how far each item is past its own target. A check scores the share of items that pass.
-
-A category scores the weighted mean of its metrics. A script that writes a time runs 5 times, and each item scores its median. A size or count marked `varies` takes its median too.
-
-### Targets
-
-Each source of a target overrides the one before it.
-
-- **`target`:** The metric's default in `retros.toml`.
-- **Line target:** `target <value>` at the end of a script's line.
-- **`targets`:** Item patterns in `retros.toml`, where `*` matches any run of characters.
-
-```toml
-# The root re-exports every module, so it gets 3 kB. Other entry points get 1 kB.
-entry-size = { target = "1kB", targets = { "." = "3kB" } }
-
-# Higher is better for throughput, so half the target scores 50.
-throughput = { target = 5000, better = "higher" }
-```
-
-### Subjects
-
-A line can start with a subject, such as a build or a harness. Each subject is scored on its own. A top-level `run` covers every category without one, and categories with the same `run` share one execution.
-
-```toml
-# One script measures both builds.
-run = "bun metrics/builds.ts"
-
-[speed]
-startup = { target = "30ms" }
-
-[footprint]
-peak-memory = { target = "16MB", varies = true }
-```
-
-```sh
-# Node holds 41 MB at rest, so the Node build sets its own memory target.
-echo 'native: startup 0.64ms' >> "$RETROS_METRICS"
-echo 'native: peak-memory 2.4MB' >> "$RETROS_METRICS"
-echo 'node: startup 31.9ms' >> "$RETROS_METRICS"
-echo 'node: peak-memory 48.4MB target 57MB' >> "$RETROS_METRICS"
-```
-
-### Opportunities
-
-Retros lists the fixes that would raise each category most, in points. A fix is one item or metric that meets its target, or a whole list when no single item moves the score.
-
-```text
-Opportunities
-  +6  zeptocode-ts: speed  request-out  32.8 ms → 20 ms
-  +2  zc: scale            step-time    5.4 ms → 5 ms
-```
-
-### Baselines
-
-`retros --update` records every size, count, check, and line target in `retros.lock`. Commit it. Later runs list each change since, item by item.
-
-```toml
-# retros.lock: a line target follows its value, so a loosened target shows in review.
-[footprint.export-size]
-"viem" = "1000B target 2000B"
-"viem/chains" = "10000B"
-```
-
-`retros --require-baseline` exits with status 1 when anything differs from the lock, improvements included. Times and `varies` values stay out of the lock because they change between runs.
-
-### Reports
-
-Each run writes `report.html`, `report.json`, and `report.md` to `.retros/`. The HTML page has a gauge per category and a tab per subject.
-
-```sh
-# Show the scores in a GitHub Actions job summary.
-retros
-cat .retros/report.md >> "$GITHUB_STEP_SUMMARY"
-```
 
 ## Usage
 
