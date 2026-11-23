@@ -1493,9 +1493,9 @@ fn notes_keep_runs_for_log_and_the_trends_in_report_html() {
     retros_in(dir, &[], &[]);
     let html = fs::read_to_string(dir.join(".retros/report.html")).unwrap();
     let trends: Vec<&str> = html
-        .split("<svg class=\"trend ")
+        .split("<div class=\"plot\"")
         .skip(1)
-        .filter_map(|svg| svg.split("aria-label=\"").nth(1)?.split('"').next())
+        .filter_map(|plot| plot.split("aria-label=\"").nth(1)?.split('"').next())
         .collect();
     insta::assert_debug_snapshot!(trends, @r#"
     [

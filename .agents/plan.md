@@ -276,7 +276,7 @@ Remember where the project has been and what moved it.
 - [x] Each run on `main` keeps its scores and values in a Git note under `refs/notes/retros` (decision 28). `retros --note` writes it, and CI pushes it.
 - [x] `retros log <category> <metric> [item]` prints a metric's values across commits. Exact metrics come from the Git history of their baselines, so they need no stored runs (decision 27). Other metrics, such as timings, come from notes.
 - [x] `retros blame <category> <metric> [item]` names the commit that moved a metric: from baseline history for exact metrics, and by measuring and bisecting otherwise (decision 27). `--subject` picks a subject, and `--since <ref>` limits the commits.
-- [x] Trends in the HTML report: each category and metric draws its last 30 noted runs, with each commit and value on hover.
+- [x] Trends in the HTML report: each category and metric charts its last 100 runs, with its target and its change since the first, and names each run's commit, date, and value on hover or with the arrow keys.
 
 **Gate:** on Retros' own history, `retros blame footprint dependencies` names the commit that added a dependency, and `retros log` shows the change.
 

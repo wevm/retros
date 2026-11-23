@@ -25,6 +25,9 @@ pub fn html(report: &Report) -> String {
     let subjects = report::subjects(report);
     let named = subjects.iter().any(Option::is_some);
 
+    if !report.history.is_empty() {
+        out.push_str(TREND_DEFS);
+    }
     out.push_str("<main>\n<h1>Retros report</h1>\n");
 
     if named {
@@ -257,21 +260,33 @@ fn category(out: &mut String, category: &CategoryReport, id: &str, history: &[Ru
         let _ = writeln!(out, "<p class=\"muted\">{}</p>", inline(description));
     }
     if let Some(score) = score {
-        let points: Vec<(String, f64, String)> = history
+        let points: Vec<Point> = history
             .iter()
             .filter_map(|run| {
                 let past = ran(run)?.score?;
-                Some((run.commit.clone(), f64::from(past), past.to_string()))
+                Some(Point {
+                    label: format!("{} · {}", run.commit, run.date),
+                    shown: past.to_string(),
+                    value: f64::from(past),
+                })
             })
-            .chain([("this run".to_owned(), f64::from(score), score.to_string())])
+            .chain([Point {
+                label: "This run".to_owned(),
+                shown: score.to_string(),
+                value: f64::from(score),
+            }])
             .collect();
         if points.len() > 1 {
-            let _ = writeln!(
-                out,
-                "<div class=\"trends\">{}<span class=\"muted\">{} runs</span></div>",
-                trend(&points, 10.0, "Score", band_class(Some(score))),
-                points.len()
-            );
+            let chart = Chart {
+                band: band_class(Some(score)),
+                better: Better::Higher,
+                kind: None,
+                label: "Score",
+                span: 10.0,
+                target: None,
+            };
+            out.push_str(&trend(&points, &chart));
+            out.push('\n');
         }
     }
     out.push_str("</header>\n");
@@ -290,7 +305,7 @@ fn category(out: &mut String, category: &CategoryReport, id: &str, history: &[Ru
         Ok(scored) => {
             let past: Vec<(String, crate::history::Ran)> = history
                 .iter()
-                .filter_map(|run| Some((run.commit.clone(), ran(run)?)))
+                .filter_map(|run| Some((format!("{} · {}", run.commit, run.date), ran(run)?)))
                 .collect();
             metrics(out, scored, id, &past);
             lists(out, scored);
@@ -349,22 +364,40 @@ fn card(out: &mut String, metric: &MetricScore, past: &[(String, crate::history:
         escape(&report::headline(metric))
     );
 
-    let points: Vec<(String, f64, String)> = past
+    let points: Vec<Point> = past
         .iter()
-        .filter_map(|(commit, ran)| {
+        .filter_map(|(label, ran)| {
             let scored = ran.metric(&metric.metric)?;
-            (scored.kind == metric.kind)
-                .then(|| (commit.clone(), scored.value, report::headline(&scored)))
+            (scored.kind == metric.kind).then(|| Point {
+                label: label.clone(),
+                shown: report::headline(&scored),
+                value: scored.value,
+            })
         })
-        .chain([(
-            "this run".to_owned(),
-            metric.value,
-            report::headline(metric),
-        )])
+        .chain([Point {
+            label: "This run".to_owned(),
+            shown: report::headline(metric),
+            value: metric.value,
+        }])
         .collect();
     if points.len() > 1 {
-        let span = points.iter().map(|point| point.1.abs()).fold(0.0, f64::max) * 0.1;
-        out.push_str(&trend(&points, span, &metric.metric.title(), band));
+        let title = metric.metric.title();
+        let chart = Chart {
+            band,
+            better: metric.metric.better,
+            kind: Some(metric.kind),
+            label: &title,
+            span: points
+                .iter()
+                .map(|point| point.value.abs())
+                .fold(0.0, f64::max)
+                * 0.1,
+            target: metric
+                .target
+                .and_then(Value::amount)
+                .filter(|_| metric.kind != Kind::Check),
+        };
+        out.push_str(&trend(&points, &chart));
     }
 
     if metric.kind != Kind::Check && !metric.items.is_empty() {
@@ -414,56 +447,222 @@ fn card(out: &mut String, metric: &MetricScore, past: &[(String, crate::history:
     out.push_str("</li>\n");
 }
 
-/// Draws a trend: a line through each past run's value and this run's, oldest first, scaled to
-/// span at least `span`, with a dot on each that names its commit and value on hover. This run's
-/// dot takes `band`'s color.
-fn trend(points: &[(String, f64, String)], span: f64, label: &str, band: &str) -> String {
-    const WIDTH: f64 = 120.0;
-    const HEIGHT: f64 = 28.0;
-    const PAD: f64 = 3.0;
+/// One run of a trend: what the tooltip names it, its value, and the value as reports show it.
+struct Point {
+    label: String,
+    shown: String,
+    value: f64,
+}
 
-    let low = points
-        .iter()
-        .map(|point| point.1)
-        .fold(f64::INFINITY, f64::min);
-    let high = points
-        .iter()
-        .map(|point| point.1)
-        .fold(f64::NEG_INFINITY, f64::max);
-    let range = (high - low).max(span).max(f64::MIN_POSITIVE);
+/// How to draw a trend.
+struct Chart<'a> {
+    /// The band of this run's score, which colors the line and the area under it.
+    band: &'a str,
+    better: Better,
+    /// The kind of the metric's values, or `None` for a category score.
+    kind: Option<Kind>,
+    /// What the chart shows, for screen readers, such as `Score` or `Bundle`.
+    label: &'a str,
+    /// The least the vertical scale spans, so noise in a steady value stays flat.
+    span: f64,
+    /// The metric's target, drawn as a dashed line when it falls near the values.
+    target: Option<f64>,
+}
+
+/// Draws a trend: a smooth line through each past run's value and this run's, oldest first, over
+/// a gradient in the band's color, with a caption that counts the runs and states the change
+/// since the first. The page's script adds a crosshair and a tooltip on hover and focus, and the
+/// arrow keys step through the runs. Many runs stay readable, since only this run has a dot.
+fn trend(points: &[Point], chart: &Chart<'_>) -> String {
+    // The vertical space above and below the values, as a share of the plot's height.
+    const PAD: f64 = 14.0;
+
+    let values = || points.iter().map(|point| point.value);
+    let mut low = values().fold(f64::INFINITY, f64::min);
+    let mut high = values().fold(f64::NEG_INFINITY, f64::max);
+    let target = chart.target.filter(|target| {
+        let range = (high - low).max(chart.span);
+        *target >= low - range && *target <= high + range
+    });
+    if let Some(target) = target {
+        low = low.min(target);
+        high = high.max(target);
+    }
+    let range = (high - low).max(chart.span).max(f64::MIN_POSITIVE);
     let bottom = (high + low - range) / 2.0;
-    let last = points.len().saturating_sub(1);
-    let gaps = u32::try_from(last).map_or(1.0, f64::from).max(1.0);
-    let step = (WIDTH - 2.0 * PAD) / gaps;
+    let y = |value: f64| PAD + (1.0 - (value - bottom) / range) * (100.0 - 2.0 * PAD);
+    let gaps = u32::try_from(points.len().saturating_sub(1))
+        .map_or(1.0, f64::from)
+        .max(1.0);
+    let coordinates: Vec<(f64, f64)> = (0..)
+        .map(f64::from)
+        .zip(points)
+        .map(|(index, point)| (index / gaps * 100.0, y(point.value)))
+        .collect();
+    let line = smooth(&coordinates);
 
-    let mut x = PAD;
-    let mut line = String::new();
-    let mut dots = String::new();
-    for (index, (commit, value, shown)) in points.iter().enumerate() {
-        let y = HEIGHT - PAD - (value - bottom) / range * (HEIGHT - 2.0 * PAD);
-        let _ = write!(line, "{}{x:.1},{y:.1}", if index == 0 { "" } else { " " });
+    let mut data = String::from("[");
+    for ((x, y), point) in coordinates.iter().zip(points) {
+        if data.len() > 1 {
+            data.push(',');
+        }
         let _ = write!(
-            dots,
-            "<circle{} cx=\"{x:.1}\" cy=\"{y:.1}\" r=\"{}\"><title>{}: {}</title></circle>",
-            if index == last { " class=\"now\"" } else { "" },
-            if index == last { "3" } else { "2" },
-            escape(commit),
-            escape(shown)
+            data,
+            "[{x:.2},{y:.2},\"{}\",\"{}\"]",
+            point.label.replace('\\', "\\\\").replace('"', "\\\""),
+            point.shown.replace('\\', "\\\\").replace('"', "\\\"")
         );
-        x += step;
+    }
+    data.push(']');
+
+    let (first, now) = (points.first(), points.last());
+    let mut out = format!(
+        "<figure class=\"trend {}\"><div class=\"plot\" tabindex=\"0\" role=\"img\" aria-label=\"{} over the last {} runs, from {} to {}\" data-points=\"{}\"><svg viewBox=\"0 0 100 100\" preserveAspectRatio=\"none\" aria-hidden=\"true\"><path class=\"area\" d=\"{line} L100,100 L0,100 Z\" fill=\"url(#trend-{})\"/>",
+        chart.band,
+        escape(chart.label),
+        points.len(),
+        escape(first.map_or("", |point| point.shown.as_str())),
+        escape(now.map_or("", |point| point.shown.as_str())),
+        escape(&data),
+        chart.band
+    );
+    if let Some(target) = target {
+        let _ = write!(
+            out,
+            "<path class=\"target\" d=\"M0,{0:.2} L100,{0:.2}\"/>",
+            y(target)
+        );
+    }
+    let _ = write!(out, "<path class=\"line\" d=\"{line}\"/></svg>");
+    if let Some(target) = target {
+        // The label sits at the right, clear of this run's dot, on the side of the target line
+        // that the line leaves free there.
+        let level = y(target);
+        let (above, below) = coordinates.iter().filter(|(x, _)| *x >= 80.0).fold(
+            (0, 0),
+            |(above, below), (_, y)| {
+                (
+                    above + usize::from(*y < level),
+                    below + usize::from(*y > level),
+                )
+            },
+        );
+        let side = if above > below { " below" } else { "" };
+        let _ = write!(
+            out,
+            "<span class=\"target-label{side}\" style=\"top:{level:.2}%\">Target</span>"
+        );
+    }
+    if let Some((x, y)) = coordinates.last() {
+        let _ = write!(
+            out,
+            "<span class=\"dot now\" style=\"left:{x:.2}%;top:{y:.2}%\"></span>"
+        );
+    }
+    out.push_str("<span class=\"guide\"></span><span class=\"dot hover\"></span><span class=\"tip\" aria-hidden=\"true\"><b></b><span></span></span></div>");
+
+    let change = match (first, now) {
+        (Some(first), Some(now)) => change(first.value, now.value, chart),
+        _ => String::new(),
+    };
+    let _ = write!(
+        out,
+        "<figcaption><span>{} runs</span>{change}</figcaption></figure>",
+        points.len()
+    );
+    out
+}
+
+/// Formats the change from the first run to this one, such as `−4.1 kB (−15%)` or `+5`, in the
+/// color of its direction. A check, whose value is a share of items, shows none.
+fn change(first: f64, now: f64, chart: &Chart<'_>) -> String {
+    let difference = now - first;
+    let shown = match chart.kind {
+        Some(Kind::Check) => return String::new(),
+        None => format!("{:.0}", difference.abs()),
+        Some(kind) => format::amount(kind, difference.abs()),
+    };
+    let direction = match (difference.partial_cmp(&0.0), chart.better) {
+        (Some(std::cmp::Ordering::Equal) | None, _) => {
+            return "<span class=\"change\">No change</span>".to_owned();
+        }
+        (Some(std::cmp::Ordering::Greater), Better::Higher)
+        | (Some(std::cmp::Ordering::Less), Better::Lower) => "better",
+        _ => "worse",
+    };
+    let sign = if difference > 0.0 { "+" } else { "−" };
+    let percent = if chart.kind.is_some() && first != 0.0 {
+        format!(" ({sign}{:.0}%)", (difference / first * 100.0).abs())
+    } else {
+        String::new()
+    };
+    format!("<span class=\"change {direction}\">{sign}{shown}{percent}</span>")
+}
+
+/// Returns an SVG path through `points` as a monotone cubic curve, which never overshoots a value
+/// between two runs (Fritsch and Carlson, 1980).
+fn smooth(points: &[(f64, f64)]) -> String {
+    let slopes: Vec<f64> = points
+        .windows(2)
+        .map(|pair| match pair {
+            [(x0, y0), (x1, y1)] if x1 > x0 => (y1 - y0) / (x1 - x0),
+            _ => 0.0,
+        })
+        .collect();
+
+    // Each point's tangent: the mean of the slopes beside it, or flat at a peak or a valley.
+    let mut tangents: Vec<f64> = Vec::with_capacity(points.len());
+    tangents.extend(slopes.first());
+    tangents.extend(slopes.windows(2).map(|pair| match pair {
+        [before, after] if before * after > 0.0 => (before + after) / 2.0,
+        _ => 0.0,
+    }));
+    tangents.extend(slopes.last());
+    for (index, slope) in slopes.iter().enumerate() {
+        let (Some(&a), Some(&b)) = (tangents.get(index), tangents.get(index + 1)) else {
+            continue;
+        };
+        let (a, b) = if *slope == 0.0 {
+            (0.0, 0.0)
+        } else {
+            let (alpha, beta) = (a / slope, b / slope);
+            let length = alpha.hypot(beta);
+            if length > 3.0 {
+                (3.0 * alpha / length * slope, 3.0 * beta / length * slope)
+            } else {
+                (a, b)
+            }
+        };
+        if let Some(tangent) = tangents.get_mut(index) {
+            *tangent = a;
+        }
+        if let Some(tangent) = tangents.get_mut(index + 1) {
+            *tangent = b;
+        }
     }
 
-    let (first, now) = (
-        points.first().map_or("", |point| point.2.as_str()),
-        points.last().map_or("", |point| point.2.as_str()),
-    );
-    format!(
-        "<svg class=\"trend {band}\" viewBox=\"0 0 {WIDTH} {HEIGHT}\" role=\"img\" aria-label=\"{} over the last {} runs, from {} to {}\"><polyline points=\"{line}\"/>{dots}</svg>",
-        escape(label),
-        points.len(),
-        escape(first),
-        escape(now)
-    )
+    let mut path = String::new();
+    let mut previous: Option<((f64, f64), f64)> = None;
+    for (&(x, y), &tangent) in points.iter().zip(&tangents) {
+        match previous {
+            None => {
+                let _ = write!(path, "M{x:.2},{y:.2}");
+            }
+            Some(((x0, y0), tangent0)) => {
+                let third = (x - x0) / 3.0;
+                let _ = write!(
+                    path,
+                    " C{:.2},{:.2} {:.2},{:.2} {x:.2},{y:.2}",
+                    x0 + third,
+                    y0 + tangent0 * third,
+                    x - third,
+                    y - tangent * third
+                );
+            }
+        }
+        previous = Some(((x, y), tangent));
+    }
+    path
 }
 
 /// Writes a collapsible row for each metric with items, as Lighthouse lists its audits. Lists
@@ -751,7 +950,7 @@ th{font-weight:600}
 .gauge.large svg{width:112px;height:112px}
 .gauge.large .gauge-score{top:0;height:112px;font-size:34px}
 @keyframes fill{from{stroke-dasharray:0 100}}
-@media (prefers-reduced-motion:reduce){.gauge .arc{animation:none}}
+@media (prefers-reduced-motion:reduce){.gauge .arc{animation:none}.tip{transition:none}}
 .scale{display:flex;justify-content:center;gap:20px;font-size:13px;color:var(--muted);padding:4px 0 20px;border-bottom:1px solid var(--line);margin-bottom:28px}
 .scale>span{display:inline-flex;align-items:center;gap:6px}
 .block{margin:0 0 32px}
@@ -775,11 +974,29 @@ th{font-weight:600}
 .poor.metric-value,.poor.metric-score,.value.poor{color:var(--poor-fg)}
 .none.metric-score{color:var(--none-fg)}
 .metric-at{font-size:13px;overflow-wrap:anywhere}
-.trends{display:flex;align-items:center;gap:8px;margin-top:8px}
-.trend{display:block;width:120px;height:28px;margin-top:4px;overflow:visible}
-.trend polyline{fill:none;stroke:var(--muted);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
-.trend circle{fill:var(--muted)}
-.trend.good circle.now{fill:var(--good)}.trend.average circle.now{fill:var(--average)}.trend.poor circle.now{fill:var(--poor)}.trend.none circle.now{fill:var(--fg)}
+.trend{--band:var(--muted);margin:10px 7px 2px}
+.trend.good{--band:var(--good)}.trend.average{--band:var(--average)}.trend.poor{--band:var(--poor)}
+.category-head .trend{width:min(100%,440px);margin:14px auto 0}
+.plot{position:relative;height:52px;border-radius:4px;cursor:crosshair;touch-action:pan-y}
+.category-head .plot{height:72px}
+.plot:focus-visible{outline-offset:6px}
+.plot svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.plot .line{fill:none;stroke:var(--band);stroke-width:2;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.plot .target{fill:none;stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3;opacity:.7;vector-effect:non-scaling-stroke}
+.target-label{position:absolute;right:8px;transform:translateY(-100%);padding-bottom:1px;font-size:10px;line-height:1.2;color:var(--muted);letter-spacing:.02em}
+.target-label.below{transform:none;padding:1px 0 0}
+.dot{position:absolute;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;border-radius:50%;background:var(--band);box-shadow:0 0 0 2px var(--bg)}
+.guide{position:absolute;top:0;bottom:0;width:1px;margin-left:-.5px;background:var(--muted);opacity:0;pointer-events:none}
+.dot.hover{opacity:0;pointer-events:none}
+.tip{position:absolute;bottom:calc(100% + 6px);display:flex;flex-direction:column;align-items:center;transform:translateX(-50%);padding:4px 9px;border-radius:6px;background:var(--fg);color:var(--bg);font-size:12px;line-height:1.35;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .12s;z-index:1}
+.tip b{font-weight:600;font-variant-numeric:tabular-nums}.tip span{opacity:.75}
+.trend.active .guide{opacity:.45}.trend.active .dot.hover,.trend.active .tip{opacity:1}.trend.active .dot.now{opacity:.35}
+.trend figcaption{display:flex;justify-content:space-between;gap:12px;margin-top:6px;font-size:12px;color:var(--muted)}
+.change{font-weight:600;font-variant-numeric:tabular-nums}.change.better{color:var(--good-fg)}.change.worse{color:var(--poor-fg)}
+.trend-defs{position:absolute;width:0;height:0}
+.trend-defs stop{stop-color:var(--muted)}.trend-defs stop+stop{stop-opacity:0}
+.trend-defs stop:first-child{stop-opacity:.22}
+#trend-good stop{stop-color:var(--good)}#trend-average stop{stop-color:var(--average)}#trend-poor stop{stop-color:var(--poor)}
 .bar{position:relative;height:6px;border-radius:3px;margin:12px 7px 8px;background:linear-gradient(to right,color-mix(in srgb,var(--good) 40%,transparent) 0 33.33%,color-mix(in srgb,var(--average) 40%,transparent) 33.33% 66.67%,color-mix(in srgb,var(--poor) 40%,transparent) 66.67%)}
 .bar.higher{background:linear-gradient(to right,color-mix(in srgb,var(--poor) 40%,transparent) 0 33.33%,color-mix(in srgb,var(--average) 40%,transparent) 33.33% 66.67%,color-mix(in srgb,var(--good) 40%,transparent) 66.67%)}
 .tick{position:absolute;top:-4px;bottom:-4px;width:2px;margin-left:-1px;border-radius:1px;background:var(--fg)}
@@ -847,6 +1064,9 @@ summary.audit::after{grid-column:3;grid-row:1}
 
 /// Switches subject tabs on click and with the arrow, Home, and End keys, and expands each
 /// category's metric descriptions.
+/// The gradients under trend lines, one per band, which every chart's area refers to by id.
+const TREND_DEFS: &str = "<svg class=\"trend-defs\" aria-hidden=\"true\"><defs><linearGradient id=\"trend-good\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\"/><stop offset=\"1\"/></linearGradient><linearGradient id=\"trend-average\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\"/><stop offset=\"1\"/></linearGradient><linearGradient id=\"trend-poor\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\"/><stop offset=\"1\"/></linearGradient><linearGradient id=\"trend-none\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\"/><stop offset=\"1\"/></linearGradient></defs></svg>\n";
+
 const SCRIPT: &str = r"<script>
 const tabs = [...document.querySelectorAll('[role=tab]')]
 const select = (tab) => {
@@ -874,6 +1094,38 @@ for (const button of document.querySelectorAll('.expand')) {
     button.setAttribute('aria-expanded', String(expanded))
     button.textContent = expanded ? 'Collapse view' : 'Expand view'
     button.closest('.category').classList.toggle('expanded', expanded)
+  })
+}
+for (const plot of document.querySelectorAll('.plot')) {
+  const points = JSON.parse(plot.dataset.points)
+  const chart = plot.closest('.trend')
+  const [guide, dot, tip] = ['.guide', '.hover', '.tip'].map((selector) => plot.querySelector(selector))
+  let index = points.length - 1
+  const show = (next) => {
+    index = Math.max(0, Math.min(points.length - 1, next))
+    const [x, y, label, value] = points[index]
+    guide.style.left = dot.style.left = x + '%'
+    dot.style.top = y + '%'
+    tip.firstChild.textContent = value
+    tip.lastChild.textContent = label
+    chart.classList.add('active')
+    const width = plot.clientWidth
+    const half = tip.offsetWidth / 2
+    tip.style.left = Math.min(Math.max((x / 100) * width, half), width - half) + 'px'
+  }
+  const hide = () => chart.classList.remove('active')
+  plot.addEventListener('pointermove', (event) => {
+    const box = plot.getBoundingClientRect()
+    show(Math.round(((event.clientX - box.left) / box.width) * (points.length - 1)))
+  })
+  plot.addEventListener('pointerleave', () => document.activeElement === plot || hide())
+  plot.addEventListener('focus', () => show(index))
+  plot.addEventListener('blur', hide)
+  plot.addEventListener('keydown', (event) => {
+    const next = { ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: points.length - 1 }[event.key]
+    if (next === undefined) return
+    show(next)
+    event.preventDefault()
   })
 }
 </script>

@@ -9,7 +9,7 @@
 //!
 //! With `--compact`, for agent loops, it prints the scores on one line and each missed target
 //! with its note instead of each category's metrics. With `--note`, it keeps the run as a Git note
-//! on `HEAD`, and `report.html` shows the trend of up to 29 noted runs before this one.
+//! on `HEAD`, and `report.html` shows the trend of up to 99 noted runs before this one.
 //!
 //! The command exits with status 0 when every category ran and passed its checks, and with
 //! status 1 when any category failed. With `--require-baseline`, it also exits with status 1 when
@@ -33,7 +33,7 @@ use crate::worktree::{self, Worktree};
 use crate::{history, measure};
 
 /// How many past runs the HTML report's trends show, with this one.
-const TRENDS: usize = 29;
+const TRENDS: usize = 99;
 
 /// What `retros [category]` was asked to do.
 #[derive(Default)]
