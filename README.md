@@ -10,23 +10,19 @@
 
 ## Overview
 
-Agents improve code fastest against a number. A prompt such as "make this 10x faster" works better than "optimize this", because the agent measures each attempt and keeps the ones that climb. This loop is hill climbing.
+Software improves fastest when every change has a number to beat. Each attempt is measured, the attempts that climb stay, and the rest are dropped. This loop is hill climbing. Agents run it well, because they make and measure attempts far faster than people do.
 
-Each step of the climb needs a measurement, so the metrics must run on every change, not once before a release. [Effective Swarm Riding for Engineers](https://www.paradigm.xyz/writing/swarms) expects most developer work to become "tuning swarms to do well on the metrics they care about".
+The climb needs continuous metrics. A metric measured on every change names the change that moved it. A metric measured once before a release shows only that something moved, long after the change that caused it.
 
 Retros runs that loop for a project. It tracks numbers such as bundle size, page weight, and request latency, and scores each one against a target on every change. Each report names what improved, what regressed, and what to fix next.
 
 ## Problem
 
-Most projects measure speed and size in scattered places, such as a benchmark before a release or a size check in one CI job. Each tool writes its own format, and no single view shows whether the project climbed or slid back.
-
-Without that view, regressions land unnoticed and improvements erode. One limit for every item makes it worse. A root entry point that bundles the whole library cannot share a size limit with a small subpath. The shared limit is either loose or always red.
-
-Tests do not close the gap. A test passes or fails, and it says nothing about speed or size. An agent with only tests cannot tell a faster change from a slower one.
+Projects measure speed and size in scattered places, each tool with its own format and none with a view of the whole. Regressions land unnoticed and improvements erode. A single limit for every item is either too loose for small items or always red for large ones.
 
 ## Solution
 
-Retros scores a project on the numbers it cares about. Scripts in any language run the tools the project already trusts and write one line per measurement. Retros scores each metric from 0 to 100 against its target and compares the run with the last accepted one.
+Scripts in any language run the tools a project already trusts and write one line per measurement. Retros scores each metric from 0 to 100 against its target and compares the run with the last accepted one. Each report names the changes that would raise the scores most.
 
 ```toml
 # retros.toml: the `footprint` category runs one script and expects one metric.
@@ -50,8 +46,6 @@ echo 'entry-size ./number 1.6kB' >> "$RETROS_METRICS"
 Opportunities
   +24  footprint  entry-size ./number  1.6 kB → 1 kB
 ```
-
-A person or an agent climbs with the same loop: run `retros`, take the top opportunity, change the code, and run `retros` again. `retros --require-baseline` fails CI on any change that `retros.lock` does not record, so each improvement becomes the new floor.
 
 ## Philosophy
 
