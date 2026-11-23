@@ -71,7 +71,7 @@ Retros keeps Lighthouse's scoring and depth, and replaces its fixed browser gath
 23. **`setup`.** A top-level `setup` command, such as `bun install --frozen-lockfile`, runs once in each checkout Retros creates, with the top-level `timeout`. The current checkout is assumed ready. A failed setup stops the run with status 2, and `setup` is no longer a category name. Decided 2026-11-23.
 24. **Notes.** A line may end with `note <text>`, after any target, such as `note "hero.svg has no alt text"`. Scripts take the note from the tool that found the miss. Notes come from the first round, stay out of baselines, and show under their item in every report. Decided 2026-11-23.
 25. **`--compact` for agents.** `retros --compact` prints the scores on one line, each missed target with its note, the opportunities, and the changes, instead of each category's metrics. An agent reads it every pass, so it stays a few lines. `report.md` keeps the full detail for people. Decided 2026-11-23.
-26. **The climb trusts `--compare`.** The `climbing-with-retros` skill keeps a change only when `retros --compare HEAD` reads its metric `better` and nothing `worse`, so noise never counts as progress. It never edits scripts, targets, or the configuration, and commits each kept change. Decided 2026-11-23.
+26. **No skill.** Retros ships no agent skill. `retros init` sets a project up, `--compact` names the next step, and `retros --compare HEAD` judges each change, so an agent climbs with the commands alone. Decided 2026-11-23, removing the `climbing-with-retros` skill.
 
 ## The Contract
 
@@ -259,7 +259,7 @@ Let the agent a person already works with set up Retros and climb.
 
 - [x] `retros init` prints a brief for the user's agent: find the project's surfaces (entry points, pages, endpoints, or commands), write one script per category in the project's language or TypeScript on Bun that runs the tools the project already uses, set a target per item where context differs and record the reason beside it, and run `retros check` until it passes. The brief points the agent at the closest example from Phase 4.
 - [x] A compact report for agent loops: scores, misses, and the top opportunities in a few lines, from `--compact` (decision 25).
-- [x] A skill that runs the loop: score, take the top opportunity, change the code, score again, and keep the change only when the category rose and nothing got worse. `skills/climbing-with-retros` judges each change with `retros --compare HEAD` (decision 26).
+- [x] The loop needs no skill: `--compact` names the next step, and `retros --compare HEAD` judges each change (decision 26).
 
 **Gate:** an agent given only the brief sets up a project it has not seen until `retros check` passes. Given an example's report, an agent raises a category score without making any metric worse.
 
