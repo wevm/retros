@@ -75,6 +75,15 @@ footprint:
   bundle-size: { target: 5kB, baseline: 6.9kB }
 ```
 
+## Agent Setup
+
+`retros init` prints a brief that a person gives their agent. The brief asks the agent to find the project's surfaces, write a script per category with the project's own tools, and run `retros check` until it passes. `retros --compact` then prints the next step in a few lines.
+
+```sh
+# Print the setup brief for this project.
+retros init
+```
+
 ## More
 
 <Cards>

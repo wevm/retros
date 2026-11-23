@@ -75,10 +75,10 @@ speed:
 - **Type:** string
 - **Default:** none
 
-A command that prepares each checkout that `--compare` creates, such as a package install. It runs once from the root of the new checkout, before any script, with the top-level `timeout`. A failed setup stops the run with exit status 2.
+A command that prepares each checkout that `--compare` and `retros blame` create, such as a package install. It runs once from the root of the new checkout, before any script, with the top-level `timeout`. A failed setup stops the run with exit status 2.
 
 ```yaml title="retros.yaml"
-# Install packages in the worktree of the other revision.
+# Install packages in each worktree that Retros creates.
 setup: bun install --frozen-lockfile
 ```
 

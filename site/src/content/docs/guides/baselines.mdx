@@ -134,6 +134,18 @@ targets = { "chains" = "8kB" }
 baseline = { chains = "12033B", index = "6112B", utils = "1132B" }
 ```
 
+### Trace a Metric
+
+Each baseline lives in Git, so its history is the metric's history. `retros log` lists the commits that changed a baseline, and `retros blame` names the last one. With `--require-baseline` in CI, that commit is the change that moved the metric.
+
+```text
+$ retros log footprint source-size
+footprint source-size in the baselines of retros.yaml
+
+  fd268f9  2026-11-23  172 B  from 138 B  accept size
+  84337c9  2026-11-23  138 B              init
+```
+
 ### Gate in CI
 
 A CI job that runs `retros --require-baseline` fails each pull request that changes a size, count, check, or line target without running `retros --update`. The [GitHub Actions](/docs/guides/github-actions) guide passes it through the `args` input.

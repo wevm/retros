@@ -1,14 +1,17 @@
 # CLI
 
-The `retros` binary runs a project's scripts, scores the metrics, and writes reports. `retros check` runs each script once to check its lines.
+The `retros` binary runs a project's scripts, scores the metrics, and writes reports. Its other commands check scripts, brief an agent, and trace a metric through the Git history.
 
 ## Usage
 
 `retros` runs every category, or only the category it names. Flags combine, such as `--compare main --require-targets`.
 
 ```text
-retros [category] [--compare <ref>] [--update] [--require-baseline] [--require-targets]
+retros [category] [--compare <ref>] [--compact] [--update] [--require-baseline] [--require-targets]
 retros check
+retros init
+retros log <category> <metric> [item] [--subject <name>]
+retros blame <category> <metric> [item] [--subject <name>] [--since <ref>]
 ```
 
 ```sh
@@ -41,6 +44,57 @@ $ retros check
 1 passed
 ```
 
+### `retros init`
+
+Prints a brief that a person gives their agent to set up Retros in the project. The brief lists the steps, the configuration keys, and the metric line format.
+
+The brief links the closest example: a Rust API for a Cargo project, a website for a package with pages or a web framework, and a TypeScript library for other packages.
+
+```text
+$ retros init
+# Set up Retros in this project
+...
+## Steps
+
+1. Find the project's surfaces: what its users import, open, call, or run, such as entry points, pages, endpoints, or commands.
+```
+
+### `retros log`
+
+Lists the commits on the first-parent history that changed a metric's baseline, newest first, with each value and the value before it. Timings have no baseline, so `log` names `retros blame` for them instead.
+
+```text
+$ retros log footprint source-size
+footprint source-size in the baselines of retros.yaml
+
+  fd268f9  2026-11-23  172 B  from 138 B  accept size
+  84337c9  2026-11-23  138 B              init
+```
+
+### `retros blame`
+
+Names the commit that last moved a metric. When baselines record the metric, `blame` reads them like `log`. Otherwise it checks out commits in temporary worktrees, measures each one, and bisects for the first commit that measures what `HEAD` measures.
+
+```text
+$ retros blame footprint source-size
+fd268f9 moved footprint source-size from 138 B to 172 B, by the baselines in retros.yaml
+  2026-11-23  accept size
+```
+
+A time moved at the first commit that is within noise of `HEAD` in interleaved pairs. Each commit runs the category's `run` command from its own configuration, so a script that moved still runs. The top-level `setup` prepares each checkout.
+
+```text
+$ retros blame speed slugify-time
+Bisecting speed slugify-time across 4 commits, measuring each in a temporary checkout
+  HEAD     1.1 µs
+  84337c9  510.5 ns
+  ac66366  476 ns
+  fa8deea  992 ns  same as HEAD
+
+fa8deea moved speed slugify-time from 476 ns to 1.1 µs
+  2026-11-23  normalize accents
+```
+
 ## Arguments
 
 ### `category`
@@ -48,14 +102,72 @@ $ retros check
 - **Type:** a category name
 - **Default:** every category
 
-Runs only the named category. An unknown name exits with status 2 and lists the categories.
+With `retros`, runs only the named category. With `log` and `blame`, names the category of the metric. An unknown name exits with status 2 and lists the categories.
 
 ```text
 $ retros speeed
 error: unknown category 'speeed'. retros.yaml declares footprint, speed
 ```
 
+### `metric`
+
+- **Type:** a metric name
+
+The metric that `log` or `blame` traces. An unknown name exits with status 2 and lists the category's metrics.
+
+```text
+$ retros log footprint nope
+error: unknown metric 'nope'. footprint configures source-size
+```
+
+### `item`
+
+- **Type:** an item name
+- **Default:** none
+
+One item of a list metric, for `log` and `blame`. Quote an item that contains a space.
+
+```sh
+# Trace the size of one page.
+retros log pages page-size pricing.html
+```
+
 ## Flags
+
+### `--compact`
+
+Prints the category scores on one line, then each missed target with its note, the opportunities, and the changes, for agent loops. Retros still writes every report.
+
+```text
+$ retros --compact
+pages 68
+
+Missed targets
+  pages  page-size pricing.html  31 kB  target 20 kB
+  pages  has-title about.html    fail                 no <title> element
+
+Opportunities
+  +17  pages  has-title about.html    fail → pass
+  +11  pages  page-size pricing.html  31 kB → 20 kB
+```
+
+### `--subject <name>`
+
+Selects the subject of the metric for `log` and `blame`, when a category's lines have subjects.
+
+```sh
+# Trace the startup time of the node subject.
+retros blame speed startup --subject node
+```
+
+### `--since <ref>`
+
+Limits the commits that `blame` bisects to those since `<ref>`, and measures `<ref>` as the oldest one. Without it, `blame` bisects every commit on the first-parent history. When `<ref>` measures what `HEAD` measures, `blame` reports that nothing moved the metric since then.
+
+```sh
+# Look for the commit that slowed startup since the last release.
+retros blame speed startup --since v1.2.0
+```
 
 ### `--compare <ref>`
 

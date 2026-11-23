@@ -102,10 +102,10 @@ No changes against normalize (fd268f9)
 
 ### Prepare Checkouts
 
-The new worktree has only the files Git tracks. A top-level `setup` command, such as a package install, runs once in it before any script. The current checkout is assumed ready. A failed setup stops the run with status 2.
+A new worktree has only the files Git tracks. A top-level `setup` command, such as a package install, runs once in each worktree that `--compare` or `retros blame` creates, before any script. The current checkout is assumed ready. A failed setup stops the run with status 2.
 
 ```yaml title="retros.yaml"
-# Install packages in the worktree that --compare creates.
+# Install packages in each worktree that Retros creates.
 setup: bun install --frozen-lockfile
 
 speed:
@@ -136,6 +136,22 @@ When `retros.yaml`, apart from its baselines, or a file that a `run` command nam
 $ retros --compare v1.2.0
 Comparing with v1.2.0 (ac66366)
 warning: retros.yaml differs in v1.2.0 (ac66366). Both revisions run the categories and commands of this checkout
+```
+
+### Find the Commit
+
+`retros blame` finds the commit that moved a timing. It measures commits in temporary worktrees and bisects for the first one within noise of `HEAD` in interleaved pairs. `--since <ref>` limits the search, such as to the commits since the last release.
+
+```text
+$ retros blame speed slugify-time
+Bisecting speed slugify-time across 4 commits, measuring each in a temporary checkout
+  HEAD     1.1 µs
+  84337c9  510.5 ns
+  ac66366  476 ns
+  fa8deea  992 ns  same as HEAD
+
+fa8deea moved speed slugify-time from 476 ns to 1.1 µs
+  2026-11-23  normalize accents
 ```
 
 ### Compare in CI
