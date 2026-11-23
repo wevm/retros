@@ -72,6 +72,7 @@ Retros keeps Lighthouse's scoring and depth, and replaces its fixed browser gath
 24. **Notes.** A line may end with `note <text>`, after any target, such as `note "hero.svg has no alt text"`. Scripts take the note from the tool that found the miss. Notes come from the first round, stay out of baselines, and show under their item in every report. Decided 2026-11-23.
 25. **`--compact` for agents.** `retros --compact` prints the scores on one line, each missed target with its note, the opportunities, and the changes, instead of each category's metrics. An agent reads it every pass, so it stays a few lines. `report.md` keeps the full detail for people. Decided 2026-11-23.
 26. **No skill.** Retros ships no agent skill. `retros init` sets a project up, `--compact` names the next step, and `retros --compare HEAD` judges each change, so an agent climbs with the commands alone. Decided 2026-11-23, removing the `climbing-with-retros` skill.
+27. **Log and blame.** `retros log` lists the commits that changed a metric's baseline. `retros blame` names the last, or bisects commits measured in temporary worktrees when no baseline records the metric. A time is unchanged within noise of `HEAD` in interleaved pairs. Each commit runs its own configuration's `run`. Decided 2026-11-23.
 
 ## The Contract
 
@@ -268,11 +269,13 @@ Let the agent a person already works with set up Retros and climb.
 Remember where the project has been and what moved it.
 
 - [ ] Each run on `main` keeps its report. Where reports live, such as Git notes, a branch, or CI artifacts, is decided at the start of this phase. zepto publishes to GitHub Pages today.
-- [ ] `retros log <metric> [item]` prints a metric's values across commits. Exact metrics come from the Git history of their baselines, so they need no stored runs.
-- [ ] `retros blame <metric> [item]` names the commit that moved a metric: from baseline history for exact metrics, and by measuring and bisecting for timings.
+- [ ] `retros log <category> <metric> [item]` prints a metric's values across commits. Exact metrics come from the Git history of their baselines, so they need no stored runs (decision 27). Timings wait for stored runs.
+- [x] `retros blame <category> <metric> [item]` names the commit that moved a metric: from baseline history for exact metrics, and by measuring and bisecting otherwise (decision 27). `--subject` picks a subject, and `--since <ref>` limits the commits.
 - [ ] Trends in the HTML report.
 
 **Gate:** on Retros' own history, `retros blame footprint dependencies` names the commit that added a dependency, and `retros log` shows the change.
+
+On 2026-11-23, blame measured 7 of 45 commits and named 78a79ab, which moved dependencies from 17 to 21 by adding yaml-rust2. `retros log` shows nothing there, because Retros commits no baselines of its own.
 
 ## Phase 10: zepto
 
@@ -306,5 +309,6 @@ These are not scheduled: built-in measures, such as `retros time` and `retros si
 - **Contextual targets can be loosened to pass.** Earliest signal: a pull request that raises a target in a script. Fix: done. Baselines record line targets, so a loosened one is a reviewed change.
 - **`--update` edits the configuration.** Earliest signal: an update that changes a line outside a `baseline` key. Fix: done. Retros parses the file it would write and writes nothing unless only baselines changed.
 - **List metrics are slow.** Export size for 1,912 viem exports took 174 s in an orb. Earliest signal: a viem run over 10 minutes. Fix: partly done. `--compare` reads exact metrics from `<ref>`'s baselines instead of measuring it. Re-measuring only changed items comes later.
+- **A stopped run leaves its worktree.** A signal ends `--compare` or `blame` before it removes its checkout. Earliest signal: `git worktree list` shows checkouts in the temporary directory. Fix: remove them on SIGINT and SIGTERM.
 - **Timings are noisy on shared runners.** Earliest signal: most timing comparisons read "within noise". Fix: more pairs, or a dedicated runner.
 - **Targets are guesses.** Earliest signal: every item lands in the same band. Fix: the agent brief asks for a reason beside each target, and reviews challenge targets like code.

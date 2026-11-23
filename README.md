@@ -88,15 +88,22 @@ retros init
 
 # Print the scores, missed targets, and opportunities in a few lines, for agent loops.
 retros --compact
+
+# List the commits that changed a metric's baseline.
+retros log footprint bundle
+
+# Name the commit that last moved a metric, bisecting commits when no baseline records it.
+retros blame speed startup
 ```
 
 - **Metric line:** `[subject:] metric [item] value [target <value>] [note <text>]`. Quote an item or note that contains a space. A note says why, such as `alt-text /pricing fail note "hero.svg has no alt text"`, and every report shows it under its item.
 - **Values:** sizes in `B`, `kB`, `MB`, or `GB`, times in `ns`, `µs`, `ms`, or `s`, counts without a unit, and checks as `pass` or `fail`.
 - **Category keys:** `run`, `timeout` (default `10m`), `title`, and `description`. A top-level `run` and `timeout` apply to categories that set none.
-- **Setup:** a top-level `setup` command, such as `bun install --frozen-lockfile`, prepares each checkout that `--compare` creates.
+- **Setup:** a top-level `setup` command, such as `bun install --frozen-lockfile`, prepares each checkout that `--compare` and `blame` create.
 - **Metric keys:** `target`, `targets`, `weight` (default 1), `score` (`p90` by default, or `p10`, `median`, `max`, `min`, `sum`), `better`, `varies`, `title`, `description`, and `baseline`.
 - **Baselines:** `retros --update` writes each metric's `baseline` into the configuration, one line per item. Commit them, so each run reports what changed.
 - **Comparisons:** `--compare <ref>` checks out `<ref>` in a temporary Git worktree. Timings change only when the medians differ by at least 5% and 7 of 8 pairs agree.
+- **History:** `retros blame` measures commits in temporary worktrees when no baseline records the metric. Each commit runs the `run` command its own configuration declares, so a moved script still runs. `--since <ref>` limits the commits.
 - **Files:** reports go to `.retros/` in the project root.
 
 [`examples/`](examples) has a TypeScript library, a website, and a Rust API. Retros measures itself with [`.agents/retros.yaml`](.agents/retros.yaml).

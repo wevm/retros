@@ -122,8 +122,15 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
         // Each category's entries, one per subject, with the warnings its lines produced.
         let mut entries: Vec<(CategoryReport, Vec<String>)> = Vec::new();
         let (results, base) = match &worktree {
-            Some(worktree) => measure::pairs(project, &worktree.root, &group, baselines.is_none())?,
-            None => (measure::group(project, &group, true)?, None),
+            Some(worktree) => measure::pairs(
+                project,
+                &project.root,
+                &worktree.root,
+                &group,
+                &group,
+                baselines.is_none(),
+            )?,
+            None => (measure::group(project, &project.root, &group, true)?, None),
         };
         let mut base = base.map(Vec::into_iter);
 
@@ -377,26 +384,36 @@ fn prepare(
     let _ = stdout.flush();
     drop(stdout);
 
-    if let Some(setup) = &project.config.setup {
-        let run = script::run(&setup.run, &worktree.root, setup.timeout)
-            .map_err(|error| format!("error: could not run `{}`: {error}", setup.run))?;
-        let message = match run.outcome {
-            Outcome::Exited(0) => None,
-            Outcome::Exited(code) => Some(format!("exited with status {code}")),
-            Outcome::Signaled(signal) => Some(format!("was stopped by signal {signal}")),
-            Outcome::TimedOut => Some(format!(
-                "timed out after {}",
-                engine::format::duration(setup.timeout)
-            )),
-        };
-        if let Some(message) = message {
-            return Err(format!("error: setup in {label} {message}\n{}", run.stderr)
-                .trim_end()
-                .to_owned());
-        }
-    }
-
+    setup(project, worktree)?;
     Ok(config.filter(baseline::recorded))
+}
+
+/// Runs the configuration's `setup` in the checkout of another revision, if it has one.
+///
+/// # Errors
+///
+/// Returns a message for the terminal when `setup` cannot run or fails.
+pub(crate) fn setup(project: &Project, worktree: &Worktree) -> Result<(), String> {
+    let Some(setup) = &project.config.setup else {
+        return Ok(());
+    };
+    let run = script::run(&setup.run, &worktree.root, setup.timeout)
+        .map_err(|error| format!("error: could not run `{}`: {error}", setup.run))?;
+    let message = match run.outcome {
+        Outcome::Exited(0) => return Ok(()),
+        Outcome::Exited(code) => format!("exited with status {code}"),
+        Outcome::Signaled(signal) => format!("was stopped by signal {signal}"),
+        Outcome::TimedOut => format!(
+            "timed out after {}",
+            engine::format::duration(setup.timeout)
+        ),
+    };
+    Err(format!(
+        "error: setup in {} {message}\n{}",
+        worktree.label, run.stderr
+    )
+    .trim_end()
+    .to_owned())
 }
 
 /// Returns the lines of one category of a group from each round's metric text.
@@ -405,7 +422,7 @@ fn prepare(
 ///
 /// Returns a message for the terminal when a round's text no longer parses, which the checks
 /// already ruled out.
-fn rounds<'s>(
+pub(crate) fn rounds<'s>(
     group: &[&Category],
     index: usize,
     sources: &'s [String],

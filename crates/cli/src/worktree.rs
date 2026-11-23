@@ -1,5 +1,6 @@
-//! Checks out another revision for `retros --compare`: a detached Git worktree in a temporary
-//! directory, removed when the comparison ends, whether it succeeded or failed.
+//! Checks out another revision for `retros --compare` and `retros blame`: a detached Git worktree
+//! in a temporary directory, removed when the command is done with it, whether it succeeded or
+//! failed.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -30,13 +31,7 @@ pub(crate) fn add(root: &Path, reference: &str) -> Result<Worktree, String> {
     let root = root
         .canonicalize()
         .map_err(|error| format!("error: could not read {}: {error}", root.display()))?;
-    let repository =
-        PathBuf::from(git(&root, &["rev-parse", "--show-toplevel"]).map_err(|_| {
-            format!(
-                "error: --compare needs a Git repository, and {} is not in one",
-                root.display()
-            )
-        })?);
+    let repository = PathBuf::from(repository(&root)?);
     let commit = git(
         &root,
         &[
@@ -83,8 +78,22 @@ impl Drop for Worktree {
     }
 }
 
+/// Returns the top level of the Git repository that holds `root`.
+///
+/// # Errors
+///
+/// Returns a message for the terminal when `root` is not in a Git repository.
+pub(crate) fn repository(root: &Path) -> Result<String, String> {
+    git(root, &["rev-parse", "--show-toplevel"])
+        .map_err(|_| format!("error: {} is not in a Git repository", root.display()))
+}
+
 /// Runs Git in `dir` and returns its standard output without the trailing newline.
-fn git(dir: &Path, args: &[&str]) -> Result<String, String> {
+///
+/// # Errors
+///
+/// Returns a message for the terminal when Git cannot run or fails.
+pub(crate) fn git(dir: &Path, args: &[&str]) -> Result<String, String> {
     let output = Command::new("git")
         .args(args)
         .current_dir(dir)

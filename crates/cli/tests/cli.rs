@@ -152,6 +152,8 @@ fn help() {
                   [--require-targets]
            retros check
            retros init
+           retros log <category> <metric> [item] [--subject <name>]
+           retros blame <category> <metric> [item] [--subject <name>] [--since <ref>]
 
     Run each category's script, score its metrics, list the opportunities that would raise the
     scores most, and compare sizes, counts, checks, and line targets with each metric's baseline.
@@ -160,8 +162,11 @@ fn help() {
     to run only that one.
 
     Commands:
+      blame  Name the commit that last moved a metric: from its baselines, or by measuring commits
+             since <ref>, or every commit, in temporary checkouts and bisecting
       check  Run each script once and check the metric lines it writes
       init   Print a brief for an agent to set up Retros in this project
+      log    List the commits that changed a metric's baseline
 
     Options:
       --compare <ref>     Compare with another revision: timings in interleaved pairs, and sizes,
@@ -187,6 +192,8 @@ fn unknown_argument() {
                   [--require-targets]
            retros check
            retros init
+           retros log <category> <metric> [item] [--subject <name>]
+           retros blame <category> <metric> [item] [--subject <name>] [--since <ref>]
 
     Run each category's script, score its metrics, list the opportunities that would raise the
     scores most, and compare sizes, counts, checks, and line targets with each metric's baseline.
@@ -195,8 +202,11 @@ fn unknown_argument() {
     to run only that one.
 
     Commands:
+      blame  Name the commit that last moved a metric: from its baselines, or by measuring commits
+             since <ref>, or every commit, in temporary checkouts and bisecting
       check  Run each script once and check the metric lines it writes
       init   Print a brief for an agent to set up Retros in this project
+      log    List the commits that changed a metric's baseline
 
     Options:
       --compare <ref>     Compare with another revision: timings in interleaved pairs, and sizes,
@@ -222,6 +232,8 @@ fn unknown_check_argument() {
                   [--require-targets]
            retros check
            retros init
+           retros log <category> <metric> [item] [--subject <name>]
+           retros blame <category> <metric> [item] [--subject <name>] [--since <ref>]
 
     Run each category's script, score its metrics, list the opportunities that would raise the
     scores most, and compare sizes, counts, checks, and line targets with each metric's baseline.
@@ -230,8 +242,11 @@ fn unknown_check_argument() {
     to run only that one.
 
     Commands:
+      blame  Name the commit that last moved a metric: from its baselines, or by measuring commits
+             since <ref>, or every commit, in temporary checkouts and bisecting
       check  Run each script once and check the metric lines it writes
       init   Print a brief for an agent to set up Retros in this project
+      log    List the commits that changed a metric's baseline
 
     Options:
       --compare <ref>     Compare with another revision: timings in interleaved pairs, and sizes,
@@ -1270,6 +1285,133 @@ fn compare_uses_the_revision_baselines_and_always_removes_its_checkout() {
     let output = retros_in(dir, &["--compare", "no-such-branch"], &[]);
     assert_eq!(output.status.code(), Some(2));
     insta::assert_snapshot!(stderr(&output), @"error: unknown revision 'no-such-branch'");
+}
+
+#[test]
+fn blame_bisects_commits_until_baselines_record_the_metric_and_log_lists_them() {
+    let project = repository("compare");
+    let dir = project.path();
+    // Three more commits: one moves the bundle, one slows encode, and one changes nothing.
+    let mut day = 2;
+    let mut commit_as = |dir: &Path, title: &str| {
+        git(dir, &["add", "-A"]);
+        let date = format!("2026-01-0{day}T12:00:00");
+        git(dir, &["commit", "-q", "-m", title, "--date", &date]);
+        day += 1;
+    };
+    fs::write(dir.join("bundle.txt"), "30kB\n").unwrap();
+    commit_as(dir, "feat: inline the icons");
+    fs::write(dir.join("encode.txt"), "2.5ms\n").unwrap();
+    commit_as(dir, "refactor: encode in one pass");
+    fs::write(dir.join("README.md"), "Docs.\n").unwrap();
+    commit_as(dir, "docs: add a readme");
+
+    // Names each commit by its position, oldest first, so snapshots do not depend on hashes.
+    let named = |text: &str| {
+        let log = git(dir, &["log", "--reverse", "--format=%h"]);
+        log.lines()
+            .enumerate()
+            .fold(text.to_owned(), |text, (index, hash)| {
+                text.replace(hash, &format!("commit{}", index + 1))
+            })
+    };
+
+    let output = retros_in(dir, &["blame", "footprint", "bundle"], &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(named(&stdout(&output)), @"
+    Bisecting footprint bundle across 4 commits, measuring each in a temporary checkout
+      HEAD     30 kB
+      commit1  27.5 kB
+      commit2  30 kB  same as HEAD
+
+    commit2 moved footprint bundle from 27.5 kB to 30 kB
+      2026-01-02  feat: inline the icons
+    ");
+
+    let output = retros_in(dir, &["blame", "speed", "encode"], &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(named(&stdout(&output)), @"
+    Bisecting speed encode across 4 commits, measuring each in a temporary checkout
+      HEAD     2.5 ms
+      commit1  2 ms
+      commit2  2 ms
+      commit3  2.5 ms  same as HEAD
+
+    commit3 moved speed encode from 2 ms to 2.5 ms
+      2026-01-03  refactor: encode in one pass
+    ");
+
+    // Parse writes the same times at every commit, so nothing moved it.
+    let output = retros_in(dir, &["blame", "speed", "parse"], &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(named(&stdout(&output)), @"
+    Bisecting speed parse across 4 commits, measuring each in a temporary checkout
+      HEAD     10 ms
+      commit1  10 ms  same as HEAD
+
+    Nothing moved speed parse since commit1: it measures 10 ms there too
+    ");
+    assert_eq!(git(dir, &["worktree", "list"]).lines().count(), 1);
+
+    let output = retros_in(dir, &["log", "footprint", "bundle"], &[]);
+    insta::assert_snapshot!(stdout(&output), @"No baseline records footprint bundle in the history of retros.yaml. `retros blame` measures commits instead");
+
+    // Once baselines record the bundle, its history comes from them.
+    fs::write(dir.join(".ready"), "").unwrap();
+    retros_in(dir, &["footprint", "--update"], &[]);
+    commit_as(dir, "chore: record baselines");
+    fs::write(dir.join("bundle.txt"), "28kB\n").unwrap();
+    retros_in(dir, &["footprint", "--update"], &[]);
+    commit_as(dir, "perf: subset the font");
+
+    let output = retros_in(dir, &["log", "footprint", "bundle"], &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(named(&stdout(&output)), @"
+    footprint bundle in the baselines of retros.yaml
+
+      commit6  2026-01-06  28 kB  from 30 kB  perf: subset the font
+      commit5  2026-01-05  30 kB              chore: record baselines
+    ");
+
+    let output = retros_in(dir, &["blame", "footprint", "bundle"], &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(named(&stdout(&output)), @"
+    commit6 moved footprint bundle from 30 kB to 28 kB, by the baselines in retros.yaml
+      2026-01-06  perf: subset the font
+    ");
+
+    // After the speed script moves, older commits still run the command their configuration
+    // declares.
+    fs::create_dir(dir.join("scripts")).unwrap();
+    fs::rename(dir.join("speed.sh"), dir.join("scripts/speed.sh")).unwrap();
+    let config = fs::read_to_string(dir.join("retros.yaml")).unwrap();
+    fs::write(
+        dir.join("retros.yaml"),
+        config.replace("run: sh speed.sh", "run: sh scripts/speed.sh"),
+    )
+    .unwrap();
+    commit_as(dir, "chore: move the scripts");
+    let output = retros_in(dir, &["blame", "speed", "encode"], &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(named(&stdout(&output)), @"
+    Bisecting speed encode across 7 commits, measuring each in a temporary checkout
+      HEAD     2.5 ms
+      commit1  2 ms
+      commit4  2.5 ms  same as HEAD
+      commit2  2 ms
+      commit3  2.5 ms  same as HEAD
+
+    commit3 moved speed encode from 2 ms to 2.5 ms
+      2026-01-03  refactor: encode in one pass
+    ");
+
+    let output = retros_in(dir, &["blame", "footprint", "size"], &[]);
+    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(stderr(&output), @"error: unknown metric 'size'. footprint configures bundle");
+
+    let output = retros_in(dir, &["log", "footprint"], &[]);
+    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(stderr(&output).lines().next().unwrap(), @"error: log needs a category, a metric, and optionally an item, such as `retros log footprint bundle`");
 }
 
 #[test]

@@ -40,9 +40,9 @@ pub(crate) fn groups<'c>(categories: &[&'c Category]) -> Vec<Vec<&'c Category>> 
     groups
 }
 
-/// Runs the script that the categories of `group` share once, or [`engine::score::ROUNDS`] times
-/// when `repeat` is set and the first run writes a time or a metric that varies. Returns each
-/// category's result, in the order of `group`.
+/// Runs the script that the categories of `group` share once in the checkout at `root`, or
+/// [`engine::score::ROUNDS`] times when `repeat` is set and the first run writes a time or a
+/// metric that varies. Returns each category's result, in the order of `group`.
 ///
 /// # Errors
 ///
@@ -51,10 +51,11 @@ pub(crate) fn groups<'c>(categories: &[&'c Category]) -> Vec<Vec<&'c Category>> 
 /// category.
 pub(crate) fn group(
     project: &Project,
+    root: &Path,
     group: &[&Category],
     repeat: bool,
 ) -> Result<Vec<Result<Measured, Failure>>, String> {
-    let mut run = Run::new(project, &project.root, group);
+    let mut run = Run::new(project, root, group);
     run.round()?;
     if repeat && run.timed {
         while run.rounds < engine::score::ROUNDS {
@@ -64,28 +65,31 @@ pub(crate) fn group(
     Ok(run.finish())
 }
 
-/// Runs the script that the categories of `group` share in this checkout and in the checkout at
-/// `base`. When the first run here writes a time or a metric that varies, both run
+/// Runs the script that the categories of `group` share in the checkout at `head`, and the script
+/// of the same categories in `base_group` in the checkout at `base`. When the first run at `head`
+/// writes a time or a metric that varies, both run
 /// [`engine::compare::PAIRS`] times in interleaved pairs, and the side that runs first alternates
 /// from pair to pair. Otherwise `base` runs once, or not at all unless `exact` asks for its
-/// sizes, counts, and checks. Returns each category's results here and in `base`.
+/// sizes, counts, and checks. Returns each category's results at `head` and at `base`.
 ///
 /// # Errors
 ///
 /// Returns a message for the terminal when Retros cannot run the script at all.
 pub(crate) fn pairs(
     project: &Project,
+    head: &Path,
     base: &Path,
     group: &[&Category],
+    base_group: &[&Category],
     exact: bool,
 ) -> Result<Compared, String> {
-    let mut head = Run::new(project, &project.root, group);
+    let mut head = Run::new(project, head, group);
     head.round()?;
     if !head.timed && !exact {
         return Ok((head.finish(), None));
     }
 
-    let mut base = Run::new(project, base, group);
+    let mut base = Run::new(project, base, base_group);
     base.round()?;
     if head.timed {
         for pair in 1..engine::compare::PAIRS {
@@ -101,7 +105,7 @@ pub(crate) fn pairs(
     Ok((head.finish(), Some(base.finish())))
 }
 
-/// Each category's results in this checkout, and in the other revision when it ran there.
+/// Each category's results at `head`, and at `base` when it ran there.
 pub(crate) type Compared = (
     Vec<Result<Measured, Failure>>,
     Option<Vec<Result<Measured, Failure>>>,

@@ -33,7 +33,7 @@ pub(crate) fn run(project: &Project) -> Result<ExitCode, String> {
 
     let categories: Vec<_> = project.config.categories.iter().collect();
     for group in measure::groups(&categories) {
-        let results = measure::group(project, &group, false)?;
+        let results = measure::group(project, &project.root, &group, false)?;
         let mut block = String::new();
 
         for (category, result) in group.iter().zip(results) {

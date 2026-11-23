@@ -388,6 +388,25 @@ fn apply(config: &Config, changes: &[Update<'_>]) -> Config {
     updated
 }
 
+/// Returns the size, count, or check that `config` records for one metric of a subject, or for one
+/// of its items, or `None` when it records none.
+pub fn value(
+    config: &Config,
+    category: &str,
+    metric: &str,
+    subject: Option<&str>,
+    item: Option<&str>,
+) -> Option<Value> {
+    match (
+        recorded_entry(find(config, category, metric)?, subject)?,
+        item,
+    ) {
+        (Entry::Single(record), None) => record.value,
+        (Entry::Items(items), Some(item)) => items.iter().find(|(name, _)| name == item)?.1.value,
+        _ => None,
+    }
+}
+
 /// Returns a metric of `config` by category and metric name.
 fn find<'c>(config: &'c Config, category: &str, metric: &str) -> Option<&'c Metric> {
     config

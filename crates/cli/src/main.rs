@@ -6,6 +6,7 @@
 //! such as for an unknown argument or an invalid configuration.
 
 mod check;
+mod history;
 mod init;
 mod measure;
 mod project;
@@ -23,6 +24,8 @@ Usage: retros [category] [--compare <ref>] [--compact] [--update] [--require-bas
               [--require-targets]
        retros check
        retros init
+       retros log <category> <metric> [item] [--subject <name>]
+       retros blame <category> <metric> [item] [--subject <name>] [--since <ref>]
 
 Run each category's script, score its metrics, list the opportunities that would raise the
 scores most, and compare sizes, counts, checks, and line targets with each metric's baseline.
@@ -31,8 +34,11 @@ nearest parent. Reports go to .retros/report.json, report.md, and report.html. N
 to run only that one.
 
 Commands:
+  blame  Name the commit that last moved a metric: from its baselines, or by measuring commits
+         since <ref>, or every commit, in temporary checkouts and bisecting
   check  Run each script once and check the metric lines it writes
   init   Print a brief for an agent to set up Retros in this project
+  log    List the commits that changed a metric's baseline
 
 Options:
   --compare <ref>     Compare with another revision: timings in interleaved pairs, and sizes,
@@ -61,6 +67,7 @@ fn main() -> ExitCode {
         [command, arg, ..] if command == "check" => usage(&format!("unknown argument '{arg}'")),
         [command] if command == "init" => init::run(),
         [command, arg, ..] if command == "init" => usage(&format!("unknown argument '{arg}'")),
+        [command, args @ ..] if command == "log" || command == "blame" => history(command, args),
         _ => {
             let mut options = score::Options::default();
             let mut args = args.iter();
@@ -88,6 +95,52 @@ fn main() -> ExitCode {
             with_project(|project| score::run(project, &options))
         }
     }
+}
+
+/// Runs `retros log` or `retros blame` with the arguments after the command.
+fn history(command: &str, args: &[String]) -> ExitCode {
+    let mut names = Vec::new();
+    let (mut since, mut subject) = (None, None);
+    let mut args = args.iter();
+
+    while let Some(arg) = args.next() {
+        let value = match arg.as_str() {
+            "--since" if command == "blame" => &mut since,
+            "--subject" => &mut subject,
+            flag if flag.starts_with('-') => return usage(&format!("unknown argument '{flag}'")),
+            name => {
+                names.push(name.to_owned());
+                continue;
+            }
+        };
+        match args.next() {
+            Some(next) if !next.starts_with('-') => *value = Some(next.clone()),
+            _ => return usage(&format!("{arg} needs a value")),
+        }
+    }
+
+    let mut names = names.into_iter();
+    let (Some(category), Some(metric), item, None) =
+        (names.next(), names.next(), names.next(), names.next())
+    else {
+        return usage(&format!(
+            "{command} needs a category, a metric, and optionally an item, such as `retros {command} footprint bundle`"
+        ));
+    };
+    let selector = history::Selector {
+        category,
+        item,
+        metric,
+        subject,
+    };
+
+    with_project(|project| {
+        if command == "log" {
+            history::log(project, &selector)
+        } else {
+            history::blame(project, &selector, since.as_deref())
+        }
+    })
 }
 
 /// Finds the project and runs `command` on it. A message from either goes to standard error with
