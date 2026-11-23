@@ -10,11 +10,11 @@
 
 ## Overview
 
-Retros scores a project against its own targets. A project picks its metrics, such as bundle size or request latency. Retros scores each one from 0 to 100 and lists the fixes that would raise the scores most.
+Retros scores a project against its own targets. A project picks its metrics, such as bundle size, request latency, or test coverage, and sets a target for each. Retros runs the scripts that measure them, scores each metric from 0 to 100, and names the fixes worth the most points.
 
 ## Problem
 
-Most projects track their numbers in one-off scripts and CI checks that pass or fail. Nothing shows how far a project is from its targets, or which fix would close the gap most.
+Most projects track their numbers in one-off scripts and CI checks that pass or fail. A check says whether a limit broke, not how far the project is from its target or which fix would help most. Regressions slip under loose limits, and improvements fade because nothing records them.
 
 ## Solution
 
