@@ -290,7 +290,7 @@ Replace zepto's harness metrics report with Retros.
 - [x] Subjects, shared runs, and `varies` (decisions 15 to 17). The HTML report shows one tab per subject.
 - [x] `zig build metrics` writes metric lines for each harness. zc-mock, the harness commands, and the crash and resume scenario stay in zepto, and its `retros.yaml` holds the targets.
 - [x] zepto's CI runs `retros` and publishes `report.html` to GitHub Pages per run.
-- [ ] Pages history through Phase 9.
+- [x] Pages history through Phase 9. Each metrics run on main keeps a note, and the Pages report charts every category and metric across the noted runs. On 2026-11-23, zepto's report for `5f3ecea` drew 56 trends from `5ed3e96`'s note and its own run.
 
 **Gate:** Retros scores zc, the Zig SDK, and the TypeScript package from one run of `zig build metrics` per round, and zepto removes its scoring and report code. Scores move because each metric has one target instead of zepto's `good` and `median` pair, which jxom accepted on 2026-11-23. On one orb, `retros` took 48 s and scored the TypeScript package's speed 85, from 91, since its first request misses a 20 ms target.
 
