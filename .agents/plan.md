@@ -222,14 +222,15 @@ Show what a rich, Lighthouse-level setup looks like for common kinds of projects
 
 ## Phase 5: viem
 
-Run Retros on a real TypeScript library with thousands of items.
+Run Retros on a real TypeScript library, fanning out over every public export and function. jxom set this scope on 2026-11-23: rolldown, entry size for every export, no install size, CPU and memory, waterfalls, and types per export.
 
-- [ ] `metrics/footprint.ts`: export size for every export (esbuild without code splitting, gzip), with targets by kind of export, such as chains, actions, and clients, and install size.
-- [ ] `metrics/speed.ts`: import time for each of the 26 entry points.
-- [ ] `metrics/types.ts`, if viem's development install works in an orb. Its postinstall builds contracts with Foundry.
+- [ ] `footprint`: `entry-size` for each of the 1,916 runtime exports of the 26 entry points, and for each whole entry. rolldown bundles and minifies each import, and the size is gzipped. No export size and no install size.
+- [ ] `speed`: `call-time` in CPU time and `call-memory` in heap bytes per call for every public function, replaying the arguments viem's tests call it with. `benched` fails for a function with no replayable call. `import-time` and `import-memory` for each entry point.
+- [ ] `latency`: `waterfalls`, a check per async function that fails when it awaits independent work in sequence instead of in one `Promise.all`.
+- [ ] `types`: `instantiations`, `check-time`, and `check-memory` for every public export, values and types, each checked in its own program. viem's attest benches score against their pinned counts.
 - [ ] `retros.yaml` with baselines in a local viem checkout. Nothing is committed to viem without approval.
 
-**Gate:** with viem 2.58.4 and esbuild 0.28.2, the export-size list has 1,912 items, matching the applied metrics trial. A planted regression in one module shows as worse against its baseline, and nothing else changes. The top opportunities name exports a viem maintainer agrees are worth shrinking.
+**Gate:** with viem 2.58.5, `entry-size` covers all 1,916 runtime exports. A planted regression in one module shows as worse in the items that bundle it, and nothing else changes. The top opportunities and waterfall findings name changes a viem maintainer agrees are worth making.
 
 ## Phase 6: Timing Comparisons and Target Gates
 
