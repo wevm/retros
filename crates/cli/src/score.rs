@@ -269,7 +269,8 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
     };
     std::fs::create_dir_all(&dir)
         .map_err(|error| format!("error: could not create .uphill: {error}"))?;
-    write("report.json", engine::report::json(&report))?;
+    let json = engine::report::json(&report);
+    write("report.json", json.clone())?;
     write("report.md", engine::report::markdown(&report))?;
     write("report.html", engine::html::html(&report))?;
 
@@ -288,7 +289,8 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
         }
     }
     if options.note {
-        let commit = history::note(project, &engine::history::note(&report))?;
+        let commit = history::note(project, history::NOTES, &engine::history::note(&report))?;
+        history::note(project, history::REPORTS, &json)?;
         let _ = write!(written, ", a note on {commit}");
     }
     let _ = writeln!(io::stdout(), "\nWrote {written}");

@@ -115,11 +115,12 @@ jobs:
 
       - name: Note this run
         run: |
-          git fetch origin refs/notes/uphill:refs/notes/uphill || true
+          # The pattern matches refs/notes/uphill and refs/notes/uphill-report.
+          git fetch origin 'refs/notes/uphill*:refs/notes/uphill*'
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           cargo run --release --locked --quiet -p uphill -- --note
-          git push origin refs/notes/uphill
+          git push origin 'refs/notes/uphill*:refs/notes/uphill*'
 
   # Creates the GitHub Release with the archives, and publishes the same binaries to npm. Each
   # part skips work that a cancelled or failed run already finished, so a later run resumes it.

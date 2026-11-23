@@ -165,7 +165,7 @@ Opportunities
 
 ### `--note`
 
-Keeps this run's category scores and each item's value as a Git note on `HEAD`, under `refs/notes/uphill`. `report.html` draws trends from the notes, and `uphill log` reads them. Uphill refuses with status 2 when tracked files differ from `HEAD`, so a note always describes its commit.
+Keeps this run's category scores and each item's value as a Git note on `HEAD`, under `refs/notes/uphill`. `report.html` draws trends from the notes, and `uphill log` reads them. It also keeps `report.json` under `refs/notes/uphill-report`, for [readers outside the repository](reports.md#report-notes). Uphill refuses with status 2 when tracked files differ from `HEAD`, so a note always describes its commit.
 
 ```text
 $ uphill --note
@@ -176,9 +176,9 @@ Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html, a note on fd2
 Git does not push or fetch notes by default. Push them to share them, and fetch them in another clone. Trends and `uphill log` walk the first-parent history, so they need a full clone.
 
 ```sh
-# Share the notes, and fetch them in another clone.
-git push origin refs/notes/uphill
-git fetch origin refs/notes/uphill:refs/notes/uphill
+# Share both notes refs, and fetch them in another clone.
+git push origin 'refs/notes/uphill*:refs/notes/uphill*'
+git fetch origin 'refs/notes/uphill*:refs/notes/uphill*'
 ```
 
 ### `--subject <name>`

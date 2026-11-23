@@ -1464,6 +1464,14 @@ fn notes_keep_runs_for_log_and_the_trends_in_report_html() {
     encode 2ms
     parse 10ms
     ");
+    // The report note holds the same bytes as report.json, for readers outside the repository.
+    assert_eq!(
+        git(
+            dir,
+            &["notes", "--ref", "refs/notes/uphill-report", "show", "HEAD"]
+        ),
+        fs::read_to_string(dir.join(".uphill/report.json")).unwrap()
+    );
 
     // Encode slows in one commit and the bundle grows in the next, and each run is noted.
     fs::write(dir.join("encode.txt"), "2.5ms\n").unwrap();

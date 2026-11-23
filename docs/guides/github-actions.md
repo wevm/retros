@@ -177,7 +177,7 @@ jobs:
 
 ### Keep a History
 
-`--note` keeps each run on the main branch as a Git note, which trends in `report.html` and `uphill log` read. The job fetches the notes, sets a Git identity for them, and pushes them, so it needs `contents: write`. Concurrency keeps two runs from pushing notes at once.
+`--note` keeps each run on the main branch as Git notes, which trends in `report.html`, `uphill log`, and [readers of `report.json`](../reference/reports.md#report-notes) read. The job fetches the notes, sets a Git identity for them, and pushes them, so it needs `contents: write`. Concurrency keeps two runs from pushing notes at once.
 
 ```yaml title=".github/workflows/uphill-main.yml"
 # Keep each run on main as a Git note, and push the notes.
@@ -196,14 +196,15 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      # The pattern matches refs/notes/uphill and refs/notes/uphill-report.
       - run: |
-          git fetch origin refs/notes/uphill:refs/notes/uphill || true
+          git fetch origin 'refs/notes/uphill*:refs/notes/uphill*'
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
       - uses: wevm/uphill@main
         with:
           args: --note
-      - run: git push origin refs/notes/uphill
+      - run: git push origin 'refs/notes/uphill*:refs/notes/uphill*'
 ```
 
 A pull request's `report.html` draws the same trends when its job clones the full history and fetches the notes before the action runs.

@@ -89,6 +89,17 @@ slugify-time 1006ns
 
 A metric's chart draws its target as a dashed line when the target is near its values. Each caption states the change since the first run. Hovering a chart, or focusing it and pressing the arrow keys, names each run's commit, date, and value.
 
+## Report Notes
+
+`uphill --note` also keeps the run's `report.json`, byte for byte, as a note on the same commit under `refs/notes/uphill-report`. A dashboard or other tool reads each noted commit's full report from the repository, without a clone or CI artifacts.
+
+On GitHub, a public repository serves a note as a raw file named after its commit. A ref with many notes stores them under fan-out paths, such as `fd/268f9…`, so a reader that lists the ref's tree finds both forms.
+
+```sh
+# Read the report noted on HEAD, by its full SHA.
+curl "https://raw.githubusercontent.com/wevm/uphill/refs/notes/uphill-report/$(git rev-parse HEAD)"
+```
+
 ## `report.json`
 
 The JSON report has every value in base units: bytes for sizes and nanoseconds for times. Keys keep a fixed order, so the same run writes the same bytes. Fields that do not apply are `null`.

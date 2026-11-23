@@ -292,7 +292,10 @@ fn points(project: &Project, selector: &Selector) -> Result<Vec<Point>, String> 
 }
 
 /// The ref that holds the notes of past runs.
-const NOTES: &str = "refs/notes/uphill";
+pub(crate) const NOTES: &str = "refs/notes/uphill";
+
+/// The ref that holds each noted run's `report.json`, for readers outside the repository.
+pub(crate) const REPORTS: &str = "refs/notes/uphill-report";
 
 /// Reads the runs noted on the first-parent history of `HEAD`, at most `limit` of them, oldest
 /// first. With `skip_head`, it leaves out a note on `HEAD`, which the current run stands for.
@@ -362,17 +365,17 @@ pub(crate) fn clean(project: &Project) -> Result<(), String> {
     }
 }
 
-/// Writes `note` as the note on `HEAD` under [`NOTES`], replacing any note there, and returns
-/// `HEAD`'s short hash.
+/// Writes `note` as the note on `HEAD` under `reference`, such as [`NOTES`], replacing any note
+/// there, and returns `HEAD`'s short hash.
 ///
 /// # Errors
 ///
 /// Returns a message for the terminal when Git cannot write the note.
-pub(crate) fn note(project: &Project, note: &str) -> Result<String, String> {
+pub(crate) fn note(project: &Project, reference: &str, note: &str) -> Result<String, String> {
     let failed = |error: &dyn std::fmt::Display| format!("error: could not write a note: {error}");
     let mut child = Command::new("git")
         .args([
-            "notes", "--ref", NOTES, "add", "--force", "--file", "-", "HEAD",
+            "notes", "--ref", reference, "add", "--force", "--file", "-", "HEAD",
         ])
         .current_dir(&project.root)
         .stdin(Stdio::piped())
