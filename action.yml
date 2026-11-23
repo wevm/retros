@@ -1,0 +1,154 @@
+name: Retros
+description: Run Retros, compare a pull request with its base branch, and keep one comment with the report.
+author: wevm
+branding:
+  color: gray-dark
+  icon: trending-up
+
+inputs:
+  args:
+    default: ''
+    description: More arguments for retros, such as a category or `--require-targets`.
+  comment:
+    default: 'true'
+    description: Keep one comment on the pull request with the report. The job summary always has it.
+  compare:
+    default: ${{ github.base_ref }}
+    description: The branch, tag, or commit to compare with. It defaults to the base branch on pull requests and to none elsewhere. An empty value skips the comparison.
+  github-token:
+    default: ${{ github.token }}
+    description: The token that writes the comment. It needs the `pull-requests` write permission.
+  version:
+    default: ''
+    description: The Retros release to install, such as `0.1.0`, or `latest`. It defaults to the action's own tag, or `latest` when the action is not used at a release tag. `none` uses the retros already on PATH.
+  working-directory:
+    default: .
+    description: The project root, which holds retros.yaml, retros.toml, or the .agents directory.
+
+outputs:
+  exit-code:
+    description: The exit status of retros.
+    value: ${{ steps.run.outputs.exit-code }}
+  report:
+    description: The path of report.md.
+    value: ${{ steps.run.outputs.report }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install Retros
+      if: inputs.version != 'none'
+      shell: sh
+      env:
+        ACTION_REF: ${{ github.action_ref }}
+        RETROS_INSTALL: ${{ runner.temp }}/retros
+        VERSION: ${{ inputs.version }}
+      run: |
+        case "$VERSION:$ACTION_REF" in
+          :v[0-9]*.[0-9]*.[0-9]*) version=$ACTION_REF ;;
+          :*) version=latest ;;
+          *) version=$VERSION ;;
+        esac
+        RETROS_VERSION=$version sh "$GITHUB_ACTION_PATH/install.sh"
+        echo "$RETROS_INSTALL/bin" >> "$GITHUB_PATH"
+
+    - name: Run Retros
+      id: run
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        ARGS: ${{ inputs.args }}
+        COMPARE: ${{ inputs.compare }}
+      run: |
+        command=(retros)
+
+        # `--compare` checks out the revision in a worktree, so the clone must have it.
+        # actions/checkout fetches only the head commit by default.
+        if [ -n "$COMPARE" ]; then
+          ref=$COMPARE
+          if ! git rev-parse --quiet --verify "$ref^{commit}" > /dev/null; then
+            depth=
+            if [ "$(git rev-parse --is-shallow-repository)" = true ]; then depth=--depth=1; fi
+            git fetch --no-tags $depth origin "+$ref:refs/remotes/origin/$ref"
+            ref=origin/$ref
+          fi
+          command+=(--compare "$ref")
+        fi
+
+        read -ra args <<< "$ARGS"
+        command+=("${args[@]}")
+
+        log=$(mktemp)
+        rm -f .retros/report.md
+        set +e
+        "${command[@]}" 2>&1 | tee "$log"
+        status=${PIPESTATUS[0]}
+
+        {
+          echo "command=${command[*]}"
+          echo "exit-code=$status"
+          echo "log=$log"
+          echo "report=$PWD/.retros/report.md"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Post report
+      if: always() && steps.run.outputs.exit-code != ''
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        COMMAND: ${{ steps.run.outputs.command }}
+        COMMENT: ${{ inputs.comment }}
+        EXIT_CODE: ${{ steps.run.outputs.exit-code }}
+        GH_TOKEN: ${{ inputs.github-token }}
+        HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        LOG: ${{ steps.run.outputs.log }}
+        MARKER: '<!-- retros: ${{ inputs.working-directory }} -->'
+        NUMBER: ${{ github.event.pull_request.number }}
+        REPORT: ${{ steps.run.outputs.report }}
+      run: |
+        body=$(mktemp)
+        {
+          echo "$MARKER"
+          if [ -f "$REPORT" ]; then cat "$REPORT"; else echo '# Retros report'; fi
+
+          if [ "$EXIT_CODE" != 0 ]; then
+            printf '\n> [!CAUTION]\n> `%s` exited with status %s.\n\n' "$COMMAND" "$EXIT_CODE"
+            printf '<details><summary>Output</summary>\n\n```text\n'
+            tail -n 60 "$LOG"
+            printf '```\n\n</details>\n'
+          fi
+
+          printf '\n<sub>`%s` at %s in [run %s](%s/%s/actions/runs/%s)</sub>\n' \
+            "$COMMAND" "${HEAD_SHA:0:7}" "$GITHUB_RUN_NUMBER" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
+        } > "$body"
+
+        cat "$body" >> "$GITHUB_STEP_SUMMARY"
+        if [ "$COMMENT" != true ] || [ -z "$NUMBER" ]; then exit 0; fi
+
+        # GitHub rejects a comment over 65,536 characters, so a long report keeps its start.
+        if [ "$(wc -c < "$body")" -gt 65000 ]; then
+          head -c 64000 "$body" > "$body.short"
+          printf '\n\nThe report is too long for a comment. The job summary has all of it.\n' >> "$body.short"
+          mv "$body.short" "$body"
+        fi
+
+        # The comment is a convenience, so a failure to write it warns instead of failing the job.
+        comments=repos/$GITHUB_REPOSITORY/issues/$NUMBER/comments
+        if ! ids=$(gh api --paginate "$comments" --jq '.[] | select(.body | startswith(env.MARKER)) | .id'); then
+          echo "::warning::Retros could not read the comments on the pull request. The job summary has the report."
+          exit 0
+        fi
+
+        id=${ids%%$'\n'*}
+        if [ -n "$id" ]; then
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F "body=@$body" > /dev/null
+        else
+          gh api "$comments" -F "body=@$body" > /dev/null
+        fi || echo "::warning::Retros could not comment on the pull request, and a pull request from a fork has a read-only token. The job summary has the report."
+
+    - name: Exit with the status of retros
+      if: steps.run.outputs.exit-code != '0'
+      shell: sh
+      env:
+        EXIT_CODE: ${{ steps.run.outputs.exit-code }}
+      run: exit "$EXIT_CODE"

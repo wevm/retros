@@ -291,7 +291,8 @@ Applies to documentation, comments, TSDoc, interface copy, commit messages, and 
 - `.agents/plan.md` tracks phases, decisions, and acceptance gates.
 - `install.sh` and `.github/workflows/release.yml`: the install script, and the workflow that builds release archives and publishes the npm packages for a `v*` tag.
 - `npm/retros/`: the `retros` npm package, a launcher that runs the binary from the platform package for the machine. `npm/platforms/<target>/` holds one platform package per release target, and `npm/stage.ts` puts a release's binaries and version into them.
-- Later phases add the documentation site and the GitHub Action. Each one gets its layout entry here when it lands.
+- `action.yml`: the GitHub Action, which runs `retros --compare` on a pull request and keeps one comment with the report.
+- Later phases add the documentation site. It gets its layout entry here when it lands.
 
 ## Tooling
 

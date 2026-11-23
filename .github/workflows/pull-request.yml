@@ -8,6 +8,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  retros:
+    name: Retros
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v7
+
+      - name: Install toolchain
+        run: rustup show
+
+      # Retros' speed script is TypeScript run by Bun.
+      - name: Install Bun
+        uses: wevm/actions/vendor/oven-sh/setup-bun/v2.2.0@b518cf981b50a4c745a8b7335fc693f34b108a75
+        with:
+          bun-version: 1.4.4
+
+      # The action runs the retros this pull request builds, compares it with the base branch,
+      # and keeps one comment on the pull request.
+      - name: Build Retros
+        run: |
+          cargo build --release --locked -p retros
+          echo "$PWD/target/release" >> "$GITHUB_PATH"
+
+      - name: Run Retros
+        uses: ./
+        with:
+          version: none
+
   verify:
     name: Verify
     uses: ./.github/workflows/verify.yml

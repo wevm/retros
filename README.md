@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="#overview">Overview</a> · <a href="#problem">Problem</a> · <a href="#solution">Solution</a> · <a href="#usage">Usage</a>
+  <a href="#overview">Overview</a> · <a href="#problem">Problem</a> · <a href="#solution">Solution</a> · <a href="#install">Install</a> · <a href="#usage">Usage</a> · <a href="#github-action">GitHub Action</a>
 </p>
 
 ## Overview
@@ -40,6 +40,22 @@ $ retros
 Opportunities
   +14  footprint  bundle-size  6.9 kB → 5 kB
 ```
+
+## Install
+
+```sh
+# Install the latest release to ~/.retros/bin on macOS or Linux.
+curl -fsSL https://raw.githubusercontent.com/wevm/retros/main/install.sh | sh
+
+# Or run the latest release with npx.
+npx retros
+
+# Or build it from source with Cargo.
+cargo install --locked --git https://github.com/wevm/retros retros
+```
+
+> [!NOTE]
+> The first release is not published yet, so only the Cargo command works for now.
 
 ## Usage
 
@@ -81,6 +97,35 @@ retros check
 
 > [!NOTE]
 > Retros is in development. The [implementation plan](.agents/plan.md) lists each phase and its acceptance gate.
+
+## GitHub Action
+
+The action runs `retros --compare` against the base branch of each pull request, and keeps one comment on the pull request with `report.md`. The job summary also has the report, and the job fails when `retros` fails.
+
+```yaml
+# .github/workflows/retros.yml: score each pull request and compare it with its base branch.
+name: Retros
+on: pull_request
+
+jobs:
+  retros:
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # Install the tools the scripts run here, such as Bun.
+      - uses: wevm/retros@main
+        with:
+          args: --require-targets
+```
+
+- **`args`:** more arguments for `retros`, such as a category or `--require-targets`.
+- **`compare`:** the branch, tag, or commit to compare with. It defaults to the base branch, which the action fetches when the clone lacks it. An empty value skips the comparison.
+- **`comment`:** `false` keeps the report in the job summary only.
+- **`version`:** the release to install. It defaults to the action's tag, or the latest release. `none` uses the `retros` on `PATH`.
+- **`working-directory`:** the project root.
 
 ## License
 
