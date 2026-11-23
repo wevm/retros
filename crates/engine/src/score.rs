@@ -238,13 +238,19 @@ pub fn opportunities(scored: &CategoryScore) -> Vec<Opportunity> {
 
             let gain = gain(&changed);
             if gain >= MIN_GAIN {
+                // A check list's value is the share of items that pass, but every item this
+                // opportunity names fails.
+                let value = match metric.kind {
+                    Kind::Check => Value::Check(false),
+                    kind => Value::of(kind, metric.value),
+                };
                 found.push(Opportunity {
                     count: misses.len(),
                     gain,
                     item: None,
                     metric: metric.metric.name.clone(),
                     target: metric.target.unwrap_or(Value::Check(true)),
-                    value: Value::of(metric.kind, metric.value),
+                    value,
                 });
             }
         }

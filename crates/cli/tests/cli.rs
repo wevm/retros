@@ -1547,6 +1547,31 @@ fn compact_prints_scores_misses_and_opportunities_in_a_few_lines() {
 
     4 targets missed
     ");
+
+    // When no single item moves the score enough, the failing items of a list are one
+    // opportunity, and they go from fail to pass.
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join("uphill.yaml"),
+        "quality:\n  run: sh metrics.sh\n  ok: {}\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("metrics.sh"),
+        "i=0\nwhile [ $i -lt 250 ]; do\n  if [ $i -lt 150 ]; then r=pass; else r=fail; fi\n  echo \"ok item$i $r\" >> \"$UPHILL_METRICS\"\n  i=$((i + 1))\ndone\n",
+    )
+    .unwrap();
+    let output = uphill_in(dir.path(), &["--compact"], &[]);
+    let opportunities = stdout(&output)
+        .split("Opportunities\n")
+        .nth(1)
+        .and_then(|rest| rest.split("\n\n").next())
+        .map(str::to_owned);
+    insta::assert_debug_snapshot!(opportunities, @r#"
+    Some(
+        "  +40  quality  ok, 100 items  fail → pass",
+    )
+    "#);
 }
 
 #[test]
