@@ -1,11 +1,15 @@
-//! A YAML document as a tree of nodes that keep their byte offsets, so configuration errors point
-//! at the right line and column. Built from yaml-rust2's event parser, whose markers count
-//! characters, not bytes. Mappings keep their keys in source order and reject a duplicate key.
+//! A configuration file, YAML or TOML, as one tree of nodes that keep their byte offsets, so
+//! configuration errors point at the right line and column in either format. Mappings keep their
+//! keys in source order. YAML comes from yaml-rust2's event parser, whose markers count characters,
+//! not bytes, and a duplicate key is an error. TOML comes from the toml crate's spanned tables.
 
+use toml::Spanned;
+use toml::de::{DeTable, DeValue};
 use yaml_rust2::parser::{Event, MarkedEventReceiver, Parser};
 use yaml_rust2::scanner::{Marker, TScalarStyle};
 
-use crate::error::{Code, Error};
+use crate::config::Format;
+use crate::error::{Code, Error, Location};
 
 /// A node and the byte offset of its first character.
 #[derive(Clone, Debug)]
@@ -16,16 +20,17 @@ pub(crate) struct Node {
     pub(crate) offset: usize,
 }
 
-/// The kinds of YAML node.
+/// The kinds of node.
 #[derive(Clone, Debug)]
 pub(crate) enum Kind {
     /// Key and value pairs in source order.
     Mapping(Vec<(Node, Node)>),
     /// A scalar's text. A plain scalar can also read as a number, a boolean, or null.
     Scalar {
-        /// Whether the scalar is unquoted, which is the only style that reads as a number.
+        /// Whether the scalar is unquoted, which is the only style that reads as a number. TOML
+        /// numbers and booleans are plain, and TOML strings are not.
         plain: bool,
-        /// The scalar's text after YAML removes quotes and escapes.
+        /// The scalar's text after quotes and escapes are removed.
         text: String,
     },
     /// Items in source order.
@@ -47,14 +52,69 @@ impl Node {
     }
 }
 
-/// Parses one YAML document. Returns `None` for a source without a document, such as one that
-/// holds only comments.
+/// Parses a configuration file. Returns `None` for a YAML file without a document, such as one
+/// that holds only comments.
 ///
 /// # Errors
 ///
-/// Returns a `yaml` error for YAML syntax, a duplicate key, a tag, an alias, or more than one
-/// document.
-pub(crate) fn parse(source: &str) -> Result<Option<Node>, Error> {
+/// Returns a `toml` error for TOML syntax. Returns a `yaml` error for YAML syntax, a duplicate
+/// key, a tag, an alias, or more than one document.
+pub(crate) fn parse(source: &str, format: Format) -> Result<Option<Node>, Error> {
+    match format {
+        Format::Toml => toml(source).map(Some),
+        Format::Yaml => yaml(source),
+    }
+}
+
+fn toml(source: &str) -> Result<Node, Error> {
+    let document = DeTable::parse(source).map_err(|error| Error {
+        code: Code::Toml,
+        location: error.span().map(|span| Location::of(source, span.start)),
+        message: error.message().to_owned(),
+    })?;
+    Ok(table(document.get_ref(), document.span().start))
+}
+
+fn table(table: &DeTable<'_>, offset: usize) -> Node {
+    let pairs = table
+        .iter()
+        .map(|(key, value)| {
+            let key = Node {
+                kind: Kind::Scalar {
+                    plain: false,
+                    text: key.get_ref().to_string(),
+                },
+                offset: key.span().start,
+            };
+            (key, toml_value(value))
+        })
+        .collect();
+    Node {
+        kind: Kind::Mapping(pairs),
+        offset,
+    }
+}
+
+fn toml_value(value: &Spanned<DeValue<'_>>) -> Node {
+    let offset = value.span().start;
+    let scalar = |plain, text| Kind::Scalar { plain, text };
+    let kind = match value.get_ref() {
+        DeValue::String(text) => scalar(false, text.to_string()),
+        DeValue::Integer(integer) if integer.radix() == 10 => {
+            scalar(true, integer.as_str().replace('_', ""))
+        }
+        // Keeps the radix prefix, such as `0x10`, so the text never reads as a decimal number.
+        DeValue::Integer(integer) => scalar(true, integer.to_string()),
+        DeValue::Float(float) => scalar(true, float.as_str().replace('_', "")),
+        DeValue::Boolean(flag) => scalar(true, flag.to_string()),
+        DeValue::Datetime(datetime) => scalar(false, datetime.to_string()),
+        DeValue::Array(items) => Kind::Sequence(items.iter().map(toml_value).collect()),
+        DeValue::Table(fields) => return table(fields, offset),
+    };
+    Node { kind, offset }
+}
+
+fn yaml(source: &str) -> Result<Option<Node>, Error> {
     let mut builder = Builder {
         documents: Vec::new(),
         error: None,

@@ -3,12 +3,13 @@
 
 use std::fmt::Write;
 
+use engine::config::{self, Format};
+use engine::lines;
 use engine::score::{self, CategoryScore};
-use engine::{config, lines};
 
 /// Scores `[category]` of `config` from the metric lines of each round.
 fn scored(config: &str, rounds: &[&str]) -> CategoryScore {
-    let config = config::parse(config).unwrap();
+    let config = config::parse(config, Format::Yaml).unwrap();
     let category = config.categories.first().unwrap();
     let rounds: Vec<_> = rounds
         .iter()
@@ -395,7 +396,7 @@ fn scores_each_subject_and_takes_medians_of_metrics_that_vary() {
     .iter()
     .map(|source| lines::parse(source).unwrap())
     .collect();
-    let config = config::parse(config).unwrap();
+    let config = config::parse(config, Format::Yaml).unwrap();
 
     let subjects = score::subjects(config.categories.first().unwrap(), &rounds);
 

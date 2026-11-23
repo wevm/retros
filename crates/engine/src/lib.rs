@@ -8,6 +8,7 @@
 
 pub mod check;
 pub mod config;
+mod document;
 pub mod error;
 pub mod format;
 pub mod html;
@@ -16,4 +17,3 @@ pub mod lock;
 pub mod report;
 pub mod score;
 pub mod value;
-mod yaml;

@@ -39,15 +39,12 @@ pub(crate) struct Options {
 /// invalid, when Retros cannot run a script at all, or when it cannot write a file.
 pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, String> {
     let prefix = &project.prefix;
-    let lock_name = format!(
-        "{}retros.lock",
-        project.name.trim_end_matches("retros.yaml")
-    );
+    let lock_name = &project.lock_name;
     let lock_path = project.dir.join("retros.lock");
     let previous = match std::fs::read_to_string(&lock_path) {
         Ok(source) => Some(
             lock::parse(&source)
-                .map_err(|error| crate::diagnostic("error", &error, &lock_name, &source))?,
+                .map_err(|error| crate::diagnostic("error", &error, lock_name, &source))?,
         ),
         Err(error) if error.kind() == io::ErrorKind::NotFound => None,
         Err(error) => return Err(format!("error: could not read {lock_name}: {error}")),
@@ -184,7 +181,7 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
         std::fs::write(&lock_path, lock::render(&updated))
             .map_err(|error| format!("error: could not write {lock_name}: {error}"))?;
         written.push_str(", ");
-        written.push_str(&lock_name);
+        written.push_str(lock_name);
     }
     let _ = writeln!(io::stdout(), "\nWrote {written}");
 

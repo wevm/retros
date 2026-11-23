@@ -219,7 +219,7 @@ fn check_group(category: &Category, name: &str, group: &[&Line<'_>], report: &mu
                     Code::MixedTargets,
                     line,
                     format!(
-                        "metric `{name}` sets a target on some items but not this one. Set a target on every line, or a default `target` in retros.yaml"
+                        "metric `{name}` sets a target on some items but not this one. Set a target on every line, or a default `target` for the metric"
                     ),
                 ));
             }
@@ -231,7 +231,7 @@ fn check_group(category: &Category, name: &str, group: &[&Line<'_>], report: &mu
                     Code::TargetUnit,
                     first,
                     format!(
-                        "metric `{name}` is written as {}, but its `target` in retros.yaml is {}",
+                        "metric `{name}` is written as {}, but its configured `target` is {}",
                         kind.plural(),
                         target.kind().singular()
                     ),

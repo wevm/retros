@@ -4,7 +4,8 @@
 use std::fmt::Write;
 
 use engine::check::{self, Report, Source};
-use engine::{config, lines};
+use engine::config::{self, Format};
+use engine::lines;
 
 const CONFIG: &str = r#"footprint:
   run: "node metrics/footprint.mjs"
@@ -19,7 +20,7 @@ fn check(metrics: &str) -> String {
 
 /// Checks `metrics` against the first category of `config` and renders every finding.
 fn check_in(config: &str, metrics: &str) -> String {
-    let parsed = config::parse(config).unwrap();
+    let parsed = config::parse(config, Format::Yaml).unwrap();
     let category = parsed.categories.first().unwrap();
     let lines = lines::parse(metrics).unwrap();
 
@@ -121,7 +122,7 @@ fn reports_values_that_do_not_match_their_target() {
 
     insta::assert_snapshot!(report, @"
     passed: false, metrics: 2
-    error [target-unit] footprint metrics:1:1: metric `export-size` is written as counts, but its `target` in retros.yaml is a size
+    error [target-unit] footprint metrics:1:1: metric `export-size` is written as counts, but its configured `target` is a size
       1 | export-size 412
         | ^
     ");
@@ -133,7 +134,7 @@ fn reports_targets_on_some_lines_only() {
 
     insta::assert_snapshot!(report, @"
     passed: false, metrics: 2
-    error [mixed-targets] footprint metrics:3:1: metric `modules` sets a target on some items but not this one. Set a target on every line, or a default `target` in retros.yaml
+    error [mixed-targets] footprint metrics:3:1: metric `modules` sets a target on some items but not this one. Set a target on every line, or a default `target` for the metric
       3 | modules ox 120
         | ^
     ");
@@ -153,7 +154,7 @@ fn checks_target_patterns() {
 
     insta::assert_snapshot!(report, @r#"
     passed: false, metrics: 1
-    error [mixed-targets] footprint metrics:4:1: metric `modules` sets a target on some items but not this one. Set a target on every line, or a default `target` in retros.yaml
+    error [mixed-targets] footprint metrics:4:1: metric `modules` sets a target on some items but not this one. Set a target on every line, or a default `target` for the metric
       4 | modules zod 9
         | ^
     error [target-unit] retros.yaml:3:39: metric `modules` is written as counts, but its target for `ox` is a size
@@ -194,7 +195,7 @@ fn rejects_lines_with_and_without_subjects() {
 fn routes_shared_lines_to_the_category_that_configures_them() {
     let config =
         "run: \"zig build metrics\"\n\nspeed:\n  startup: {}\n\nfootprint:\n  install-size: {}\n";
-    let parsed = config::parse(config).unwrap();
+    let parsed = config::parse(config, Format::Yaml).unwrap();
     let categories: Vec<_> = parsed.categories.iter().collect();
     let lines = lines::parse("zc: install-size 2MB\nzc: startup 1ms\nzc: chunks 3\n").unwrap();
 

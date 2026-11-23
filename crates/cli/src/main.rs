@@ -1,9 +1,9 @@
 //! The `retros` command line.
 //!
-//! The command line is a thin adapter around the engine. It finds `retros.yaml`, runs measurement
+//! The command line is a thin adapter around the engine. It finds the configuration, runs measurement
 //! scripts, reads the files they write, prints what the engine reports, and writes the report
 //! files. It exits with status 0 on success, 1 when a category fails, and 2 when it cannot run,
-//! such as for an unknown argument or an invalid `retros.yaml`.
+//! such as for an unknown argument or an invalid configuration.
 
 mod check;
 mod measure;
@@ -22,8 +22,9 @@ Usage: retros [category] [--update] [--require-baseline]
 
 Run each category's script, score its metrics, list the opportunities that would raise the
 scores most, and compare sizes, counts, checks, and line targets with retros.lock. Retros reads
-retros.yaml or .agents/retros.yaml from this directory or the nearest parent. Reports go to
-.retros/report.json, report.md, and report.html. Name a category to run only that one.
+retros.yaml or retros.toml, at the root or in .agents, from this directory or the nearest
+parent. Reports go to .retros/report.json, report.md, and report.html. Name a category to run
+only that one.
 
 Commands:
   check  Run each script once and check the metric lines it writes

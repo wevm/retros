@@ -109,8 +109,9 @@ fn help() {
 
     Run each category's script, score its metrics, list the opportunities that would raise the
     scores most, and compare sizes, counts, checks, and line targets with retros.lock. Retros reads
-    retros.yaml or .agents/retros.yaml from this directory or the nearest parent. Reports go to
-    .retros/report.json, report.md, and report.html. Name a category to run only that one.
+    retros.yaml or retros.toml, at the root or in .agents, from this directory or the nearest
+    parent. Reports go to .retros/report.json, report.md, and report.html. Name a category to run
+    only that one.
 
     Commands:
       check  Run each script once and check the metric lines it writes
@@ -136,8 +137,9 @@ fn unknown_argument() {
 
     Run each category's script, score its metrics, list the opportunities that would raise the
     scores most, and compare sizes, counts, checks, and line targets with retros.lock. Retros reads
-    retros.yaml or .agents/retros.yaml from this directory or the nearest parent. Reports go to
-    .retros/report.json, report.md, and report.html. Name a category to run only that one.
+    retros.yaml or retros.toml, at the root or in .agents, from this directory or the nearest
+    parent. Reports go to .retros/report.json, report.md, and report.html. Name a category to run
+    only that one.
 
     Commands:
       check  Run each script once and check the metric lines it writes
@@ -163,8 +165,9 @@ fn unknown_check_argument() {
 
     Run each category's script, score its metrics, list the opportunities that would raise the
     scores most, and compare sizes, counts, checks, and line targets with retros.lock. Retros reads
-    retros.yaml or .agents/retros.yaml from this directory or the nearest parent. Reports go to
-    .retros/report.json, report.md, and report.html. Name a category to run only that one.
+    retros.yaml or retros.toml, at the root or in .agents, from this directory or the nearest
+    parent. Reports go to .retros/report.json, report.md, and report.html. Name a category to run
+    only that one.
 
     Commands:
       check  Run each script once and check the metric lines it writes
@@ -1043,7 +1046,7 @@ fn check_without_a_config() {
     let output = check(dir.path(), &[]);
 
     assert_eq!(output.status.code(), Some(2));
-    insta::assert_snapshot!(stderr(&output), @"error: no retros.yaml or .agents/retros.yaml in this directory or any parent directory");
+    insta::assert_snapshot!(stderr(&output), @"error: no retros.yaml or retros.toml, at the root or in .agents, in this directory or any parent directory");
 }
 
 #[test]

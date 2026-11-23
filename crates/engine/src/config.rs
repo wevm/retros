@@ -1,4 +1,4 @@
-//! The `retros.yaml` configuration.
+//! The configuration: `retros.yaml` or `retros.toml`, which describe the same categories.
 //!
 //! Each top-level key is a category. A category's `run` key is the command that measures it,
 //! `timeout` and `description` are optional, and every other key is a metric. A top-level `run`
@@ -12,15 +12,21 @@
 //!   run: bun metrics/footprint.ts
 //!   export-size: { target: 5kB, targets: { viem: 60kB, "viem/chains/*": 1kB } }
 //! ```
+//!
+//! ```toml
+//! [footprint]
+//! run = "bun metrics/footprint.ts"
+//! export-size = { target = "5kB", targets = { "viem" = "60kB", "viem/chains/*" = "1kB" } }
+//! ```
 
 use std::time::Duration;
 
 use yaml_rust2::Yaml;
 
+use crate::document::{self, Kind, Node};
 use crate::error::{Code, Error, Location};
 use crate::lines::is_name;
 use crate::value::{self, Value};
-use crate::yaml::{self, Kind, Node};
 
 /// Keys a metric accepts, in the order error messages list them.
 const METRIC_KEYS: [&str; 7] = [
@@ -36,7 +42,26 @@ const METRIC_KEYS: [&str; 7] = [
 /// Time a script may run when its category sets no `timeout`.
 const DEFAULT_TIMEOUT: Duration = Duration::from_mins(10);
 
-/// A parsed `retros.yaml`.
+/// The format of a configuration file.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Format {
+    /// `retros.toml`.
+    Toml,
+    /// `retros.yaml`.
+    Yaml,
+}
+
+impl Format {
+    /// Returns the example for `format`: `yaml` for YAML and `toml` for TOML.
+    fn pick(self, yaml: String, toml: String) -> String {
+        match self {
+            Self::Toml => toml,
+            Self::Yaml => yaml,
+        }
+    }
+}
+
+/// A parsed configuration.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Config {
     /// Categories in the order the file declares them.
@@ -156,15 +181,15 @@ pub enum Rollup {
     Sum,
 }
 
-/// Parses `retros.yaml` source text.
+/// Parses the source text of a configuration in `format`.
 ///
 /// # Errors
 ///
-/// Returns the first error: YAML syntax, an unknown key, a value of the wrong type, a missing
+/// Returns the first error: YAML or TOML syntax, an unknown key, a value of the wrong type, a missing
 /// `run` command, a target that cannot score, or a metric in two categories that share a run.
-pub fn parse(source: &str) -> Result<Config, Error> {
-    let Some(document) = yaml::parse(source)? else {
-        return Err(nothing_configured());
+pub fn parse(source: &str, format: Format) -> Result<Config, Error> {
+    let Some(document) = document::parse(source, format)? else {
+        return Err(nothing_configured(format));
     };
     let Kind::Mapping(pairs) = &document.kind else {
         return Err(Error::at(
@@ -202,13 +227,16 @@ pub fn parse(source: &str) -> Result<Config, Error> {
                 Code::InvalidType,
                 source,
                 key.offset,
-                format!(
-                    "top-level key `{name}` must be a category: a mapping with a `run` command and metrics"
+                format.pick(
+                    format!(
+                        "top-level key `{name}` must be a category: a mapping with a `run` command and metrics"
+                    ),
+                    format!("top-level key `{name}` must be a category table, such as `[{name}]`"),
                 ),
             ));
         };
 
-        let category = category(source, key, name, fields, &defaults)?;
+        let category = category(source, format, key, name, fields, &defaults)?;
 
         // A shared run gives each line to the category that configures its metric, so a metric
         // name can belong to only one of the categories that share it.
@@ -233,7 +261,7 @@ pub fn parse(source: &str) -> Result<Config, Error> {
     }
 
     if categories.is_empty() {
-        return Err(nothing_configured());
+        return Err(nothing_configured(format));
     }
 
     Ok(Config { categories })
@@ -245,17 +273,21 @@ struct Defaults {
     timeout: Duration,
 }
 
-fn nothing_configured() -> Error {
+fn nothing_configured(format: Format) -> Error {
     Error {
         code: Code::NothingConfigured,
         location: None,
-        message: "no categories. Add one such as `footprint:` with a `run` command and a metric"
-            .to_owned(),
+        message: format.pick(
+            "no categories. Add one such as `footprint:` with a `run` command and a metric"
+                .to_owned(),
+            "no categories. Add a table such as `[footprint]` with a `run` command".to_owned(),
+        ),
     }
 }
 
 fn category(
     source: &str,
+    format: Format,
     key: &Node,
     name: &str,
     fields: &[(Node, Node)],
@@ -284,14 +316,19 @@ fn category(
                             Code::InvalidType,
                             source,
                             value.offset,
-                            format!(
-                                "metric `{metric}` must be a mapping, such as `{metric}: {{ target: 5kB }}` or `{metric}: {{}}`"
+                            format.pick(
+                                format!(
+                                    "metric `{metric}` must be a mapping, such as `{metric}: {{ target: 5kB }}` or `{metric}: {{}}`"
+                                ),
+                                format!(
+                                    "metric `{metric}` must be a table, such as `{metric} = {{ target = \"5kB\" }}` or `{metric} = {{}}`"
+                                ),
                             ),
                         ));
                     }
                 };
 
-                metrics.push(self::metric(source, field, metric, keys)?);
+                metrics.push(self::metric(source, format, field, metric, keys)?);
             }
         }
     }
@@ -326,7 +363,13 @@ fn category(
     })
 }
 
-fn metric(source: &str, key: &Node, name: &str, keys: &[(Node, Node)]) -> Result<Metric, Error> {
+fn metric(
+    source: &str,
+    format: Format,
+    key: &Node,
+    name: &str,
+    keys: &[(Node, Node)],
+) -> Result<Metric, Error> {
     let mut better = Better::Lower;
     let mut description = None;
     let mut score = None;
@@ -381,7 +424,10 @@ fn metric(source: &str, key: &Node, name: &str, keys: &[(Node, Node)]) -> Result
                         Code::InvalidType,
                         source,
                         value.offset,
-                        "`targets` must map item patterns to targets, such as `targets: { \"viem/chains/*\": 1kB }`".to_owned(),
+                        format.pick(
+                            "`targets` must map item patterns to targets, such as `targets: { \"viem/chains/*\": 1kB }`".to_owned(),
+                            "`targets` must be a table of item patterns and their targets, such as `targets = { \"viem/chains/*\" = \"1kB\" }`".to_owned(),
+                        ),
                     ));
                 };
 
@@ -560,12 +606,16 @@ fn check_name(source: &str, key: &Node, name: &str, what: &str) -> Result<(), Er
     ))
 }
 
-/// Returns the byte offset of a scalar's content, after its opening quote.
+/// Returns the byte offset of a string's content, after its opening quotes: one for YAML, and up
+/// to three for a TOML multi-line string.
 fn content_offset(source: &str, start: usize) -> usize {
-    let quoted = source
-        .get(start..)
-        .is_some_and(|rest| rest.starts_with(['"', '\'']));
-    start + usize::from(quoted)
+    let quotes = source.get(start..).map_or(0, |rest| {
+        rest.bytes()
+            .take(3)
+            .take_while(|b| matches!(b, b'"' | b'\''))
+            .count()
+    });
+    start + quotes
 }
 
 /// Returns whether YAML reads a plain scalar as a number.

@@ -1,11 +1,40 @@
-//! Integration tests for parsing `retros.yaml`: typed categories with defaults, and every
+//! Integration tests for parsing `retros.yaml` and `retros.toml`: typed categories with defaults, and every
 //! configuration error rendered with its file, line, and column.
 
-use engine::config;
+use engine::config::{self, Config, Format};
+use engine::error::Location;
+
+/// Parses `source` as TOML and renders the error it must produce, prefixed with its code.
+fn toml_error(source: &str) -> String {
+    let error =
+        config::parse(source, Format::Toml).expect_err("the configuration should be rejected");
+    format!(
+        "[{}] {}",
+        error.code.as_str(),
+        error.render("retros.toml", source)
+    )
+}
+
+/// Returns `config` with every location at line 0, column 0, to compare one configuration
+/// written in both formats.
+fn without_locations(mut config: Config) -> Config {
+    let nowhere = Location { column: 0, line: 0 };
+    for category in &mut config.categories {
+        category.location = nowhere;
+        for metric in &mut category.metrics {
+            metric.location = nowhere;
+            for pattern in &mut metric.targets {
+                pattern.location = nowhere;
+            }
+        }
+    }
+    config
+}
 
 /// Parses `source` and renders the error it must produce, prefixed with its code.
 fn error(source: &str) -> String {
-    let error = config::parse(source).expect_err("the configuration should be rejected");
+    let error =
+        config::parse(source, Format::Yaml).expect_err("the configuration should be rejected");
     format!(
         "[{}] {}",
         error.code.as_str(),
@@ -29,7 +58,7 @@ footprint:
   modules:
 "#;
 
-    let config = config::parse(source).unwrap();
+    let config = config::parse(source, Format::Yaml).unwrap();
 
     insta::assert_debug_snapshot!(config, @r#"
     Config {
@@ -186,7 +215,7 @@ d:
   p: {}
 "#;
 
-    let config = config::parse(source).unwrap();
+    let config = config::parse(source, Format::Yaml).unwrap();
     let timeouts: Vec<String> = config
         .categories
         .iter()
@@ -368,6 +397,7 @@ fn rejects_targets_that_cannot_score() {
 fn shares_a_top_level_run_and_rejects_a_metric_in_two_sharing_categories() {
     let shared = config::parse(
         "run: zig build metrics\ntimeout: 2m\n\nspeed:\n  startup: { description: Spawn to exit }\n\nfootprint:\n  run: du -b zc\n  turn-rss: { varies: true }\n",
+        Format::Yaml,
     )
     .unwrap();
     let summary: Vec<String> = shared
@@ -402,4 +432,86 @@ fn shares_a_top_level_run_and_rejects_a_metric_in_two_sharing_categories() {
       3 |   turn-rss: { varies: yes }
         |                       ^
     ");
+}
+
+#[test]
+fn parses_toml_into_the_same_configuration_as_yaml() {
+    let yaml = r#"
+run: sh metrics.sh
+timeout: 2m
+
+speed:
+  description: Time per call.
+  startup: { target: 30ms, weight: 1.5, description: "Spawn to exit." }
+  throughput: { target: 2000, better: higher, score: median }
+
+footprint:
+  run: sh footprint.sh
+  timeout: 90s
+  entry-size: { target: 1kB, targets: { ".": 3kB, "./chains/*": 500B } }
+  peak-memory: { target: 16MB, varies: true }
+  modules: {}
+"#;
+    let toml = r#"
+run = "sh metrics.sh"
+timeout = "2m"
+
+[speed]
+description = "Time per call."
+startup = { target = "30ms", weight = 1.5, description = "Spawn to exit." }
+throughput = { target = 2_000, better = "higher", score = "median" }
+
+[footprint]
+run = "sh footprint.sh"
+timeout = "90s"
+entry-size = { target = "1kB", targets = { "." = "3kB", "./chains/*" = "500B" } }
+peak-memory = { target = "16MB", varies = true }
+modules = {}
+"#;
+
+    assert_eq!(
+        without_locations(config::parse(toml, Format::Toml).unwrap()),
+        without_locations(config::parse(yaml, Format::Yaml).unwrap()),
+    );
+}
+
+#[test]
+fn rejects_invalid_toml_with_toml_examples() {
+    insta::assert_snapshot!(toml_error("[footprint\nrun = \"true\"\n"), @"
+    [toml] retros.toml:1:11: unclosed table, expected `]`
+      1 | [footprint
+        |           ^
+    ");
+
+    insta::assert_snapshot!(toml_error("# nothing yet\n"), @"[nothing-configured] retros.toml: no categories. Add a table such as `[footprint]` with a `run` command");
+
+    insta::assert_snapshot!(toml_error("size = \"5kB\"\n[footprint]\nrun = \"true\"\nm = {}\n"), @r#"
+    [invalid-type] retros.toml:1:1: top-level key `size` must be a category table, such as `[size]`
+      1 | size = "5kB"
+        | ^
+    "#);
+
+    insta::assert_snapshot!(toml_error("[footprint]\nrun = \"true\"\nexport-size = \"5kB\"\n"), @r#"
+    [invalid-type] retros.toml:3:15: metric `export-size` must be a table, such as `export-size = { target = "5kB" }` or `export-size = {}`
+      3 | export-size = "5kB"
+        |               ^
+    "#);
+
+    insta::assert_snapshot!(toml_error("[footprint]\nrun = \"true\"\nsize = { target = \"5kb\" }\n"), @r#"
+    [unknown-unit] retros.toml:3:21: unknown unit `kb`, expected one of `B`, `kB`, `MB`, `GB`, `ns`, `µs`, `us`, `ms`, `s`
+      3 | size = { target = "5kb" }
+        |                     ^
+    "#);
+
+    insta::assert_snapshot!(toml_error("[footprint]\nrun = \"true\"\nsize = { weight = 0x10 }\n"), @"
+    [invalid-type] retros.toml:3:19: `weight` must be a finite number
+      3 | size = { weight = 0x10 }
+        |                   ^
+    ");
+
+    insta::assert_snapshot!(toml_error("[footprint]\nrun = \"true\"\nsize = { targets = \"5kB\" }\n"), @r#"
+    [invalid-type] retros.toml:3:20: `targets` must be a table of item patterns and their targets, such as `targets = { "viem/chains/*" = "1kB" }`
+      3 | size = { targets = "5kB" }
+        |                    ^
+    "#);
 }

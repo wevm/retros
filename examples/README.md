@@ -1,6 +1,6 @@
 # Examples
 
-Each example is a small project with a `retros.yaml` and the scripts it runs. The scripts are TypeScript run by [Bun](https://bun.sh). They run the tools each project already uses and turn what those tools report into metric lines.
+Each example is a small project with a `retros.yaml` and the scripts it runs. Retros reads `retros.toml` the same way. The scripts are TypeScript run by [Bun](https://bun.sh). They run the tools each project already uses and turn what those tools report into metric lines.
 
 Every example misses a few targets on purpose, so its report shows how misses, opportunities, and contextual targets read.
 
