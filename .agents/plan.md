@@ -238,7 +238,7 @@ Compare timings honestly between two revisions, and fail CI on missed targets.
 - [x] The worktree is removed after success or failure.
 - [x] Timing changes appear in the terminal summary, `report.json`, `report.md`, and `report.html`.
 - [x] `--require-targets` exits with status 1 when a metric misses its target or has no value, and lists each miss with its item. It works with and without `--compare`.
-- [ ] The verdict rule holds on a GitHub Actions runner: Retros' CI compares each commit with itself and fails on any reported change.
+- [x] The verdict rule holds on a GitHub Actions runner: Retros' CI compares each commit with itself and fails on any reported change. It read "No changes" on every push from 59aad1e to 2244a46.
 
 **Gate:** an unchanged revision reports no changes. A planted slowdown is reported, and a noisy timing fixture reads "within noise", on both a local machine and a GitHub Actions runner. A failing script leaves no worktree behind. With `--require-targets`, a fixture that misses one target exits with status 1 and names that metric and item, and a fixture that meets every target exits with status 0.
 
@@ -263,6 +263,10 @@ Let the agent a person already works with set up Retros and climb.
 - [x] The loop needs no skill: `--compact` names the next step, and `retros --compare HEAD` judges each change (decision 26).
 
 **Gate:** an agent given only the brief sets up a project it has not seen until `retros check` passes. Given an example's report, an agent raises a category score without making any metric worse.
+
+On 2026-11-23, an agent given only the brief set up kleur until `retros check` passed. Its scripts run kleur's own benchmark harness, uvu, c8, and npm. The run found gaps in the brief, which now says checks always score, targets are above zero, and timings run 5 times.
+
+Another agent climbed the TypeScript library example from quality 95 to 99 in two commits, and `retros --compare` against the start read nothing worse. It rejected a change that cut `call-time weekday` by 98%, because four sizes grew a few bytes within their targets.
 
 ## Phase 9: History and Blame
 
