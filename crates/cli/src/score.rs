@@ -1,7 +1,7 @@
 //! `retros [category]`: runs each category's script, scores its metrics for each subject, prints
 //! each category as it finishes, then the opportunities and the changes since `retros.lock`.
-//! Categories that share a `run` command share one run. It writes `.retros/report.json` and
-//! `.retros/report.md` beside `retros.toml`, and with `--update`
+//! Categories that share a `run` command share one run. It writes `.retros/report.json`,
+//! `.retros/report.md`, and `.retros/report.html` beside `retros.toml`, and with `--update`
 //! records this run's sizes, counts, checks, and line targets in `retros.lock`.
 //!
 //! The command exits with status 0 when every category ran and passed its checks, and with
@@ -170,8 +170,11 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
         .map_err(|error| format!("error: could not create .retros: {error}"))?;
     write("report.json", engine::report::json(&report))?;
     write("report.md", engine::report::markdown(&report))?;
+    write("report.html", engine::html::html(&report))?;
 
-    let mut written = format!("{prefix}.retros/report.json, {prefix}.retros/report.md");
+    let mut written = format!(
+        "{prefix}.retros/report.json, {prefix}.retros/report.md, {prefix}.retros/report.html"
+    );
     if options.update {
         let updated = lock::update(previous.as_ref(), &project.config, &report);
         std::fs::write(&lock_path, lock::render(&updated))

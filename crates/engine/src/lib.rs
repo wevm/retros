@@ -10,6 +10,7 @@ pub mod check;
 pub mod config;
 pub mod error;
 pub mod format;
+pub mod html;
 pub mod lines;
 pub mod lock;
 pub mod report;

@@ -109,7 +109,7 @@ fn help() {
 
     Run each category's script, score its metrics, list the opportunities that would raise the
     scores most, and compare sizes, counts, checks, and line targets with retros.lock. Reports go
-    to .retros/report.json and .retros/report.md. Name a category to run only that one.
+    to .retros/report.json, report.md, and report.html. Name a category to run only that one.
 
     Commands:
       check  Run each script once and check the metric lines it writes
@@ -135,7 +135,7 @@ fn unknown_argument() {
 
     Run each category's script, score its metrics, list the opportunities that would raise the
     scores most, and compare sizes, counts, checks, and line targets with retros.lock. Reports go
-    to .retros/report.json and .retros/report.md. Name a category to run only that one.
+    to .retros/report.json, report.md, and report.html. Name a category to run only that one.
 
     Commands:
       check  Run each script once and check the metric lines it writes
@@ -161,7 +161,7 @@ fn unknown_check_argument() {
 
     Run each category's script, score its metrics, list the opportunities that would raise the
     scores most, and compare sizes, counts, checks, and line targets with retros.lock. Reports go
-    to .retros/report.json and .retros/report.md. Name a category to run only that one.
+    to .retros/report.json, report.md, and report.html. Name a category to run only that one.
 
     Commands:
       check  Run each script once and check the metric lines it writes
@@ -207,7 +207,7 @@ fn scores_every_category_and_writes_reports() {
 
     No retros.lock yet. Run `retros --update` to record these values as the baseline.
 
-    Wrote .retros/report.json, .retros/report.md
+    Wrote .retros/report.json, .retros/report.md, .retros/report.html
     ");
 
     let json = fs::read_to_string(project.path().join(".retros/report.json")).unwrap();
@@ -539,7 +539,7 @@ fn scores_one_category_from_a_subdirectory() {
 
     No retros.lock yet. Run `retros --update` to record these values as the baseline.
 
-    Wrote ../.retros/report.json, ../.retros/report.md
+    Wrote ../.retros/report.json, ../.retros/report.md, ../.retros/report.html
     ");
 }
 
@@ -580,7 +580,7 @@ fn scoring_reports_failed_categories() {
 
     No retros.lock yet. Run `retros --update` to record these values as the baseline.
 
-    Wrote .retros/report.json, .retros/report.md
+    Wrote .retros/report.json, .retros/report.md, .retros/report.html
     ");
 }
 
@@ -661,7 +661,7 @@ fn baselines_record_line_targets_and_gate_every_change() {
 Since retros.lock
   better  footprint  links about.html  fail → pass
 
-Wrote .retros/report.json, .retros/report.md
+Wrote .retros/report.json, .retros/report.md, .retros/report.html
 
 1 change since retros.lock. Run `retros --update` to accept it
 "
@@ -708,7 +708,7 @@ Wrote .retros/report.json, .retros/report.md
       new     footprint  export-size viem/tempo   4 kB
       gone    footprint  export-size viem/window  6 kB
 
-    Wrote .retros/report.json, .retros/report.md
+    Wrote .retros/report.json, .retros/report.md, .retros/report.html
 
     4 changes since retros.lock. Run `retros --update` to accept them
     ");
@@ -749,7 +749,7 @@ fn subjects_share_one_run_and_score_on_their_own() {
       new     ts: footprint  install-size
       new     ts: footprint  wasm-size
 
-    Wrote .retros/report.json, .retros/report.md, retros.lock
+    Wrote .retros/report.json, .retros/report.md, .retros/report.html, retros.lock
     ");
 
     // zc's peak memory varies, so the lock leaves it out and keeps ts's line target.
@@ -826,6 +826,12 @@ fn subjects_share_one_run_and_score_on_their_own() {
     | ● 100 | install-size | 4 MB | 10 MB |
     | ● 97 | wasm-size | 250 kB | 350 kB |
     ");
+
+    // The page has a tab per subject and loads nothing from the network.
+    let html = fs::read_to_string(project.path().join(".retros/report.html")).unwrap();
+    assert_eq!(html.matches("role=\"tab\"").count(), 2);
+    assert!(html.contains(">zc</button>") && html.contains(">ts</button>"));
+    assert!(!html.contains("http://") && !html.contains("https://"));
 
     // The next 5 runs write zc's memory as 6 to 10 MB, which is not a change.
     let again = retros_in(project.path(), &["--require-baseline"], &[]);

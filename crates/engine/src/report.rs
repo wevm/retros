@@ -1,4 +1,5 @@
 //! Reports rendered from scored categories: the terminal output, `report.json`, and `report.md`.
+//! [`crate::html`] renders `report.html` from the same data.
 //! Each report shows the scores, the opportunities that would raise them most, and the changes
 //! since `retros.lock`. Rendering is deterministic, with no timestamps or paths, so the same
 //! scores always produce the same bytes.

@@ -22,7 +22,7 @@ Usage: retros [category] [--update] [--require-baseline]
 
 Run each category's script, score its metrics, list the opportunities that would raise the
 scores most, and compare sizes, counts, checks, and line targets with retros.lock. Reports go
-to .retros/report.json and .retros/report.md. Name a category to run only that one.
+to .retros/report.json, report.md, and report.html. Name a category to run only that one.
 
 Commands:
   check  Run each script once and check the metric lines it writes
