@@ -1,0 +1,145 @@
+# Lighthouse 13.6.0, scored by Uphill. Each Lighthouse category is a category here, each audit that
+# counts toward its score is a metric with Lighthouse's weight, and each page is a subject, so a
+# page's scores match the scores in its Lighthouse report. Metrics keep the order of Lighthouse's
+# default configuration, which is the order its mean adds them in. `bun metrics/verify.ts` checks
+# that the scores match.
+#
+# Harbor, the site, misses on purpose: the schedule page shifts its layout and has a low-contrast
+# note, an image without alt text, a skipped heading level, and a "click here" link. The contact
+# page blocks indexing and zooming, and has no language, no description, an empty button, a
+# positive tabindex, and a console error.
+
+# Installs packages in each checkout that `uphill --compare` and `uphill blame` create.
+setup: bun install --frozen-lockfile
+
+performance:
+  title: Performance
+  run: bun metrics/lighthouse.ts mobile performance
+  # Lighthouse's mobile control points: `target` is the p10 that scores 90, and `poor` is the
+  # median that scores 50. Layout shift is a count that differs between runs, so it takes its
+  # median across rounds like the times.
+  first-contentful-paint: { title: First Contentful Paint, target: 1800ms, poor: 3000ms, weight: 10 }
+  largest-contentful-paint: { title: Largest Contentful Paint, target: 2500ms, poor: 4000ms, weight: 25 }
+  total-blocking-time: { title: Total Blocking Time, target: 200ms, poor: 600ms, weight: 30 }
+  cumulative-layout-shift: { title: Cumulative Layout Shift, target: 0.1, poor: 0.25, weight: 25, varies: true }
+  speed-index: { title: Speed Index, target: 3387ms, poor: 5800ms, weight: 10 }
+
+performance-desktop:
+  title: Performance (Desktop)
+  run: bun metrics/lighthouse.ts desktop performance
+  # Lighthouse's desktop control points, from its desktop configuration.
+  first-contentful-paint: { title: First Contentful Paint, target: 934ms, poor: 1600ms, weight: 10 }
+  largest-contentful-paint: { title: Largest Contentful Paint, target: 1200ms, poor: 2400ms, weight: 25 }
+  total-blocking-time: { title: Total Blocking Time, target: 150ms, poor: 350ms, weight: 30 }
+  cumulative-layout-shift: { title: Cumulative Layout Shift, target: 0.1, poor: 0.25, weight: 25, varies: true }
+  speed-index: { title: Speed Index, target: 1311ms, poor: 2300ms, weight: 10 }
+
+accessibility:
+  title: Accessibility
+  # Accessibility and best practices share one Lighthouse run per page.
+  run: bun metrics/lighthouse.ts mobile accessibility best-practices
+  # Weights follow axe-core's impact: 10 critical, 7 serious, 3 moderate, and 1 minor.
+  accesskeys: { weight: 7 }
+  aria-allowed-attr: { weight: 10 }
+  aria-command-name: { weight: 7 }
+  aria-conditional-attr: { weight: 7 }
+  aria-deprecated-role: {}
+  aria-dialog-name: { weight: 7 }
+  aria-hidden-body: { weight: 10 }
+  aria-hidden-focus: { weight: 7 }
+  aria-input-field-name: { weight: 7 }
+  aria-meter-name: { weight: 7 }
+  aria-progressbar-name: { weight: 7 }
+  aria-prohibited-attr: { weight: 7 }
+  aria-required-attr: { weight: 10 }
+  aria-required-children: { weight: 10 }
+  aria-required-parent: { weight: 10 }
+  aria-roles: { weight: 10 }
+  aria-text: { weight: 7 }
+  aria-toggle-field-name: { weight: 7 }
+  aria-tooltip-name: { weight: 7 }
+  aria-treeitem-name: { weight: 7 }
+  aria-valid-attr-value: { weight: 10 }
+  aria-valid-attr: { weight: 10 }
+  button-name: { weight: 10 }
+  bypass: { weight: 7 }
+  color-contrast: { weight: 7 }
+  definition-list: { weight: 7 }
+  dlitem: { weight: 7 }
+  document-title: { weight: 7 }
+  duplicate-id-aria: { weight: 10 }
+  form-field-multiple-labels: { weight: 3 }
+  frame-title: { weight: 7 }
+  heading-order: { weight: 3 }
+  html-has-lang: { weight: 7 }
+  html-lang-valid: { weight: 7 }
+  html-xml-lang-mismatch: { weight: 3 }
+  image-alt: { weight: 10 }
+  input-button-name: { weight: 10 }
+  input-image-alt: { weight: 10 }
+  label: { weight: 10 }
+  link-in-text-block: { weight: 7 }
+  link-name: { weight: 7 }
+  list: { weight: 7 }
+  listitem: { weight: 7 }
+  meta-refresh: { weight: 10 }
+  meta-viewport: { weight: 10 }
+  object-alt: { weight: 7 }
+  select-name: { weight: 10 }
+  skip-link: { weight: 3 }
+  tabindex: { weight: 7 }
+  target-size: { weight: 7 }
+  td-headers-attr: { weight: 7 }
+  th-has-data-cells: { weight: 7 }
+  valid-lang: { weight: 7 }
+  video-caption: { weight: 10 }
+  landmark-one-main: { weight: 3 }
+  autocomplete-valid: {}
+  presentation-role-conflict: {}
+  svg-img-alt: {}
+
+best-practices:
+  title: Best Practices
+  run: bun metrics/lighthouse.ts mobile accessibility best-practices
+  is-on-https: { weight: 5 }
+  redirects-http: {}
+  geolocation-on-start: {}
+  notification-on-start: {}
+  paste-preventing-inputs: { weight: 3 }
+  image-aspect-ratio: {}
+  image-size-responsive: {}
+  doctype: {}
+  charset: {}
+  deprecations: { weight: 5 }
+  third-party-cookies: { weight: 5 }
+  errors-in-console: {}
+  inspector-issues: {}
+
+seo:
+  title: SEO
+  # SEO audits `document-title` and `image-alt` as accessibility does, so it runs on its own.
+  run: bun metrics/lighthouse.ts mobile seo
+  # 93/23, so that failing alone puts SEO below 70.
+  is-crawlable: { weight: 4.043478260869565 }
+  document-title: {}
+  meta-description: {}
+  http-status-code: {}
+  link-text: {}
+  crawlable-anchors: {}
+  robots-txt: {}
+  image-alt: {}
+  hreflang: {}
+  canonical: {}
+
+agentic-browsing:
+  title: Agentic Browsing
+  # Lighthouse shows this category as the share of audits that pass, so each audit is a check
+  # with equal weight, including its own check of the layout shift.
+  run: bun metrics/lighthouse.ts mobile agentic-browsing
+  agent-accessibility-tree: {}
+  webmcp-form-coverage: {}
+  webmcp-registered-tools: {}
+  webmcp-schema-validity: {}
+  cumulative-layout-shift: {}
+  llms-txt: {}
+  ard-schema: {}

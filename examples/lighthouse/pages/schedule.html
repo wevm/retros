@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Schedule | Harbor</title>
+    <meta name="description" content="Today's departures on every harbor ferry route." />
+    <link rel="canonical" href="https://harbor.example/schedule.html" />
+    <link rel="icon" href="/favicon.svg" />
+    <link rel="stylesheet" href="/styles/site.css" />
+    <script src="/vendor.js"></script>
+    <script src="/schedule.js" defer></script>
+  </head>
+  <body>
+    <header>
+      <span class="brand">Harbor</span>
+      <nav aria-label="Main">
+        <a href="/">Home</a>
+        <a href="/schedule.html">Schedule</a>
+        <a href="/contact.html">Contact</a>
+      </nav>
+    </header>
+    <main id="main">
+      <h1>Today's departures</h1>
+      <div id="alerts"></div>
+      <img src="/map.svg" class="map" />
+      <h3 id="north">North Quay to Lighthouse Point</h3>
+      <table id="departures">
+        <tr><th>Departs</th><th>Arrives</th><th>Status</th></tr>
+      </table>
+      <p class="faint">Times are local. Timetables change on public holidays.</p>
+      <p>For holiday timetables, <a href="/holidays.html">click here</a>.</p>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,992 @@
+{
+ "audits": {
+  "is-on-https": {
+   "score": 1,
+   "scoreDisplayMode": "binary",
+   "title": "Uses HTTPS"
+  },
+  "redirects-http": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "Redirects HTTP traffic to HTTPS"
+  },
+  "errors-in-console": {
+   "score": 0,
+   "scoreDisplayMode": "binary",
+   "title": "Browser errors were logged to the console"
+  },
+  "image-aspect-ratio": {
+   "score": 1,
+   "scoreDisplayMode": "binary",
+   "title": "Displays images with correct aspect ratio"
+  },
+  "image-size-responsive": {
+   "score": 1,
+   "scoreDisplayMode": "binary",
+   "title": "Serves images with appropriate resolution"
+  },
+  "deprecations": {
+   "score": 1,
+   "scoreDisplayMode": "binary",
+   "title": "Avoids deprecated APIs"
+  },
+  "third-party-cookies": {
+   "score": 1,
+   "scoreDisplayMode": "binary",
+   "title": "Avoids third-party cookies"
+  },
+  "valid-source-maps": {
+   "score": 1,
+   "scoreDisplayMode": "binary",
+   "title": "Page has valid source maps"
+  },
+  "csp-xss": {
+   "score": 1,
+   "scoreDisplayMode": "informative",
+   "title": "Ensure CSP is effective against XSS attacks"
+  },
+  "has-hsts": {
+   "score": 1,
+   "scoreDisplayMode": "informative",
+   "title": "Use a strong HSTS policy"
+  },
+  "origin-isolation": {
+   "score": 1,
+   "scoreDisplayMode": "informative",
+   "title": "Ensure proper origin isolation with COOP"
+  },
+  "clickjacking-mitigation": {
+   "score": 1,
+   "scoreDisplayMode": "informative",
+   "title": "Mitigate clickjacking with XFO or CSP"
+  },
+  "trusted-types-xss": {
+   "score": 1,
+   "scoreDisplayMode": "informative",
+   "title": "Mitigate DOM-based XSS with Trusted Types"
+  },
+  "accesskeys": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "`[accesskey]` values are unique"
+  },
+  "aria-allowed-attr": {
+   "score": 1,
+   "scoreDisplayMode": "binary",
+   "title": "`[aria-*]` attributes match their roles"
+  },
+  "aria-allowed-role": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "Uses ARIA roles only on compatible elements"
+  },
+  "aria-command-name": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "`button`, `link`, and `menuitem` elements have accessible names"
+  },
+  "aria-conditional-attr": {
+   "score": 1,
+   "scoreDisplayMode": "binary",
+   "title": "ARIA attributes are used as specified for the element's role"
+  },
+  "aria-deprecated-role": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "Deprecated ARIA roles were not used"
+  },
+  "aria-dialog-name": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "Elements with `role=\"dialog\"` or `role=\"alertdialog\"` have accessible names."
+  },
+  "aria-hidden-body": {
+   "score": 1,
+   "scoreDisplayMode": "binary",
+   "title": "`[aria-hidden=\"true\"]` is not present on the document `<body>`"
+  },
+  "aria-hidden-focus": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "`[aria-hidden=\"true\"]` elements do not contain focusable descendents"
+  },
+  "aria-input-field-name": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "ARIA input fields have accessible names"
+  },
+  "aria-meter-name": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "ARIA `meter` elements have accessible names"
+  },
+  "aria-progressbar-name": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "ARIA `progressbar` elements have accessible names"
+  },
+  "aria-prohibited-attr": {
+   "score": 1,
+   "scoreDisplayMode": "binary",
+   "title": "Elements use only permitted ARIA attributes"
+  },
+  "aria-required-attr": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "`[role]`s have all required `[aria-*]` attributes"
+  },
+  "aria-required-children": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "Elements with an ARIA `[role]` that require children to contain a specific `[role]` have all required children."
+  },
+  "aria-required-parent": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "`[role]`s are contained by their required parent element"
+  },
+  "aria-roles": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "`[role]` values are valid"
+  },
+  "aria-text": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "Elements with the `role=text` attribute do not have focusable descendents."
+  },
+  "aria-toggle-field-name": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "ARIA toggle fields have accessible names"
+  },
+  "aria-tooltip-name": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "ARIA `tooltip` elements have accessible names"
+  },
+  "aria-treeitem-name": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "ARIA `treeitem` elements have accessible names"
+  },
+  "aria-valid-attr-value": {
+   "score": 1,
+   "scoreDisplayMode": "binary",
+   "title": "`[aria-*]` attributes have valid values"
+  },
+  "aria-valid-attr": {
+   "score": 1,
+   "scoreDisplayMode": "binary",
+   "title": "`[aria-*]` attributes are valid and not misspelled"
+  },
+  "button-name": {
+   "nodes": [
+    "body > main#main > form#contact > button"
+   ],
+   "score": 0,
+   "scoreDisplayMode": "binary",
+   "title": "Buttons do not have an accessible name"
+  },
+  "bypass": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "The page contains a heading, skip link, or landmark region"
+  },
+  "color-contrast": {
+   "score": 1,
+   "scoreDisplayMode": "binary",
+   "title": "Background and foreground colors have a sufficient contrast ratio"
+  },
+  "definition-list": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "`<dl>`'s contain only properly-ordered `<dt>` and `<dd>` groups, `<script>`, `<template>` or `<div>` elements."
+  },
+  "dlitem": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "Definition list items are wrapped in `<dl>` elements"
+  },
+  "document-title": {
+   "score": 1,
+   "scoreDisplayMode": "binary",
+   "title": "Document has a `<title>` element"
+  },
+  "duplicate-id-aria": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "ARIA IDs are unique"
+  },
+  "empty-heading": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "All heading elements contain content."
+  },
+  "form-field-multiple-labels": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "No form fields have multiple labels"
+  },
+  "frame-title": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "`<frame>` or `<iframe>` elements have a title"
+  },
+  "heading-order": {
+   "score": 1,
+   "scoreDisplayMode": "binary",
+   "title": "Heading elements appear in a sequentially-descending order"
+  },
+  "html-has-lang": {
+   "nodes": [
+    "html"
+   ],
+   "score": 0,
+   "scoreDisplayMode": "binary",
+   "title": "`<html>` element does not have a `[lang]` attribute"
+  },
+  "html-lang-valid": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "`<html>` element has a valid value for its `[lang]` attribute"
+  },
+  "html-xml-lang-mismatch": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "`<html>` element has an `[xml:lang]` attribute with the same base language as the `[lang]` attribute."
+  },
+  "identical-links-same-purpose": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "Identical links have the same purpose."
+  },
+  "image-alt": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "Image elements have `[alt]` attributes"
+  },
+  "image-redundant-alt": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "Image elements do not have `[alt]` attributes that are redundant text."
+  },
+  "input-button-name": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "Input buttons have discernible text."
+  },
+  "input-image-alt": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "`<input type=\"image\">` elements have `[alt]` text"
+  },
+  "label-content-name-mismatch": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "Elements with visible text labels have matching accessible names."
+  },
+  "label": {
+   "score": 1,
+   "scoreDisplayMode": "binary",
+   "title": "Form elements have associated labels"
+  },
+  "landmark-one-main": {
+   "score": 1,
+   "scoreDisplayMode": "binary",
+   "title": "Document has a main landmark."
+  },
+  "link-name": {
+   "score": 1,
+   "scoreDisplayMode": "binary",
+   "title": "Links have a discernible name"
+  },
+  "link-in-text-block": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "Links are distinguishable without relying on color."
+  },
+  "list": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "Lists contain only `<li>` elements and script supporting elements (`<script>` and `<template>`)."
+  },
+  "listitem": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "List items (`<li>`) are contained within `<ul>`, `<ol>` or `<menu>` parent elements"
+  },
+  "meta-refresh": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "The document does not use `<meta http-equiv=\"refresh\">`"
+  },
+  "meta-viewport": {
+   "nodes": [
+    "head > meta"
+   ],
+   "score": 0,
+   "scoreDisplayMode": "binary",
+   "title": "`[user-scalable=\"no\"]` is used in the `<meta name=\"viewport\">` element or the `[maximum-scale]` attribute is less than 5."
+  },
+  "object-alt": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "`<object>` elements have alternate text"
+  },
+  "select-name": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "Select elements have associated label elements."
+  },
+  "skip-link": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "Skip links are focusable."
+  },
+  "tabindex": {
+   "nodes": [
+    "body > main#main > p"
+   ],
+   "score": 0,
+   "scoreDisplayMode": "binary",
+   "title": "Some elements have a `[tabindex]` value greater than 0"
+  },
+  "table-duplicate-name": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "Tables have different content in the summary attribute and `<caption>`."
+  },
+  "table-fake-caption": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "Tables use `<caption>` instead of cells with the `[colspan]` attribute to indicate a caption."
+  },
+  "target-size": {
+   "score": 1,
+   "scoreDisplayMode": "binary",
+   "title": "Touch targets have sufficient size and spacing."
+  },
+  "td-has-header": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "`<td>` elements in a large `<table>` have one or more table headers."
+  },
+  "td-headers-attr": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "Cells in a `<table>` element that use the `[headers]` attribute refer to table cells within the same table."
+  },
+  "th-has-data-cells": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "`<th>` elements and elements with `[role=\"columnheader\"/\"rowheader\"]` have data cells they describe."
+  },
+  "valid-lang": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "`[lang]` attributes have a valid value"
+  },
+  "video-caption": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "`<video>` elements contain a `<track>` element with `[kind=\"captions\"]`"
+  },
+  "custom-controls-labels": {
+   "score": null,
+   "scoreDisplayMode": "manual",
+   "title": "Custom controls have associated labels"
+  },
+  "custom-controls-roles": {
+   "score": null,
+   "scoreDisplayMode": "manual",
+   "title": "Custom controls have ARIA roles"
+  },
+  "focus-traps": {
+   "score": null,
+   "scoreDisplayMode": "manual",
+   "title": "User focus is not accidentally trapped in a region"
+  },
+  "focusable-controls": {
+   "score": null,
+   "scoreDisplayMode": "manual",
+   "title": "Interactive controls are keyboard focusable"
+  },
+  "interactive-element-affordance": {
+   "score": null,
+   "scoreDisplayMode": "manual",
+   "title": "Interactive elements indicate their purpose and state"
+  },
+  "logical-tab-order": {
+   "score": null,
+   "scoreDisplayMode": "manual",
+   "title": "The page has a logical tab order"
+  },
+  "managed-focus": {
+   "score": null,
+   "scoreDisplayMode": "manual",
+   "title": "The user's focus is directed to new content added to the page"
+  },
+  "offscreen-content-hidden": {
+   "score": null,
+   "scoreDisplayMode": "manual",
+   "title": "Offscreen content is hidden from assistive technology"
+  },
+  "use-landmarks": {
+   "score": null,
+   "scoreDisplayMode": "manual",
+   "title": "HTML5 landmark elements are used to improve navigation"
+  },
+  "visual-order-follows-dom": {
+   "score": null,
+   "scoreDisplayMode": "manual",
+   "title": "Visual order on the page follows DOM order"
+  },
+  "autocomplete-valid": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "`autocomplete` attributes are used correctly"
+  },
+  "presentation-role-conflict": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "Elements with `role=\"none\"` or `role=\"presentation\"` do not have conflicts"
+  },
+  "svg-img-alt": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "SVG elements with an `img` role have an accessible text alternative"
+  },
+  "doctype": {
+   "score": 1,
+   "scoreDisplayMode": "binary",
+   "title": "Page has the HTML doctype"
+  },
+  "charset": {
+   "score": 1,
+   "scoreDisplayMode": "binary",
+   "title": "Properly defines charset"
+  },
+  "geolocation-on-start": {
+   "score": 1,
+   "scoreDisplayMode": "binary",
+   "title": "Avoids requesting the geolocation permission on page load"
+  },
+  "inspector-issues": {
+   "score": 1,
+   "scoreDisplayMode": "binary",
+   "title": "No issues in the `Issues` panel in Chrome Devtools"
+  },
+  "js-libraries": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "Detected JavaScript libraries"
+  },
+  "notification-on-start": {
+   "score": 1,
+   "scoreDisplayMode": "binary",
+   "title": "Avoids requesting the notification permission on page load"
+  },
+  "paste-preventing-inputs": {
+   "score": 1,
+   "scoreDisplayMode": "binary",
+   "title": "Allows users to paste into input fields"
+  },
+  "baseline": {
+   "score": 1,
+   "scoreDisplayMode": "informative",
+   "title": "Baseline Features"
+  }
+ },
+ "categories": {
+  "accessibility": {
+   "auditRefs": [
+    {
+     "group": "a11y-navigation",
+     "id": "accesskeys",
+     "weight": 0
+    },
+    {
+     "group": "a11y-aria",
+     "id": "aria-allowed-attr",
+     "weight": 10
+    },
+    {
+     "group": "a11y-aria",
+     "id": "aria-command-name",
+     "weight": 0
+    },
+    {
+     "group": "a11y-aria",
+     "id": "aria-conditional-attr",
+     "weight": 7
+    },
+    {
+     "group": "a11y-aria",
+     "id": "aria-deprecated-role",
+     "weight": 0
+    },
+    {
+     "group": "a11y-aria",
+     "id": "aria-dialog-name",
+     "weight": 0
+    },
+    {
+     "group": "a11y-aria",
+     "id": "aria-hidden-body",
+     "weight": 10
+    },
+    {
+     "group": "a11y-aria",
+     "id": "aria-hidden-focus",
+     "weight": 0
+    },
+    {
+     "group": "a11y-aria",
+     "id": "aria-input-field-name",
+     "weight": 0
+    },
+    {
+     "group": "a11y-aria",
+     "id": "aria-meter-name",
+     "weight": 0
+    },
+    {
+     "group": "a11y-aria",
+     "id": "aria-progressbar-name",
+     "weight": 0
+    },
+    {
+     "group": "a11y-aria",
+     "id": "aria-prohibited-attr",
+     "weight": 7
+    },
+    {
+     "group": "a11y-aria",
+     "id": "aria-required-attr",
+     "weight": 0
+    },
+    {
+     "group": "a11y-aria",
+     "id": "aria-required-children",
+     "weight": 0
+    },
+    {
+     "group": "a11y-aria",
+     "id": "aria-required-parent",
+     "weight": 0
+    },
+    {
+     "group": "a11y-aria",
+     "id": "aria-roles",
+     "weight": 0
+    },
+    {
+     "group": "a11y-aria",
+     "id": "aria-text",
+     "weight": 0
+    },
+    {
+     "group": "a11y-aria",
+     "id": "aria-toggle-field-name",
+     "weight": 0
+    },
+    {
+     "group": "a11y-aria",
+     "id": "aria-tooltip-name",
+     "weight": 0
+    },
+    {
+     "group": "a11y-aria",
+     "id": "aria-treeitem-name",
+     "weight": 0
+    },
+    {
+     "group": "a11y-aria",
+     "id": "aria-valid-attr-value",
+     "weight": 10
+    },
+    {
+     "group": "a11y-aria",
+     "id": "aria-valid-attr",
+     "weight": 10
+    },
+    {
+     "group": "a11y-names-labels",
+     "id": "button-name",
+     "weight": 10
+    },
+    {
+     "group": "a11y-navigation",
+     "id": "bypass",
+     "weight": 0
+    },
+    {
+     "group": "a11y-color-contrast",
+     "id": "color-contrast",
+     "weight": 7
+    },
+    {
+     "group": "a11y-tables-lists",
+     "id": "definition-list",
+     "weight": 0
+    },
+    {
+     "group": "a11y-tables-lists",
+     "id": "dlitem",
+     "weight": 0
+    },
+    {
+     "group": "a11y-names-labels",
+     "id": "document-title",
+     "weight": 7
+    },
+    {
+     "group": "a11y-aria",
+     "id": "duplicate-id-aria",
+     "weight": 0
+    },
+    {
+     "group": "a11y-names-labels",
+     "id": "form-field-multiple-labels",
+     "weight": 0
+    },
+    {
+     "group": "a11y-names-labels",
+     "id": "frame-title",
+     "weight": 0
+    },
+    {
+     "group": "a11y-navigation",
+     "id": "heading-order",
+     "weight": 3
+    },
+    {
+     "group": "a11y-language",
+     "id": "html-has-lang",
+     "weight": 7
+    },
+    {
+     "group": "a11y-language",
+     "id": "html-lang-valid",
+     "weight": 0
+    },
+    {
+     "group": "a11y-language",
+     "id": "html-xml-lang-mismatch",
+     "weight": 0
+    },
+    {
+     "group": "a11y-names-labels",
+     "id": "image-alt",
+     "weight": 0
+    },
+    {
+     "group": "a11y-names-labels",
+     "id": "input-button-name",
+     "weight": 0
+    },
+    {
+     "group": "a11y-names-labels",
+     "id": "input-image-alt",
+     "weight": 0
+    },
+    {
+     "group": "a11y-names-labels",
+     "id": "label",
+     "weight": 10
+    },
+    {
+     "group": "a11y-color-contrast",
+     "id": "link-in-text-block",
+     "weight": 0
+    },
+    {
+     "group": "a11y-names-labels",
+     "id": "link-name",
+     "weight": 7
+    },
+    {
+     "group": "a11y-tables-lists",
+     "id": "list",
+     "weight": 0
+    },
+    {
+     "group": "a11y-tables-lists",
+     "id": "listitem",
+     "weight": 0
+    },
+    {
+     "group": "a11y-best-practices",
+     "id": "meta-refresh",
+     "weight": 0
+    },
+    {
+     "group": "a11y-best-practices",
+     "id": "meta-viewport",
+     "weight": 10
+    },
+    {
+     "group": "a11y-names-labels",
+     "id": "object-alt",
+     "weight": 0
+    },
+    {
+     "group": "a11y-names-labels",
+     "id": "select-name",
+     "weight": 0
+    },
+    {
+     "group": "a11y-names-labels",
+     "id": "skip-link",
+     "weight": 0
+    },
+    {
+     "group": "a11y-navigation",
+     "id": "tabindex",
+     "weight": 7
+    },
+    {
+     "group": "a11y-best-practices",
+     "id": "target-size",
+     "weight": 7
+    },
+    {
+     "group": "a11y-tables-lists",
+     "id": "td-headers-attr",
+     "weight": 0
+    },
+    {
+     "group": "a11y-tables-lists",
+     "id": "th-has-data-cells",
+     "weight": 0
+    },
+    {
+     "group": "a11y-language",
+     "id": "valid-lang",
+     "weight": 0
+    },
+    {
+     "group": "a11y-audio-video",
+     "id": "video-caption",
+     "weight": 0
+    },
+    {
+     "group": "a11y-best-practices",
+     "id": "landmark-one-main",
+     "weight": 3
+    },
+    {
+     "group": "a11y-best-practices",
+     "id": "autocomplete-valid",
+     "weight": 0
+    },
+    {
+     "group": "a11y-best-practices",
+     "id": "presentation-role-conflict",
+     "weight": 0
+    },
+    {
+     "group": "a11y-best-practices",
+     "id": "svg-img-alt",
+     "weight": 0
+    },
+    {
+     "id": "focusable-controls",
+     "weight": 0
+    },
+    {
+     "id": "interactive-element-affordance",
+     "weight": 0
+    },
+    {
+     "id": "logical-tab-order",
+     "weight": 0
+    },
+    {
+     "id": "visual-order-follows-dom",
+     "weight": 0
+    },
+    {
+     "id": "focus-traps",
+     "weight": 0
+    },
+    {
+     "id": "managed-focus",
+     "weight": 0
+    },
+    {
+     "id": "use-landmarks",
+     "weight": 0
+    },
+    {
+     "id": "offscreen-content-hidden",
+     "weight": 0
+    },
+    {
+     "id": "custom-controls-labels",
+     "weight": 0
+    },
+    {
+     "id": "custom-controls-roles",
+     "weight": 0
+    },
+    {
+     "group": "a11y-best-practices",
+     "id": "table-duplicate-name",
+     "weight": 0
+    },
+    {
+     "group": "a11y-best-practices",
+     "id": "empty-heading",
+     "weight": 0
+    },
+    {
+     "group": "a11y-best-practices",
+     "id": "aria-allowed-role",
+     "weight": 0
+    },
+    {
+     "group": "a11y-names-labels",
+     "id": "image-redundant-alt",
+     "weight": 0
+    },
+    {
+     "group": "a11y-best-practices",
+     "id": "identical-links-same-purpose",
+     "weight": 0
+    },
+    {
+     "group": "hidden",
+     "id": "label-content-name-mismatch",
+     "weight": 0
+    },
+    {
+     "group": "hidden",
+     "id": "table-fake-caption",
+     "weight": 0
+    },
+    {
+     "group": "hidden",
+     "id": "td-has-header",
+     "weight": 0
+    }
+   ],
+   "score": 0.74
+  },
+  "best-practices": {
+   "auditRefs": [
+    {
+     "group": "best-practices-trust-safety",
+     "id": "is-on-https",
+     "weight": 5
+    },
+    {
+     "group": "best-practices-trust-safety",
+     "id": "redirects-http",
+     "weight": 0
+    },
+    {
+     "group": "best-practices-trust-safety",
+     "id": "geolocation-on-start",
+     "weight": 1
+    },
+    {
+     "group": "best-practices-trust-safety",
+     "id": "notification-on-start",
+     "weight": 1
+    },
+    {
+     "group": "best-practices-trust-safety",
+     "id": "csp-xss",
+     "weight": 0
+    },
+    {
+     "group": "best-practices-trust-safety",
+     "id": "has-hsts",
+     "weight": 0
+    },
+    {
+     "group": "best-practices-trust-safety",
+     "id": "origin-isolation",
+     "weight": 0
+    },
+    {
+     "group": "best-practices-trust-safety",
+     "id": "clickjacking-mitigation",
+     "weight": 0
+    },
+    {
+     "group": "best-practices-trust-safety",
+     "id": "trusted-types-xss",
+     "weight": 0
+    },
+    {
+     "group": "best-practices-ux",
+     "id": "paste-preventing-inputs",
+     "weight": 3
+    },
+    {
+     "group": "best-practices-ux",
+     "id": "image-aspect-ratio",
+     "weight": 1
+    },
+    {
+     "group": "best-practices-ux",
+     "id": "image-size-responsive",
+     "weight": 1
+    },
+    {
+     "group": "best-practices-browser-compat",
+     "id": "doctype",
+     "weight": 1
+    },
+    {
+     "group": "best-practices-browser-compat",
+     "id": "charset",
+     "weight": 1
+    },
+    {
+     "group": "best-practices-browser-compat",
+     "id": "baseline",
+     "weight": 0
+    },
+    {
+     "group": "best-practices-general",
+     "id": "js-libraries",
+     "weight": 0
+    },
+    {
+     "group": "best-practices-general",
+     "id": "deprecations",
+     "weight": 5
+    },
+    {
+     "group": "best-practices-general",
+     "id": "third-party-cookies",
+     "weight": 5
+    },
+    {
+     "group": "best-practices-general",
+     "id": "errors-in-console",
+     "weight": 1
+    },
+    {
+     "group": "best-practices-general",
+     "id": "valid-source-maps",
+     "weight": 0
+    },
+    {
+     "group": "best-practices-general",
+     "id": "inspector-issues",
+     "weight": 1
+    }
+   ],
+   "score": 0.96
+  }
+ },
+ "configSettings": {
+  "formFactor": "mobile"
+ },
+ "lighthouseVersion": "13.6.0"
+}

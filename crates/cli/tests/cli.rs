@@ -1823,8 +1823,8 @@ fn check_kills_a_script_that_times_out() {
 #[test]
 fn check_passes_every_example() {
     // Lighthouse, Cargo, and the benchmarks each take a while, so the examples run at once.
-    let [typescript_library, web_app, rust_api] = std::thread::scope(|scope| {
-        ["typescript-library", "web-app", "rust-api"]
+    let [typescript_library, web_app, rust_api, lighthouse] = std::thread::scope(|scope| {
+        ["typescript-library", "web-app", "rust-api", "lighthouse"]
             .map(|name| scope.spawn(move || check(example(name).path(), &[])))
             .map(|handle| handle.join().unwrap())
     });
@@ -1856,6 +1856,93 @@ fn check_passes_every_example() {
     ✓ quality      4 metrics
 
     4 passed
+    ");
+
+    assert_eq!(lighthouse.status.code(), Some(0));
+    insta::assert_snapshot!(stdout(&lighthouse), @"
+    ✓ performance          5 metrics
+    ✓ performance-desktop  5 metrics
+    ✓ accessibility        58 metrics
+    ✓ best-practices       13 metrics
+    ✓ seo                  10 metrics
+    ✓ agentic-browsing     7 metrics
+
+    6 passed
+    ");
+}
+
+#[test]
+fn lighthouse_example_scores_each_page_as_lighthouse_does() {
+    // Lighthouse 13.6.0 reports for each page of the example, saved by its script. Every round
+    // reads the same reports, so each median is the value Lighthouse scored.
+    let dir = example("lighthouse");
+    let reports = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/lighthouse-reports");
+    let envs = [("LIGHTHOUSE_REPORTS", reports.as_path())];
+
+    let output = uphill_in(dir.path(), &["--compact"], &envs);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(stdout(&output), @r#"
+    contact.html: performance 100, index.html: performance 97, schedule.html: performance 96, contact.html: performance-desktop 100, index.html: performance-desktop 100, schedule.html: performance-desktop 93, contact.html: accessibility 74, contact.html: best-practices 96, index.html: accessibility 100, index.html: best-practices 100, schedule.html: accessibility 85, schedule.html: best-practices 100, contact.html: seo 54, index.html: seo 100, schedule.html: seo 85, contact.html: agentic-browsing 67, index.html: agentic-browsing 100, schedule.html: agentic-browsing 100
+
+    Missed targets
+      index.html: performance             first-contentful-paint    2 s    target 1.8 s  Render-blocking requests, Est savings of 1,340 ms. Reduce unused JavaScript, Est savings of 148 KiB
+      schedule.html: performance          first-contentful-paint    1.9 s  target 1.8 s  Render-blocking requests, Est savings of 1,310 ms. Reduce unused JavaScript, Est savings of 148 KiB
+      schedule.html: performance-desktop  cumulative-layout-shift   0.16   target 0.1    Avoid large layout shifts, 2 layout shifts found
+      contact.html: accessibility         button-name               fail                 Buttons do not have an accessible name: body > main#main > form#contact > button
+      contact.html: accessibility         html-has-lang             fail                 `<html>` element does not have a `[lang]` attribute: html
+      contact.html: accessibility         meta-viewport             fail                 `[user-scalable="no"]` is used in the `<meta name="viewport">` element or the `[maximum-scale]` attribute is less than 5.: head > meta
+      contact.html: accessibility         tabindex                  fail                 Some elements have a `[tabindex]` value greater than 0: body > main#main > p
+      contact.html: best-practices        errors-in-console         fail                 Browser errors were logged to the console
+      schedule.html: accessibility        color-contrast            fail                 Background and foreground colors do not have a sufficient contrast ratio.: body > main#main > p.faint
+      schedule.html: accessibility        heading-order             fail                 Heading elements are not in a sequentially-descending order: body > main#main > h3#north
+      schedule.html: accessibility        image-alt                 fail                 Image elements do not have `[alt]` attributes: body > main#main > img.map
+      contact.html: seo                   is-crawlable              fail                 Page is blocked from indexing
+      contact.html: seo                   meta-description          fail                 Document does not have a meta description
+      schedule.html: seo                  link-text                 fail                 Links do not have descriptive text. 1 link found
+      schedule.html: seo                  image-alt                 fail                 Image elements do not have `[alt]` attributes: body > main#main > img.map
+      contact.html: agentic-browsing      agent-accessibility-tree  fail                 Accessibility tree is not well-formed
+
+    Opportunities
+      +37  contact.html: seo               is-crawlable              fail → pass
+      +33  contact.html: agentic-browsing  agent-accessibility-tree  fail → pass
+      +9   contact.html: seo               meta-description          fail → pass
+      +8   schedule.html: seo              link-text                 fail → pass
+      +8   schedule.html: seo              image-alt                 fail → pass
+
+    No baseline yet. Run `uphill --update` to record these values as the baseline.
+
+    Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
+    "#);
+
+    // The example's own check compares every category and audit score with the reports.
+    let verify = Command::new("bun")
+        .args(["metrics/verify.ts"])
+        .current_dir(dir.path())
+        .envs(envs)
+        .output()
+        .expect("bun runs");
+    assert_eq!(verify.status.code(), Some(0), "{}", stderr(&verify));
+    insta::assert_snapshot!(stdout(&verify), @"
+    ✓ contact.html   performance          Lighthouse 100  Uphill 100
+    ✓ index.html     performance          Lighthouse  97  Uphill  97
+    ✓ schedule.html  performance          Lighthouse  96  Uphill  96
+    ✓ contact.html   performance-desktop  Lighthouse 100  Uphill 100
+    ✓ index.html     performance-desktop  Lighthouse 100  Uphill 100
+    ✓ schedule.html  performance-desktop  Lighthouse  93  Uphill  93
+    ✓ contact.html   accessibility        Lighthouse  74  Uphill  74
+    ✓ contact.html   best-practices       Lighthouse  96  Uphill  96
+    ✓ index.html     accessibility        Lighthouse 100  Uphill 100
+    ✓ index.html     best-practices       Lighthouse 100  Uphill 100
+    ✓ schedule.html  accessibility        Lighthouse  85  Uphill  85
+    ✓ schedule.html  best-practices       Lighthouse 100  Uphill 100
+    ✓ contact.html   seo                  Lighthouse  54  Uphill  54
+    ✓ index.html     seo                  Lighthouse 100  Uphill 100
+    ✓ schedule.html  seo                  Lighthouse  85  Uphill  85
+    ✓ contact.html   agentic-browsing     Lighthouse  67  Uphill  67
+    ✓ index.html     agentic-browsing     Lighthouse 100  Uphill 100
+    ✓ schedule.html  agentic-browsing     Lighthouse 100  Uphill 100
+
+    18 category scores and 273 audit scores compared, 0 differ
     ");
 }
 

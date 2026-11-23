@@ -1,0 +1,677 @@
+{
+ "audits": {
+  "first-contentful-paint": {
+   "displayValue": "0.8 s",
+   "numericUnit": "millisecond",
+   "numericValue": 752.6472000000001,
+   "score": 1,
+   "scoreDisplayMode": "numeric",
+   "title": "First Contentful Paint"
+  },
+  "largest-contentful-paint": {
+   "displayValue": "0.8 s",
+   "numericUnit": "millisecond",
+   "numericValue": 752.6472000000001,
+   "score": 1,
+   "scoreDisplayMode": "numeric",
+   "title": "Largest Contentful Paint"
+  },
+  "speed-index": {
+   "displayValue": "0.8 s",
+   "numericUnit": "millisecond",
+   "numericValue": 752.6472000000001,
+   "score": 1,
+   "scoreDisplayMode": "numeric",
+   "title": "Speed Index"
+  },
+  "screenshot-thumbnails": {
+   "score": 1,
+   "scoreDisplayMode": "informative",
+   "title": "Screenshot Thumbnails"
+  },
+  "final-screenshot": {
+   "score": 1,
+   "scoreDisplayMode": "informative",
+   "title": "Final Screenshot"
+  },
+  "total-blocking-time": {
+   "displayValue": "0 ms",
+   "numericUnit": "millisecond",
+   "numericValue": 0,
+   "score": 1,
+   "scoreDisplayMode": "numeric",
+   "title": "Total Blocking Time"
+  },
+  "max-potential-fid": {
+   "displayValue": "30 ms",
+   "numericUnit": "millisecond",
+   "numericValue": 27,
+   "score": 1,
+   "scoreDisplayMode": "numeric",
+   "title": "Max Potential First Input Delay"
+  },
+  "cumulative-layout-shift": {
+   "displayValue": "0",
+   "numericUnit": "unitless",
+   "numericValue": 0,
+   "score": 1,
+   "scoreDisplayMode": "numeric",
+   "title": "Cumulative Layout Shift"
+  },
+  "server-response-time": {
+   "displayValue": "Root document took 0 ms",
+   "metricSavings": {
+    "FCP": 0,
+    "LCP": 0
+   },
+   "numericUnit": "millisecond",
+   "numericValue": 2,
+   "score": 1,
+   "scoreDisplayMode": "metricSavings",
+   "title": "Initial server response time was short"
+  },
+  "interactive": {
+   "displayValue": "0.8 s",
+   "numericUnit": "millisecond",
+   "numericValue": 752.6472000000001,
+   "score": 1,
+   "scoreDisplayMode": "numeric",
+   "title": "Time to Interactive"
+  },
+  "user-timings": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "User Timing marks and measures"
+  },
+  "redirects": {
+   "displayValue": "",
+   "metricSavings": {
+    "LCP": 0,
+    "FCP": 0
+   },
+   "numericUnit": "millisecond",
+   "numericValue": 0,
+   "score": 1,
+   "scoreDisplayMode": "metricSavings",
+   "title": "Avoid multiple page redirects"
+  },
+  "mainthread-work-breakdown": {
+   "displayValue": "0.2 s",
+   "metricSavings": {
+    "TBT": 0
+   },
+   "numericUnit": "millisecond",
+   "numericValue": 228.408,
+   "score": 1,
+   "scoreDisplayMode": "metricSavings",
+   "title": "Minimizes main-thread work"
+  },
+  "bootup-time": {
+   "displayValue": "0.0 s",
+   "metricSavings": {
+    "TBT": 0
+   },
+   "numericUnit": "millisecond",
+   "numericValue": 17.455999999999996,
+   "score": 1,
+   "scoreDisplayMode": "metricSavings",
+   "title": "JavaScript execution time"
+  },
+  "diagnostics": {
+   "score": 1,
+   "scoreDisplayMode": "informative",
+   "title": "Diagnostics"
+  },
+  "network-requests": {
+   "score": 1,
+   "scoreDisplayMode": "informative",
+   "title": "Network Requests"
+  },
+  "network-rtt": {
+   "displayValue": "0 ms",
+   "numericUnit": "millisecond",
+   "numericValue": 0.1479,
+   "score": 1,
+   "scoreDisplayMode": "informative",
+   "title": "Network Round Trip Times"
+  },
+  "network-server-latency": {
+   "displayValue": "0 ms",
+   "numericUnit": "millisecond",
+   "numericValue": 1.3236,
+   "score": 1,
+   "scoreDisplayMode": "informative",
+   "title": "Server Backend Latencies"
+  },
+  "main-thread-tasks": {
+   "score": 1,
+   "scoreDisplayMode": "informative",
+   "title": "Tasks"
+  },
+  "metrics": {
+   "numericUnit": "millisecond",
+   "numericValue": 753,
+   "score": 1,
+   "scoreDisplayMode": "informative",
+   "title": "Metrics"
+  },
+  "resource-summary": {
+   "score": 1,
+   "scoreDisplayMode": "informative",
+   "title": "Resources Summary"
+  },
+  "layout-shifts": {
+   "metricSavings": {
+    "CLS": 0
+   },
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "Avoid large layout shifts"
+  },
+  "long-tasks": {
+   "metricSavings": {
+    "TBT": 0
+   },
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "Avoid long main-thread tasks"
+  },
+  "non-composited-animations": {
+   "metricSavings": {
+    "CLS": 0
+   },
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "Avoid non-composited animations"
+  },
+  "unsized-images": {
+   "metricSavings": {
+    "CLS": 0
+   },
+   "score": 1,
+   "scoreDisplayMode": "metricSavings",
+   "title": "Image elements have explicit `width` and `height`"
+  },
+  "script-treemap-data": {
+   "score": 1,
+   "scoreDisplayMode": "informative",
+   "title": "Script Treemap Data"
+  },
+  "total-byte-weight": {
+   "displayValue": "Total size was 2 KiB",
+   "numericUnit": "byte",
+   "numericValue": 1616,
+   "score": 1,
+   "scoreDisplayMode": "metricSavings",
+   "title": "Avoids enormous network payloads"
+  },
+  "unminified-css": {
+   "displayValue": "",
+   "metricSavings": {
+    "FCP": 0,
+    "LCP": 0
+   },
+   "numericUnit": "millisecond",
+   "numericValue": 0,
+   "score": 1,
+   "scoreDisplayMode": "metricSavings",
+   "title": "Minify CSS"
+  },
+  "unminified-javascript": {
+   "displayValue": "",
+   "metricSavings": {
+    "FCP": 0,
+    "LCP": 0
+   },
+   "numericUnit": "millisecond",
+   "numericValue": 0,
+   "score": 1,
+   "scoreDisplayMode": "metricSavings",
+   "title": "Minify JavaScript"
+  },
+  "unused-css-rules": {
+   "displayValue": "",
+   "metricSavings": {
+    "FCP": 0,
+    "LCP": 0
+   },
+   "numericUnit": "millisecond",
+   "numericValue": 0,
+   "score": 1,
+   "scoreDisplayMode": "metricSavings",
+   "title": "Reduce unused CSS"
+  },
+  "unused-javascript": {
+   "displayValue": "",
+   "metricSavings": {
+    "FCP": 0,
+    "LCP": 0
+   },
+   "numericUnit": "millisecond",
+   "numericValue": 0,
+   "score": 1,
+   "scoreDisplayMode": "metricSavings",
+   "title": "Reduce unused JavaScript"
+  },
+  "bf-cache": {
+   "score": 1,
+   "scoreDisplayMode": "binary",
+   "title": "Page didn't prevent back/forward cache restoration"
+  },
+  "cache-insight": {
+   "metricSavings": {
+    "FCP": 0,
+    "LCP": 0
+   },
+   "numericUnit": "byte",
+   "numericValue": 0,
+   "score": 1,
+   "scoreDisplayMode": "metricSavings",
+   "title": "Use efficient cache lifetimes"
+  },
+  "cls-culprits-insight": {
+   "metricSavings": {
+    "CLS": 0
+   },
+   "score": 1,
+   "scoreDisplayMode": "numeric",
+   "title": "Layout shift culprits"
+  },
+  "document-latency-insight": {
+   "metricSavings": {
+    "FCP": 0,
+    "LCP": 0
+   },
+   "numericUnit": "millisecond",
+   "numericValue": 0,
+   "score": 1,
+   "scoreDisplayMode": "metricSavings",
+   "title": "Document request latency"
+  },
+  "dom-size-insight": {
+   "metricSavings": {
+    "INP": 0
+   },
+   "nodes": [
+    "body > header > nav > a",
+    "body > header > nav"
+   ],
+   "numericUnit": "element",
+   "numericValue": 15,
+   "score": 1,
+   "scoreDisplayMode": "numeric",
+   "title": "Optimize DOM size"
+  },
+  "duplicated-javascript-insight": {
+   "metricSavings": {
+    "FCP": 0,
+    "LCP": 0
+   },
+   "numericUnit": "byte",
+   "numericValue": 0,
+   "score": 1,
+   "scoreDisplayMode": "metricSavings",
+   "title": "Duplicated JavaScript"
+  },
+  "font-display-insight": {
+   "metricSavings": {
+    "INP": 0
+   },
+   "numericUnit": "millisecond",
+   "numericValue": 0,
+   "score": 1,
+   "scoreDisplayMode": "metricSavings",
+   "title": "Font display"
+  },
+  "forced-reflow-insight": {
+   "score": 1,
+   "scoreDisplayMode": "numeric",
+   "title": "Forced reflow"
+  },
+  "image-delivery-insight": {
+   "metricSavings": {
+    "FCP": 0,
+    "LCP": 0
+   },
+   "numericUnit": "byte",
+   "numericValue": 0,
+   "score": 1,
+   "scoreDisplayMode": "metricSavings",
+   "title": "Improve image delivery"
+  },
+  "inp-breakdown-insight": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "INP breakdown"
+  },
+  "lcp-breakdown-insight": {
+   "metricSavings": {
+    "LCP": 0
+   },
+   "score": 1,
+   "scoreDisplayMode": "informative",
+   "title": "LCP breakdown"
+  },
+  "lcp-discovery-insight": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "LCP request discovery"
+  },
+  "legacy-javascript-insight": {
+   "metricSavings": {
+    "FCP": 0,
+    "LCP": 0
+   },
+   "numericUnit": "byte",
+   "numericValue": 0,
+   "score": 1,
+   "scoreDisplayMode": "metricSavings",
+   "title": "Legacy JavaScript"
+  },
+  "modern-http-insight": {
+   "metricSavings": {
+    "FCP": 0,
+    "LCP": 0
+   },
+   "numericUnit": "millisecond",
+   "numericValue": 0,
+   "score": 1,
+   "scoreDisplayMode": "metricSavings",
+   "title": "Modern HTTP"
+  },
+  "network-dependency-tree-insight": {
+   "metricSavings": {
+    "LCP": 0
+   },
+   "score": 0,
+   "scoreDisplayMode": "numeric",
+   "title": "Network dependency tree"
+  },
+  "render-blocking-insight": {
+   "displayValue": "Est savings of 140 ms",
+   "metricSavings": {
+    "FCP": 150,
+    "LCP": 150
+   },
+   "numericUnit": "millisecond",
+   "numericValue": 139,
+   "score": 0,
+   "scoreDisplayMode": "metricSavings",
+   "title": "Render-blocking requests"
+  },
+  "third-parties-insight": {
+   "score": 1,
+   "scoreDisplayMode": "numeric",
+   "title": "3rd parties"
+  },
+  "viewport-insight": {
+   "metricSavings": {
+    "INP": 0
+   },
+   "nodes": [
+    "head > meta"
+   ],
+   "numericUnit": "millisecond",
+   "numericValue": 0,
+   "score": 1,
+   "scoreDisplayMode": "numeric",
+   "title": "Optimize viewport for mobile"
+  }
+ },
+ "categories": {
+  "performance": {
+   "auditRefs": [
+    {
+     "group": "metrics",
+     "id": "first-contentful-paint",
+     "weight": 10
+    },
+    {
+     "group": "metrics",
+     "id": "largest-contentful-paint",
+     "weight": 25
+    },
+    {
+     "group": "metrics",
+     "id": "total-blocking-time",
+     "weight": 30
+    },
+    {
+     "group": "metrics",
+     "id": "cumulative-layout-shift",
+     "weight": 25
+    },
+    {
+     "group": "metrics",
+     "id": "speed-index",
+     "weight": 10
+    },
+    {
+     "group": "insights",
+     "id": "cache-insight",
+     "weight": 0
+    },
+    {
+     "group": "insights",
+     "id": "cls-culprits-insight",
+     "weight": 0
+    },
+    {
+     "group": "insights",
+     "id": "document-latency-insight",
+     "weight": 0
+    },
+    {
+     "group": "insights",
+     "id": "dom-size-insight",
+     "weight": 0
+    },
+    {
+     "group": "insights",
+     "id": "duplicated-javascript-insight",
+     "weight": 0
+    },
+    {
+     "group": "insights",
+     "id": "font-display-insight",
+     "weight": 0
+    },
+    {
+     "group": "insights",
+     "id": "forced-reflow-insight",
+     "weight": 0
+    },
+    {
+     "group": "insights",
+     "id": "image-delivery-insight",
+     "weight": 0
+    },
+    {
+     "group": "insights",
+     "id": "inp-breakdown-insight",
+     "weight": 0
+    },
+    {
+     "group": "insights",
+     "id": "lcp-breakdown-insight",
+     "weight": 0
+    },
+    {
+     "group": "insights",
+     "id": "lcp-discovery-insight",
+     "weight": 0
+    },
+    {
+     "group": "insights",
+     "id": "legacy-javascript-insight",
+     "weight": 0
+    },
+    {
+     "group": "insights",
+     "id": "modern-http-insight",
+     "weight": 0
+    },
+    {
+     "group": "insights",
+     "id": "network-dependency-tree-insight",
+     "weight": 0
+    },
+    {
+     "group": "insights",
+     "id": "render-blocking-insight",
+     "weight": 0
+    },
+    {
+     "group": "insights",
+     "id": "third-parties-insight",
+     "weight": 0
+    },
+    {
+     "group": "insights",
+     "id": "viewport-insight",
+     "weight": 0
+    },
+    {
+     "group": "hidden",
+     "id": "interactive",
+     "weight": 0
+    },
+    {
+     "group": "hidden",
+     "id": "max-potential-fid",
+     "weight": 0
+    },
+    {
+     "group": "diagnostics",
+     "id": "unminified-css",
+     "weight": 0
+    },
+    {
+     "group": "diagnostics",
+     "id": "unminified-javascript",
+     "weight": 0
+    },
+    {
+     "group": "diagnostics",
+     "id": "unused-css-rules",
+     "weight": 0
+    },
+    {
+     "group": "diagnostics",
+     "id": "unused-javascript",
+     "weight": 0
+    },
+    {
+     "group": "diagnostics",
+     "id": "total-byte-weight",
+     "weight": 0
+    },
+    {
+     "group": "diagnostics",
+     "id": "user-timings",
+     "weight": 0
+    },
+    {
+     "group": "diagnostics",
+     "id": "bootup-time",
+     "weight": 0
+    },
+    {
+     "group": "diagnostics",
+     "id": "mainthread-work-breakdown",
+     "weight": 0
+    },
+    {
+     "group": "diagnostics",
+     "id": "long-tasks",
+     "weight": 0
+    },
+    {
+     "group": "diagnostics",
+     "id": "non-composited-animations",
+     "weight": 0
+    },
+    {
+     "group": "diagnostics",
+     "id": "unsized-images",
+     "weight": 0
+    },
+    {
+     "group": "diagnostics",
+     "id": "bf-cache",
+     "weight": 0
+    },
+    {
+     "group": "hidden",
+     "id": "network-requests",
+     "weight": 0
+    },
+    {
+     "group": "hidden",
+     "id": "network-rtt",
+     "weight": 0
+    },
+    {
+     "group": "hidden",
+     "id": "network-server-latency",
+     "weight": 0
+    },
+    {
+     "group": "hidden",
+     "id": "main-thread-tasks",
+     "weight": 0
+    },
+    {
+     "group": "hidden",
+     "id": "diagnostics",
+     "weight": 0
+    },
+    {
+     "group": "hidden",
+     "id": "metrics",
+     "weight": 0
+    },
+    {
+     "group": "hidden",
+     "id": "screenshot-thumbnails",
+     "weight": 0
+    },
+    {
+     "group": "hidden",
+     "id": "final-screenshot",
+     "weight": 0
+    },
+    {
+     "group": "hidden",
+     "id": "script-treemap-data",
+     "weight": 0
+    },
+    {
+     "group": "hidden",
+     "id": "resource-summary",
+     "weight": 0
+    },
+    {
+     "group": "hidden",
+     "id": "redirects",
+     "weight": 0
+    },
+    {
+     "group": "hidden",
+     "id": "server-response-time",
+     "weight": 0
+    },
+    {
+     "group": "hidden",
+     "id": "layout-shifts",
+     "weight": 0
+    }
+   ],
+   "score": 1
+  }
+ },
+ "configSettings": {
+  "formFactor": "mobile"
+ },
+ "lighthouseVersion": "13.6.0"
+}

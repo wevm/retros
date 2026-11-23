@@ -1,0 +1,89 @@
+{
+ "audits": {
+  "cumulative-layout-shift": {
+   "displayValue": "0",
+   "numericUnit": "unitless",
+   "numericValue": 0,
+   "score": 1,
+   "scoreDisplayMode": "numeric",
+   "title": "Cumulative Layout Shift"
+  },
+  "agent-accessibility-tree": {
+   "displayValue": "All audits passed",
+   "score": 1,
+   "scoreDisplayMode": "binary",
+   "title": "Accessibility tree is well-formed"
+  },
+  "webmcp-registered-tools": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "WebMCP tools registered"
+  },
+  "webmcp-form-coverage": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "WebMCP form coverage"
+  },
+  "webmcp-schema-validity": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "WebMCP schemas are valid"
+  },
+  "llms-txt": {
+   "score": 1,
+   "scoreDisplayMode": "binary",
+   "title": "llms.txt follows recommendations"
+  },
+  "ard-schema": {
+   "score": null,
+   "scoreDisplayMode": "notApplicable",
+   "title": "ARD manifest is valid"
+  }
+ },
+ "categories": {
+  "agentic-browsing": {
+   "auditRefs": [
+    {
+     "group": "agent-accessibility",
+     "id": "agent-accessibility-tree",
+     "weight": 1
+    },
+    {
+     "group": "webmcp",
+     "id": "webmcp-form-coverage",
+     "weight": 0
+    },
+    {
+     "group": "webmcp",
+     "id": "webmcp-registered-tools",
+     "weight": 0
+    },
+    {
+     "group": "webmcp",
+     "id": "webmcp-schema-validity",
+     "weight": 0
+    },
+    {
+     "id": "cumulative-layout-shift",
+     "weight": 1
+    },
+    {
+     "group": "agent-discoverability",
+     "id": "llms-txt",
+     "weight": 1
+    },
+    {
+     "group": "agent-discoverability",
+     "id": "ard-schema",
+     "weight": 0
+    }
+   ],
+   "categoryScoreDisplayMode": "fraction",
+   "score": 1
+  }
+ },
+ "configSettings": {
+  "formFactor": "mobile"
+ },
+ "lighthouseVersion": "13.6.0"
+}
