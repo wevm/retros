@@ -41,6 +41,10 @@ Opportunities
   +15  footprint  bundle-size  6.9 kB → 5 kB
 ```
 
+Each run also writes `.uphill/report.html`, with a gauge per category and the opportunities worth the most points. This report is from [`examples/typescript-library`](examples/typescript-library).
+
+![The report.html of examples/typescript-library: gauges for footprint, speed, and quality, then its opportunities](.github/report.png)
+
 ## Install
 
 ```sh
