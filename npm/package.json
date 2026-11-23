@@ -1,0 +1,43 @@
+{
+  "scripts": {
+    "build": "zile"
+  },
+  "[!start-pkg]": "",
+  "name": "retros",
+  "description": "Continuous metrics and hill climbing",
+  "type": "module",
+  "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wevm/retros.git",
+    "directory": "npm"
+  },
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "cpu": [
+    "arm64",
+    "x64"
+  ],
+  "bin": {
+    "retros": "./dist/bin.js",
+    "retros.src": "./src/bin.ts"
+  },
+  "files": [
+    "binaries",
+    "dist",
+    "src"
+  ],
+  "publishConfig": {
+    "executableFiles": [
+      "./binaries/darwin-arm64/retros",
+      "./binaries/darwin-x64/retros",
+      "./binaries/linux-arm64/retros",
+      "./binaries/linux-x64/retros"
+    ]
+  },
+  "sideEffects": false,
+  "exports": {}
+}

@@ -108,6 +108,8 @@ importers:
         specifier: 'catalog:'
         version: 0.0.31(typescript@7.0.2)
 
+  npm: {}
+
   site:
     dependencies:
       '@fontsource-variable/geist':

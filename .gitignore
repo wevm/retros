@@ -2,4 +2,4 @@ target
 .retros
 dist
 node_modules
-/binaries
+npm/binaries

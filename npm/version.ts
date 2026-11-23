@@ -1,7 +1,7 @@
 /**
  * Sets the version of the Rust workspace to the version of the `retros` npm package, so
  * `retros --version` matches the npm version and the GitHub Release tag. `pnpm changeset:version`
- * runs it after `changeset version` raises the package version: `bun scripts/version.ts`.
+ * runs it after `changeset version` raises the package version: `bun npm/version.ts`.
  * @module
  */
 import * as fs from 'node:fs'
@@ -10,7 +10,7 @@ import * as path from 'node:path'
 const root = path.join(import.meta.dirname, '..')
 
 const { version } = JSON.parse(
-  fs.readFileSync(path.join(root, 'package.json'), 'utf8'),
+  fs.readFileSync(path.join(import.meta.dirname, 'package.json'), 'utf8'),
 ) as { version: string }
 
 // `[workspace.package]` holds the only `version` key at the start of a line in Cargo.toml.

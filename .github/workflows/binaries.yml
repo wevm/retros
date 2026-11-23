@@ -58,14 +58,14 @@ jobs:
         if: endsWith(matrix.target, '-linux-musl')
         run: docker run --rm -v "$PWD/target/$TARGET/release:/retros:ro" alpine:3 /retros/retros --version
 
-      # `pnpm changeset:version` sets the Cargo version to the npm package version.
+      # `pnpm changeset:version` sets the Cargo version to the version in npm/package.json.
       - name: Check version
         run: |
           version=$("target/$TARGET/release/retros" --version)
-          expected="retros $(node -p "require('./package.json').version")"
+          expected="retros $(node -p "require('./npm/package.json').version")"
           echo "$version"
           if [ "$version" != "$expected" ]; then
-            echo "::error::The binary prints '$version', but package.json expects '$expected'. Run 'bun scripts/version.ts'."
+            echo "::error::The binary prints '$version', but npm/package.json expects '$expected'. Run 'bun npm/version.ts'."
             exit 1
           fi
 

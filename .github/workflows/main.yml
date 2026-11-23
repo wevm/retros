@@ -33,7 +33,7 @@ jobs:
       - name: Install dependencies
         uses: ./.github/actions/install-dependencies
 
-      # `pnpm changeset:version` runs scripts/version.ts with Bun.
+      # `pnpm changeset:version` runs npm/version.ts with Bun.
       - name: Install Bun
         uses: wevm/actions/vendor/oven-sh/setup-bun/v2.2.0@b518cf981b50a4c745a8b7335fc693f34b108a75
         with:
@@ -151,13 +151,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh release download "v$VERSION" --dir dist --pattern 'retros-*.tar.gz' --repo "$GITHUB_REPOSITORY"
 
-      # src/bin.ts runs `binaries/<process.platform>-<process.arch>/retros`. The static musl
-      # builds run on Linux with glibc or musl.
+      # npm/src/bin.ts runs `npm/binaries/<process.platform>-<process.arch>/retros`. The static
+      # musl builds run on Linux with glibc or musl.
       - name: Stage binaries
         run: |
           for entry in darwin-arm64:aarch64-apple-darwin darwin-x64:x86_64-apple-darwin linux-arm64:aarch64-unknown-linux-musl linux-x64:x86_64-unknown-linux-musl; do
-            mkdir -p "binaries/${entry%%:*}"
-            tar -xzf "dist/retros-${entry#*:}.tar.gz" -C "binaries/${entry%%:*}" retros
+            mkdir -p "npm/binaries/${entry%%:*}"
+            tar -xzf "dist/retros-${entry#*:}.tar.gz" -C "npm/binaries/${entry%%:*}" retros
           done
 
       # Packs the package as `changeset publish` does, installs it on glibc and on musl, and runs
@@ -165,21 +165,21 @@ jobs:
       # executable. pnpm runs once, since a later `pnpm exec` installs from the prepared manifest.
       - name: Check package
         run: |
-          pnpm exec sh -euc 'zile publish:prepare && pnpm pack --pack-destination "$RUNNER_TEMP" && zile publish:post'
+          pnpm exec sh -euc 'zile publish:prepare --cwd npm && pnpm --dir npm pack --pack-destination "$RUNNER_TEMP" && zile publish:post --cwd npm'
           check='cd "$(mktemp -d)" && npm init -y > /dev/null && npm install --no-audit --no-fund --loglevel=error /pack/retros-*.tgz && npx retros --version'
           docker run --rm -v "$RUNNER_TEMP:/pack:ro" node:24 sh -euc "$check"
           docker run --rm -v "$RUNNER_TEMP:/pack:ro" node:24-alpine sh -euc "$check"
 
-      # The release notes are the version's section of CHANGELOG.md. A version with a suffix, such
-      # as 0.2.0-rc.0, makes a prerelease, which `latest` skips.
+      # The release notes are the version's section of npm/CHANGELOG.md. A version with a suffix,
+      # such as 0.2.0-rc.0, makes a prerelease, which `latest` skips.
       - name: Create GitHub Release
         if: needs.binaries.result == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           (cd dist && sha256sum retros-*.tar.gz > sha256sums.txt)
-          touch CHANGELOG.md
-          awk -v heading="## $VERSION" '$0 == heading { found = 1; next } /^## / { found = 0 } found' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          touch npm/CHANGELOG.md
+          awk -v heading="## $VERSION" '$0 == heading { found = 1; next } /^## / { found = 0 } found' npm/CHANGELOG.md > "$RUNNER_TEMP/notes.md"
           case "$VERSION" in *-*) prerelease=--prerelease ;; *) prerelease= ;; esac
           gh release create "v$VERSION" dist/retros-*.tar.gz dist/sha256sums.txt --notes-file "$RUNNER_TEMP/notes.md" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "v$VERSION" $prerelease
 
@@ -226,7 +226,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          version=$(node -p "require('./package.json').version")
+          version=$(node -p "require('./npm/package.json').version")
           echo "version=$version" >> "$GITHUB_OUTPUT"
           pending=$(find .changeset -name '*.md' ! -name README.md | head -n 1)
           if [ -n "$pending" ] || [ -n "$(npm view "retros@$version" version 2> /dev/null)" ]; then exit 0; fi

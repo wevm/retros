@@ -289,7 +289,7 @@ Applies to documentation, comments, TSDoc, interface copy, commit messages, and 
 - `examples/`: small projects in different languages, each with a `retros.yaml` and the scripts it runs. CLI tests run `retros check` on each one.
 - `.agents/retros.yaml` and `.agents/metrics/`: Retros measuring itself.
 - `.agents/plan.md` tracks phases, decisions, and acceptance gates.
-- `package.json`, `src/bin.ts`, and `.changeset/`: the `retros` npm package, built with zile from the zile template. `src/bin.ts` runs the binary for the machine from `binaries/<platform>-<arch>/`, which the Main workflow fills from the release archives. Its version is the release version, and `scripts/version.ts` copies it into `Cargo.toml` and `Cargo.lock`.
+- `npm/`: the `retros` npm package, a pnpm workspace package built with zile from the zile template. `npm/src/bin.ts` runs the binary for the machine from `npm/binaries/<platform>-<arch>/`, which the Main workflow fills from the release archives. Its version is the release version, and `npm/version.ts` copies it into `Cargo.toml` and `Cargo.lock`. Changesets reads `.changeset/` at the repository root.
 - `install.sh`, `.github/workflows/main.yml`, and `.github/workflows/binaries.yml`: the install script, and the release. A change that users see adds a changeset with `pnpm changeset`. On `main`, the Main workflow keeps a `chore: version packages` pull request open, and merging it builds the archives with `binaries.yml`, creates the `v<version>` GitHub Release, and publishes `retros` to npm. The changesets bot owns that branch and pull request.
 - `action.yml`: the GitHub Action, which runs `retros --compare` on a pull request and keeps one comment with the report.
 - `site/`: the documentation site, a TanStack Start app on Cloudflare Workers styled with Zyzz. Each page is an MDX file under `site/src/content/docs/`, listed in sidebar order in `site/src/Docs.ts`, and served with a Markdown twin at the same path plus `.md`.
@@ -308,4 +308,4 @@ Applies to documentation, comments, TSDoc, interface copy, commit messages, and 
 - `cargo run -p retros -- check` runs Retros on itself with `.agents/retros.yaml`.
 - `pnpm install` installs the TypeScript tooling. `pnpm check` formats and lints TypeScript with Vite Plus, and `pnpm check:types` checks types, including the site's.
 - `pnpm --filter @retros/site dev` serves the documentation site on port 3000, and `pnpm --filter @retros/site build` builds it.
-- `pnpm build` builds the npm launcher with zile. `pnpm changeset` writes a changeset, a release note for the next version.
+- `pnpm --filter retros build` builds the npm launcher with zile. `pnpm changeset` writes a changeset, a release note for the next version.
