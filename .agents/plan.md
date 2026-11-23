@@ -235,7 +235,7 @@ Explain each miss, and write the report people open.
 
 - [ ] Notes: a line can say why an item misses, such as `alt-text /pricing fail note "hero.svg has no alt text"`. Notes appear under their items in every report. The syntax is decided at the start of this phase.
 - [x] Metric descriptions in reports, from the `description` key (decision 18).
-- [x] One self-contained `.retros/report.html`: a comparison table and one tab per subject, a gauge per category, score bands, opportunities, and changes. Each category shows its metrics as a grid, each value on a bar against its target, a strip of each metric's share of the score, descriptions behind Expand view, and a collapsible row per list with its items worst first against their targets. Notes join the items once they exist.
+- [x] One self-contained `.retros/report.html`: a comparison table and one tab per subject, a gauge per category, score bands, opportunities, and changes. Each category shows its metrics as a grid, each value on a bar against its target, descriptions behind Expand view, and a collapsible row per list with its items worst first against their targets. Notes join the items once they exist.
 - [x] Titles for categories and metrics, from the `title` key (decision 20).
 - [x] Light and dark schemes, phone layout, keyboard access to the tabs, and reduced motion.
 

@@ -278,7 +278,7 @@ Applies to documentation, comments, TSDoc, interface copy, commit messages, and 
 
 ## UI Conventions
 
-- The HTML report is one file with inline CSS and JavaScript and no network requests. It follows Lighthouse's report layout: a gauge per category, score bands, a grid of metrics with each value against its target and its share of the score, and a collapsible row per list metric with its items worst first.
+- The HTML report is one file with inline CSS and JavaScript and no network requests. It follows Lighthouse's report layout: a gauge per category, score bands, a grid of metrics with each value against its target, and a collapsible row per list metric with its items worst first.
 - Support light and dark schemes through `prefers-color-scheme`, and respect reduced-motion preferences.
 - Use accessible native controls. Implement keyboard activation, visible focus, disabled behavior, and accessible names alongside each control.
 - The documentation site, once it exists, writes every style with Zyzz. The HTML report embeds its own stylesheet, because it ships inside the binary as one file.

@@ -1,7 +1,7 @@
 //! The HTML report: one self-contained page, with inline styles and a small inline script, that
 //! makes no network requests. It follows Lighthouse's report: a tab per subject, a gauge per
-//! category, and for each category a grid of metrics, each with its value against its target and
-//! its share of the score, then a collapsible row per list of items. Opportunities and the changes
+//! category, and for each category a grid of metrics, each with its value against its target, then
+//! a collapsible row per list of items. Opportunities and the changes
 //! since `retros.lock` come first. Like the other reports, it has no timestamps or paths, so the
 //! same scores always produce the same bytes.
 
@@ -231,8 +231,7 @@ fn category(out: &mut String, category: &CategoryReport, id: &str) {
     out.push_str("</section>\n");
 }
 
-/// Writes a category's metrics as a grid in the order `retros.yaml` declares them, with the strip
-/// that shows how their scores make up the category's.
+/// Writes a category's metrics as a grid in the order `retros.yaml` declares them.
 fn metrics(out: &mut String, scored: &CategoryScore, id: &str) {
     out.push_str("<div class=\"group-head\"><h3>Metrics</h3>");
     if scored
@@ -255,63 +254,16 @@ fn metrics(out: &mut String, scored: &CategoryScore, id: &str) {
         );
     }
 
-    let total: f64 = scored
-        .metrics
-        .iter()
-        .filter(|metric| counts(metric))
-        .map(|metric| metric.metric.weight)
-        .sum();
-
-    strip(out, scored, total);
-
     let _ = writeln!(out, "<ul class=\"grid\" id=\"{id}-metrics\">");
     for metric in &scored.metrics {
-        card(out, metric, total);
+        card(out, metric);
     }
     out.push_str("</ul>\n");
 }
 
-/// Writes the strip that shows how a category's score is made: one part per metric that counts,
-/// as wide as its weight and filled to its score, so the empty part of each is the points the
-/// metric costs the category. A category with fewer than two such metrics has no strip.
-fn strip(out: &mut String, scored: &CategoryScore, total: f64) {
-    let parts: Vec<&MetricScore> = scored.metrics.iter().filter(|m| counts(m)).collect();
-    if parts.len() < 2 {
-        return;
-    }
-
-    let describe = |metric: &MetricScore| {
-        format!(
-            "{}: {:.0}% of the score, scores {}",
-            metric.metric.title(),
-            metric.metric.weight / total * 100.0,
-            metric.score.unwrap_or_default()
-        )
-    };
-    let label: Vec<String> = parts.iter().map(|metric| describe(metric)).collect();
-
-    let _ = write!(
-        out,
-        "<div class=\"strip\" role=\"img\" aria-label=\"{}\">",
-        escape(&label.join(". "))
-    );
-    for metric in parts {
-        let score = metric.score.unwrap_or_default();
-        let _ = write!(
-            out,
-            "<span class=\"part {}\" style=\"flex-grow:{:.3}\" title=\"{}\"><span style=\"width:{score}%\"></span></span>",
-            band_class(metric.score),
-            metric.metric.weight,
-            escape(&describe(metric))
-        );
-    }
-    out.push_str("</div>\n<p class=\"note muted\">Each part is one metric's share of the score, filled to its score.</p>\n");
-}
-
 /// Writes one metric of the grid: its band, title, and score, its value in its band's color, its
-/// value against its target, its share of the category's score, and its description, which shows
-/// in the expanded view.
-fn card(out: &mut String, metric: &MetricScore, total: f64) {
+/// value against its target, and its description, which shows in the expanded view.
+fn card(out: &mut String, metric: &MetricScore) {
     let band = band_class(metric.score);
     let _ = write!(
         out,
@@ -355,29 +307,7 @@ fn card(out: &mut String, metric: &MetricScore, total: f64) {
         (_, Some(target)) => format!("Target {}", format::value(target)),
         (_, None) => "No target".to_owned(),
     };
-    let share = match metric.score {
-        Some(score) if counts(metric) => {
-            let share = metric.metric.weight / total;
-            let lost = share * f64::from(100 - score);
-            let mut text = format!("{:.0}% of score", (share * 100.0).round());
-            if lost >= 0.5 {
-                let lost = lost.round();
-                let _ = write!(
-                    text,
-                    " · <span class=\"lost {band}\">−{lost:.0} {}</span>",
-                    if lost > 1.0 { "points" } else { "point" }
-                );
-            }
-            text
-        }
-        Some(_) => "Not in score".to_owned(),
-        None => String::new(),
-    };
-    let _ = write!(
-        out,
-        "<div class=\"metric-foot\"><span>{}</span><span>{share}</span></div>",
-        escape(&goal)
-    );
+    let _ = write!(out, "<div class=\"metric-foot\">{}</div>", escape(&goal));
 
     if let Some(description) = &metric.metric.description {
         let _ = write!(
@@ -560,11 +490,6 @@ fn band_of(value: f64, target: f64, better: Better) -> &'static str {
     }
 }
 
-/// Returns whether a metric counts toward its category's score: it has a score and a weight.
-fn counts(metric: &MetricScore) -> bool {
-    metric.score.is_some() && metric.metric.weight > 0.0
-}
-
 /// Renders a score gauge: a ring filled to the score in its band's color. Without a score the
 /// ring stays empty, since a round cap would draw even an arc of length zero.
 fn gauge(score: Option<u8>, failed: bool) -> String {
@@ -713,20 +638,15 @@ th{font-weight:600}
 .expand{font:inherit;font-size:13px;color:var(--focus);background:none;border:0;padding:2px 4px;cursor:pointer}
 .expand:hover{text-decoration:underline}
 .note{font-size:13px;margin:8px 0 0}
-.strip{display:flex;gap:3px;height:10px;margin:14px 0 0}
-.part{flex-basis:0;min-width:4px;border-radius:2px;overflow:hidden;background:var(--none-bg)}
-.part.good{background:var(--good-bg)}.part.average{background:var(--average-bg)}.part.poor{background:var(--poor-bg)}
-.part>span{display:block;height:100%;background:var(--none)}
-.part.good>span{background:var(--good)}.part.average>span{background:var(--average)}.part.poor>span{background:var(--poor)}
 .grid{list-style:none;margin:6px 0 0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:40px}
 .metric{border-bottom:1px solid var(--line);padding:14px 0 12px}
 .metric-head{display:flex;align-items:center;gap:10px}
 .metric-title{font-weight:500;overflow-wrap:anywhere}
 .metric-score{margin-left:auto;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
 .metric-value{font-size:28px;line-height:1.25;margin:4px 0 0;font-variant-numeric:tabular-nums}
-.good.metric-value,.good.metric-score,.value.good,.lost.good{color:var(--good-fg)}
-.average.metric-value,.average.metric-score,.value.average,.lost.average{color:var(--average-fg)}
-.poor.metric-value,.poor.metric-score,.value.poor,.lost.poor{color:var(--poor-fg)}
+.good.metric-value,.good.metric-score,.value.good{color:var(--good-fg)}
+.average.metric-value,.average.metric-score,.value.average{color:var(--average-fg)}
+.poor.metric-value,.poor.metric-score,.value.poor{color:var(--poor-fg)}
 .none.metric-score{color:var(--none-fg)}
 .metric-at{font-size:13px;overflow-wrap:anywhere}
 .bar{position:relative;height:6px;border-radius:3px;margin:12px 7px 8px;background:linear-gradient(to right,color-mix(in srgb,var(--good) 40%,transparent) 0 33.33%,color-mix(in srgb,var(--average) 40%,transparent) 33.33% 66.67%,color-mix(in srgb,var(--poor) 40%,transparent) 66.67%)}
@@ -736,7 +656,7 @@ th{font-weight:600}
 .marker.good{background:var(--good)}.marker.average{background:var(--average)}.marker.poor{background:var(--poor)}
 .ratio{height:6px;border-radius:3px;margin:12px 0 8px;background:var(--poor);overflow:hidden}
 .ratio>span{display:block;height:100%;background:var(--good)}
-.metric-foot{display:flex;justify-content:space-between;gap:12px;font-size:13px;color:var(--muted)}
+.metric-foot{font-size:13px;color:var(--muted)}
 .metric-description{display:none;margin:8px 0 0;font-size:14px;color:var(--muted)}
 .category.expanded .metric-description{display:block}
 code{font:13px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--soft);padding:1px 4px;border-radius:4px}
