@@ -1,5 +1,11 @@
 # uphill
 
+## 0.0.2
+
+### Patch Changes
+
+- 1281f68: Fixed an opportunity that groups a list's failing checks, which showed `pass → pass` and now shows `fail → pass`.
+
 ## 0.0.1
 
 ### Patch Changes
