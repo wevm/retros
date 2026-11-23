@@ -224,11 +224,11 @@ Show what a rich, Lighthouse-level setup looks like for common kinds of projects
 
 Run Uphill on a real TypeScript library, fanning out over every public export and function. jxom set this scope on 2026-11-23: rolldown, entry size for every export, no install size, CPU and memory, waterfalls, and types per export.
 
-- [ ] `footprint`: `entry-size` for each of the 1,916 runtime exports of the 26 entry points, and for each whole entry. rolldown bundles and minifies each import, and the size is gzipped. No export size and no install size.
-- [ ] `speed`: `call-time` in CPU time and `call-memory` in heap bytes per call for every public function, replaying the arguments viem's tests call it with. `benched` fails for a function with no replayable call. `import-time` and `import-memory` for each entry point.
-- [ ] `latency`: `waterfalls`, a check per async function that fails when it awaits independent work in sequence instead of in one `Promise.all`.
-- [ ] `types`: `instantiations`, `check-time`, and `check-memory` for every public export, values and types, each checked in its own program. viem's attest benches score against their pinned counts.
-- [ ] `uphill.yaml` with baselines in a local viem checkout. Nothing is committed to viem without approval.
+- [x] `footprint`: `entry-size` for each of the 1,916 runtime exports of the 26 entry points, and for each whole entry. rolldown bundles and minifies each import, and the size is gzipped. No export size and no install size. 1,942 items take about 2.5 minutes at concurrency 3.
+- [ ] `speed`: `call-time` in CPU time and `call-memory` in heap bytes per call for every public function, replaying the arguments viem's tests call it with. `benched` fails for a function with no replayable call. `import-time` and `import-memory` for each entry point. On 2026-11-23, 297 of 1,331 functions were benched. Actions need anvil forks, the alto bundler, and the Tempo localnet for their tests to record calls.
+- [x] `latency`: `waterfalls`, a check per async function that fails when it awaits independent work in sequence instead of in one `Promise.all`. Of 952 async functions, 7 fail, and a reading of each found all 7 real.
+- [x] `types`: `instantiations`, `check-time`, and `check-memory` for every public export, values and types, each checked in its own program. viem's attest benches score against their pinned counts. 4,074 exports, with counts equal to `tsc --extendedDiagnostics`.
+- [x] `uphill.yaml` with baselines in a local viem checkout. Nothing is committed to viem without approval. A second full run matched every baseline.
 
 **Gate:** with viem 2.58.5, `entry-size` covers all 1,916 runtime exports. A planted regression in one module shows as worse in the items that bundle it, and nothing else changes. The top opportunities and waterfall findings name changes a viem maintainer agrees are worth making.
 
