@@ -73,6 +73,20 @@ The page follows the system's light or dark scheme, fits a phone screen, and res
 
 Each list expands to its items, worst first, with their targets and notes. A list shows up to 100 items, and `report.json` has the rest.
 
+## Run History
+
+`retros --note` keeps each run as a Git note on its commit, under `refs/notes/retros`. The note holds each category's score and each item's value, in the metric line format under one header per category.
+
+```text
+$ git notes --ref retros show HEAD
+[footprint 100]
+source-size 172B
+[speed 50]
+slugify-time 1006ns
+```
+
+`report.html` draws each category's score and each metric's value across the last 29 noted runs on the first-parent history and the current run. It scores past values with the current configuration, and names each commit and value on hover.
+
 ## `report.json`
 
 The JSON report has every value in base units: bytes for sizes and nanoseconds for times. Keys keep a fixed order, so the same run writes the same bytes. Fields that do not apply are `null`.

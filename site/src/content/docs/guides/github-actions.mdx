@@ -178,6 +178,48 @@ jobs:
       - uses: wevm/retros@main
 ```
 
+### Keep a History
+
+`--note` keeps each run on the main branch as a Git note, which trends in `report.html` and `retros log` read. The job fetches the notes, sets a Git identity for them, and pushes them, so it needs `contents: write`. Concurrency keeps two runs from pushing notes at once.
+
+```yaml title=".github/workflows/retros-main.yml"
+# Keep each run on main as a Git note, and push the notes.
+name: Retros
+on:
+  push:
+    branches: [main]
+concurrency: retros-notes
+
+jobs:
+  retros:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - run: |
+          git fetch origin refs/notes/retros:refs/notes/retros || true
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+      - uses: wevm/retros@main
+        with:
+          args: --note
+      - run: git push origin refs/notes/retros
+```
+
+A pull request's `report.html` draws the same trends when its job clones the full history and fetches the notes before the action runs.
+
+```yaml title=".github/workflows/retros.yml"
+# Give the pull request's report the history of its base branch.
+- uses: actions/checkout@v7
+  with:
+    fetch-depth: 0
+- run: git fetch origin refs/notes/retros:refs/notes/retros || true
+- uses: wevm/retros@main
+```
+
 ### Summary Only
 
 `comment: false` keeps the report in the job summary only. A pull request from a fork has a read-only token, so the action cannot comment there. It writes a warning instead of failing the job.

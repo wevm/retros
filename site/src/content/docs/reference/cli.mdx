@@ -7,7 +7,7 @@ The `retros` binary runs a project's scripts, scores the metrics, and writes rep
 `retros` runs every category, or only the category it names. Flags combine, such as `--compare main --require-targets`.
 
 ```text
-retros [category] [--compare <ref>] [--compact] [--update] [--require-baseline] [--require-targets]
+retros [category] [--compare <ref>] [--compact] [--note] [--update] [--require-baseline] [--require-targets]
 retros check
 retros init
 retros log <category> <metric> [item] [--subject <name>]
@@ -61,7 +61,7 @@ $ retros init
 
 ### `retros log`
 
-Lists the commits on the first-parent history that changed a metric's baseline, newest first, with each value and the value before it. Timings have no baseline, so `log` names `retros blame` for them instead.
+Lists the commits on the first-parent history that changed a metric's baseline, newest first, with each value and the value before it.
 
 ```text
 $ retros log footprint source-size
@@ -69,6 +69,18 @@ footprint source-size in the baselines of retros.yaml
 
   fd268f9  2026-11-23  172 B  from 138 B  accept size
   84337c9  2026-11-23  138 B              init
+```
+
+When no baseline records the metric, such as a timing, `log` lists the runs that [`--note`](#--note) kept instead.
+
+```text
+$ retros log speed slugify-time
+speed slugify-time in the runs noted in refs/notes/retros
+
+  fd268f9  2026-11-23  1 µs    accept size
+  fa8deea  2026-11-23  981 ns  normalize accents
+  ac66366  2026-11-23  803 ns  accented input
+  84337c9  2026-11-23  646 ns  init
 ```
 
 ### `retros blame`
@@ -149,6 +161,24 @@ Missed targets
 Opportunities
   +17  pages  has-title about.html    fail → pass
   +11  pages  page-size pricing.html  31 kB → 20 kB
+```
+
+### `--note`
+
+Keeps this run's category scores and each item's value as a Git note on `HEAD`, under `refs/notes/retros`. `report.html` draws trends from the notes, and `retros log` reads them. Retros refuses with status 2 when tracked files differ from `HEAD`, so a note always describes its commit.
+
+```text
+$ retros --note
+...
+Wrote .retros/report.json, .retros/report.md, .retros/report.html, a note on fd268f9
+```
+
+Git does not push or fetch notes by default. Push them to share them, and fetch them in another clone. Trends and `retros log` walk the first-parent history, so they need a full clone.
+
+```sh
+# Share the notes, and fetch them in another clone.
+git push origin refs/notes/retros
+git fetch origin refs/notes/retros:refs/notes/retros
 ```
 
 ### `--subject <name>`
