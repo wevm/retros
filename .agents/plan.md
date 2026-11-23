@@ -310,18 +310,6 @@ Make Uphill easy to install and run in CI.
 
 **Gate:** clean Linux and macOS machines install and run Uphill. The Action posts and updates a comment on a test pull request. Clean machines passed on 2026-11-23. After the 0.0.1 release, `install.sh` and `npx uphill@0.0.1` ran on macOS and Linux runners for arm64 and x64. `install.sh` also ran on Alpine, AlmaLinux 8, and CentOS 7. The comment waits for a test pull request.
 
-## Phase 12: Lighthouse
-
-Reproduce Lighthouse 13.6.0's scores exactly with an Uphill configuration, and change Uphill where it could not. jxom set this scope on 2026-11-23, with a lean public API.
-
-- [x] `poor`, `skip`, and Lighthouse's arithmetic (decisions 30 to 32). Each reproduces a part of Lighthouse that one target, two check results, or whole-number means could not: control points that are not a factor of 2 apart, audits that do not apply, scores that round down after a boost, and means of exactly half a point.
-- [x] `examples/lighthouse`: every Lighthouse category, including `agentic-browsing`, is a category, each audit that counts toward its score is a metric with Lighthouse's weight in Lighthouse's order, and each page is a subject. Performance has mobile and desktop categories with Lighthouse's control points. Notes give the failing elements and, for each metric, the insights that estimate savings on it.
-- [x] `metrics/verify.ts` compares every category and audit score with Lighthouse's own reports, saved by `LIGHTHOUSE_REPORTS`. A CLI test runs it on saved reports for the example's pages.
-
-Two differences remain, by design. Uphill takes the median of each metric across 5 rounds, where Lighthouse reports one run. An audit that errors makes Lighthouse's category null for that page, and the script fails the run, which fails the category for every page.
-
-**Gate:** met. On 2026-11-23, saved reports for the example's 3 pages and for 13 public sites (78 category scores and 1,183 audit scores, with performance from 28 to 100) matched Lighthouse exactly. Without `poor`, 15 of the 26 performance scores of those sites differed by up to 5 points.
-
 ## Later
 
 These are not scheduled: built-in measures, such as `uphill time` and `uphill size` helpers that write metric lines, once the same script recurs across projects; re-measuring only items whose inputs changed; peak memory; and Windows.
