@@ -297,11 +297,10 @@ pub(crate) const NOTES: &str = "refs/notes/uphill";
 /// The ref that holds each noted run's `report.json`, for readers outside the repository.
 pub(crate) const REPORTS: &str = "refs/notes/uphill-report";
 
-/// Reads the runs noted on the first-parent history of `HEAD`, at most `limit` of them, oldest
-/// first. With `skip_head`, it leaves out a note on `HEAD`, which the current run stands for.
-/// Returns none outside a Git repository or without notes.
-pub(crate) fn runs(project: &Project, limit: usize, skip_head: bool) -> Vec<Run> {
-    let root = &project.root;
+/// Reads the runs noted on the first-parent history of `HEAD` in the repository that holds `root`,
+/// at most `limit` of them, oldest first. With `skip_head`, it leaves out a note on `HEAD`, which
+/// the current run stands for. Returns none outside a Git repository or without notes.
+pub(crate) fn runs(root: &Path, limit: usize, skip_head: bool) -> Vec<Run> {
     if worktree::git(root, &["rev-parse", "--verify", "--quiet", NOTES]).is_err() {
         return Vec::new();
     }
@@ -400,7 +399,7 @@ fn noted(project: &Project, category: &Category, selector: &Selector) -> Vec<[St
     let Some(metric) = category.metrics.iter().find(|m| m.name == selector.metric) else {
         return Vec::new();
     };
-    runs(project, usize::MAX, false)
+    runs(&project.root, usize::MAX, false)
         .into_iter()
         .rev()
         .filter_map(|run| {

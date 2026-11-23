@@ -155,6 +155,7 @@ fn help() {
     Usage: uphill [category] [--compare <ref>] [--compact] [--note] [--update]
                   [--require-baseline] [--require-targets]
            uphill check
+           uphill dashboard <repository>...
            uphill init
            uphill log <category> <metric> [item] [--subject <name>]
            uphill blame <category> <metric> [item] [--subject <name>] [--since <ref>]
@@ -166,11 +167,13 @@ fn help() {
     to run only that one.
 
     Commands:
-      blame  Name the commit that last moved a metric: from its baselines, or by measuring commits
-             since <ref>, or every commit, in temporary checkouts and bisecting
-      check  Run each script once and check the metric lines it writes
-      init   Print a brief for an agent to set up Uphill in this project
-      log    List the commits that changed a metric's baseline, or the runs noted for it
+      blame      Name the commit that last moved a metric: from its baselines, or by measuring
+                 commits since <ref>, or every commit, in temporary checkouts and bisecting
+      check      Run each script once and check the metric lines it writes
+      dashboard  Write .uphill/dashboard.html from the latest noted runs of each repository: a Git
+                 URL, a local path, or owner/name on GitHub
+      init       Print a brief for an agent to set up Uphill in this project
+      log        List the commits that changed a metric's baseline, or the runs noted for it
 
     Options:
       --compare <ref>     Compare with another revision: timings in interleaved pairs, and sizes,
@@ -196,6 +199,7 @@ fn unknown_argument() {
     Usage: uphill [category] [--compare <ref>] [--compact] [--note] [--update]
                   [--require-baseline] [--require-targets]
            uphill check
+           uphill dashboard <repository>...
            uphill init
            uphill log <category> <metric> [item] [--subject <name>]
            uphill blame <category> <metric> [item] [--subject <name>] [--since <ref>]
@@ -207,11 +211,13 @@ fn unknown_argument() {
     to run only that one.
 
     Commands:
-      blame  Name the commit that last moved a metric: from its baselines, or by measuring commits
-             since <ref>, or every commit, in temporary checkouts and bisecting
-      check  Run each script once and check the metric lines it writes
-      init   Print a brief for an agent to set up Uphill in this project
-      log    List the commits that changed a metric's baseline, or the runs noted for it
+      blame      Name the commit that last moved a metric: from its baselines, or by measuring
+                 commits since <ref>, or every commit, in temporary checkouts and bisecting
+      check      Run each script once and check the metric lines it writes
+      dashboard  Write .uphill/dashboard.html from the latest noted runs of each repository: a Git
+                 URL, a local path, or owner/name on GitHub
+      init       Print a brief for an agent to set up Uphill in this project
+      log        List the commits that changed a metric's baseline, or the runs noted for it
 
     Options:
       --compare <ref>     Compare with another revision: timings in interleaved pairs, and sizes,
@@ -237,6 +243,7 @@ fn unknown_check_argument() {
     Usage: uphill [category] [--compare <ref>] [--compact] [--note] [--update]
                   [--require-baseline] [--require-targets]
            uphill check
+           uphill dashboard <repository>...
            uphill init
            uphill log <category> <metric> [item] [--subject <name>]
            uphill blame <category> <metric> [item] [--subject <name>] [--since <ref>]
@@ -248,11 +255,13 @@ fn unknown_check_argument() {
     to run only that one.
 
     Commands:
-      blame  Name the commit that last moved a metric: from its baselines, or by measuring commits
-             since <ref>, or every commit, in temporary checkouts and bisecting
-      check  Run each script once and check the metric lines it writes
-      init   Print a brief for an agent to set up Uphill in this project
-      log    List the commits that changed a metric's baseline, or the runs noted for it
+      blame      Name the commit that last moved a metric: from its baselines, or by measuring
+                 commits since <ref>, or every commit, in temporary checkouts and bisecting
+      check      Run each script once and check the metric lines it writes
+      dashboard  Write .uphill/dashboard.html from the latest noted runs of each repository: a Git
+                 URL, a local path, or owner/name on GitHub
+      init       Print a brief for an agent to set up Uphill in this project
+      log        List the commits that changed a metric's baseline, or the runs noted for it
 
     Options:
       --compare <ref>     Compare with another revision: timings in interleaved pairs, and sizes,
@@ -1523,6 +1532,88 @@ fn notes_keep_runs_for_log_and_the_trends_in_report_html() {
     let output = uphill_in(dir, &["--note"], &[]);
     assert_eq!(output.status.code(), Some(2));
     insta::assert_snapshot!(stderr(&output), @"error: --note needs tracked files that match HEAD, so the note describes that commit. Commit or stash the changes first");
+}
+
+#[test]
+fn dashboard_reads_each_repository_from_its_report_or_compact_notes() {
+    // One repository notes two runs, one notes a run before report notes existed, and one notes
+    // none.
+    let (noted, compact, none) = (
+        repository("compare"),
+        repository("compare"),
+        repository("compare"),
+    );
+    for dir in [noted.path(), compact.path(), none.path()] {
+        fs::write(dir.join(".ready"), "").unwrap();
+        git(dir, &["config", "user.name", "Uphill"]);
+        git(dir, &["config", "user.email", "uphill@example.com"]);
+    }
+    uphill_in(noted.path(), &["--note"], &[]);
+    fs::write(noted.path().join("encode.txt"), "2.5ms\n").unwrap();
+    commit(noted.path());
+    uphill_in(noted.path(), &["--note"], &[]);
+    uphill_in(compact.path(), &["--note"], &[]);
+    git(
+        compact.path(),
+        &["update-ref", "-d", "refs/notes/uphill-report"],
+    );
+
+    let out = tempfile::tempdir().unwrap();
+    let names = [noted.path(), compact.path(), none.path()].map(|dir| dir.to_str().unwrap());
+    let shown = |text: &str| {
+        let text = masked(compact.path(), &masked(noted.path(), text));
+        let date = git(noted.path(), &["log", "-1", "--format=%ad", "--date=short"]);
+        names.iter().zip(["noted", "compact", "none"]).fold(
+            text.replace(date.trim(), "2026-01-01"),
+            |text, (name, shown)| text.replace(name, shown),
+        )
+    };
+
+    let output = uphill_in(out.path(), &[&["dashboard"][..], &names].concat(), &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(shown(&stdout(&output)), @"
+    noted  abc1234  2026-01-01  report note
+      ●  92  footprint
+      ●  97  speed
+
+    compact  abc1234  2026-01-01  compact note
+      ●  92  footprint
+      ●  99  speed
+
+    none  no noted runs
+
+    Wrote .uphill/dashboard.html
+    ");
+
+    let html = fs::read_to_string(out.path().join(".uphill/dashboard.html")).unwrap();
+    let sections: Vec<String> = html
+        .split("<section class=\"block\"")
+        .skip(1)
+        .map(|section| {
+            let trends = section.matches("<div class=\"plot\"").count();
+            let source = section
+                .split("<p class=\"muted\">")
+                .nth(1)
+                .unwrap_or_default();
+            let source = source.split("</p>").next().unwrap_or_default();
+            format!("{trends} trends, {}", shown(source))
+        })
+        .collect();
+    insta::assert_snapshot!(sections.join("\n"), @"
+    2 trends, Newest noted run: <code>abc1234</code> on 2026-01-01, change. From its report note.
+    0 trends, Newest noted run: <code>abc1234</code> on 2026-01-01, change. From its compact note, which has no targets or metric scores.
+    ");
+    // The report note's targets, which the compact note does not hold.
+    assert!(
+        html.contains(
+            "<td>Encode</td><td class=\"value\">2.5 ms</td><td class=\"value\">3 ms</td>"
+        )
+    );
+    assert!(shown(&html).contains("<p class=\"muted\">No noted runs: none.</p>"));
+
+    let output = uphill_in(out.path(), &["dashboard", "missing"], &[]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(stderr(&output).starts_with("error: could not fetch missing: "));
 }
 
 #[test]

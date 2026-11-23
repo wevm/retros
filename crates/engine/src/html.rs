@@ -260,32 +260,13 @@ fn category(out: &mut String, category: &CategoryReport, id: &str, history: &[Ru
         let _ = writeln!(out, "<p class=\"muted\">{}</p>", inline(description));
     }
     if let Some(score) = score {
-        let points: Vec<Point> = history
+        let points: Vec<(String, u8)> = history
             .iter()
-            .filter_map(|run| {
-                let past = ran(run)?.score?;
-                Some(Point {
-                    label: format!("{} · {}", run.commit, run.date),
-                    shown: past.to_string(),
-                    value: f64::from(past),
-                })
-            })
-            .chain([Point {
-                label: "This run".to_owned(),
-                shown: score.to_string(),
-                value: f64::from(score),
-            }])
+            .filter_map(|run| Some((format!("{} · {}", run.commit, run.date), ran(run)?.score?)))
+            .chain([("This run".to_owned(), score)])
             .collect();
         if points.len() > 1 {
-            let chart = Chart {
-                band: band_class(Some(score)),
-                better: Better::Higher,
-                kind: None,
-                label: "Score",
-                span: 10.0,
-                target: None,
-            };
-            out.push_str(&trend(&points, &chart));
+            out.push_str(&score_trend(&points, "Score"));
             out.push('\n');
         }
     }
@@ -482,6 +463,28 @@ struct Chart<'a> {
     span: f64,
     /// The metric's target, drawn as a dashed line when it falls near the values.
     target: Option<f64>,
+}
+
+/// Draws the trend of a category's score, from runs named by their labels, oldest first. The last
+/// run's score sets the band.
+pub(crate) fn score_trend(scores: &[(String, u8)], label: &str) -> String {
+    let points: Vec<Point> = scores
+        .iter()
+        .map(|(label, score)| Point {
+            label: label.clone(),
+            shown: score.to_string(),
+            value: f64::from(*score),
+        })
+        .collect();
+    let chart = Chart {
+        band: band_class(scores.last().map(|(_, score)| *score)),
+        better: Better::Higher,
+        kind: None,
+        label,
+        span: 10.0,
+        target: None,
+    };
+    trend(&points, &chart)
 }
 
 /// Draws a trend: a smooth line through each past run's value and this run's, oldest first, over
@@ -834,7 +837,7 @@ fn band_of(value: f64, target: f64, metric: &Metric) -> &'static str {
 
 /// Renders a score gauge: a ring filled to the score in its band's color. Without a score the
 /// ring stays empty, since a round cap would draw even an arc of length zero.
-fn gauge(score: Option<u8>, failed: bool) -> String {
+pub(crate) fn gauge(score: Option<u8>, failed: bool) -> String {
     let (arc, text) = match score {
         Some(score) => (
             format!(
@@ -851,7 +854,7 @@ fn gauge(score: Option<u8>, failed: bool) -> String {
 }
 
 /// Renders a score as a small chip in its band's color.
-fn chip(score: Option<u8>) -> String {
+pub(crate) fn chip(score: Option<u8>) -> String {
     format!(
         "<span class=\"chip {}\">{}</span>",
         band_class(score),
@@ -860,7 +863,7 @@ fn chip(score: Option<u8>) -> String {
 }
 
 /// Returns the class of a score's Lighthouse band.
-fn band_class(score: Option<u8>) -> &'static str {
+pub(crate) fn band_class(score: Option<u8>) -> &'static str {
     match score {
         Some(90..) => "good",
         Some(50..) => "average",
@@ -898,8 +901,19 @@ fn inline(text: &str) -> String {
     out
 }
 
+/// Returns the document head and styles, with `title` as the page title and `style` after the
+/// report's own rules.
+pub(crate) fn head(title: &str, style: &str) -> String {
+    HEAD.replacen(
+        "<title>Uphill report</title>",
+        &format!("<title>{}</title>", escape(title)),
+        1,
+    )
+    .replacen("</style>", &format!("{style}</style>"), 1)
+}
+
 /// Escapes text for HTML content and attribute values.
-fn escape(text: &str) -> String {
+pub(crate) fn escape(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for c in text.chars() {
         match c {
@@ -915,7 +929,7 @@ fn escape(text: &str) -> String {
 }
 
 /// Lighthouse's legend of the three score bands.
-const SCALE: &str = "<div class=\"scale\"><span><span class=\"shape poor\" aria-hidden=\"true\"></span>0–49</span><span><span class=\"shape average\" aria-hidden=\"true\"></span>50–89</span><span><span class=\"shape good\" aria-hidden=\"true\"></span>90–100</span></div>\n";
+pub(crate) const SCALE: &str = "<div class=\"scale\"><span><span class=\"shape poor\" aria-hidden=\"true\"></span>0–49</span><span><span class=\"shape average\" aria-hidden=\"true\"></span>50–89</span><span><span class=\"shape good\" aria-hidden=\"true\"></span>90–100</span></div>\n";
 
 /// The document head and styles. Colors follow Lighthouse's bands, in light and dark schemes.
 const HEAD: &str = r#"<!doctype html>
@@ -1083,9 +1097,9 @@ summary.audit::after{grid-column:3;grid-row:1}
 /// Switches subject tabs on click and with the arrow, Home, and End keys, and expands each
 /// category's metric descriptions.
 /// The gradients under trend lines, one per band, which every chart's area refers to by id.
-const TREND_DEFS: &str = "<svg class=\"trend-defs\" aria-hidden=\"true\"><defs><linearGradient id=\"trend-good\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\"/><stop offset=\"1\"/></linearGradient><linearGradient id=\"trend-average\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\"/><stop offset=\"1\"/></linearGradient><linearGradient id=\"trend-poor\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\"/><stop offset=\"1\"/></linearGradient><linearGradient id=\"trend-none\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\"/><stop offset=\"1\"/></linearGradient></defs></svg>\n";
+pub(crate) const TREND_DEFS: &str = "<svg class=\"trend-defs\" aria-hidden=\"true\"><defs><linearGradient id=\"trend-good\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\"/><stop offset=\"1\"/></linearGradient><linearGradient id=\"trend-average\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\"/><stop offset=\"1\"/></linearGradient><linearGradient id=\"trend-poor\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\"/><stop offset=\"1\"/></linearGradient><linearGradient id=\"trend-none\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\"/><stop offset=\"1\"/></linearGradient></defs></svg>\n";
 
-const SCRIPT: &str = r"<script>
+pub(crate) const SCRIPT: &str = r"<script>
 const tabs = [...document.querySelectorAll('[role=tab]')]
 const select = (tab) => {
   for (const other of tabs) {

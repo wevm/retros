@@ -6,6 +6,7 @@
 //! such as for an unknown argument or an invalid configuration.
 
 mod check;
+mod dashboard;
 mod history;
 mod init;
 mod measure;
@@ -23,6 +24,7 @@ const USAGE: &str = "\
 Usage: uphill [category] [--compare <ref>] [--compact] [--note] [--update]
               [--require-baseline] [--require-targets]
        uphill check
+       uphill dashboard <repository>...
        uphill init
        uphill log <category> <metric> [item] [--subject <name>]
        uphill blame <category> <metric> [item] [--subject <name>] [--since <ref>]
@@ -34,11 +36,13 @@ nearest parent. Reports go to .uphill/report.json, report.md, and report.html. N
 to run only that one.
 
 Commands:
-  blame  Name the commit that last moved a metric: from its baselines, or by measuring commits
-         since <ref>, or every commit, in temporary checkouts and bisecting
-  check  Run each script once and check the metric lines it writes
-  init   Print a brief for an agent to set up Uphill in this project
-  log    List the commits that changed a metric's baseline, or the runs noted for it
+  blame      Name the commit that last moved a metric: from its baselines, or by measuring
+             commits since <ref>, or every commit, in temporary checkouts and bisecting
+  check      Run each script once and check the metric lines it writes
+  dashboard  Write .uphill/dashboard.html from the latest noted runs of each repository: a Git
+             URL, a local path, or owner/name on GitHub
+  init       Print a brief for an agent to set up Uphill in this project
+  log        List the commits that changed a metric's baseline, or the runs noted for it
 
 Options:
   --compare <ref>     Compare with another revision: timings in interleaved pairs, and sizes,
@@ -66,6 +70,18 @@ fn main() -> ExitCode {
         }
         [command] if command == "check" => with_project(check::run),
         [command, arg, ..] if command == "check" => usage(&format!("unknown argument '{arg}'")),
+        [command] if command == "dashboard" => {
+            usage("dashboard needs at least one repository, such as `uphill dashboard wevm/uphill`")
+        }
+        [command, names @ ..] if command == "dashboard" => {
+            match names.iter().find(|name| name.starts_with('-')) {
+                Some(flag) => usage(&format!("unknown argument '{flag}'")),
+                None => dashboard::run(names).unwrap_or_else(|message| {
+                    let _ = writeln!(std::io::stderr(), "{message}");
+                    ExitCode::from(2)
+                }),
+            }
+        }
         [command] if command == "init" => init::run(),
         [command, arg, ..] if command == "init" => usage(&format!("unknown argument '{arg}'")),
         [command, args @ ..] if command == "log" || command == "blame" => history(command, args),

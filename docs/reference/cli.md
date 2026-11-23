@@ -1,6 +1,6 @@
 # CLI
 
-The `uphill` binary runs a project's scripts, scores the metrics, and writes reports. Its other commands check scripts, brief an agent, and trace a metric through the Git history.
+The `uphill` binary runs a project's scripts, scores the metrics, and writes reports. Its other commands check scripts, brief an agent, read the noted runs of several repositories, and trace a metric through the Git history.
 
 ## Usage
 
@@ -9,6 +9,7 @@ The `uphill` binary runs a project's scripts, scores the metrics, and writes rep
 ```text
 uphill [category] [--compare <ref>] [--compact] [--note] [--update] [--require-baseline] [--require-targets]
 uphill check
+uphill dashboard <repository>...
 uphill init
 uphill log <category> <metric> [item] [--subject <name>]
 uphill blame <category> <metric> [item] [--subject <name>] [--since <ref>]
@@ -42,6 +43,21 @@ $ uphill check
 ✓ pages  2 metrics
 
 1 passed
+```
+
+### `uphill dashboard`
+
+Reads the newest runs that [`--note`](#--note) kept in each repository, prints their scores, and writes [`dashboard.html`](reports.md#dashboardhtml) to `.uphill/` in the current directory. A repository is a Git URL, a local path, or `owner/name` on GitHub.
+
+Uphill fetches the default branch as commits only, and both notes refs, into a temporary repository with Git's own credentials, so private repositories need no other token. It exits with status 2 when Git cannot fetch a repository.
+
+```text
+$ uphill dashboard wevm/uphill
+wevm/uphill  214a95c  2026-11-23  report note
+  ■  62  footprint
+  ●  97  speed
+
+Wrote .uphill/dashboard.html
 ```
 
 ### `uphill init`

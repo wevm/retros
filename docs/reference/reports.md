@@ -100,6 +100,19 @@ On GitHub, a public repository serves a note as a raw file named after its commi
 curl "https://raw.githubusercontent.com/wevm/uphill/refs/notes/uphill-report/$(git rev-parse HEAD)"
 ```
 
+## `dashboard.html`
+
+[`uphill dashboard`](cli.md#uphill-dashboard) writes one page from the noted runs of several repositories. Each subject of each repository is a row, with the category scores of its newest noted run, and a table compares every row.
+
+Each row's section charts every category across the last 99 noted runs. Its report note adds each metric's value, target, and score, and the opportunities. A run noted before report notes existed shows the values of its compact note instead.
+
+```text
+# 1. Read each repository's notes.
+$ uphill dashboard wevm/uphill ../app
+# 2. Open the page, which makes no network requests.
+$ open .uphill/dashboard.html
+```
+
 ## `report.json`
 
 The JSON report has every value in base units: bytes for sizes and nanoseconds for times. Keys keep a fixed order, so the same run writes the same bytes. Fields that do not apply are `null`.

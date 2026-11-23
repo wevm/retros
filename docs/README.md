@@ -21,6 +21,6 @@ Uphill scores a project against its own targets. Scripts measure the project, Up
 - [Metric Lines](./reference/metric-lines.md): The line format that scripts write, and its errors.
 - [Units](./reference/units.md): Sizes, times, counts, and checks.
 - [Scoring](./reference/scoring.md): The curve, the bands, and how lists collapse.
-- [Reports](./reference/reports.md): The summary and the JSON, Markdown, and HTML reports.
+- [Reports](./reference/reports.md): The summary, the JSON, Markdown, and HTML reports, and the dashboard.
 - [CLI](./reference/cli.md): Every command and flag of the `uphill` binary.
 - [GitHub Action](./reference/action.md): The inputs and outputs of `wevm/uphill`.

@@ -32,8 +32,9 @@ use crate::script::{self, Outcome};
 use crate::worktree::{self, Worktree};
 use crate::{history, measure};
 
-/// How many past runs the HTML report's trends show, with this one.
-const TRENDS: usize = 99;
+/// How many past runs the HTML report's trends show, with this one, and how many noted runs the
+/// dashboard's trends show.
+pub(crate) const TRENDS: usize = 99;
 
 /// What `uphill [category]` was asked to do.
 #[derive(Default)]
@@ -261,7 +262,7 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
     }
     let _ = io::stdout().write_all(engine::report::summary(&report).as_bytes());
 
-    report.history = history::runs(project, TRENDS, true);
+    report.history = history::runs(&project.root, TRENDS, true);
     let dir = project.root.join(".uphill");
     let write = |file: &str, contents: String| {
         std::fs::write(dir.join(file), contents)

@@ -89,6 +89,9 @@ uphill --compact
 # Keep this run as a Git note on HEAD, for trends in report.html and `uphill log`.
 uphill --note
 
+# Write .uphill/dashboard.html from the newest noted runs of several repositories.
+uphill dashboard wevm/uphill ../app
+
 # List the commits that changed a metric's baseline, or the runs noted for it.
 uphill log footprint bundle
 
