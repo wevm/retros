@@ -10,9 +10,9 @@ Hill climbing is a loop, and every part of Retros serves one step of it. A perso
 | --- | --- | --- | --- |
 | Measure | What is the project like now? | Scripts write metric lines. Retros runs them and repeats timings. | Done |
 | Score | How far is it from its targets? | Each item scores on Lighthouse's curve against its own target. Metrics roll up into categories. | Done |
-| Compare | What did this change move? | Each metric's `baseline` holds the accepted sizes, counts, and checks. Timings compare in interleaved pairs on one machine. | Baselines done, timings in Phase 6 |
+| Compare | What did this change move? | Each metric's `baseline` holds the accepted sizes, counts, and checks. Timings compare in interleaved pairs on one machine. | Done, CI runner check in Phase 6 |
 | Next step | What should change next? | Opportunities rank changes by the category points they add. Notes say why an item misses. | Opportunities done, notes in Phase 7 |
-| Gate | Can this change land? | `--require-baseline` fails on any change since the baselines, and `--require-targets` fails on a missed target. | Baseline done, targets in Phase 6 |
+| Gate | Can this change land? | `--require-baseline` fails on any change since the baselines, and `--require-targets` fails on a missed target. | Done |
 | Remember | Where has the project been, and what moved it? | Baselines in Git, a history of runs, and metric blame. | Baselines done, history in Phase 9 |
 
 ## How Retros Maps to Lighthouse
@@ -67,6 +67,8 @@ Retros keeps Lighthouse's scoring and depth, and replaces its fixed browser gath
 19. **`.agents/`.** Retros reads `retros.yaml` or `retros.toml`, at the project root or in `.agents/`, from the current directory or the nearest parent, and it is an error for one directory to have more than one. Scripts run from the project root, the directory that holds the configuration or `.agents`, so a configuration kept with a project's agent files still measures the whole project. Reports go to `.retros/` in the project root. Decided 2026-11-23.
 20. **Titles.** Categories and metrics take a `title`, such as `Time to first request`, which the HTML and Markdown reports show. Without one, the name shows in words: `request-out` reads `Request out`. The terminal, baselines, and metric lines keep names. Decided 2026-11-23.
 21. **Baselines live in the configuration.** Each metric's `baseline` key holds what `retros --update` accepted, next to its `target`, so one file holds a metric's requirement and its last accepted value. Retros edits the file in place and keeps its comments and formatting. A baseline with items or subjects takes one line per entry, so a change shows as one line in a diff. When an edit would change anything else, Retros writes nothing. This replaces `retros.lock`. Decided 2026-11-23.
+22. **`--compare` adds to a run.** `retros --compare <ref>` measures `<ref>` in a temporary Git worktree with this checkout's categories and commands. Timings run 8 interleaved pairs, alternating which side runs first. Exact metrics compare with `<ref>`'s baselines, or with its run when it has none. The gates keep their meaning. Decided 2026-11-23.
+23. **`setup`.** A top-level `setup` command, such as `bun install --frozen-lockfile`, runs once in each checkout Retros creates, with the top-level `timeout`. The current checkout is assumed ready. A failed setup stops the run with status 2, and `setup` is no longer a category name. Decided 2026-11-23.
 
 ## The Contract
 
@@ -105,12 +107,13 @@ bench-time "ABI Decode (500 results)" 1.82ms
 - **Subjects:** a line that starts with `subject:` belongs to that subject, and each subject is scored on its own.
 - **Optional metric keys:** `targets` (item patterns and their targets), `weight` (default 1), `score` (how a list collapses: `p90` by default, or `p10`, `median`, `max`, `min`, `sum`), `better = "higher"` for metrics where more is better, `varies = true` for a size or count that differs between runs, `title`, `description`, and `baseline`, which `retros --update` writes. A `better = "higher"` list collapses to its p10 by default.
 - **Optional category keys:** `timeout` (default `10m`), `title`, and `description`. A top-level `run` and `timeout` apply to every category that sets none, and categories with the same `run` share one execution.
+- **Setup:** a top-level `setup` command prepares each checkout that `--compare` creates, such as by installing packages.
 
 The command line:
 
 ```text
-retros [category] [--update] [--require-baseline]   Score, list opportunities, and compare with baselines
-retros check                                        Run each script once and check its lines
+retros [category] [--compare <ref>] [--update] [--require-baseline] [--require-targets]
+retros check
 ```
 
 - **Baselines:** `retros --update` writes each metric's `baseline` into the configuration, which is committed. A recorded line target follows its value, as in `viem/chains: 61kB target 80kB`.
@@ -136,7 +139,7 @@ retros check                                        Run each script once and che
 Changes are reported separately from scores:
 
 - **Exact units:** sizes, counts, and checks compare with their baselines on every run, item by item, labeled worse, better, new, or gone.
-- **Timings:** `--compare <ref>` runs 8 interleaved base and head pairs. Retros reports a change when the medians differ by at least 5% and at least 7 of 8 pairs agree on its direction. Otherwise the change reads "within noise". The rule comes from an earlier zepto trial on one machine, so Phase 6 checks it on CI runners.
+- **Timings:** `--compare <ref>` runs 8 interleaved base and head pairs, and the side that runs first alternates between pairs. Retros reports a change when the medians differ by at least 5% and at least 7 of 8 pairs agree on its direction. Otherwise the change reads "within noise". The rule comes from an earlier zepto trial on one machine, so Phase 6 checks it on CI runners.
 - **Items:** per-item changes always show, so one regressed export is never hidden by the collapsed value.
 
 ## Phase 0: Foundations
@@ -225,11 +228,12 @@ Run Retros on a real TypeScript library with thousands of items.
 
 Compare timings honestly between two revisions, and fail CI on missed targets.
 
-- [ ] `retros --compare <ref>` checks out `<ref>` in a temporary Git worktree. Timing metrics run 8 interleaved pairs with the verdict rule above. Exact metrics compare with `<ref>`'s baselines read from Git, and `<ref>` is measured only when it has none.
-- [ ] A warning when `retros.yaml` or a script it runs differs between the two revisions.
-- [ ] The worktree is removed after success or failure.
-- [ ] Timing changes appear in the terminal summary, `report.json`, and `report.md`.
-- [ ] `--require-targets` exits with status 1 when a metric misses its target or has no value, and lists each miss with its item. It works with and without `--compare`.
+- [x] `retros --compare <ref>` checks out `<ref>` in a temporary Git worktree. Timing metrics run 8 interleaved pairs with the verdict rule above. Exact metrics compare with `<ref>`'s baselines read from Git, and `<ref>` is measured only when it has none (decision 22). A top-level `setup` prepares the new checkout (decision 23).
+- [x] A warning when `retros.yaml`, apart from its baselines, or a file a `run` command names differs between the two revisions.
+- [x] The worktree is removed after success or failure.
+- [x] Timing changes appear in the terminal summary, `report.json`, `report.md`, and `report.html`.
+- [x] `--require-targets` exits with status 1 when a metric misses its target or has no value, and lists each miss with its item. It works with and without `--compare`.
+- [ ] The verdict rule holds on a GitHub Actions runner: Retros' CI compares each commit with itself and fails on any reported change.
 
 **Gate:** an unchanged revision reports no changes. A planted slowdown is reported, and a noisy timing fixture reads "within noise", on both a local machine and a GitHub Actions runner. A failing script leaves no worktree behind. With `--require-targets`, a fixture that misses one target exits with status 1 and names that metric and item, and a fixture that meets every target exits with status 0.
 
@@ -297,6 +301,6 @@ These are not scheduled: built-in measures, such as `retros time` and `retros si
 - **Scripts can measure wrong.** An esbuild code-splitting mistake inflated small viem exports by up to 20×. Earliest signal: a value far from what an existing tool reports for the same thing. Fix: scripts run established tools instead of hand-rolled measures, examples plant controls, and built-in measures come later.
 - **Contextual targets can be loosened to pass.** Earliest signal: a pull request that raises a target in a script. Fix: done. Baselines record line targets, so a loosened one is a reviewed change.
 - **`--update` edits the configuration.** Earliest signal: an update that changes a line outside a `baseline` key. Fix: done. Retros parses the file it would write and writes nothing unless only baselines changed.
-- **List metrics are slow.** Export size for 1,912 viem exports took 174 s in an orb. Earliest signal: a viem run over 10 minutes. Fix: compare exact metrics with their baselines instead of measuring `<ref>`, then re-measure only changed items.
+- **List metrics are slow.** Export size for 1,912 viem exports took 174 s in an orb. Earliest signal: a viem run over 10 minutes. Fix: partly done. `--compare` reads exact metrics from `<ref>`'s baselines instead of measuring it. Re-measuring only changed items comes later.
 - **Timings are noisy on shared runners.** Earliest signal: most timing comparisons read "within noise". Fix: more pairs, or a dedicated runner.
 - **Targets are guesses.** Earliest signal: every item lands in the same band. Fix: the agent brief asks for a reason beside each target, and reviews challenge targets like code.

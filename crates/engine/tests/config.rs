@@ -205,6 +205,7 @@ footprint:
                 title: None,
             },
         ],
+        setup: None,
     }
     "#);
 }
@@ -410,10 +411,18 @@ fn rejects_targets_that_cannot_score() {
 #[test]
 fn shares_a_top_level_run_and_rejects_a_metric_in_two_sharing_categories() {
     let shared = config::parse(
-        "run: zig build metrics\ntimeout: 2m\n\nspeed:\n  startup: { description: Spawn to exit }\n\nfootprint:\n  run: du -b zc\n  turn-rss: { varies: true }\n",
+        "run: zig build metrics\nsetup: bun install\ntimeout: 2m\n\nspeed:\n  startup: { description: Spawn to exit }\n\nfootprint:\n  run: du -b zc\n  turn-rss: { varies: true }\n",
         Format::Yaml,
     )
     .unwrap();
+    insta::assert_debug_snapshot!(shared.setup, @r#"
+    Some(
+        Setup {
+            run: "bun install",
+            timeout: 120s,
+        },
+    )
+    "#);
     let summary: Vec<String> = shared
         .categories
         .iter()

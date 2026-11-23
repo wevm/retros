@@ -82,6 +82,50 @@ fn copy(from: &Path, to: &Path) {
     }
 }
 
+/// Copies the fixture project `name` into a new Git repository with one commit.
+fn repository(name: &str) -> TempDir {
+    let dir = fixture(name);
+    git(dir.path(), &["init", "-q", "-b", "main"]);
+    commit(dir.path());
+    dir
+}
+
+/// Commits every change in the repository at `dir`.
+fn commit(dir: &Path) {
+    git(dir, &["add", "-A"]);
+    git(dir, &["commit", "-q", "-m", "change"]);
+}
+
+/// Runs Git in `dir` with a fixed identity and returns its standard output.
+fn git(dir: &Path, args: &[&str]) -> String {
+    let output = Command::new("git")
+        .args([
+            "-c",
+            "user.name=Retros",
+            "-c",
+            "user.email=retros@example.com",
+        ])
+        .args(args)
+        .current_dir(dir)
+        .output()
+        .expect("git runs");
+    assert!(output.status.success(), "{}", stderr(&output));
+    stdout(&output)
+}
+
+/// Runs `retros --compare HEAD` in `dir`, and returns its output with the commit hash masked.
+fn compare_head(dir: &Path, args: &[&str]) -> (Output, String) {
+    let output = retros_in(dir, &[&["--compare", "HEAD"], args].concat(), &[]);
+    let text = masked(dir, &stdout(&output));
+    (output, text)
+}
+
+/// Replaces the short hash of the commit at `HEAD` in `text` with `abc1234`.
+fn masked(dir: &Path, text: &str) -> String {
+    let short = git(dir, &["rev-parse", "--short", "HEAD"]);
+    text.replace(short.trim(), "abc1234")
+}
+
 fn stdout(output: &Output) -> String {
     String::from_utf8_lossy(&output.stdout).into_owned()
 }
@@ -104,7 +148,7 @@ fn help() {
 
     assert!(output.status.success());
     insta::assert_snapshot!(stdout(&output), @"
-    Usage: retros [category] [--update] [--require-baseline] [--require-targets]
+    Usage: retros [category] [--compare <ref>] [--update] [--require-baseline] [--require-targets]
            retros check
 
     Run each category's script, score its metrics, list the opportunities that would raise the
@@ -117,6 +161,8 @@ fn help() {
       check  Run each script once and check the metric lines it writes
 
     Options:
+      --compare <ref>     Compare with another revision: timings in interleaved pairs, and sizes,
+                          counts, and checks with its baselines
       --update            Write this run's sizes, counts, checks, and line targets as baselines
       --require-baseline  Exit with status 1 when anything differs from the baselines
       --require-targets   Exit with status 1 when a metric misses its target or a script fails
@@ -133,7 +179,7 @@ fn unknown_argument() {
     insta::assert_snapshot!(stderr(&output), @"
     error: unknown argument '--nope'
 
-    Usage: retros [category] [--update] [--require-baseline] [--require-targets]
+    Usage: retros [category] [--compare <ref>] [--update] [--require-baseline] [--require-targets]
            retros check
 
     Run each category's script, score its metrics, list the opportunities that would raise the
@@ -146,6 +192,8 @@ fn unknown_argument() {
       check  Run each script once and check the metric lines it writes
 
     Options:
+      --compare <ref>     Compare with another revision: timings in interleaved pairs, and sizes,
+                          counts, and checks with its baselines
       --update            Write this run's sizes, counts, checks, and line targets as baselines
       --require-baseline  Exit with status 1 when anything differs from the baselines
       --require-targets   Exit with status 1 when a metric misses its target or a script fails
@@ -162,7 +210,7 @@ fn unknown_check_argument() {
     insta::assert_snapshot!(stderr(&output), @"
     error: unknown argument '--fast'
 
-    Usage: retros [category] [--update] [--require-baseline] [--require-targets]
+    Usage: retros [category] [--compare <ref>] [--update] [--require-baseline] [--require-targets]
            retros check
 
     Run each category's script, score its metrics, list the opportunities that would raise the
@@ -175,6 +223,8 @@ fn unknown_check_argument() {
       check  Run each script once and check the metric lines it writes
 
     Options:
+      --compare <ref>     Compare with another revision: timings in interleaved pairs, and sizes,
+                          counts, and checks with its baselines
       --update            Write this run's sizes, counts, checks, and line targets as baselines
       --require-baseline  Exit with status 1 when anything differs from the baselines
       --require-targets   Exit with status 1 when a metric misses its target or a script fails
@@ -465,7 +515,8 @@ fn scores_every_category_and_writes_reports() {
           "gain": 3
         }
       ],
-      "changes": null
+      "changes": null,
+      "comparison": null
     }
     "#);
 
@@ -974,6 +1025,209 @@ Missed targets
 2 targets missed
 "
     ));
+}
+
+#[test]
+fn compare_reports_what_changed_since_a_revision_and_leaves_timing_noise_out() {
+    let project = repository("compare");
+    let dir = project.path();
+    // This checkout is prepared by hand, and `setup` prepares the revision's checkout.
+    fs::write(dir.join(".ready"), "").unwrap();
+
+    let (output, unchanged) = compare_head(dir, &[]);
+    assert_eq!(output.status.code(), Some(0), "{unchanged}");
+    insta::assert_snapshot!(unchanged, @"
+    Comparing with HEAD (abc1234)
+
+    ●  93  footprint
+      ●  93  bundle  27.5 kB  target 30 kB
+
+    ●  99  speed  median of 8 rounds
+      ●  98  encode  2 ms   target 3 ms
+      ● 100  parse   10 ms  target 30 ms
+
+    No baseline yet. Run `retros --update` to record these values as the baseline.
+
+    No changes against HEAD (abc1234)
+      2 timings within noise
+
+    Wrote .retros/report.json, .retros/report.md, .retros/report.html
+    ");
+
+    // A larger bundle, a slower encode in every pair, and a parse time that is slower in only
+    // 5 of 8 pairs. The script that measures speed changes too.
+    fs::write(dir.join("bundle.txt"), "30kB\n").unwrap();
+    fs::write(dir.join("encode.txt"), "2.5ms\n").unwrap();
+    fs::write(dir.join("parse.txt"), "20\n20\n20\n20\n20\n5\n5\n5\n").unwrap();
+    let speed = fs::read_to_string(dir.join("speed.sh")).unwrap();
+    fs::write(dir.join("speed.sh"), speed + "# Changed.\n").unwrap();
+
+    let (output, changed) = compare_head(dir, &[]);
+    assert_eq!(output.status.code(), Some(0), "{changed}");
+    insta::assert_snapshot!(changed, @"
+    Comparing with HEAD (abc1234)
+    warning: speed.sh differs in HEAD (abc1234), so its changes may come from the script
+
+    ●  90  footprint
+      ●  90  bundle  30 kB  target 30 kB
+
+    ●  97  speed  median of 8 rounds
+      ●  95  encode  2.5 ms  target 3 ms
+      ●  98  parse   20 ms   target 30 ms
+
+    No baseline yet. Run `retros --update` to record these values as the baseline.
+
+    Against HEAD (abc1234)
+      worse  footprint  bundle  27.5 kB → 30 kB
+      worse  speed      encode  2 ms → 2.5 ms (+25%)  8 of 8 pairs
+      1 timing within noise
+
+    Wrote .retros/report.json, .retros/report.md, .retros/report.html
+    ");
+
+    let markdown = masked(
+        dir,
+        &fs::read_to_string(dir.join(".retros/report.md")).unwrap(),
+    );
+    let start = markdown.find("## Changes against").unwrap();
+    let end = markdown.find("## Footprint").unwrap();
+    insta::assert_snapshot!(markdown[start..end], @"
+    ## Changes against HEAD (abc1234)
+
+    | Change | Category | Metric | Before | After | Pairs |
+    | --- | --- | --- | --- | --- | --- |
+    | worse | Footprint | Bundle | 27.5 kB | 30 kB |  |
+    | worse | Speed | Encode | 2 ms | 2.5 ms (+25%) | 8 of 8 pairs |
+
+    1 timing within noise.
+    ");
+
+    let json = masked(
+        dir,
+        &fs::read_to_string(dir.join(".retros/report.json")).unwrap(),
+    );
+    let start = json.find("\"comparison\"").unwrap();
+    insta::assert_snapshot!(json[start..], @r#"
+    "comparison": {
+        "reference": "HEAD (abc1234)",
+        "changes": [
+          {
+            "category": "footprint",
+            "subject": null,
+            "metric": "bundle",
+            "item": null,
+            "change": "worse",
+            "before": 27500,
+            "after": 30000
+          }
+        ],
+        "timings": [
+          {
+            "category": "speed",
+            "subject": null,
+            "metric": "encode",
+            "item": null,
+            "change": "worse",
+            "before": 2000000,
+            "after": 2500000,
+            "pairs": 8,
+            "agree": 8
+          },
+          {
+            "category": "speed",
+            "subject": null,
+            "metric": "parse",
+            "item": null,
+            "change": "within noise",
+            "before": 10000000,
+            "after": 20000000,
+            "pairs": 8,
+            "agree": 5
+          }
+        ]
+      }
+    }
+    "#);
+
+    // Only the repository's own checkout remains.
+    assert_eq!(git(dir, &["worktree", "list"]).lines().count(), 1);
+}
+
+#[test]
+fn compare_uses_the_revision_baselines_and_always_removes_its_checkout() {
+    let project = repository("compare");
+    let dir = project.path();
+    fs::write(dir.join(".ready"), "").unwrap();
+    let config = fs::read_to_string(dir.join("retros.yaml")).unwrap();
+
+    // Without baselines the revision is measured, and a script that fails there leaves its
+    // category out of the comparison.
+    let footprint = fs::read_to_string(dir.join("footprint.sh")).unwrap();
+    fs::write(dir.join("footprint.sh"), "exit 3\n").unwrap();
+    commit(dir);
+    fs::write(dir.join("footprint.sh"), footprint).unwrap();
+    let (output, text) = compare_head(dir, &["footprint"]);
+    assert_eq!(output.status.code(), Some(0), "{text}");
+    insta::assert_snapshot!(text, @"
+    Comparing with HEAD (abc1234)
+    warning: footprint.sh differs in HEAD (abc1234), so its changes may come from the script
+
+    ●  93  footprint
+      ●  93  bundle  27.5 kB  target 30 kB
+        warning: footprint failed in HEAD (abc1234): script exited with status 3
+
+    No baseline yet. Run `retros --update` to record these values as the baseline.
+
+    No changes against HEAD (abc1234)
+
+    Wrote .retros/report.json, .retros/report.md, .retros/report.html
+    ");
+    assert_eq!(git(dir, &["worktree", "list"]).lines().count(), 1);
+
+    // The revision's baseline wins over measuring it, which would find the same 27.5 kB.
+    fs::write(
+        dir.join("retros.yaml"),
+        config.replace("{ target: 30kB }", "{ target: 30kB, baseline: 25kB }"),
+    )
+    .unwrap();
+    commit(dir);
+    let (output, text) = compare_head(dir, &["footprint"]);
+    assert_eq!(output.status.code(), Some(0), "{text}");
+    insta::assert_snapshot!(text, @"
+    Comparing with HEAD (abc1234)
+
+    ●  93  footprint
+      ●  93  bundle  27.5 kB  target 30 kB
+
+    Since the baseline
+      worse  footprint  bundle  25 kB → 27.5 kB
+
+    Against HEAD (abc1234)
+      worse  footprint  bundle  25 kB → 27.5 kB
+
+    Wrote .retros/report.json, .retros/report.md, .retros/report.html
+    ");
+
+    // A failed setup stops the run before any script.
+    fs::write(
+        dir.join("retros.yaml"),
+        config.replace(
+            "setup: touch .ready",
+            "setup: echo 'no network' >&2; exit 4",
+        ),
+    )
+    .unwrap();
+    let (output, _) = compare_head(dir, &[]);
+    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(masked(dir, &stderr(&output)), @"
+    error: setup in HEAD (abc1234) exited with status 4
+    no network
+    ");
+    assert_eq!(git(dir, &["worktree", "list"]).lines().count(), 1);
+
+    let output = retros_in(dir, &["--compare", "no-such-branch"], &[]);
+    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(stderr(&output), @"error: unknown revision 'no-such-branch'");
 }
 
 #[test]

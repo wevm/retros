@@ -536,7 +536,7 @@ fn scaled(target: f64, better: Better, value: f64) -> f64 {
 }
 
 /// Returns the middle value, or the mean of the two middle values of an even list.
-fn median(values: &mut [f64]) -> f64 {
+pub(crate) fn median(values: &mut [f64]) -> f64 {
     values.sort_by(f64::total_cmp);
     let middle = values.len() / 2;
 

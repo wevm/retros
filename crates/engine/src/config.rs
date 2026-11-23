@@ -3,10 +3,11 @@
 //! Each top-level key is a category. A category's `run` key is the command that measures it,
 //! `timeout` and `description` are optional, and every other key is a metric. A top-level `run`
 //! and `timeout` apply to every category that sets none, and categories with the same command
-//! share one run of it. A metric is a mapping of optional keys: `target`, `targets`, `weight`,
-//! `score`, `better`, `varies`, `title`, `description`, and `baseline`, which `retros --update`
-//! writes. `target` is the default for every item, a metric line can set its own, and `targets`
-//! sets targets by item pattern and has the final say.
+//! share one run of it. A top-level `setup` command prepares each checkout that
+//! `retros --compare` creates. A metric is a mapping of optional keys: `target`, `targets`,
+//! `weight`, `score`, `better`, `varies`, `title`, `description`, and `baseline`, which
+//! `retros --update` writes. `target` is the default for every item, a metric line can set its
+//! own, and `targets` sets targets by item pattern and has the final say.
 //!
 //! ```yaml
 //! footprint:
@@ -70,6 +71,47 @@ impl Format {
 pub struct Config {
     /// Categories in the order the file declares them.
     pub categories: Vec<Category>,
+    /// The command that prepares a checkout `retros --compare` creates, such as installing
+    /// packages, or `None` when it needs nothing.
+    pub setup: Option<Setup>,
+}
+
+/// The top-level `setup` command.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Setup {
+    /// The shell command, run once from the project root of each new checkout.
+    pub run: String,
+    /// How long it may take before Retros stops it: the top-level `timeout`, or 10 minutes.
+    pub timeout: Duration,
+}
+
+/// Returns whether two configurations measure alike: equal apart from baselines and positions in
+/// the file.
+pub fn alike(a: &Config, b: &Config) -> bool {
+    let plain = |config: &Config| {
+        let mut config = without_locations(config.clone());
+        for metric in config.categories.iter_mut().flat_map(|c| &mut c.metrics) {
+            metric.baseline = None;
+        }
+        config
+    };
+    plain(a) == plain(b)
+}
+
+/// Returns `config` with every location cleared, to compare it with the same configuration after
+/// lines moved.
+pub(crate) fn without_locations(mut config: Config) -> Config {
+    let nowhere = Location { column: 0, line: 0 };
+    for category in &mut config.categories {
+        category.location = nowhere;
+        for metric in &mut category.metrics {
+            metric.location = nowhere;
+            for pattern in &mut metric.targets {
+                pattern.location = nowhere;
+            }
+        }
+    }
+    config
 }
 
 /// A category: one script and the metrics it writes.
@@ -239,9 +281,11 @@ pub fn parse(source: &str, format: Format) -> Result<Config, Error> {
         run: None,
         timeout: DEFAULT_TIMEOUT,
     };
+    let mut setup = None;
     for (key, value) in pairs {
         match self::key(source, key)? {
-            "run" => defaults.run = Some(command(source, value)?),
+            "run" => defaults.run = Some(command(source, value, "run")?),
+            "setup" => setup = Some(command(source, value, "setup")?),
             "timeout" => defaults.timeout = duration(source, value)?,
             _ => {}
         }
@@ -251,7 +295,7 @@ pub fn parse(source: &str, format: Format) -> Result<Config, Error> {
 
     for (key, value) in pairs {
         let name = self::key(source, key)?;
-        if matches!(name, "run" | "timeout") {
+        if matches!(name, "run" | "setup" | "timeout") {
             continue;
         }
         check_name(source, key, name, "category")?;
@@ -298,7 +342,13 @@ pub fn parse(source: &str, format: Format) -> Result<Config, Error> {
         return Err(nothing_configured(format));
     }
 
-    Ok(Config { categories })
+    Ok(Config {
+        categories,
+        setup: setup.map(|run| Setup {
+            run,
+            timeout: defaults.timeout,
+        }),
+    })
 }
 
 /// The top-level keys that apply to every category that does not set its own.
@@ -336,7 +386,7 @@ fn category(
     for (field, value) in fields {
         match self::key(source, field)? {
             "description" => description = Some(string(source, value, "description")?.to_owned()),
-            "run" => run = Some(command(source, value)?),
+            "run" => run = Some(command(source, value, "run")?),
             "timeout" => timeout = duration(source, value)?,
             "title" => title = Some(string(source, value, "title")?.to_owned()),
             metric => {
@@ -574,15 +624,15 @@ fn target(source: &str, name: &str, value: &Node) -> Result<Value, Error> {
     }
 }
 
-/// Parses a `run` command, which must not be blank.
-fn command(source: &str, value: &Node) -> Result<String, Error> {
-    let command = string(source, value, "run")?;
+/// Parses a `run` or `setup` command, which must not be blank.
+fn command(source: &str, value: &Node, key: &str) -> Result<String, Error> {
+    let command = string(source, value, key)?;
     if command.trim().is_empty() {
         return Err(Error::at(
             Code::InvalidValue,
             source,
             value.offset,
-            "`run` must be a command".to_owned(),
+            format!("`{key}` must be a command"),
         ));
     }
     Ok(command.to_owned())

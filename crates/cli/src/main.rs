@@ -10,6 +10,7 @@ mod measure;
 mod project;
 mod score;
 mod script;
+mod worktree;
 
 use std::io::Write;
 use std::process::ExitCode;
@@ -17,7 +18,7 @@ use std::process::ExitCode;
 use engine::error::Error;
 
 const USAGE: &str = "\
-Usage: retros [category] [--update] [--require-baseline] [--require-targets]
+Usage: retros [category] [--compare <ref>] [--update] [--require-baseline] [--require-targets]
        retros check
 
 Run each category's script, score its metrics, list the opportunities that would raise the
@@ -30,6 +31,8 @@ Commands:
   check  Run each script once and check the metric lines it writes
 
 Options:
+  --compare <ref>     Compare with another revision: timings in interleaved pairs, and sizes,
+                      counts, and checks with its baselines
   --update            Write this run's sizes, counts, checks, and line targets as baselines
   --require-baseline  Exit with status 1 when anything differs from the baselines
   --require-targets   Exit with status 1 when a metric misses its target or a script fails
@@ -53,9 +56,16 @@ fn main() -> ExitCode {
         [command, arg, ..] if command == "check" => usage(&format!("unknown argument '{arg}'")),
         _ => {
             let mut options = score::Options::default();
+            let mut args = args.iter();
 
-            for arg in &args {
+            while let Some(arg) = args.next() {
                 match arg.as_str() {
+                    "--compare" => match args.next() {
+                        Some(reference) if !reference.starts_with('-') => {
+                            options.compare = Some(reference.clone());
+                        }
+                        _ => return usage("--compare needs a revision, such as --compare main"),
+                    },
                     "--update" => options.update = true,
                     "--require-baseline" => options.require_baseline = true,
                     "--require-targets" => options.require_targets = true,

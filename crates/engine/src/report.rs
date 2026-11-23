@@ -1,12 +1,13 @@
 //! Reports rendered from scored categories: the terminal output, `report.json`, and `report.md`.
 //! [`crate::html`] renders `report.html` from the same data.
-//! Each report shows the scores, the opportunities that would raise them most, and the changes
-//! since the baselines. Rendering is deterministic, with no timestamps or paths, so the same
+//! Each report shows the scores, the opportunities that would raise them most, the changes since
+//! the baselines, and with `--compare`, the changes against another revision. Rendering is deterministic, with no timestamps or paths, so the same
 //! scores always produce the same bytes.
 
 use std::fmt::Write;
 
 use crate::baseline::{Change, Direction};
+use crate::compare::{Comparison, Timing};
 use crate::config::{self, Better, Rollup};
 use crate::format;
 use crate::score::{self, CategoryScore, MetricScore, Opportunity};
@@ -29,6 +30,8 @@ pub struct Report {
     pub categories: Vec<CategoryReport>,
     /// The changes since the baselines, or `None` when no metric has a baseline.
     pub changes: Option<Vec<Change>>,
+    /// The changes against another revision, or `None` without `--compare`.
+    pub comparison: Option<Comparison>,
 }
 
 /// One category's scores for one subject, or the reason it has none.
@@ -275,8 +278,8 @@ pub fn terminal(category: &CategoryReport) -> String {
     out
 }
 
-/// Renders the end of the terminal output: the opportunities that would raise scores most, and
-/// the changes since the baselines.
+/// Renders the end of the terminal output: the opportunities that would raise scores most, the
+/// changes since the baselines, and the changes against another revision.
 pub fn summary(report: &Report) -> String {
     let mut out = String::new();
 
@@ -331,6 +334,40 @@ pub fn summary(report: &Report) -> String {
                     sorted.len() - TERMINAL_CHANGES
                 );
             }
+        }
+    }
+
+    if let Some(comparison) = &report.comparison {
+        let moved = moved(comparison);
+        if moved.is_empty() {
+            let _ = writeln!(out, "\nNo changes against {}", comparison.reference);
+        } else {
+            let _ = writeln!(out, "\nAgainst {}", comparison.reference);
+            let rows: Vec<[String; 5]> = moved
+                .iter()
+                .take(TERMINAL_CHANGES)
+                .map(|(change, timing)| {
+                    [
+                        change.direction.as_str().to_owned(),
+                        label(change.subject.as_deref(), &change.category),
+                        changed(change),
+                        values(change) + &timing.map(percent).unwrap_or_default(),
+                        timing.map(agreement).unwrap_or_default(),
+                    ]
+                })
+                .collect();
+            table(&mut out, &rows);
+
+            if moved.len() > TERMINAL_CHANGES {
+                let _ = writeln!(
+                    out,
+                    "  and {} more in report.md",
+                    moved.len() - TERMINAL_CHANGES
+                );
+            }
+        }
+        if let Some(noise) = noise(comparison.timings.iter()) {
+            let _ = writeln!(out, "  {noise}");
         }
     }
 
@@ -391,7 +428,7 @@ pub fn json(report: &Report) -> String {
             ])
         });
 
-    let changes = report.changes.as_ref().map_or(Json::Null, |changes| {
+    let changes_json = |changes: &[Change]| {
         Json::Array(
             sorted(changes)
                 .into_iter()
@@ -408,6 +445,39 @@ pub fn json(report: &Report) -> String {
                 })
                 .collect(),
         )
+    };
+    let changes = report
+        .changes
+        .as_ref()
+        .map_or(Json::Null, |changes| changes_json(changes));
+
+    let comparison = report.comparison.as_ref().map_or(Json::Null, |comparison| {
+        let timings = comparison.timings.iter().map(|timing| {
+            Json::Object(vec![
+                ("category", Json::String(timing.category.clone())),
+                ("subject", optional(timing.subject.as_deref())),
+                ("metric", Json::String(timing.metric.clone())),
+                ("item", optional(timing.item.as_deref())),
+                (
+                    "change",
+                    Json::String(
+                        timing
+                            .direction
+                            .map_or("within noise", Direction::as_str)
+                            .to_owned(),
+                    ),
+                ),
+                ("before", value_json(timing.before)),
+                ("after", value_json(timing.after)),
+                ("pairs", Json::Number(count(timing.pairs))),
+                ("agree", Json::Number(count(timing.agree))),
+            ])
+        });
+        Json::Object(vec![
+            ("reference", Json::String(comparison.reference.clone())),
+            ("changes", changes_json(&comparison.changes)),
+            ("timings", Json::Array(timings.collect())),
+        ])
     });
 
     let mut out = String::new();
@@ -416,6 +486,7 @@ pub fn json(report: &Report) -> String {
         ("categories", Json::Array(categories.collect())),
         ("opportunities", Json::Array(opportunities.collect())),
         ("changes", changes),
+        ("comparison", comparison),
     ])
     .write(&mut out, 0);
     out.push('\n');
@@ -423,8 +494,8 @@ pub fn json(report: &Report) -> String {
 }
 
 /// Renders the report as Markdown: a summary table of categories, the top opportunities, the
-/// changes since the baselines, then a section per category with a table of metrics and the worst
-/// items of each list.
+/// changes since the baselines and against another revision, then a section per category with a
+/// table of metrics and the worst items of each list.
 pub fn markdown(report: &Report) -> String {
     let mut out = String::from("# Retros report\n\n");
     let score = |category: &CategoryReport| match &category.result {
@@ -519,6 +590,35 @@ pub fn markdown(report: &Report) -> String {
                 side_cell(change, change.before),
                 side_cell(change, change.after)
             );
+        }
+    }
+
+    if let Some(comparison) = &report.comparison {
+        let _ = write!(out, "\n## Changes against {}\n\n", comparison.reference);
+        let moved = moved(comparison);
+        if moved.is_empty() {
+            out.push_str("No changes.\n");
+        } else {
+            out.push_str(
+                "| Change | Category | Metric | Before | After | Pairs |\n| --- | --- | --- | --- | --- | --- |\n",
+            );
+            for (change, timing) in &moved {
+                let (category, metric) = titles(report, change);
+                let _ = writeln!(
+                    out,
+                    "| {} | {} | {} | {} | {}{} | {} |",
+                    change.direction.as_str(),
+                    escape(&label(change.subject.as_deref(), &category)),
+                    escape(&titled(&metric, change.item.as_deref(), 1)),
+                    side_cell(change, change.before),
+                    side_cell(change, change.after),
+                    timing.map(percent).unwrap_or_default(),
+                    timing.map(agreement).unwrap_or_default()
+                );
+            }
+        }
+        if let Some(noise) = noise(comparison.timings.iter()) {
+            let _ = write!(out, "\n{noise}.\n");
         }
     }
 
@@ -636,17 +736,69 @@ pub(crate) fn names(report: &Report) -> Vec<&str> {
 /// Orders changes worst first: worse values, looser targets, new and gone metrics or items,
 /// tighter targets, then better values.
 pub(crate) fn sorted(changes: &[Change]) -> Vec<&Change> {
-    let rank = |change: &&Change| match change.direction {
+    let mut sorted: Vec<&Change> = changes.iter().collect();
+    sorted.sort_by_key(|change| rank(change.direction));
+    sorted
+}
+
+/// Orders changes from the most to the least concerning.
+fn rank(direction: Direction) -> u8 {
+    match direction {
         Direction::Worse => 0,
         Direction::Looser => 1,
         Direction::New => 2,
         Direction::Gone => 3,
         Direction::Tighter => 4,
         Direction::Better => 5,
-    };
-    let mut sorted: Vec<&Change> = changes.iter().collect();
-    sorted.sort_by_key(rank);
-    sorted
+    }
+}
+
+/// Returns the changes against another revision, worst first: each exact change, and each timing
+/// that changed, as a change with its timing.
+pub(crate) fn moved(comparison: &Comparison) -> Vec<(Change, Option<&Timing>)> {
+    let timings = comparison.timings.iter().filter_map(|timing| {
+        let change = Change {
+            after: Some(timing.after),
+            before: Some(timing.before),
+            category: timing.category.clone(),
+            direction: timing.direction?,
+            item: timing.item.clone(),
+            metric: timing.metric.clone(),
+            subject: timing.subject.clone(),
+        };
+        Some((change, Some(timing)))
+    });
+    let mut moved: Vec<(Change, Option<&Timing>)> = sorted(&comparison.changes)
+        .into_iter()
+        .map(|change| (change.clone(), None))
+        .chain(timings)
+        .collect();
+    moved.sort_by_key(|(change, _)| rank(change.direction));
+    moved
+}
+
+/// Counts the timings within noise, such as `2 timings within noise`, or `None` without any.
+pub(crate) fn noise<'a>(timings: impl Iterator<Item = &'a Timing>) -> Option<String> {
+    match timings.filter(|timing| timing.direction.is_none()).count() {
+        0 => None,
+        1 => Some("1 timing within noise".to_owned()),
+        n => Some(format!("{n} timings within noise")),
+    }
+}
+
+/// Formats the change between a timing's medians, such as ` (+25%)`.
+pub(crate) fn percent(timing: &Timing) -> String {
+    let ratio = timing.ratio();
+    if ratio.is_finite() {
+        format!(" ({:+.0}%)", ratio * 100.0)
+    } else {
+        String::new()
+    }
+}
+
+/// Formats how many pairs agree on a timing's change, such as `8 of 8 pairs`.
+pub(crate) fn agreement(timing: &Timing) -> String {
+    format!("{} of {} pairs", timing.agree, timing.pairs)
 }
 
 /// Formats an opportunity's gain in category points, such as `+29`.

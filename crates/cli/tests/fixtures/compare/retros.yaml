@@ -1,0 +1,13 @@
+# A size and two timings, each read from a file so a test changes values without changing the
+# scripts. `setup` creates what footprint.sh needs in each checkout that `--compare` creates.
+
+setup: touch .ready
+
+footprint:
+  run: sh footprint.sh
+  bundle: { target: 30kB }
+
+speed:
+  run: sh speed.sh
+  encode: { target: 3ms }
+  parse: { target: 30ms }

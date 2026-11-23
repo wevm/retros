@@ -27,7 +27,7 @@
 //!   import-time: { target: 30ms, baseline: { viem: target 20ms } }
 //! ```
 
-use crate::config::{self, Better, Config, Format, Metric};
+use crate::config::{self, Better, Config, Format, Metric, without_locations};
 use crate::document::{Kind as NodeKind, Node};
 use crate::edit;
 use crate::error::{Code, Error, Location};
@@ -287,6 +287,49 @@ pub fn write(
     config: &Config,
     report: &Report,
 ) -> Result<String, Error> {
+    let changes = updates(config, report);
+    if changes.is_empty() {
+        return Ok(source.to_owned());
+    }
+    let updated = edit::baselines(source, format, &changes);
+
+    // The editor reads only part of the syntax, so the file it writes must parse to the same
+    // configuration with the new baselines.
+    let written = config::parse(&updated, format).ok().map(without_locations);
+    if written.as_ref() == Some(&without_locations(apply(config, &changes))) {
+        return Ok(updated);
+    }
+
+    // Blames the first metric whose baseline did not come through.
+    let blamed = changes
+        .iter()
+        .find(|(category, metric, baseline)| {
+            let written = written.as_ref().and_then(|w| find(w, category, metric));
+            written.is_none_or(|written| written.baseline != *baseline)
+        })
+        .or(changes.first());
+    let (category, metric) = blamed.map_or(("", ""), |(category, metric, _)| (*category, *metric));
+    let location = find(config, category, metric).map(|metric| metric.location);
+    Err(cannot(format, metric, location))
+}
+
+/// Returns `config` with the baselines a run records and no others, as a first `retros --update`
+/// would write them.
+pub fn accepted(config: &Config, report: &Report) -> Config {
+    let mut cleared = config.clone();
+    for metric in cleared.categories.iter_mut().flat_map(|c| &mut c.metrics) {
+        metric.baseline = None;
+    }
+    let changes = updates(&cleared, report);
+    apply(&cleared, &changes)
+}
+
+/// A metric's new baseline, by category and metric name.
+type Update<'c> = (&'c str, &'c str, Option<Baseline>);
+
+/// Returns each metric whose baseline differs from what the run records, with its new baseline.
+/// A category that did not run or failed keeps its baselines.
+fn updates<'c>(config: &'c Config, report: &Report) -> Vec<Update<'c>> {
     let mut changes = Vec::new();
 
     for category in &config.categories {
@@ -326,15 +369,13 @@ pub fn write(
         }
     }
 
-    if changes.is_empty() {
-        return Ok(source.to_owned());
-    }
-    let updated = edit::baselines(source, format, &changes);
+    changes
+}
 
-    // The editor reads only part of the syntax, so the file it writes must parse to the same
-    // configuration with the new baselines.
-    let mut expected = config.clone();
-    for category in &mut expected.categories {
+/// Returns `config` with each updated metric's new baseline.
+fn apply(config: &Config, changes: &[Update<'_>]) -> Config {
+    let mut updated = config.clone();
+    for category in &mut updated.categories {
         for metric in &mut category.metrics {
             let change = changes
                 .iter()
@@ -344,22 +385,7 @@ pub fn write(
             }
         }
     }
-    let written = config::parse(&updated, format).ok().map(without_locations);
-    if written.as_ref() == Some(&without_locations(expected)) {
-        return Ok(updated);
-    }
-
-    // Blames the first metric whose baseline did not come through.
-    let blamed = changes
-        .iter()
-        .find(|(category, metric, baseline)| {
-            let written = written.as_ref().and_then(|w| find(w, category, metric));
-            written.is_none_or(|written| written.baseline != *baseline)
-        })
-        .or(changes.first());
-    let (category, metric) = blamed.map_or(("", ""), |(category, metric, _)| (*category, *metric));
-    let location = find(config, category, metric).map(|metric| metric.location);
-    Err(cannot(format, metric, location))
+    updated
 }
 
 /// Returns a metric of `config` by category and metric name.
@@ -371,22 +397,6 @@ fn find<'c>(config: &'c Config, category: &str, metric: &str) -> Option<&'c Metr
         .metrics
         .iter()
         .find(|configured| configured.name == metric)
-}
-
-/// Returns `config` with every location cleared, to compare it with the same configuration after
-/// lines moved.
-fn without_locations(mut config: Config) -> Config {
-    let nowhere = Location { column: 0, line: 0 };
-    for category in &mut config.categories {
-        category.location = nowhere;
-        for metric in &mut category.metrics {
-            metric.location = nowhere;
-            for pattern in &mut metric.targets {
-                pattern.location = nowhere;
-            }
-        }
-    }
-    config
 }
 
 /// Parses a metric's `baseline`: a record, a mapping of items or subjects to records, or a

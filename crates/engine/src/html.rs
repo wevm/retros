@@ -186,6 +186,48 @@ fn panel(out: &mut String, report: &Report, subject: Option<&str>, index: usize)
         out.push_str("</section>\n");
     }
 
+    if let Some(comparison) = &report.comparison {
+        let moved: Vec<_> = report::moved(comparison)
+            .into_iter()
+            .filter(|(change, _)| change.subject.as_deref() == subject)
+            .collect();
+        let _ = writeln!(
+            out,
+            "<section class=\"block\">\n<h2>Changes against {}</h2>",
+            escape(&comparison.reference)
+        );
+        if moved.is_empty() {
+            out.push_str("<p class=\"muted\">No changes.</p>\n");
+        } else {
+            out.push_str("<ul class=\"changes\">\n");
+            for (change, timing) in moved {
+                let (category, metric) = report::titles(report, &change);
+                let evidence = timing.map_or_else(String::new, |timing| {
+                    format!(
+                        "{} <span class=\"muted\">{}</span>",
+                        escape(&report::percent(timing)),
+                        escape(&report::agreement(timing))
+                    )
+                });
+                let _ = writeln!(
+                    out,
+                    "<li><span class=\"chip {}\">{}</span><span class=\"what\"><span class=\"muted\">{}</span> {}</span><span class=\"to\">{}{evidence}</span></li>",
+                    direction_class(change.direction),
+                    change.direction.as_str(),
+                    escape(&category),
+                    inline(&report::titled(&metric, change.item.as_deref(), 1)),
+                    escape(&report::values(&change))
+                );
+            }
+            out.push_str("</ul>\n");
+        }
+        let timings = comparison.timings.iter();
+        if let Some(noise) = report::noise(timings.filter(|t| t.subject.as_deref() == subject)) {
+            let _ = writeln!(out, "<p class=\"muted\">{}.</p>", escape(&noise));
+        }
+        out.push_str("</section>\n");
+    }
+
     for category in categories {
         self::category(out, category, &anchor(category));
     }

@@ -29,3 +29,10 @@ jobs:
 
       - name: Run tests
         run: cargo test --workspace --all-features
+
+      # Retros' own timings, compared with the same commit, must stay within noise on a GitHub
+      # runner. This checks the verdict rule of `--compare` on real timings.
+      - name: Compare with the same commit
+        run: |
+          cargo run --release --locked --quiet -p cli -- --compare HEAD | tee compare.txt
+          grep -q '^No changes against' compare.txt

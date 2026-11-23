@@ -61,6 +61,9 @@ retros --require-baseline
 # Fail when a metric misses its target or a script fails.
 retros --require-targets
 
+# Compare with another revision: timings in interleaved pairs, and exact values with its baselines.
+retros --compare main
+
 # Run each script once and check its lines, without scoring.
 retros check
 ```
@@ -68,8 +71,10 @@ retros check
 - **Metric line:** `[subject:] metric [item] value [target <value>]`. Quote an item that contains a space.
 - **Values:** sizes in `B`, `kB`, `MB`, or `GB`, times in `ns`, `µs`, `ms`, or `s`, counts without a unit, and checks as `pass` or `fail`.
 - **Category keys:** `run`, `timeout` (default `10m`), `title`, and `description`. A top-level `run` and `timeout` apply to categories that set none.
+- **Setup:** a top-level `setup` command, such as `bun install --frozen-lockfile`, prepares each checkout that `--compare` creates.
 - **Metric keys:** `target`, `targets`, `weight` (default 1), `score` (`p90` by default, or `p10`, `median`, `max`, `min`, `sum`), `better`, `varies`, `title`, `description`, and `baseline`.
 - **Baselines:** `retros --update` writes each metric's `baseline` into the configuration, one line per item. Commit them, so each run reports what changed.
+- **Comparisons:** `--compare <ref>` checks out `<ref>` in a temporary Git worktree. Timings change only when the medians differ by at least 5% and 7 of 8 pairs agree.
 - **Files:** reports go to `.retros/` in the project root.
 
 [`examples/`](examples) has a TypeScript library, a website, and a Rust API. Retros measures itself with [`.agents/retros.yaml`](.agents/retros.yaml).
