@@ -86,7 +86,7 @@ fn read(name: &str) -> Result<Repository, String> {
 
 /// Returns what Git fetches for a repository: a local path as an absolute path, `owner/name` as
 /// its GitHub URL, and anything else, such as a URL, as it is.
-fn url(name: &str) -> Result<String, String> {
+pub(crate) fn url(name: &str) -> Result<String, String> {
     let path = Path::new(name);
     if path.exists() {
         return path

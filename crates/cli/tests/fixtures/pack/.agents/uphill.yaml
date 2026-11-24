@@ -1,0 +1,16 @@
+# A pack that other projects add with `uphill add`. This header stays in the pack.
+
+run: sh .agents/metrics/sizes.sh
+timeout: 30s
+
+# Bytes the project ships.
+footprint:
+  # Sum of every shipped file.
+  total: { target: 1kB }
+
+# A comment between categories, which belongs to neither.
+
+lines:
+  run: sh .agents/metrics/lines.sh
+  # Lines in the project's sources.
+  count: {}

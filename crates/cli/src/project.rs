@@ -120,6 +120,12 @@ pub(crate) fn find(cwd: &Path) -> Result<Project, String> {
     )
 }
 
+/// Returns whether `cwd` or a parent directory has a configuration, valid or not.
+pub(crate) fn exists(cwd: &Path) -> bool {
+    cwd.ancestors()
+        .any(|root| PLACES.iter().any(|(place, _)| root.join(place).is_file()))
+}
+
 /// Returns the path of the baseline file beside the configuration at `place`, such as
 /// `.agents/uphill.baseline.yaml` for `.agents/uphill.yaml`.
 pub(crate) fn baselines(place: &str) -> String {

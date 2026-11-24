@@ -13,6 +13,7 @@ Uphill scores a project against its own targets. Scripts measure the project, Up
 - [Targets](./guides/targets.md): Set a target for each item and read opportunities.
 - [Baselines](./guides/baselines.md): Record accepted values and gate on changes.
 - [Comparing Revisions](./guides/comparing.md): Measure another revision and report what changed.
+- [Packs](./guides/packs.md): Share categories and their scripts between projects.
 - [GitHub Actions](./guides/github-actions.md): Compare pull requests and keep one comment.
 
 ## Reference

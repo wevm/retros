@@ -156,7 +156,7 @@ fn field<'t, 's>(table: &'t DeTable<'s>, name: &str) -> Option<&'t Spanned<DeVal
 }
 
 /// Returns the offset just past the `:` that follows the YAML key at `key`.
-fn after_colon(source: &str, key: usize) -> usize {
+pub(crate) fn after_colon(source: &str, key: usize) -> usize {
     let bytes = source.as_bytes();
     let mut at = key;
     if matches!(bytes.get(at), Some(b'"' | b'\'')) {
@@ -312,7 +312,7 @@ fn column(source: &str, at: usize) -> usize {
     at - line_start(source, at)
 }
 
-fn line_start(source: &str, at: usize) -> usize {
+pub(crate) fn line_start(source: &str, at: usize) -> usize {
     source
         .as_bytes()
         .get(..at)
@@ -320,7 +320,7 @@ fn line_start(source: &str, at: usize) -> usize {
         .map_or(0, |newline| newline + 1)
 }
 
-fn line_end(source: &str, at: usize) -> usize {
+pub(crate) fn line_end(source: &str, at: usize) -> usize {
     source
         .as_bytes()
         .get(at..)

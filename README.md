@@ -90,6 +90,9 @@ uphill check
 # Print a brief for an agent to set up Uphill in this project.
 uphill init
 
+# Copy a pack's categories and scripts into this project, such as an example's.
+uphill add wevm/uphill/examples/web-app
+
 # Print the scores, missed targets, and opportunities in a few lines, for agent loops.
 uphill --compact
 

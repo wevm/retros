@@ -172,6 +172,7 @@ fn help() {
     Runs each category's script, scores its metrics, lists the opportunities that would raise the scores most, and compares sizes, counts, checks, and line targets with each metric's baseline. Reads uphill.yaml or uphill.toml, at the root or in .agents, from this directory or the nearest parent. Writes .uphill/report.json, report.md, and report.html.
 
     Commands:
+      add        Copy a pack's categories into uphill.yaml and its scripts into the project: a local directory, owner/name/path on GitHub, or a Git URL followed by //path, each with an optional @ref
       blame      Name the commit that last moved a metric: from its baselines, or by measuring commits since <ref>, or every commit, in temporary checkouts and bisecting
       check      Run each script once and check the metric lines it writes
       dashboard  Write .uphill/dashboard.html from the latest noted runs of each repository: a Git URL, a local path, or owner/name on GitHub
@@ -1630,12 +1631,122 @@ fn init_points_the_brief_at_the_closest_example() {
             .to_owned()
     };
 
-    insta::assert_snapshot!(brief(&[("Cargo.toml", "[package]\n")]), @"The closest example is a Rust API: https://github.com/wevm/uphill/tree/main/examples/rust-api. Read its `uphill.yaml` and `metrics/` before writing anything.");
-    insta::assert_snapshot!(brief(&[("package.json", r#"{ "devDependencies": { "vite": "7.0.0" } }"#)]), @"The closest example is a website: https://github.com/wevm/uphill/tree/main/examples/web-app. Read its `uphill.yaml` and `metrics/` before writing anything.");
-    insta::assert_snapshot!(brief(&[("package.json", "{}"), ("pages/index.html", "")]), @"The closest example is a website: https://github.com/wevm/uphill/tree/main/examples/web-app. Read its `uphill.yaml` and `metrics/` before writing anything.");
-    insta::assert_snapshot!(brief(&[("package.json", r#"{ "name": "lib" }"#)]), @"The closest example is a TypeScript library: https://github.com/wevm/uphill/tree/main/examples/typescript-library. Read its `uphill.yaml` and `metrics/` before writing anything.");
+    insta::assert_snapshot!(brief(&[("Cargo.toml", "[package]\n")]), @"The closest example is a Rust API: https://github.com/wevm/uphill/tree/main/examples/rust-api. Read its `uphill.yaml` and `metrics/` before writing anything. `uphill add wevm/uphill/examples/rust-api` copies its categories and scripts to fit.");
+    insta::assert_snapshot!(brief(&[("package.json", r#"{ "devDependencies": { "vite": "7.0.0" } }"#)]), @"The closest example is a website: https://github.com/wevm/uphill/tree/main/examples/web-app. Read its `uphill.yaml` and `metrics/` before writing anything. `uphill add wevm/uphill/examples/web-app` copies its categories and scripts to fit.");
+    insta::assert_snapshot!(brief(&[("package.json", "{}"), ("pages/index.html", "")]), @"The closest example is a website: https://github.com/wevm/uphill/tree/main/examples/web-app. Read its `uphill.yaml` and `metrics/` before writing anything. `uphill add wevm/uphill/examples/web-app` copies its categories and scripts to fit.");
+    insta::assert_snapshot!(brief(&[("package.json", r#"{ "name": "lib" }"#)]), @"The closest example is a TypeScript library: https://github.com/wevm/uphill/tree/main/examples/typescript-library. Read its `uphill.yaml` and `metrics/` before writing anything. `uphill add wevm/uphill/examples/typescript-library` copies its categories and scripts to fit.");
     insta::assert_snapshot!(brief(&[("README.md", "")]), @"Read the closest example before writing anything: a TypeScript library (https://github.com/wevm/uphill/tree/main/examples/typescript-library), a website (https://github.com/wevm/uphill/tree/main/examples/web-app), or a Rust API (https://github.com/wevm/uphill/tree/main/examples/rust-api).");
-    insta::assert_snapshot!(brief(&[("package.json", "{}"), (".agents/uphill.yaml", "a:\n  run: \"true\"\n  b: {}\n")]), @"The closest example is a TypeScript library: https://github.com/wevm/uphill/tree/main/examples/typescript-library. Read its `uphill.yaml` and `metrics/` before writing anything. This project already has `.agents/uphill.yaml`. Extend it instead of starting over.");
+    insta::assert_snapshot!(brief(&[("package.json", "{}"), (".agents/uphill.yaml", "a:\n  run: \"true\"\n  b: {}\n")]), @"The closest example is a TypeScript library: https://github.com/wevm/uphill/tree/main/examples/typescript-library. Read its `uphill.yaml` and `metrics/` before writing anything. `uphill add wevm/uphill/examples/typescript-library` copies its categories and scripts to fit. This project already has `.agents/uphill.yaml`. Extend it instead of starting over.");
+}
+
+#[test]
+fn add_copies_a_packs_categories_and_scripts_into_the_project() {
+    let pack = fixture("pack");
+    let project = tempfile::tempdir().unwrap();
+    let config = "own:\n  run: echo \"files 2\" >> \"$UPHILL_METRICS\"\n  files: {}\n";
+    fs::write(project.path().join("uphill.yaml"), config).unwrap();
+    let source = pack.path().to_string_lossy().into_owned();
+    let mask = |text: &str| text.replace(&source, "[pack]");
+
+    // Each category keeps its comments, takes the pack's top-level `run` and `timeout` when it
+    // sets none, and runs the copied scripts beside the project's configuration.
+    let output = uphill_in(project.path(), &["add", &source], &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(stdout(&output), @"
+    Added footprint, lines to uphill.yaml
+    Added metrics/
+
+    Fit the scripts and targets to this project, then run `uphill check`
+    ");
+    let added = fs::read_to_string(project.path().join("uphill.yaml")).unwrap();
+    insta::assert_snapshot!(mask(&added), @r#"
+    own:
+      run: echo "files 2" >> "$UPHILL_METRICS"
+      files: {}
+
+    # Added by `uphill add [pack]`.
+    # Bytes the project ships.
+    footprint:
+      run: sh metrics/sizes.sh
+      timeout: 30s
+      # Sum of every shipped file.
+      total: { target: 1kB }
+
+    # Added by `uphill add [pack]`.
+    lines:
+      run: sh metrics/lines.sh
+      timeout: 30s
+      # Lines in the project's sources.
+      count: {}
+    "#);
+    let output = check(project.path(), &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stdout(&output));
+
+    // A category the project declares stops the command.
+    let output = uphill_in(project.path(), &["add", &source, "lines"], &[]);
+    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(mask(&stderr(&output)), @"
+    error[duplicate-category] [pack]/.agents/uphill.yaml:13:1: the project already declares category `lines`. Add it under another name with `--as <name>`
+      13 | lines:
+         | ^
+    ");
+
+    // `--as` adds a category under another name. A script that differs from the pack's copy
+    // stops the command before it writes anything.
+    let other = tempfile::tempdir().unwrap();
+    let config = "lines:\n  run: echo \"words 5\" >> \"$UPHILL_METRICS\"\n  words: {}\n";
+    fs::write(other.path().join("uphill.yaml"), config).unwrap();
+    fs::create_dir(other.path().join("metrics")).unwrap();
+    fs::write(other.path().join("metrics/lib.sh"), "count=4\n").unwrap();
+    let output = uphill_in(other.path(), &["add", &source, "lines", "--as", "loc"], &[]);
+    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(stderr(&output), @"error: metrics/lib.sh exists and differs from the pack's copy. Move it, then run `uphill add` again");
+    assert_eq!(
+        fs::read_to_string(other.path().join("uphill.yaml")).unwrap(),
+        config
+    );
+    assert!(!other.path().join("metrics/lines.sh").exists());
+
+    fs::remove_file(other.path().join("metrics/lib.sh")).unwrap();
+    let output = uphill_in(other.path(), &["add", &source, "lines", "--as", "loc"], &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    let added = fs::read_to_string(other.path().join("uphill.yaml")).unwrap();
+    insta::assert_snapshot!(mask(added.strip_prefix(config).unwrap()), @"
+
+    # Added by `uphill add [pack]`.
+    loc:
+      run: sh metrics/lines.sh
+      timeout: 30s
+      # Lines in the project's sources.
+      count: {}
+    ");
+
+    // A pack in a Git repository is fetched at its ref, and a project without a configuration
+    // gets `.agents/uphill.yaml`.
+    let repository = tempfile::tempdir().unwrap();
+    let packed = repository.path().join("packs/sizes");
+    fs::create_dir_all(&packed).unwrap();
+    copy(pack.path(), &packed);
+    git(repository.path(), &["init", "-q", "-b", "main"]);
+    commit(repository.path());
+    let empty = tempfile::tempdir().unwrap();
+    let remote = format!("{}//packs/sizes@main", repository.path().display());
+    let output = uphill_in(empty.path(), &["add", &remote, "footprint"], &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    let written = fs::read_to_string(empty.path().join(".agents/uphill.yaml")).unwrap();
+    let written = masked(repository.path(), &written)
+        .replace(&repository.path().display().to_string(), "[repository]");
+    insta::assert_snapshot!(written, @"
+    # Added by `uphill add [repository]//packs/sizes@abc1234`.
+    # Bytes the project ships.
+    footprint:
+      run: sh .agents/metrics/sizes.sh
+      timeout: 30s
+      # Sum of every shipped file.
+      total: { target: 1kB }
+    ");
+    let output = check(empty.path(), &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stdout(&output));
 }
 
 #[test]

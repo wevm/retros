@@ -6,6 +6,7 @@
 //! writes the report files. It exits with status 0 on success, 1 when a category fails, and 2
 //! when it cannot run, such as for an unknown argument or an invalid configuration.
 
+mod add;
 mod check;
 mod dashboard;
 mod history;
@@ -27,6 +28,17 @@ use incur::{Io, Parser};
 #[derive(Parser)]
 #[incur(name = "uphill", version)]
 enum Command {
+    /// Copy a pack's categories into uphill.yaml and its scripts into the project: a local directory, owner/name/path on GitHub, or a Git URL followed by //path, each with an optional @ref
+    Add {
+        /// The pack, such as wevm/uphill/examples/web-app
+        #[incur(arg)]
+        pack: String,
+        /// The pack's categories to add, or every category
+        #[incur(arg)]
+        categories: Option<Vec<String>>,
+        /// Add the one category under this name
+        r#as: Option<String>,
+    },
     /// Name the commit that last moved a metric: from its baselines, or by measuring commits since <ref>, or every commit, in temporary checkouts and bisecting
     Blame {
         /// The category of the metric
@@ -141,6 +153,16 @@ fn score(options: &score::Options) -> ExitCode {
 /// Runs a command other than `uphill [category]`.
 fn run(command: Command) -> ExitCode {
     match command {
+        Command::Add {
+            categories,
+            pack,
+            r#as,
+        } => add::run(&pack, &categories.unwrap_or_default(), r#as.as_deref()).unwrap_or_else(
+            |message| {
+                let _ = writeln!(std::io::stderr(), "{message}");
+                ExitCode::from(2)
+            },
+        ),
         Command::Blame {
             category,
             item,

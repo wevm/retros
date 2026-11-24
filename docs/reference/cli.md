@@ -1,6 +1,6 @@
 # CLI
 
-The `uphill` binary runs a project's scripts, scores the metrics, and writes reports. Its other commands check scripts, brief an agent, read the noted runs of several repositories, and trace a metric through the Git history.
+The `uphill` binary runs a project's scripts, scores the metrics, and writes reports. Its other commands check scripts, brief an agent, copy a pack's categories, read the noted runs of several repositories, and trace a metric through the Git history.
 
 ## Usage
 
@@ -8,6 +8,7 @@ The `uphill` binary runs a project's scripts, scores the metrics, and writes rep
 
 ```text
 uphill [category] [--compare <ref>] [--compact] [--note] [--update] [--require-baseline] [--require-targets]
+uphill add <pack> [category...] [--as <name>]
 uphill check
 uphill dashboard <repository>...
 uphill init
@@ -32,6 +33,17 @@ Runs each category's script, scores its metrics, lists the opportunities that ra
 ```sh
 # Score every category and write the reports.
 uphill
+```
+
+### `uphill add`
+
+Copies a pack's categories into the project's `uphill.yaml`, or every category when none is named, and the scripts their `run` commands name into the project. A pack is a local directory, `owner/name/path` on GitHub, or a Git URL or repository path followed by `//path`, each with an optional `@ref`. A project without a configuration gets `.agents/uphill.yaml`.
+
+`--as <name>` adds one category under another name. When the project already declares a category, or a copied file would replace a different one, `uphill add` writes nothing and exits with status 2. The [Packs](../guides/packs.md) guide shows a complete example.
+
+```sh
+# Add the performance category of the web-app example.
+uphill add wevm/uphill/examples/web-app performance
 ```
 
 ### `uphill check`

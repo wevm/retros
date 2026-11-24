@@ -404,7 +404,7 @@ fn toml_table(out: &mut String, path: &[&str], entries: &[(String, Baseline)]) {
 }
 
 /// Formats a YAML key, unquoted when it is a plain name that YAML reads as a string.
-fn yaml_key(name: &str) -> Cow<'_, str> {
+pub(crate) fn yaml_key(name: &str) -> Cow<'_, str> {
     let plain = name
         .bytes()
         .next()
@@ -434,7 +434,7 @@ fn toml_key(name: &str) -> Cow<'_, str> {
 }
 
 /// Formats a double-quoted string, which YAML and TOML escape the same way.
-fn quoted(text: &str) -> String {
+pub(crate) fn quoted(text: &str) -> String {
     let mut out = String::from('"');
     for c in text.chars() {
         match c {
