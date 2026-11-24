@@ -28,7 +28,7 @@ use incur::{Io, Parser};
 #[derive(Parser)]
 #[incur(name = "uphill", version)]
 enum Command {
-    /// Copy a pack's categories into uphill.yaml and its scripts into the project: a local directory, owner/name/path on GitHub, or a Git URL followed by //path, each with an optional @ref. With --update, merge the changes of each added category's pack
+    /// Copy a pack's categories into uphill.yaml or uphill.toml and its scripts into the project: a local directory, owner/name/path on GitHub, or a Git URL followed by //path, each with an optional @ref. With --update, merge the changes of each added category's pack
     Add {
         /// The pack, such as wevm/uphill/examples/web-app. With --update, a category to update
         #[incur(arg)]

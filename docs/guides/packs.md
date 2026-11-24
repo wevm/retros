@@ -1,6 +1,6 @@
 # Packs
 
-A pack is a directory with an `uphill.yaml` and the scripts its `run` commands name. `uphill add` copies a pack's categories into a project and its scripts beside the project's configuration. The project then owns both.
+A pack is a directory with an `uphill.yaml` or `uphill.toml` and the scripts its `run` commands name. `uphill add` copies a pack's categories into a project and its scripts beside the project's configuration. The project then owns both.
 
 ## Overview
 
@@ -17,7 +17,7 @@ This walkthrough adds the `performance` category of the web-app example to a sit
 
 ### Add the Category
 
-`uphill add` takes the pack and, optionally, the categories to add. It prints the pack's `README.md`, which says what to fit. A project without a configuration gets `.agents/uphill.yaml`.
+`uphill add` takes the pack and, optionally, the categories to add. It prints the pack's `README.md`, which says what to fit. A project without a configuration gets `.agents/uphill.yaml`, or `.agents/uphill.toml` from a TOML pack.
 
 ```text
 $ uphill add wevm/uphill/examples/web-app performance
@@ -106,6 +106,18 @@ conflict  performance  changed in both this project and the pack
 Nothing was written. Merge by hand, or run `uphill add --update --force` to take the pack's version
 ```
 
+### Mix Formats
+
+A pack and a project can use different formats. A YAML pack goes into `uphill.toml` as tables, and a TOML pack goes into `uphill.yaml`. The comments above each category and each metric come too, and a comment at the end of a line stays behind.
+
+```toml title="uphill.toml"
+# Added by `uphill add wevm/uphill/examples/web-app seo` at 03fa96e3deae50d3c9b1c4c3578e23b47bd098b3.
+[seo]
+title = "SEO"
+run = "bun metrics/lighthouse.ts seo"
+audits = {}
+```
+
 ### Rename a Category
 
 `--as` adds one category under another name, such as when the project already declares one with the same name. A name that the project already declares stops the command, and nothing is written.
@@ -117,7 +129,7 @@ uphill add wevm/uphill/examples/rust-api quality --as rust-quality
 
 ### Share a Pack
 
-A pack needs nothing beyond a project's own files. Keep its scripts in a directory beside `uphill.yaml`, and write paths in `run` from the project root. `uphill add` prints the `README.md` beside the configuration, so it can tell an agent what to fit.
+A pack needs nothing beyond a project's own files. Keep its scripts in a directory beside the configuration, and write paths in `run` from the project root. `uphill add` prints the `README.md` beside the configuration, so it can tell an agent what to fit.
 
 ```text
 packs/lighthouse/

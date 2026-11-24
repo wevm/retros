@@ -1,7 +1,10 @@
 //! Packs: categories that one project shares with others. A pack is a directory laid out like a
-//! project, with an `uphill.yaml` and the scripts its `run` commands name, so any project or
-//! example is a pack. `uphill add` copies a pack's categories into a project's `uphill.yaml` and
-//! its scripts into the project, and the project then owns them.
+//! project, with an `uphill.yaml` or `uphill.toml` and the scripts its `run` commands name, so any
+//! project or example is a pack. `uphill add` copies a pack's categories into a project's
+//! configuration and its scripts into the project, and the project then owns them.
+//!
+//! A YAML pack in a YAML project keeps its text. Any other pair of formats writes each category
+//! from the pack's parsed keys, with the comments above the category and above each key.
 //!
 //! Each category keeps its text, so the comments that say what each metric measures come with it.
 //! Its `run` command points at the copied scripts, and it takes the pack's top-level `run` and
@@ -23,7 +26,7 @@
 use std::fmt::Write as _;
 use std::time::Duration;
 
-use crate::baseline::{quoted, yaml_key};
+use crate::baseline::{quoted, toml_key, yaml_key};
 use crate::config::{self, Category, Config, Format, without_locations};
 use crate::document::{self, Kind, Node};
 use crate::edit::{after_colon, line_end, line_start};
@@ -53,11 +56,15 @@ pub struct Options<'a> {
     pub categories: &'a [String],
     /// The pack's commit, or `None` for a local directory.
     pub commit: Option<&'a str>,
+    /// The format of the project's configuration, which a new configuration takes too.
+    pub format: Format,
     /// The name to add the category under, which needs exactly one category.
     pub name: Option<&'a str>,
-    /// The text of the pack's `uphill.yaml`.
+    /// The text of the pack's `uphill.yaml` or `uphill.toml`.
     pub pack: &'a str,
-    /// The text of the project's `uphill.yaml`, or `None` when the project has none yet. A new
+    /// The format of the pack's configuration.
+    pub pack_format: Format,
+    /// The text of the project's configuration, or `None` when the project has none yet. A new
     /// configuration takes the pack's `setup`.
     pub project: Option<&'a str>,
     /// Returns the `run` command for the project, given each added category's command in the pack.
@@ -100,9 +107,11 @@ pub struct Update<'a> {
     pub commit: Option<&'a str>,
     /// Whether a conflict takes the pack's version.
     pub force: bool,
+    /// The format of the project's configuration.
+    pub format: Format,
     /// Where the category came from.
     pub origin: &'a Origin,
-    /// The text of the project's `uphill.yaml`.
+    /// The text of the project's configuration.
     pub project: &'a str,
     /// The category as the pack now renders it.
     pub theirs: &'a str,
@@ -127,10 +136,10 @@ pub struct Updated {
 /// that name, when the project already declares one, when `name` comes with more than one
 /// category, or when a category is a flow mapping, which `add` cannot copy.
 pub fn add(options: &mut Options<'_>) -> Result<Added, Error> {
-    let pack = config::parse(options.pack, Format::Yaml)?;
+    let pack = config::parse(options.pack, options.pack_format)?;
     let project = options
         .project
-        .map(|source| config::parse(source, Format::Yaml))
+        .map(|source| config::parse(source, options.format))
         .transpose()?;
 
     if let Some(name) = options.categories.iter().find(|name| {
@@ -172,7 +181,7 @@ pub fn add(options: &mut Options<'_>) -> Result<Added, Error> {
             return Err(Error::at(
                 Code::DuplicateCategory,
                 options.pack,
-                key_offset(options.pack, &category.name).unwrap_or_default(),
+                key_offset(options.pack, options.pack_format, &category.name).unwrap_or_default(),
                 format!(
                     "the project already declares category `{name}`. Add it under another name with `--as <name>`"
                 ),
@@ -180,7 +189,9 @@ pub fn add(options: &mut Options<'_>) -> Result<Added, Error> {
         }
 
         let run = (options.run)(&category.run);
-        let Some(text) = render_category(options.pack, &pack, &category.name, name, &run)? else {
+        let formats = (options.pack_format, options.format);
+        let Some(text) = render_category(options.pack, formats, &pack, &category.name, name, &run)?
+        else {
             continue;
         };
         let comment = comment(options.source, &category.name, name, options.commit);
@@ -208,13 +219,16 @@ pub fn add(options: &mut Options<'_>) -> Result<Added, Error> {
         }
         _ => {
             let line = setup
-                .map(|run| format!("setup: {}\n\n", scalar(&run)))
+                .map(|run| match options.format {
+                    Format::Toml => format!("setup = {}\n\n", quoted(&run)),
+                    Format::Yaml => format!("setup: {}\n\n", scalar(&run)),
+                })
                 .unwrap_or_default();
             (format!("{line}{}\n", blocks.join("\n\n")), None)
         }
     };
 
-    verify(&config, expected)?;
+    verify(&config, options.format, expected)?;
     Ok(Added {
         categories: selected
             .iter()
@@ -225,34 +239,35 @@ pub fn add(options: &mut Options<'_>) -> Result<Added, Error> {
     })
 }
 
-/// Returns the category `name` of the pack as `uphill add` writes it under `category`, without the
-/// comment above it, or `None` when the pack does not declare it. `run` maps the category's
-/// command in the pack to the project's.
+/// Returns the category `name` of the pack, with its text and format, as `uphill add` writes it
+/// under `category` in a project of `format`, without the comment above it, or `None` when the
+/// pack does not declare it. `run` maps the category's command in the pack to the project's.
 ///
 /// # Errors
 ///
 /// Returns an error when the pack's configuration is invalid or the category is a flow mapping.
 pub fn render(
-    pack: &str,
+    pack: (&str, Format),
     name: &str,
     category: &str,
+    format: Format,
     run: &mut dyn FnMut(&str) -> String,
 ) -> Result<Option<String>, Error> {
-    let config = config::parse(pack, Format::Yaml)?;
+    let config = config::parse(pack.0, pack.1)?;
     let Some(found) = config.categories.iter().find(|c| c.name == name) else {
         return Ok(None);
     };
     let run = run(&found.run);
-    render_category(pack, &config, name, category, &run)
+    render_category(pack.0, (pack.1, format), &config, name, category, &run)
 }
 
 /// Returns where each category that `uphill add` wrote came from, in the order the project
 /// declares them.
-pub fn origins(project: &str) -> Vec<Origin> {
+pub fn origins(project: &str, format: Format) -> Vec<Origin> {
     let Ok(Some(Node {
         kind: Kind::Mapping(pairs),
         ..
-    })) = document::parse(project, Format::Yaml)
+    })) = document::parse(project, format)
     else {
         return Vec::new();
     };
@@ -320,20 +335,17 @@ pub fn update(options: &Update<'_>) -> Result<Updated, Error> {
     let Ok(Some(Node {
         kind: Kind::Mapping(pairs),
         ..
-    })) = document::parse(project, Format::Yaml)
+    })) = document::parse(project, options.format)
     else {
         return Err(missing());
     };
-    let index = pairs
+    let key = pairs
         .iter()
-        .position(|(key, _)| key.text() == Some(origin.category.as_str()))
+        .map(|(key, _)| key)
+        .find(|key| key.text() == Some(origin.category.as_str()))
         .ok_or_else(missing)?;
-    let key = pairs.get(index).map(|(key, _)| key).ok_or_else(missing)?;
     let start = attached(project, key.offset);
-    let next = pairs
-        .get(index + 1)
-        .map_or(project.len(), |(key, _)| attached(project, key.offset));
-    let end = trimmed_end(project, key.offset, next);
+    let end = trimmed_end(project, key.offset, next(project, &pairs, key.offset));
 
     // The comment that records the origin is not part of the category's text.
     let text = project.get(start..end).unwrap_or_default();
@@ -374,7 +386,7 @@ pub fn update(options: &Update<'_>) -> Result<Updated, Error> {
         project.get(..start).unwrap_or_default(),
         project.get(end..).unwrap_or_default()
     );
-    let parsed = config::parse(&config, Format::Yaml).map_err(|error| Error {
+    let parsed = config::parse(&config, options.format).map_err(|error| Error {
         code: error.code,
         location: None,
         message: format!("the updated configuration is invalid: {}", error.message),
@@ -403,8 +415,11 @@ fn comment(source: &str, name: &str, category: &str, commit: Option<&str>) -> St
 }
 
 /// Returns the category `name` of a parsed pack as the project writes it under `category`.
+/// Returns the category `name` of a parsed pack as the project writes it under `category`. The
+/// formats are the pack's and the project's.
 fn render_category(
     source: &str,
+    formats: (Format, Format),
     pack: &Config,
     name: &str,
     category: &str,
@@ -416,36 +431,44 @@ fn render_category(
     let Some(Node {
         kind: Kind::Mapping(pairs),
         ..
-    }) = document::parse(source, Format::Yaml)?
+    }) = document::parse(source, formats.0)?
     else {
         return Ok(None);
     };
-    let Some(index) = pairs.iter().position(|(key, _)| key.text() == Some(name)) else {
+    let Some((key, value)) = pairs.iter().find(|(key, _)| key.text() == Some(name)) else {
         return Ok(None);
     };
-    let Some((key, value)) = pairs.get(index) else {
-        return Ok(None);
-    };
-    let end = pairs
-        .get(index + 1)
-        .map_or(source.len(), |(key, _)| attached(source, key.offset));
-    block(&Block {
+    let block = Block {
         category: found,
-        end,
+        end: next(source, &pairs, key.offset),
         key,
         name: category,
         run,
         source,
         start: attached(source, key.offset),
         value,
-    })
-    .map(Some)
+    };
+    match formats {
+        (Format::Yaml, Format::Yaml) => self::block(&block).map(Some),
+        (_, format) => Ok(Some(structured(&block, format))),
+    }
+}
+
+/// Returns the start of the text of the top-level key after the one at `offset`, by position in
+/// the source, or the end of the source.
+fn next(source: &str, pairs: &[(Node, Node)], offset: usize) -> usize {
+    pairs
+        .iter()
+        .map(|(key, _)| key.offset)
+        .filter(|other| *other > offset)
+        .min()
+        .map_or(source.len(), |other| attached(source, other))
 }
 
 /// Checks that `config` parses and declares the `expected` categories as they are.
-fn verify(config: &str, expected: Vec<Category>) -> Result<(), Error> {
-    // The categories keep their text, so the configuration must parse to the same categories.
-    let written = config::parse(config, Format::Yaml).map_err(|error| Error {
+fn verify(config: &str, format: Format, expected: Vec<Category>) -> Result<(), Error> {
+    // The categories keep their meaning, so the configuration must parse to the same categories.
+    let written = config::parse(config, format).map_err(|error| Error {
         code: error.code,
         location: None,
         message: format!(
@@ -478,11 +501,11 @@ fn verify(config: &str, expected: Vec<Category>) -> Result<(), Error> {
 }
 
 /// Returns the byte offset of the top-level key `name`.
-fn key_offset(source: &str, name: &str) -> Option<usize> {
+fn key_offset(source: &str, format: Format, name: &str) -> Option<usize> {
     let Ok(Some(Node {
         kind: Kind::Mapping(pairs),
         ..
-    })) = document::parse(source, Format::Yaml)
+    })) = document::parse(source, format)
     else {
         return None;
     };
@@ -585,6 +608,137 @@ fn block(block: &Block<'_>) -> Result<String, Error> {
         }
     }
     Ok(text)
+}
+
+/// Returns a category's text for a project of `format`, written from the pack's parsed keys: the
+/// comments above the category and above each key, the category's header, its `run` and
+/// `timeout`, and one line per key. A pack in the other format, or a TOML pack, takes this path,
+/// so comments at the end of a line stay behind.
+fn structured(block: &Block<'_>, format: Format) -> String {
+    let source = block.source;
+    let fields: &[(Node, Node)] = match &block.value.kind {
+        Kind::Mapping(fields) => fields,
+        _ => &[],
+    };
+    let indent = match format {
+        Format::Toml => "",
+        Format::Yaml => "  ",
+    };
+    let comments = |out: &mut String, from: usize, to: usize, indent: &str| {
+        for line in source.get(from..to).unwrap_or_default().lines() {
+            let line = line.trim();
+            if line.starts_with('#') {
+                let _ = writeln!(out, "{indent}{line}");
+            }
+        }
+    };
+    let line = |out: &mut String, key: &str, value: &str| {
+        let _ = match format {
+            Format::Toml => writeln!(out, "{} = {value}", toml_key(key)),
+            Format::Yaml => writeln!(out, "  {}: {value}", yaml_key(key)),
+        };
+    };
+    let text = |text: &str| match format {
+        Format::Toml => quoted(text),
+        Format::Yaml => scalar(text),
+    };
+
+    let mut out = String::new();
+    comments(
+        &mut out,
+        block.start,
+        line_start(source, block.key.offset),
+        "",
+    );
+    let _ = match format {
+        Format::Toml => writeln!(out, "[{}]", toml_key(block.name)),
+        Format::Yaml => writeln!(out, "{}:", yaml_key(block.name)),
+    };
+
+    let has = |name: &str| fields.iter().any(|(key, _)| key.text() == Some(name));
+    let extra = |out: &mut String| {
+        if block.category.timeout != DEFAULT_TIMEOUT && !has("timeout") {
+            line(out, "timeout", &text(&duration(block.category.timeout)));
+        }
+    };
+    if !has("run") {
+        line(&mut out, "run", &text(block.run));
+        extra(&mut out);
+    }
+    for (key, value) in fields {
+        let Some(name) = key.text() else {
+            continue;
+        };
+        comments(
+            &mut out,
+            attached(source, key.offset),
+            line_start(source, key.offset),
+            indent,
+        );
+        match (name, &value.kind) {
+            ("run", _) => {
+                line(&mut out, "run", &text(block.run));
+                extra(&mut out);
+            }
+            (_, Kind::Scalar { .. }) if !value.is_null() => {
+                line(&mut out, name, &inline(value, format, false));
+            }
+            _ => line(&mut out, name, &inline(value, format, true)),
+        }
+    }
+    out.trim_end().to_owned()
+}
+
+/// Formats a value on one line: a TOML value or inline table, or a YAML flow value. A null or a
+/// mapping without keys is `{}`. `flow` is whether a YAML scalar sits inside a flow mapping.
+fn inline(node: &Node, format: Format, flow: bool) -> String {
+    match &node.kind {
+        Kind::Mapping(pairs) if !pairs.is_empty() => {
+            let pairs: Vec<String> = pairs
+                .iter()
+                .map(|(key, value)| {
+                    let key = key.text().unwrap_or_default();
+                    match format {
+                        Format::Toml => {
+                            format!("{} = {}", toml_key(key), inline(value, format, true))
+                        }
+                        Format::Yaml => {
+                            format!("{}: {}", yaml_key(key), inline(value, format, true))
+                        }
+                    }
+                })
+                .collect();
+            format!("{{ {} }}", pairs.join(", "))
+        }
+        Kind::Sequence(items) => {
+            let items: Vec<String> = items
+                .iter()
+                .map(|item| inline(item, format, true))
+                .collect();
+            format!("[{}]", items.join(", "))
+        }
+        Kind::Scalar { plain, text } if !node.is_null() => {
+            let bare = *plain
+                && (text.parse::<f64>().is_ok_and(f64::is_finite)
+                    || matches!(text.as_str(), "true" | "false"));
+            match format {
+                _ if bare => text.clone(),
+                Format::Toml => quoted(text),
+                Format::Yaml if flow => flow_scalar(text),
+                Format::Yaml => scalar(text),
+            }
+        }
+        _ => "{}".to_owned(),
+    }
+}
+
+/// Formats a YAML scalar inside a flow mapping: plain when YAML reads it back as the same string.
+fn flow_scalar(text: &str) -> String {
+    let plain = yaml_rust2::YamlLoader::load_from_str(&format!("key: {{ value: {text} }}"))
+        .ok()
+        .and_then(|documents| documents.into_iter().next())
+        .is_some_and(|document| document["key"]["value"].as_str() == Some(text));
+    if plain { text.to_owned() } else { quoted(text) }
 }
 
 /// Returns the start of the line of the key at `offset`, or of the comment lines right above it.

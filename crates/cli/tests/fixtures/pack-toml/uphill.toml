@@ -1,0 +1,13 @@
+# A pack written in TOML, which `uphill add` copies into YAML and TOML projects alike.
+
+run = "sh metrics/sizes.sh"
+timeout = "30s"
+
+# Bytes the project ships.
+[footprint]
+# Sum of every shipped file.
+total = { target = "1kB" }
+
+# Files the project ships.
+[footprint.files]
+target = 3

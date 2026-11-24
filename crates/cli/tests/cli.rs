@@ -172,7 +172,7 @@ fn help() {
     Runs each category's script, scores its metrics, lists the opportunities that would raise the scores most, and compares sizes, counts, checks, and line targets with each metric's baseline. Reads uphill.yaml or uphill.toml, at the root or in .agents, from this directory or the nearest parent. Writes .uphill/report.json, report.md, and report.html.
 
     Commands:
-      add        Copy a pack's categories into uphill.yaml and its scripts into the project: a local directory, owner/name/path on GitHub, or a Git URL followed by //path, each with an optional @ref. With --update, merge the changes of each added category's pack
+      add        Copy a pack's categories into uphill.yaml or uphill.toml and its scripts into the project: a local directory, owner/name/path on GitHub, or a Git URL followed by //path, each with an optional @ref. With --update, merge the changes of each added category's pack
       blame      Name the commit that last moved a metric: from its baselines, or by measuring commits since <ref>, or every commit, in temporary checkouts and bisecting
       check      Run each script once and check the metric lines it writes
       dashboard  Write .uphill/dashboard.html from the latest noted runs of each repository: a Git URL, a local path, or owner/name on GitHub
@@ -1759,6 +1759,94 @@ fn add_copies_a_packs_categories_and_scripts_into_the_project() {
       # Lines in the project's sources.
       count: {}
     ");
+}
+
+#[test]
+fn add_copies_between_yaml_and_toml_and_keeps_each_comment() {
+    let parent = tempfile::tempdir().unwrap();
+    for (fixture_name, name) in [("pack", "pack"), ("pack-toml", "tpack")] {
+        fs::create_dir_all(parent.path().join(name)).unwrap();
+        copy(fixture(fixture_name).path(), &parent.path().join(name));
+    }
+    let own = "echo \"words 2\" >> \"$UPHILL_METRICS\"";
+
+    // A YAML pack goes into a TOML project as tables, with the comments above each category and
+    // metric, and an update finds it current.
+    let toml = parent.path().join("toml");
+    fs::create_dir_all(&toml).unwrap();
+    let config = format!("[own]\nrun = '{own}'\nwords = {{}}\n");
+    fs::write(toml.join("uphill.toml"), &config).unwrap();
+    let output = uphill_in(&toml, &["add", "../pack"], &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    let added = fs::read_to_string(toml.join("uphill.toml")).unwrap();
+    insta::assert_snapshot!(added.strip_prefix(config.as_str()).unwrap(), @r#"
+
+    # Added by `uphill add ../pack footprint`.
+    # Bytes the project ships.
+    [footprint]
+    run = "sh metrics/sizes.sh"
+    timeout = "30s"
+    # Sum of every shipped file.
+    total = { target = "1kB" }
+
+    # Added by `uphill add ../pack lines`.
+    [lines]
+    run = "sh metrics/lines.sh"
+    timeout = "30s"
+    # Lines in the project's sources.
+    count = {}
+    "#);
+    let output = check(&toml, &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stdout(&output));
+    let output = uphill_in(&toml, &["add", "--update"], &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(stdout(&output), @"
+    current   footprint
+    current   lines
+    ");
+
+    // A TOML pack goes into a YAML project. A metric written as a table of its own becomes one
+    // line, and the category takes the pack's top-level `run` and `timeout`.
+    let yaml = parent.path().join("yaml");
+    fs::create_dir_all(&yaml).unwrap();
+    let config = format!("own:\n  run: {own}\n  words: {{}}\n");
+    fs::write(yaml.join("uphill.yaml"), &config).unwrap();
+    let output = uphill_in(&yaml, &["add", "../tpack"], &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    let added = fs::read_to_string(yaml.join("uphill.yaml")).unwrap();
+    insta::assert_snapshot!(added.strip_prefix(config.as_str()).unwrap(), @"
+
+    # Added by `uphill add ../tpack footprint`.
+    # Bytes the project ships.
+    footprint:
+      run: sh metrics/sizes.sh
+      timeout: 30s
+      # Sum of every shipped file.
+      total: { target: 1kB }
+      # Files the project ships.
+      files: { target: 3 }
+    ");
+    let output = check(&yaml, &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stdout(&output));
+
+    // A project without a configuration takes the pack's format.
+    let empty = parent.path().join("empty");
+    fs::create_dir_all(&empty).unwrap();
+    let output = uphill_in(&empty, &["add", "../tpack"], &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(fs::read_to_string(empty.join(".agents/uphill.toml")).unwrap(), @r#"
+    # Added by `uphill add ../tpack footprint`.
+    # Bytes the project ships.
+    [footprint]
+    run = "sh .agents/metrics/sizes.sh"
+    timeout = "30s"
+    # Sum of every shipped file.
+    total = { target = "1kB" }
+    # Files the project ships.
+    files = { target = 3 }
+    "#);
+    let output = check(&empty, &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stdout(&output));
 }
 
 #[test]

@@ -421,7 +421,7 @@ pub(crate) fn yaml_key(name: &str) -> Cow<'_, str> {
 }
 
 /// Formats a TOML key, bare when TOML allows it.
-fn toml_key(name: &str) -> Cow<'_, str> {
+pub(crate) fn toml_key(name: &str) -> Cow<'_, str> {
     if !name.is_empty()
         && name
             .bytes()

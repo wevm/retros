@@ -1,13 +1,14 @@
-//! `uphill add <pack> [category...]`: copies a pack's categories into the project's `uphill.yaml`
+//! `uphill add <pack> [category...]`: copies a pack's categories into the project's configuration
 //! and the scripts their `run` commands name into the project, which then owns them.
 //! `uphill add --update [category...]` fetches the pack of each added category again and merges
 //! its changes.
 //!
-//! A pack is any directory with an `uphill.yaml`, at its root or in `.agents/`, such as another
-//! project or one of Uphill's examples. It is a local directory, `owner/name/path` on GitHub, or a
-//! Git URL or repository path followed by `//path`, each with an optional `@ref`. Uphill fetches a
-//! remote pack into a temporary directory with Git's own credentials and removes it afterwards.
-//! A local directory is recorded relative to the project root.
+//! A pack is any directory with an `uphill.yaml` or `uphill.toml`, at its root or in `.agents/`,
+//! such as another project or one of Uphill's examples. It is a local directory, `owner/name/path`
+//! on GitHub, or a Git URL or repository path followed by `//path`, each with an optional `@ref`.
+//! Uphill fetches a remote pack into a temporary directory with Git's own credentials and removes
+//! it afterwards. A local directory is recorded relative to the project root when they share a
+//! parent directory, and as an absolute path otherwise.
 //!
 //! Scripts go beside the project's configuration, in `.agents/` for a project without one, under
 //! the path the pack gives them. A script in a directory, such as `metrics/lighthouse.ts`, brings
@@ -27,19 +28,28 @@ use tempfile::TempDir;
 use crate::project;
 use crate::worktree;
 
-/// Where a pack keeps its configuration, relative to its directory.
-const PLACES: [&str; 2] = ["uphill.yaml", ".agents/uphill.yaml"];
+/// Where a pack keeps its configuration, relative to its directory, and the format of each file.
+const PLACES: [(&str, Format); 4] = [
+    ("uphill.yaml", Format::Yaml),
+    ("uphill.toml", Format::Toml),
+    (".agents/uphill.yaml", Format::Yaml),
+    (".agents/uphill.toml", Format::Toml),
+];
 
 /// A pack's directory and configuration, and the temporary directory that holds a fetched pack.
 struct Pack {
     /// The commit of a fetched pack, or `None` for a local directory.
     commit: Option<String>,
-    /// The directory that holds the pack's `uphill.yaml` or `.agents/`.
+    /// The directory that holds the pack's configuration or `.agents/`.
     dir: PathBuf,
+    /// The format of the pack's configuration.
+    format: Format,
+    /// The name of the pack's configuration file, such as `uphill.toml`.
+    file: &'static str,
     /// The directory of the pack's configuration relative to `dir`: empty or `.agents`. Paths in
     /// `run` commands start at `dir`.
     place: PathBuf,
-    /// The text of the pack's `uphill.yaml`.
+    /// The text of the pack's configuration.
     source: String,
     _temp: Option<TempDir>,
 }
@@ -102,8 +112,8 @@ impl Scripts<'_> {
 ///
 /// # Errors
 ///
-/// Returns a message for the terminal when the pack cannot be fetched or has no `uphill.yaml`,
-/// when either configuration is invalid or is TOML, when a category cannot be added, or when a
+/// Returns a message for the terminal when the pack cannot be fetched or has no configuration,
+/// when either configuration is invalid, when a category cannot be added, or when a
 /// file cannot be read or written.
 pub(crate) fn run(
     source: &str,
@@ -115,15 +125,15 @@ pub(crate) fn run(
     let existing = project::exists(&cwd)
         .then(|| project::find(&cwd))
         .transpose()?;
-    if existing
-        .as_ref()
-        .is_some_and(|project| project.format == Format::Toml)
-    {
-        return Err(toml());
-    }
-    let (root, config_path) = match &existing {
-        Some(project) => (project.root.clone(), project.path.clone()),
-        None => (cwd.clone(), cwd.join(".agents/uphill.yaml")),
+    let pack = fetch(source, &cwd, None)?;
+    // A new configuration takes the pack's format.
+    let (root, config_path, format) = match &existing {
+        Some(project) => (project.root.clone(), project.path.clone(), project.format),
+        None => (
+            cwd.clone(),
+            cwd.join(".agents").join(pack.file),
+            pack.format,
+        ),
     };
     let destination = config_path.parent().unwrap_or(&root).to_path_buf();
     let config_name = relative(&config_path, &root);
@@ -134,7 +144,6 @@ pub(crate) fn run(
     } else {
         source.to_owned()
     };
-    let pack = fetch(source, &cwd, None)?;
     let mut scripts = Scripts {
         copies: BTreeMap::new(),
         destination: &destination,
@@ -144,8 +153,10 @@ pub(crate) fn run(
     let added = pack::add(&mut Options {
         categories,
         commit: pack.commit.as_deref(),
+        format,
         name,
         pack: &pack.source,
+        pack_format: pack.format,
         project: existing.as_ref().map(|project| project.source.as_str()),
         run: &mut |run| scripts.rewrite(run),
         source: &recorded,
@@ -202,19 +213,16 @@ struct Merged {
 ///
 /// # Errors
 ///
-/// Returns a message for the terminal when the project is TOML, when no category came from
+/// Returns a message for the terminal when no category came from
 /// `uphill add`, when a pack cannot be fetched, or when a file cannot be read or written.
 pub(crate) fn update(categories: &[String], force: bool) -> Result<ExitCode, String> {
     let cwd = std::env::current_dir()
         .map_err(|error| format!("error: could not read the current directory: {error}"))?;
     let project = project::find(&cwd)?;
-    if project.format == Format::Toml {
-        return Err(toml());
-    }
     let root = &project.root;
     let destination = project.path.parent().unwrap_or(root).to_path_buf();
 
-    let origins = pack::origins(&project.source);
+    let origins = pack::origins(&project.source, project.format);
     if let Some(name) = categories
         .iter()
         .find(|name| !origins.iter().any(|origin| origin.category == **name))
@@ -255,9 +263,13 @@ pub(crate) fn update(categories: &[String], force: bool) -> Result<ExitCode, Str
             pack: &theirs,
             root,
         };
-        let rendered = pack::render(&theirs.source, &origin.name, &origin.category, &mut |run| {
-            ours.rewrite(run)
-        })
+        let rendered = pack::render(
+            (&theirs.source, theirs.format),
+            &origin.name,
+            &origin.category,
+            project.format,
+            &mut |run| ours.rewrite(run),
+        )
         .map_err(|error| diagnostic(&error, &origin.source, &theirs))?
         .ok_or_else(|| {
             format!(
@@ -274,9 +286,13 @@ pub(crate) fn update(categories: &[String], force: bool) -> Result<ExitCode, Str
                 pack: base,
                 root,
             };
-            before = pack::render(&base.source, &origin.name, &origin.category, &mut |run| {
-                scripts.rewrite(run)
-            })
+            before = pack::render(
+                (&base.source, base.format),
+                &origin.name,
+                &origin.category,
+                project.format,
+                &mut |run| scripts.rewrite(run),
+            )
             .ok()
             .flatten();
             old = scripts.files()?;
@@ -286,6 +302,7 @@ pub(crate) fn update(categories: &[String], force: bool) -> Result<ExitCode, Str
             base: before.as_deref(),
             commit: theirs.commit.as_deref(),
             force,
+            format: project.format,
             origin: &origin,
             project: &config,
             theirs: &rendered,
@@ -393,7 +410,7 @@ pub(crate) fn update(categories: &[String], force: bool) -> Result<ExitCode, Str
 /// # Errors
 ///
 /// Returns a message for the terminal when Git cannot fetch the repository or the ref, or when the
-/// pack has no `uphill.yaml`.
+/// pack has no configuration.
 fn fetch(source: &str, cwd: &Path, commit: Option<&str>) -> Result<Pack, String> {
     let (dir, commit, temp) = if local(source, cwd) {
         (cwd.join(source), None, None)
@@ -402,15 +419,19 @@ fn fetch(source: &str, cwd: &Path, commit: Option<&str>) -> Result<Pack, String>
         (dir, Some(commit), Some(temp))
     };
 
-    let place = PLACES
-        .iter()
-        .find(|place| dir.join(place).is_file())
-        .ok_or_else(|| format!("error: {source} has no uphill.yaml, at its root or in .agents"))?;
+    let (place, format) = PLACES
+        .into_iter()
+        .find(|(place, _)| dir.join(place).is_file())
+        .ok_or_else(|| {
+            format!("error: {source} has no uphill.yaml or uphill.toml, at its root or in .agents")
+        })?;
     let text = std::fs::read_to_string(dir.join(place))
         .map_err(|error| format!("error: could not read {source}/{place}: {error}"))?;
     Ok(Pack {
         commit,
         dir,
+        file: place.rsplit('/').next().unwrap_or(place),
+        format,
         place: Path::new(place)
             .parent()
             .map(Path::to_path_buf)
@@ -524,7 +545,7 @@ fn write(path: &Path, contents: &[u8], root: &Path) -> Result<(), String> {
 
 /// Renders an error in a pack's configuration.
 fn diagnostic(error: &engine::error::Error, source: &str, pack: &Pack) -> String {
-    let place = pack.place.join("uphill.yaml");
+    let place = pack.place.join(pack.file);
     crate::diagnostic(
         "error",
         error,
@@ -538,12 +559,6 @@ fn short(commit: &str) -> String {
     commit.chars().take(7).collect()
 }
 
-#[cold]
-fn toml() -> String {
-    "error: uphill add writes categories into uphill.yaml, and this project uses uphill.toml"
-        .to_owned()
-}
-
 /// Returns `path` relative to `root`, such as `.agents/metrics/lighthouse.ts`.
 fn relative(path: &Path, root: &Path) -> String {
     path.strip_prefix(root)
@@ -553,7 +568,8 @@ fn relative(path: &Path, root: &Path) -> String {
 }
 
 /// Returns the path from `root` to `path`, with `..` where it leaves `root`, such as
-/// `../shared/pack`. Both paths are resolved first, and a path that cannot be resolved is kept.
+/// `../shared/pack`, or `path` itself when the two share only the filesystem root. Both paths are
+/// resolved first, and a path that cannot be resolved is kept.
 fn relative_to(path: &Path, root: &Path) -> String {
     let (Ok(path), Ok(root)) = (path.canonicalize(), root.canonicalize()) else {
         return path.to_string_lossy().into_owned();
@@ -563,6 +579,10 @@ fn relative_to(path: &Path, root: &Path) -> String {
         .zip(root.components())
         .take_while(|(a, b)| a == b)
         .count();
+    // Paths that share only the filesystem root stay absolute.
+    if common <= 1 {
+        return path.to_string_lossy().into_owned();
+    }
     let mut out = PathBuf::new();
     for _ in root.components().skip(common) {
         out.push("..");
