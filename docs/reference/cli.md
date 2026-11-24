@@ -258,7 +258,7 @@ Missed targets
 
 ### `--help`
 
-Prints the usage, the commands, and the flags. `-h` is the short form.
+Prints the usage, the commands, and the flags. `-h` is the short form. After a command, such as `uphill blame --help`, it prints that command's arguments and flags.
 
 ```sh
 # Print help.
@@ -267,11 +267,38 @@ uphill --help
 
 ### `--version`
 
-Prints the version. `-V` is the short form.
+Prints the version, such as `0.0.3`. `-V` is the short form.
 
 ```sh
 # Print the version.
 uphill --version
+```
+
+### `--llms`
+
+Prints a manifest of the commands in Markdown for an agent. `--llms-full` adds each command's arguments and flags, and `uphill <command> --schema` prints them as JSON Schema.
+
+```sh
+# List the commands for an agent.
+uphill --llms
+```
+
+### `completions`
+
+Prints a completion script for a shell: `bash`, `zsh`, `fish`, or `nushell`.
+
+```sh
+# Complete uphill commands in zsh.
+eval "$(uphill completions zsh)"
+```
+
+### `skills`
+
+Writes agent skills generated from the commands and their help, one per command. `skills add` installs them in `~/.agents/skills`, and `skills list` lists them and shows which are installed.
+
+```sh
+# Install the Uphill skills for local agents.
+uphill skills add
 ```
 
 ## Exit Status

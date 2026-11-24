@@ -136,14 +136,16 @@ fn stderr(output: &Output) -> String {
 
 #[test]
 fn version() {
-    let output = uphill(&["--version"]);
+    let long = uphill(&["--version"]);
+    let short = uphill(&["-V"]);
 
     // `pnpm changeset:version` sets the version on each release.
-    assert!(output.status.success());
+    assert!(long.status.success());
     insta::assert_snapshot!(
-        stdout(&output).replace(env!("CARGO_PKG_VERSION"), "[version]"),
-        @"uphill [version]"
+        stdout(&long).replace(env!("CARGO_PKG_VERSION"), "[version]"),
+        @"[version]"
     );
+    assert_eq!(stdout(&short), stdout(&long));
 }
 
 #[test]
@@ -152,39 +154,45 @@ fn help() {
 
     assert!(output.status.success());
     insta::assert_snapshot!(stdout(&output), @"
-    Usage: uphill [category] [--compare <ref>] [--compact] [--note] [--update]
-                  [--require-baseline] [--require-targets]
-           uphill check
-           uphill dashboard <repository>...
-           uphill init
-           uphill log <category> <metric> [item] [--subject <name>]
-           uphill blame <category> <metric> [item] [--subject <name>] [--since <ref>]
+    uphill@0.0.3 — Score metrics against their targets and compare them with their baselines
 
-    Run each category's script, score its metrics, list the opportunities that would raise the
-    scores most, and compare sizes, counts, checks, and line targets with each metric's baseline.
-    Uphill reads uphill.yaml or uphill.toml, at the root or in .agents, from this directory or the
-    nearest parent. Reports go to .uphill/report.json, report.md, and report.html. Name a category
-    to run only that one.
+    Usage: uphill [category] [options] | <command>
+
+    Arguments:
+      category  Run only this category
+
+    Options:
+      --compact           Print the scores, missed targets, and opportunities in a few lines
+      --compare <string>  Compare with another revision: timings in interleaved pairs, and sizes, counts, and checks with its baselines
+      --note              Keep this run as a Git note on HEAD, for trends and `uphill log`
+      --require-baseline  Exit with status 1 when anything differs from the baselines
+      --require-targets   Exit with status 1 when a metric misses its target or a script fails
+      --update            Write this run's sizes, counts, checks, and line targets as baselines
+
+    Runs each category's script, scores its metrics, lists the opportunities that would raise the scores most, and compares sizes, counts, checks, and line targets with each metric's baseline. Reads uphill.yaml or uphill.toml, at the root or in .agents, from this directory or the nearest parent. Writes .uphill/report.json, report.md, and report.html.
 
     Commands:
-      blame      Name the commit that last moved a metric: from its baselines, or by measuring
-                 commits since <ref>, or every commit, in temporary checkouts and bisecting
+      blame      Name the commit that last moved a metric: from its baselines, or by measuring commits since <ref>, or every commit, in temporary checkouts and bisecting
       check      Run each script once and check the metric lines it writes
-      dashboard  Write .uphill/dashboard.html from the latest noted runs of each repository: a Git
-                 URL, a local path, or owner/name on GitHub
+      dashboard  Write .uphill/dashboard.html from the latest noted runs of each repository: a Git URL, a local path, or owner/name on GitHub
       init       Print a brief for an agent to set up Uphill in this project
       log        List the commits that changed a metric's baseline, or the runs noted for it
 
-    Options:
-      --compare <ref>     Compare with another revision: timings in interleaved pairs, and sizes,
-                          counts, and checks with its baselines
-      --compact           Print the scores, missed targets, and opportunities in a few lines
-      --note              Keep this run as a Git note on HEAD, for trends and `uphill log`
-      --update            Write this run's sizes, counts, checks, and line targets as baselines
-      --require-baseline  Exit with status 1 when anything differs from the baselines
-      --require-targets   Exit with status 1 when a metric misses its target or a script fails
-      -h, --help          Print help
-      -V, --version       Print version
+    Integrations:
+      completions  Generate shell completion script
+      skills       Sync skill files to agents (add, list)
+
+    Global Options:
+      --filter-output <keys>              Filter output by key paths (e.g. foo,bar.baz,a[0,3])
+      --format <toon|json|yaml|md|jsonl>  Output format
+      --full-output                       Show full output envelope
+      --help                              Show help
+      --llms, --llms-full                 Print LLM-readable manifest
+      --schema                            Show JSON Schema for command
+      --token-count                       Print token count of output (instead of output)
+      --token-limit <n>                   Limit output to n tokens
+      --token-offset <n>                  Skip first n tokens of output
+      --version                           Show version
     ");
 }
 
@@ -193,43 +201,10 @@ fn unknown_argument() {
     let output = uphill(&["--nope"]);
 
     assert_eq!(output.status.code(), Some(2));
-    insta::assert_snapshot!(stderr(&output), @"
-    error: unknown argument '--nope'
-
-    Usage: uphill [category] [--compare <ref>] [--compact] [--note] [--update]
-                  [--require-baseline] [--require-targets]
-           uphill check
-           uphill dashboard <repository>...
-           uphill init
-           uphill log <category> <metric> [item] [--subject <name>]
-           uphill blame <category> <metric> [item] [--subject <name>] [--since <ref>]
-
-    Run each category's script, score its metrics, list the opportunities that would raise the
-    scores most, and compare sizes, counts, checks, and line targets with each metric's baseline.
-    Uphill reads uphill.yaml or uphill.toml, at the root or in .agents, from this directory or the
-    nearest parent. Reports go to .uphill/report.json, report.md, and report.html. Name a category
-    to run only that one.
-
-    Commands:
-      blame      Name the commit that last moved a metric: from its baselines, or by measuring
-                 commits since <ref>, or every commit, in temporary checkouts and bisecting
-      check      Run each script once and check the metric lines it writes
-      dashboard  Write .uphill/dashboard.html from the latest noted runs of each repository: a Git
-                 URL, a local path, or owner/name on GitHub
-      init       Print a brief for an agent to set up Uphill in this project
-      log        List the commits that changed a metric's baseline, or the runs noted for it
-
-    Options:
-      --compare <ref>     Compare with another revision: timings in interleaved pairs, and sizes,
-                          counts, and checks with its baselines
-      --compact           Print the scores, missed targets, and opportunities in a few lines
-      --note              Keep this run as a Git note on HEAD, for trends and `uphill log`
-      --update            Write this run's sizes, counts, checks, and line targets as baselines
-      --require-baseline  Exit with status 1 when anything differs from the baselines
-      --require-targets   Exit with status 1 when a metric misses its target or a script fails
-      -h, --help          Print help
-      -V, --version       Print version
-    ");
+    insta::assert_snapshot!(stderr(&output), @r#"
+    code: UNKNOWN
+    message: "Unknown flag: --nope"
+    "#);
 }
 
 #[test]
@@ -237,43 +212,10 @@ fn unknown_check_argument() {
     let output = uphill(&["check", "--fast"]);
 
     assert_eq!(output.status.code(), Some(2));
-    insta::assert_snapshot!(stderr(&output), @"
-    error: unknown argument '--fast'
-
-    Usage: uphill [category] [--compare <ref>] [--compact] [--note] [--update]
-                  [--require-baseline] [--require-targets]
-           uphill check
-           uphill dashboard <repository>...
-           uphill init
-           uphill log <category> <metric> [item] [--subject <name>]
-           uphill blame <category> <metric> [item] [--subject <name>] [--since <ref>]
-
-    Run each category's script, score its metrics, list the opportunities that would raise the
-    scores most, and compare sizes, counts, checks, and line targets with each metric's baseline.
-    Uphill reads uphill.yaml or uphill.toml, at the root or in .agents, from this directory or the
-    nearest parent. Reports go to .uphill/report.json, report.md, and report.html. Name a category
-    to run only that one.
-
-    Commands:
-      blame      Name the commit that last moved a metric: from its baselines, or by measuring
-                 commits since <ref>, or every commit, in temporary checkouts and bisecting
-      check      Run each script once and check the metric lines it writes
-      dashboard  Write .uphill/dashboard.html from the latest noted runs of each repository: a Git
-                 URL, a local path, or owner/name on GitHub
-      init       Print a brief for an agent to set up Uphill in this project
-      log        List the commits that changed a metric's baseline, or the runs noted for it
-
-    Options:
-      --compare <ref>     Compare with another revision: timings in interleaved pairs, and sizes,
-                          counts, and checks with its baselines
-      --compact           Print the scores, missed targets, and opportunities in a few lines
-      --note              Keep this run as a Git note on HEAD, for trends and `uphill log`
-      --update            Write this run's sizes, counts, checks, and line targets as baselines
-      --require-baseline  Exit with status 1 when anything differs from the baselines
-      --require-targets   Exit with status 1 when a metric misses its target or a script fails
-      -h, --help          Print help
-      -V, --version       Print version
-    ");
+    insta::assert_snapshot!(stderr(&output), @r#"
+    code: UNKNOWN
+    message: "Unknown flag: --fast"
+    "#);
 }
 
 #[test]
@@ -1443,7 +1385,7 @@ fn blame_bisects_commits_until_baselines_record_the_metric_and_log_lists_them() 
 
     let output = uphill_in(dir, &["log", "footprint"], &[]);
     assert_eq!(output.status.code(), Some(2));
-    insta::assert_snapshot!(stderr(&output).lines().next().unwrap(), @"error: log needs a category, a metric, and optionally an item, such as `uphill log footprint bundle`");
+    insta::assert_snapshot!(stderr(&output).lines().next().unwrap(), @"code: VALIDATION_ERROR");
 }
 
 #[test]

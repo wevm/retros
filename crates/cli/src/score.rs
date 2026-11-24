@@ -26,6 +26,7 @@ use engine::compare::Comparison;
 use engine::config::{self, Category, Config};
 use engine::lines::Line;
 use engine::report::{CategoryReport, Report};
+use incur::Parser;
 
 use crate::project::Project;
 use crate::script::{self, Outcome};
@@ -36,26 +37,31 @@ use crate::{history, measure};
 /// dashboard's trends show.
 pub(crate) const TRENDS: usize = 99;
 
-/// What `uphill [category]` was asked to do.
-#[derive(Default)]
+/// What `uphill [category]` was asked to do. incur parses it from the command line as the root
+/// command, and each field's documentation is its help text.
+#[derive(Parser)]
+#[incur(
+    hint = "Runs each category's script, scores its metrics, lists the opportunities that would raise the scores most, and compares sizes, counts, checks, and line targets with each metric's baseline. Reads uphill.yaml or uphill.toml, at the root or in .agents, from this directory or the nearest parent. Writes .uphill/report.json, report.md, and report.html."
+)]
 #[expect(
     clippy::struct_excessive_bools,
     reason = "each bool is an independent command-line flag"
 )]
 pub(crate) struct Options {
-    /// The category to run, or `None` for every category.
+    /// Run only this category
+    #[incur(arg)]
     pub(crate) category: Option<String>,
-    /// The revision to compare with, or `None` without `--compare`.
-    pub(crate) compare: Option<String>,
-    /// Whether to print the scores and misses in a few lines instead of each category's metrics.
+    /// Print the scores, missed targets, and opportunities in a few lines
     pub(crate) compact: bool,
-    /// Whether to keep this run as a note on `HEAD`.
+    /// Compare with another revision: timings in interleaved pairs, and sizes, counts, and checks with its baselines
+    pub(crate) compare: Option<String>,
+    /// Keep this run as a Git note on HEAD, for trends and `uphill log`
     pub(crate) note: bool,
-    /// Whether any difference from the baselines fails the run.
+    /// Exit with status 1 when anything differs from the baselines
     pub(crate) require_baseline: bool,
-    /// Whether a missed target or a failed script fails the run.
+    /// Exit with status 1 when a metric misses its target or a script fails
     pub(crate) require_targets: bool,
-    /// Whether to write this run's values to the baselines.
+    /// Write this run's sizes, counts, checks, and line targets as baselines
     pub(crate) update: bool,
 }
 

@@ -12,6 +12,10 @@ version = "0.0.3"
 
 [workspace.dependencies]
 engine = { path = "crates/engine" }
+# Io::stdin takes a Stream, and the commands read no standard input.
+futures-util = { version = "0.3", default-features = false }
+# Declares the commands, parses arguments, and prints help, the --llms manifest, completions, and skills.
+incur = { version = "0.10", default-features = false }
 insta = "1"
 rustix = { version = "1", features = ["process"] }
 tempfile = "3"

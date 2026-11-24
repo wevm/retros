@@ -1,9 +1,10 @@
 //! The `uphill` command line.
 //!
-//! The command line is a thin adapter around the engine. It finds the configuration, runs measurement
-//! scripts, reads the files they write, prints what the engine reports, and writes the report
-//! files. It exits with status 0 on success, 1 when a category fails, and 2 when it cannot run,
-//! such as for an unknown argument or an invalid configuration.
+//! The command line is a thin adapter around the engine. incur parses the arguments and prints
+//! help, the version, the `--llms` manifest, and skills. Each command finds the configuration,
+//! runs measurement scripts, reads the files they write, prints what the engine reports, and
+//! writes the report files. It exits with status 0 on success, 1 when a category fails, and 2
+//! when it cannot run, such as for an unknown argument or an invalid configuration.
 
 mod check;
 mod dashboard;
@@ -17,148 +18,167 @@ mod worktree;
 
 use std::io::Write;
 use std::process::ExitCode;
+use std::sync::{Arc, Mutex};
 
 use engine::error::Error;
+use incur::{Io, Parser};
 
-const USAGE: &str = "\
-Usage: uphill [category] [--compare <ref>] [--compact] [--note] [--update]
-              [--require-baseline] [--require-targets]
-       uphill check
-       uphill dashboard <repository>...
-       uphill init
-       uphill log <category> <metric> [item] [--subject <name>]
-       uphill blame <category> <metric> [item] [--subject <name>] [--since <ref>]
-
-Run each category's script, score its metrics, list the opportunities that would raise the
-scores most, and compare sizes, counts, checks, and line targets with each metric's baseline.
-Uphill reads uphill.yaml or uphill.toml, at the root or in .agents, from this directory or the
-nearest parent. Reports go to .uphill/report.json, report.md, and report.html. Name a category
-to run only that one.
-
-Commands:
-  blame      Name the commit that last moved a metric: from its baselines, or by measuring
-             commits since <ref>, or every commit, in temporary checkouts and bisecting
-  check      Run each script once and check the metric lines it writes
-  dashboard  Write .uphill/dashboard.html from the latest noted runs of each repository: a Git
-             URL, a local path, or owner/name on GitHub
-  init       Print a brief for an agent to set up Uphill in this project
-  log        List the commits that changed a metric's baseline, or the runs noted for it
-
-Options:
-  --compare <ref>     Compare with another revision: timings in interleaved pairs, and sizes,
-                      counts, and checks with its baselines
-  --compact           Print the scores, missed targets, and opportunities in a few lines
-  --note              Keep this run as a Git note on HEAD, for trends and `uphill log`
-  --update            Write this run's sizes, counts, checks, and line targets as baselines
-  --require-baseline  Exit with status 1 when anything differs from the baselines
-  --require-targets   Exit with status 1 when a metric misses its target or a script fails
-  -h, --help          Print help
-  -V, --version       Print version
-";
-
-fn main() -> ExitCode {
-    let args: Vec<String> = std::env::args().skip(1).collect();
-
-    match args.as_slice() {
-        [flag] if flag == "--help" || flag == "-h" => {
-            let _ = std::io::stdout().write_all(USAGE.as_bytes());
-            ExitCode::SUCCESS
-        }
-        [flag] if flag == "--version" || flag == "-V" => {
-            let _ = writeln!(std::io::stdout(), "uphill {}", env!("CARGO_PKG_VERSION"));
-            ExitCode::SUCCESS
-        }
-        [command] if command == "check" => with_project(check::run),
-        [command, arg, ..] if command == "check" => usage(&format!("unknown argument '{arg}'")),
-        [command] if command == "dashboard" => {
-            usage("dashboard needs at least one repository, such as `uphill dashboard wevm/uphill`")
-        }
-        [command, names @ ..] if command == "dashboard" => {
-            match names.iter().find(|name| name.starts_with('-')) {
-                Some(flag) => usage(&format!("unknown argument '{flag}'")),
-                None => dashboard::run(names).unwrap_or_else(|message| {
-                    let _ = writeln!(std::io::stderr(), "{message}");
-                    ExitCode::from(2)
-                }),
-            }
-        }
-        [command] if command == "init" => init::run(),
-        [command, arg, ..] if command == "init" => usage(&format!("unknown argument '{arg}'")),
-        [command, args @ ..] if command == "log" || command == "blame" => history(command, args),
-        _ => {
-            let mut options = score::Options::default();
-            let mut args = args.iter();
-
-            while let Some(arg) = args.next() {
-                match arg.as_str() {
-                    "--compare" => match args.next() {
-                        Some(reference) if !reference.starts_with('-') => {
-                            options.compare = Some(reference.clone());
-                        }
-                        _ => return usage("--compare needs a revision, such as --compare main"),
-                    },
-                    "--compact" => options.compact = true,
-                    "--note" => options.note = true,
-                    "--update" => options.update = true,
-                    "--require-baseline" => options.require_baseline = true,
-                    "--require-targets" => options.require_targets = true,
-                    flag if flag.starts_with('-') => {
-                        return usage(&format!("unknown argument '{flag}'"));
-                    }
-                    name if options.category.is_none() => options.category = Some(name.to_owned()),
-                    extra => return usage(&format!("unexpected argument '{extra}'")),
-                }
-            }
-
-            with_project(|project| score::run(project, &options))
-        }
-    }
+/// Score metrics against their targets and compare them with their baselines
+#[derive(Parser)]
+#[incur(name = "uphill", version)]
+enum Command {
+    /// Name the commit that last moved a metric: from its baselines, or by measuring commits since <ref>, or every commit, in temporary checkouts and bisecting
+    Blame {
+        /// The category of the metric
+        #[incur(arg)]
+        category: String,
+        /// The metric to trace
+        #[incur(arg)]
+        metric: String,
+        /// One item of a list metric
+        #[incur(arg)]
+        item: Option<String>,
+        /// Bisect only the commits since this revision
+        since: Option<String>,
+        /// The subject of the metric, when a category's lines have subjects
+        subject: Option<String>,
+    },
+    /// Run each script once and check the metric lines it writes
+    Check,
+    /// Write .uphill/dashboard.html from the latest noted runs of each repository: a Git URL, a local path, or owner/name on GitHub
+    Dashboard {
+        /// A Git URL, a local path, or owner/name on GitHub
+        #[incur(arg)]
+        repositories: Vec<String>,
+    },
+    /// Print a brief for an agent to set up Uphill in this project
+    Init,
+    /// List the commits that changed a metric's baseline, or the runs noted for it
+    Log {
+        /// The category of the metric
+        #[incur(arg)]
+        category: String,
+        /// The metric to trace
+        #[incur(arg)]
+        metric: String,
+        /// One item of a list metric
+        #[incur(arg)]
+        item: Option<String>,
+        /// The subject of the metric, when a category's lines have subjects
+        subject: Option<String>,
+    },
 }
 
-/// Runs `uphill log` or `uphill blame` with the arguments after the command.
-fn history(command: &str, args: &[String]) -> ExitCode {
-    let mut names = Vec::new();
-    let (mut since, mut subject) = (None, None);
-    let mut args = args.iter();
+fn main() -> ExitCode {
+    // `uphill [category]` runs inside incur, which reports only an exit code for it.
+    let scored = Arc::new(Mutex::new(None));
+    let record = scored.clone();
 
-    while let Some(arg) = args.next() {
-        let value = match arg.as_str() {
-            "--since" if command == "blame" => &mut since,
-            "--subject" => &mut subject,
-            flag if flag.starts_with('-') => return usage(&format!("unknown argument '{flag}'")),
-            name => {
-                names.push(name.to_owned());
-                continue;
+    let cli = Command::cli()
+        // Update notices suggest `--update`, which writes baselines here.
+        .update(false)
+        .handle(move |options: score::Options, _| {
+            let code = score(&options);
+            if let Ok(mut scored) = record.lock() {
+                *scored = Some(code);
             }
-        };
-        match args.next() {
-            Some(next) if !next.starts_with('-') => *value = Some(next.clone()),
-            _ => return usage(&format!("{arg} needs a value")),
+        });
+
+    // incur reads `--version` only, and `-V` stays the short form.
+    let argv: Vec<String> = std::env::args()
+        .skip(1)
+        .map(|arg| {
+            if arg == "-V" {
+                "--version".to_owned()
+            } else {
+                arg
+            }
+        })
+        .collect();
+    let stdout = std::io::stdout();
+    let mut out = Vec::new();
+    let parsed = cli.parse_with::<Command>(
+        &argv,
+        &mut Io {
+            env: &|key| std::env::var(key).ok(),
+            stderr: &mut std::io::stderr(),
+            // `parse_with` serves no MCP, so nothing reads standard input.
+            stdin: &mut futures_util::stream::empty(),
+            stdout: &mut out,
+            tty: std::io::IsTerminal::is_terminal(&stdout),
+        },
+    );
+
+    // Commands write their own output. Without a command, incur wrote help, the version, or a
+    // built-in's output, or rejected the arguments, which goes to standard error.
+    let code = match parsed {
+        Ok(command) => run(command),
+        Err(code) => match scored.lock().ok().and_then(|scored| *scored) {
+            Some(scored) => scored,
+            None if code == 0 => ExitCode::SUCCESS,
+            None => {
+                let _ = std::io::stderr().write_all(&out);
+                return ExitCode::from(2);
+            }
+        },
+    };
+    let _ = stdout.lock().write_all(&out);
+    code
+}
+
+/// Runs `uphill [category]`.
+fn score(options: &score::Options) -> ExitCode {
+    if options
+        .compare
+        .as_ref()
+        .is_some_and(|reference| reference.starts_with('-'))
+    {
+        return usage("--compare needs a revision, such as --compare main");
+    }
+    with_project(|project| score::run(project, options))
+}
+
+/// Runs a command other than `uphill [category]`.
+fn run(command: Command) -> ExitCode {
+    match command {
+        Command::Blame {
+            category,
+            item,
+            metric,
+            since,
+            subject,
+        } => {
+            let selector = history::Selector {
+                category,
+                item,
+                metric,
+                subject,
+            };
+            with_project(|project| history::blame(project, &selector, since.as_deref()))
+        }
+        Command::Check => with_project(check::run),
+        Command::Dashboard { repositories } => {
+            dashboard::run(&repositories).unwrap_or_else(|message| {
+                let _ = writeln!(std::io::stderr(), "{message}");
+                ExitCode::from(2)
+            })
+        }
+        Command::Init => init::run(),
+        Command::Log {
+            category,
+            item,
+            metric,
+            subject,
+        } => {
+            let selector = history::Selector {
+                category,
+                item,
+                metric,
+                subject,
+            };
+            with_project(|project| history::log(project, &selector))
         }
     }
-
-    let mut names = names.into_iter();
-    let (Some(category), Some(metric), item, None) =
-        (names.next(), names.next(), names.next(), names.next())
-    else {
-        return usage(&format!(
-            "{command} needs a category, a metric, and optionally an item, such as `uphill {command} footprint bundle`"
-        ));
-    };
-    let selector = history::Selector {
-        category,
-        item,
-        metric,
-        subject,
-    };
-
-    with_project(|project| {
-        if command == "log" {
-            history::log(project, &selector)
-        } else {
-            history::blame(project, &selector, since.as_deref())
-        }
-    })
 }
 
 /// Finds the project and runs `command` on it. A message from either goes to standard error with
@@ -185,9 +205,9 @@ fn diagnostic(severity: &str, error: &Error, name: &str, source: &str) -> String
     )
 }
 
-/// Writes an error and the usage to standard error, and returns the usage exit code.
+/// Writes an error to standard error, and returns the usage exit code.
 #[cold]
 fn usage(message: &str) -> ExitCode {
-    let _ = write!(std::io::stderr(), "error: {message}\n\n{USAGE}");
+    let _ = writeln!(std::io::stderr(), "error: {message}");
     ExitCode::from(2)
 }

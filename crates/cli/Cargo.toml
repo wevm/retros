@@ -10,6 +10,8 @@ version.workspace = true
 
 [dependencies]
 engine.workspace = true
+futures-util.workspace = true
+incur.workspace = true
 rustix.workspace = true
 tempfile.workspace = true
 
