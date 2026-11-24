@@ -1872,6 +1872,7 @@ fn add_update_merges_a_packs_changes_since_its_recorded_commit() {
         for (index, commit) in commits.iter().enumerate() {
             text = text
                 .replace(commit.as_str(), &format!("[c{}]", index + 1))
+                .replace(&commit[..12], &format!("[c{}]", index + 1))
                 .replace(&commit[..7], &format!("[c{}s]", index + 1));
         }
         text

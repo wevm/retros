@@ -12,7 +12,7 @@
 //! pack's commit, so `uphill add --update` fetches the pack again and merges its changes.
 //!
 //! ```yaml
-//! # Added by `uphill add wevm/uphill/examples/web-app performance` at 3e0053b4f1c2….
+//! # Added by `uphill add wevm/uphill/examples/web-app performance` at 3e0053b4f1c2.
 //! performance:
 //!   run: bun .agents/metrics/lighthouse.ts performance
 //!   # Lighthouse's five metrics on each page, with Lighthouse's weights.
@@ -78,8 +78,8 @@ pub struct Options<'a> {
 pub struct Origin {
     /// The category's name in the project.
     pub category: String,
-    /// The pack's commit when the category was added or last updated, or `None` for a local
-    /// directory.
+    /// The first 12 characters of the pack's commit when the category was added or last updated,
+    /// or `None` for a local directory.
     pub commit: Option<String>,
     /// The category's name in the pack.
     pub name: String,
@@ -401,7 +401,8 @@ pub fn update(options: &Update<'_>) -> Result<Updated, Error> {
     })
 }
 
-/// Returns the comment above an added category: the command that adds it again, and the commit.
+/// Returns the comment above an added category: the command that adds it again, and the first 12
+/// characters of the commit.
 fn comment(source: &str, name: &str, category: &str, commit: Option<&str>) -> String {
     let rename = if name == category {
         String::new()
@@ -409,7 +410,7 @@ fn comment(source: &str, name: &str, category: &str, commit: Option<&str>) -> St
         format!(" --as {category}")
     };
     let at = commit
-        .map(|commit| format!(" at {commit}"))
+        .map(|commit| format!(" at {}", commit.get(..12).unwrap_or(commit)))
         .unwrap_or_default();
     format!("{ADDED}{source} {name}{rename}`{at}.")
 }

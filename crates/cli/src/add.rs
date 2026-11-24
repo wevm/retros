@@ -442,7 +442,8 @@ fn fetch(source: &str, cwd: &Path, commit: Option<&str>) -> Result<Pack, String>
 }
 
 /// Fetches the repository that `source` names into a temporary directory, at `commit` or at the
-/// source's ref, and returns the pack's directory in it and the full commit hash.
+/// source's ref, and returns the pack's directory in it and the full commit hash. `commit` may be
+/// the start of a hash, as the comment above an added category records it.
 fn clone(source: &str, commit: Option<&str>) -> Result<(PathBuf, String, TempDir), String> {
     // A ref follows the last `@`, unless that `@` belongs to a URL such as `git@github.com:o/r`.
     let (rest, reference) = match source.rsplit_once('@') {
@@ -470,17 +471,38 @@ fn clone(source: &str, commit: Option<&str>) -> Result<(PathBuf, String, TempDir
         })
     };
     git(&["init", "--quiet"])?;
-    git(&[
-        "fetch",
-        "--quiet",
-        "--depth",
-        "1",
-        "--no-tags",
-        &url,
-        commit.or(reference).unwrap_or("HEAD"),
-    ])?;
-    git(&["checkout", "--quiet", "FETCH_HEAD"])?;
-    let hash = git(&["rev-parse", "FETCH_HEAD"])?;
+    git(&["remote", "add", "origin", &url])?;
+    // Git fetches only a full hash, so the start of one comes from the history of the ref.
+    // Commits come without trees or files, and the checkout fetches the ones it needs.
+    let hash = if let Some(commit) = commit {
+        git(&[
+            "fetch",
+            "--quiet",
+            "--no-tags",
+            "--filter=tree:0",
+            "origin",
+            reference.unwrap_or("HEAD"),
+        ])?;
+        git(&[
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            &format!("{commit}^{{commit}}"),
+        ])
+        .map_err(|_| format!("error: {source} has no commit {commit} on its history"))?
+    } else {
+        git(&[
+            "fetch",
+            "--quiet",
+            "--depth",
+            "1",
+            "--no-tags",
+            "origin",
+            reference.unwrap_or("HEAD"),
+        ])?;
+        git(&["rev-parse", "FETCH_HEAD"])?
+    };
+    git(&["checkout", "--quiet", &hash])?;
 
     let dir = temp.path().join(path.trim_matches('/'));
     if !dir.is_dir() {

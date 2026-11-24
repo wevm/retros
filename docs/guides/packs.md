@@ -42,7 +42,7 @@ footprint:
   run: sh .agents/metrics/footprint.sh
   bundle-size: { target: 5kB }
 
-# Added by `uphill add wevm/uphill/examples/web-app performance` at 03fa96e3deae50d3c9b1c4c3578e23b47bd098b3.
+# Added by `uphill add wevm/uphill/examples/web-app performance` at 03fa96e3deae.
 performance:
   run: bun .agents/metrics/lighthouse.ts performance
   # Lighthouse's five metrics on each page, with Lighthouse's weights.
@@ -111,7 +111,7 @@ Nothing was written. Merge by hand, or run `uphill add --update --force` to take
 A pack and a project can use different formats. A YAML pack goes into `uphill.toml` as tables, and a TOML pack goes into `uphill.yaml`. The comments above each category and each metric come too, and a comment at the end of a line stays behind.
 
 ```toml title="uphill.toml"
-# Added by `uphill add wevm/uphill/examples/web-app seo` at 03fa96e3deae50d3c9b1c4c3578e23b47bd098b3.
+# Added by `uphill add wevm/uphill/examples/web-app seo` at 03fa96e3deae.
 [seo]
 title = "SEO"
 run = "bun metrics/lighthouse.ts seo"
