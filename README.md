@@ -8,6 +8,11 @@
   <a href="#overview">Overview</a> · <a href="#problem">Problem</a> · <a href="#solution">Solution</a> · <a href="#install">Install</a> · <a href="#usage">Usage</a> · <a href="#github-action">GitHub Action</a> · <a href="docs/README.md">Documentation</a>
 </p>
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/report-dark.png">
+  <img alt="A report.html with gauges for performance, CPU, memory, UI/UX, and bundle, then its opportunities" src=".github/report-light.png">
+</picture>
+
 ## Overview
 
 Uphill scores a project against its own targets. A metric is anything a script can measure: bundle size, page load time, request latency, memory, test coverage, lint warnings, or an eval score. Uphill runs the scripts, scores each metric from 0 to 100, and names the fixes worth the most points.
@@ -41,12 +46,7 @@ Opportunities
   +15  footprint  bundle-size  6.9 kB → 5 kB
 ```
 
-Each run also writes `.uphill/report.html`, with a gauge per category and the opportunities worth the most points. This report scores a web dashboard on page speed, CPU, memory, UI/UX checks, and bundle size.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset=".github/report-dark.png">
-  <img alt="A report.html with gauges for performance, CPU, memory, UI/UX, and bundle, then its opportunities" src=".github/report-light.png">
-</picture>
+Each run also writes `.uphill/report.html`, with a gauge per category and the opportunities worth the most points, like the report at the top of this page.
 
 ## Install
 
