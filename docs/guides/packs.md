@@ -4,7 +4,7 @@ A pack is a directory with an `uphill.yaml` and the scripts its `run` commands n
 
 ## Overview
 
-Any project is a pack, so a category written once runs in every project that adds it. The copy keeps each comment, so each metric arrives with the description of what it measures. A comment above each category names the pack and the commit it came from.
+Any project is a pack, so a category written once runs in every project that adds it. The copy keeps each comment, so each metric comes with a description of what it measures. A comment above each category records the command and commit, so `uphill add --update` merges later changes.
 
 ```sh
 # Copy the Lighthouse categories of the web-app example into this project.
@@ -17,7 +17,7 @@ This walkthrough adds the `performance` category of the web-app example to a sit
 
 ### Add the Category
 
-`uphill add` takes the pack and, optionally, the categories to add. A project without a configuration gets `.agents/uphill.yaml`.
+`uphill add` takes the pack and, optionally, the categories to add. It prints the pack's `README.md`, which says what to fit. A project without a configuration gets `.agents/uphill.yaml`.
 
 ```text
 $ uphill add wevm/uphill/examples/web-app performance
@@ -25,6 +25,9 @@ Added performance to .agents/uphill.yaml
 Added .agents/metrics/
 
 The pack prepares each checkout with `setup: bun install --frozen-lockfile`. Add it to .agents/uphill.yaml if the scripts need it
+
+# Web App
+...
 
 Fit the scripts and targets to this project, then run `uphill check`
 ```
@@ -39,7 +42,7 @@ footprint:
   run: sh .agents/metrics/footprint.sh
   bundle-size: { target: 5kB }
 
-# Added by `uphill add wevm/uphill/examples/web-app@03fa96e`.
+# Added by `uphill add wevm/uphill/examples/web-app performance` at 03fa96e3deae50d3c9b1c4c3578e23b47bd098b3.
 performance:
   run: bun .agents/metrics/lighthouse.ts performance
   # Lighthouse's five metrics on each page, with Lighthouse's weights.
@@ -81,6 +84,28 @@ uphill add https://gitlab.com/acme/metrics.git//packs/api
 uphill add wevm/uphill/examples/typescript-library@v0.0.3 quality
 ```
 
+### Update a Pack
+
+`uphill add --update` fetches each added category's pack and compares three versions of each category and script: the pack at the recorded commit, the project, and the pack now. A version that only one side changed wins.
+
+```text
+$ uphill add --update
+updated   performance from 03fa96e to 1a2b3c4
+kept      seo from 03fa96e to 1a2b3c4, with this project's changes
+updated   .agents/metrics/lighthouse.ts
+```
+
+### Resolve a Conflict
+
+When the project and the pack both changed a category or script, the update writes nothing and exits with status 1. Merge it by hand, or pass `--force` to take the pack's version. A local directory records no commit, so each difference from it is a conflict.
+
+```text
+$ uphill add --update
+conflict  performance  changed in both this project and the pack
+
+Nothing was written. Merge by hand, or run `uphill add --update --force` to take the pack's version
+```
+
 ### Rename a Category
 
 `--as` adds one category under another name, such as when the project already declares one with the same name. A name that the project already declares stops the command, and nothing is written.
@@ -92,7 +117,7 @@ uphill add wevm/uphill/examples/rust-api quality --as rust-quality
 
 ### Share a Pack
 
-A pack needs nothing beyond a project's own files. Keep its scripts in a directory beside `uphill.yaml`, and write paths in `run` from the project root. A `README.md` beside the configuration is printed after the copy, so it can tell an agent what to fit.
+A pack needs nothing beyond a project's own files. Keep its scripts in a directory beside `uphill.yaml`, and write paths in `run` from the project root. `uphill add` prints the `README.md` beside the configuration, so it can tell an agent what to fit.
 
 ```text
 packs/lighthouse/
@@ -106,4 +131,4 @@ packs/lighthouse/
 
 - [Writing Scripts](./scripts.md): Write metric lines for lists, subjects, timings, and checks.
 - [Baselines](./baselines.md): Record accepted values after the first run.
-- [CLI](../reference/cli.md#uphill-add): Every argument of `uphill add`.
+- [CLI](../reference/cli.md#uphill-add): Every argument and flag of `uphill add`.

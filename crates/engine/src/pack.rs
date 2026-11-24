@@ -5,15 +5,20 @@
 //!
 //! Each category keeps its text, so the comments that say what each metric measures come with it.
 //! Its `run` command points at the copied scripts, and it takes the pack's top-level `run` and
-//! `timeout` when it sets none. A comment above it names where it came from.
+//! `timeout` when it sets none. A comment above it records the command that added it and the
+//! pack's commit, so `uphill add --update` fetches the pack again and merges its changes.
 //!
 //! ```yaml
-//! # Added by `uphill add wevm/uphill/examples/web-app@3e0053b`.
+//! # Added by `uphill add wevm/uphill/examples/web-app performance` at 3e0053b4f1c2….
 //! performance:
 //!   run: bun .agents/metrics/lighthouse.ts performance
 //!   # Lighthouse's five metrics on each page, with Lighthouse's weights.
 //!   first-contentful-paint: { target: 800ms, weight: 10 }
 //! ```
+//!
+//! An update compares three versions of each category and each script: the pack at the recorded
+//! commit, the project, and the pack now. A version that only one side changed wins, and a
+//! version that both changed is a conflict.
 
 use std::fmt::Write as _;
 use std::time::Duration;
@@ -26,6 +31,9 @@ use crate::error::{Code, Error};
 
 /// Time a script may run when neither its category nor the configuration sets a `timeout`.
 const DEFAULT_TIMEOUT: Duration = Duration::from_mins(10);
+
+/// The start of the comment above each added category.
+const ADDED: &str = "# Added by `uphill add ";
 
 /// The project's configuration after `uphill add`.
 #[derive(Clone, Debug, PartialEq)]
@@ -43,9 +51,8 @@ pub struct Added {
 pub struct Options<'a> {
     /// The pack's categories to add, or every category when it is empty.
     pub categories: &'a [String],
-    /// The text of the comment above each added category, such as
-    /// "Added by `uphill add wevm/uphill/examples/web-app@3e0053b`.".
-    pub comment: &'a str,
+    /// The pack's commit, or `None` for a local directory.
+    pub commit: Option<&'a str>,
     /// The name to add the category under, which needs exactly one category.
     pub name: Option<&'a str>,
     /// The text of the pack's `uphill.yaml`.
@@ -55,6 +62,61 @@ pub struct Options<'a> {
     pub project: Option<&'a str>,
     /// Returns the `run` command for the project, given each added category's command in the pack.
     pub run: &'a mut dyn FnMut(&str) -> String,
+    /// The pack as `uphill add` takes it, such as `wevm/uphill/examples/web-app`.
+    pub source: &'a str,
+}
+
+/// Where an added category came from, as the comment above it records.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Origin {
+    /// The category's name in the project.
+    pub category: String,
+    /// The pack's commit when the category was added or last updated, or `None` for a local
+    /// directory.
+    pub commit: Option<String>,
+    /// The category's name in the pack.
+    pub name: String,
+    /// The pack as `uphill add` takes it.
+    pub source: String,
+}
+
+/// What a three-way merge keeps: the project's version, the pack's version, or neither.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Merge {
+    /// The project and the pack both changed it since the recorded commit.
+    Conflict,
+    /// The project's version: the pack did not change it, or both versions are equal.
+    Keep,
+    /// The pack's version: the project did not change it.
+    Take,
+}
+
+/// One category to update from its pack.
+pub struct Update<'a> {
+    /// The category as the pack at the recorded commit renders it, or `None` when that version is
+    /// unknown, such as for a local directory.
+    pub base: Option<&'a str>,
+    /// The pack's commit now, or `None` for a local directory.
+    pub commit: Option<&'a str>,
+    /// Whether a conflict takes the pack's version.
+    pub force: bool,
+    /// Where the category came from.
+    pub origin: &'a Origin,
+    /// The text of the project's `uphill.yaml`.
+    pub project: &'a str,
+    /// The category as the pack now renders it.
+    pub theirs: &'a str,
+}
+
+/// The project's configuration after one category's update.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Updated {
+    /// The text of the project's `uphill.yaml`, unchanged on a conflict.
+    pub config: String,
+    /// What the merge kept.
+    pub merge: Merge,
+    /// Whether the project's category already equals the pack's.
+    pub same: bool,
 }
 
 /// Returns the project's configuration with the pack's categories added.
@@ -100,58 +162,29 @@ pub fn add(options: &mut Options<'_>) -> Result<Added, Error> {
         });
     }
 
-    let Some(Node {
-        kind: Kind::Mapping(pairs),
-        ..
-    }) = document::parse(options.pack, Format::Yaml)?
-    else {
-        return Ok(Added {
-            categories: Vec::new(),
-            config: options.project.unwrap_or_default().to_owned(),
-            setup: None,
-        });
-    };
-    let starts: Vec<usize> = pairs
-        .iter()
-        .map(|(key, _)| attached(options.pack, key.offset))
-        .collect();
-
     let mut blocks = Vec::new();
     let mut expected = Vec::new();
     for category in &selected {
         let name = options.name.unwrap_or(&category.name);
-        let Some((index, (key, value))) = pairs
-            .iter()
-            .enumerate()
-            .find(|(_, (key, _))| key.text() == Some(category.name.as_str()))
-        else {
-            continue;
-        };
         if let Some(project) = &project
             && project.categories.iter().any(|other| other.name == name)
         {
             return Err(Error::at(
                 Code::DuplicateCategory,
                 options.pack,
-                key.offset,
+                key_offset(options.pack, &category.name).unwrap_or_default(),
                 format!(
                     "the project already declares category `{name}`. Add it under another name with `--as <name>`"
                 ),
             ));
         }
-        let end = starts.get(index + 1).copied().unwrap_or(options.pack.len());
+
         let run = (options.run)(&category.run);
-        blocks.push(block(&Block {
-            category,
-            comment: options.comment,
-            end,
-            key,
-            name,
-            run: &run,
-            source: options.pack,
-            start: starts.get(index).copied().unwrap_or_default(),
-            value,
-        })?);
+        let Some(text) = render_category(options.pack, &pack, &category.name, name, &run)? else {
+            continue;
+        };
+        let comment = comment(options.source, &category.name, name, options.commit);
+        blocks.push(format!("{comment}\n{text}"));
 
         let mut category = (*category).clone();
         name.clone_into(&mut category.name);
@@ -181,8 +214,238 @@ pub fn add(options: &mut Options<'_>) -> Result<Added, Error> {
         }
     };
 
+    verify(&config, expected)?;
+    Ok(Added {
+        categories: selected
+            .iter()
+            .map(|category| options.name.unwrap_or(&category.name).to_owned())
+            .collect(),
+        config,
+        setup,
+    })
+}
+
+/// Returns the category `name` of the pack as `uphill add` writes it under `category`, without the
+/// comment above it, or `None` when the pack does not declare it. `run` maps the category's
+/// command in the pack to the project's.
+///
+/// # Errors
+///
+/// Returns an error when the pack's configuration is invalid or the category is a flow mapping.
+pub fn render(
+    pack: &str,
+    name: &str,
+    category: &str,
+    run: &mut dyn FnMut(&str) -> String,
+) -> Result<Option<String>, Error> {
+    let config = config::parse(pack, Format::Yaml)?;
+    let Some(found) = config.categories.iter().find(|c| c.name == name) else {
+        return Ok(None);
+    };
+    let run = run(&found.run);
+    render_category(pack, &config, name, category, &run)
+}
+
+/// Returns where each category that `uphill add` wrote came from, in the order the project
+/// declares them.
+pub fn origins(project: &str) -> Vec<Origin> {
+    let Ok(Some(Node {
+        kind: Kind::Mapping(pairs),
+        ..
+    })) = document::parse(project, Format::Yaml)
+    else {
+        return Vec::new();
+    };
+
+    pairs
+        .iter()
+        .filter_map(|(key, _)| {
+            let category = key.text()?;
+            let start = attached(project, key.offset);
+            let comments = project.get(start..line_start(project, key.offset))?;
+            let line = comments.lines().find(|line| line.starts_with(ADDED))?;
+            let (command, rest) = line.strip_prefix(ADDED)?.split_once('`')?;
+            let words: Vec<&str> = command.split_whitespace().collect();
+            let (source, name) = match words.as_slice() {
+                [source, name, "--as", _] | [source, name] => (*source, *name),
+                _ => return None,
+            };
+            let commit = rest
+                .strip_prefix(" at ")
+                .and_then(|rest| rest.strip_suffix('.'))
+                .map(str::to_owned);
+            Some(Origin {
+                category: category.to_owned(),
+                commit,
+                name: name.to_owned(),
+                source: source.to_owned(),
+            })
+        })
+        .collect()
+}
+
+/// Returns what a three-way merge keeps, given the pack's version at the recorded commit, the
+/// project's version, and the pack's version now. `None` is a version that does not exist, or a
+/// recorded version that is unknown.
+pub fn merge(base: Option<&[u8]>, ours: Option<&[u8]>, theirs: Option<&[u8]>) -> Merge {
+    if ours == theirs {
+        return Merge::Keep;
+    }
+    if base.is_some() && base == theirs {
+        return Merge::Keep;
+    }
+    if base == ours {
+        return Merge::Take;
+    }
+    Merge::Conflict
+}
+
+/// Returns the project's configuration with one added category merged with its pack, and the
+/// comment above it naming the pack's new commit. A conflict without `force` changes nothing.
+///
+/// # Errors
+///
+/// Returns an error when the project no longer declares the category or the result is invalid.
+pub fn update(options: &Update<'_>) -> Result<Updated, Error> {
+    let project = options.project;
+    let origin = options.origin;
+    let missing = || Error {
+        code: Code::InvalidValue,
+        location: None,
+        message: format!(
+            "the project no longer declares category `{}`",
+            origin.category
+        ),
+    };
+    let Ok(Some(Node {
+        kind: Kind::Mapping(pairs),
+        ..
+    })) = document::parse(project, Format::Yaml)
+    else {
+        return Err(missing());
+    };
+    let index = pairs
+        .iter()
+        .position(|(key, _)| key.text() == Some(origin.category.as_str()))
+        .ok_or_else(missing)?;
+    let key = pairs.get(index).map(|(key, _)| key).ok_or_else(missing)?;
+    let start = attached(project, key.offset);
+    let next = pairs
+        .get(index + 1)
+        .map_or(project.len(), |(key, _)| attached(project, key.offset));
+    let end = trimmed_end(project, key.offset, next);
+
+    // The comment that records the origin is not part of the category's text.
+    let text = project.get(start..end).unwrap_or_default();
+    let ours: String = text
+        .split_inclusive('\n')
+        .filter(|line| !line.starts_with(ADDED))
+        .collect();
+    let same = ours == options.theirs;
+
+    let merged = match merge(
+        options.base.map(str::as_bytes),
+        Some(ours.as_bytes()),
+        Some(options.theirs.as_bytes()),
+    ) {
+        Merge::Conflict if options.force => Merge::Take,
+        merged => merged,
+    };
+    let kept = match merged {
+        Merge::Conflict => {
+            return Ok(Updated {
+                config: project.to_owned(),
+                merge: merged,
+                same,
+            });
+        }
+        Merge::Keep => ours.as_str(),
+        Merge::Take => options.theirs,
+    };
+
+    let comment = comment(
+        &origin.source,
+        &origin.name,
+        &origin.category,
+        options.commit,
+    );
+    let config = format!(
+        "{}{comment}\n{kept}{}",
+        project.get(..start).unwrap_or_default(),
+        project.get(end..).unwrap_or_default()
+    );
+    let parsed = config::parse(&config, Format::Yaml).map_err(|error| Error {
+        code: error.code,
+        location: None,
+        message: format!("the updated configuration is invalid: {}", error.message),
+    })?;
+    if !parsed.categories.iter().any(|c| c.name == origin.category) {
+        return Err(missing());
+    }
+    Ok(Updated {
+        config,
+        merge: merged,
+        same,
+    })
+}
+
+/// Returns the comment above an added category: the command that adds it again, and the commit.
+fn comment(source: &str, name: &str, category: &str, commit: Option<&str>) -> String {
+    let rename = if name == category {
+        String::new()
+    } else {
+        format!(" --as {category}")
+    };
+    let at = commit
+        .map(|commit| format!(" at {commit}"))
+        .unwrap_or_default();
+    format!("{ADDED}{source} {name}{rename}`{at}.")
+}
+
+/// Returns the category `name` of a parsed pack as the project writes it under `category`.
+fn render_category(
+    source: &str,
+    pack: &Config,
+    name: &str,
+    category: &str,
+    run: &str,
+) -> Result<Option<String>, Error> {
+    let Some(found) = pack.categories.iter().find(|c| c.name == name) else {
+        return Ok(None);
+    };
+    let Some(Node {
+        kind: Kind::Mapping(pairs),
+        ..
+    }) = document::parse(source, Format::Yaml)?
+    else {
+        return Ok(None);
+    };
+    let Some(index) = pairs.iter().position(|(key, _)| key.text() == Some(name)) else {
+        return Ok(None);
+    };
+    let Some((key, value)) = pairs.get(index) else {
+        return Ok(None);
+    };
+    let end = pairs
+        .get(index + 1)
+        .map_or(source.len(), |(key, _)| attached(source, key.offset));
+    block(&Block {
+        category: found,
+        end,
+        key,
+        name: category,
+        run,
+        source,
+        start: attached(source, key.offset),
+        value,
+    })
+    .map(Some)
+}
+
+/// Checks that `config` parses and declares the `expected` categories as they are.
+fn verify(config: &str, expected: Vec<Category>) -> Result<(), Error> {
     // The categories keep their text, so the configuration must parse to the same categories.
-    let written = config::parse(&config, Format::Yaml).map_err(|error| Error {
+    let written = config::parse(config, Format::Yaml).map_err(|error| Error {
         code: error.code,
         location: None,
         message: format!(
@@ -211,21 +474,43 @@ pub fn add(options: &mut Options<'_>) -> Result<Added, Error> {
                     .to_owned(),
         });
     }
+    Ok(())
+}
 
-    Ok(Added {
-        categories: selected
-            .iter()
-            .map(|category| options.name.unwrap_or(&category.name).to_owned())
-            .collect(),
-        config,
-        setup,
-    })
+/// Returns the byte offset of the top-level key `name`.
+fn key_offset(source: &str, name: &str) -> Option<usize> {
+    let Ok(Some(Node {
+        kind: Kind::Mapping(pairs),
+        ..
+    })) = document::parse(source, Format::Yaml)
+    else {
+        return None;
+    };
+    pairs
+        .iter()
+        .find(|(key, _)| key.text() == Some(name))
+        .map(|(key, _)| key.offset)
+}
+
+/// Returns the end of a category's text before `end`, without the trailing whitespace and the
+/// unindented comments that belong to whatever follows it.
+fn trimmed_end(source: &str, key: usize, mut end: usize) -> usize {
+    loop {
+        let text = source.get(key..end).unwrap_or_default();
+        let trimmed = key + text.trim_end().len();
+        let last = line_start(source, trimmed);
+        let line = source.get(last..trimmed).unwrap_or_default();
+        if last > key && line.starts_with('#') {
+            end = last;
+        } else {
+            return trimmed;
+        }
+    }
 }
 
 /// One category of the pack and how to write it into the project.
 struct Block<'a> {
     category: &'a Category,
-    comment: &'a str,
     /// The end of the category's text: the start of the next category, or of the file's end.
     end: usize,
     key: &'a Node,
@@ -237,8 +522,8 @@ struct Block<'a> {
     value: &'a Node,
 }
 
-/// Returns a category's text for the project: its comment, its key, its `run` and `timeout`, and
-/// its other lines as the pack writes them.
+/// Returns a category's text for the project: its key, its `run` and `timeout`, and its other
+/// lines and comments as the pack writes them.
 fn block(block: &Block<'_>) -> Result<String, Error> {
     let source = block.source;
     let Kind::Mapping(fields) = &block.value.kind else {
@@ -248,20 +533,7 @@ fn block(block: &Block<'_>) -> Result<String, Error> {
         return Err(flow(block));
     }
 
-    // Unindented comments at the end belong to whatever follows the category.
-    let mut end = block.end;
-    loop {
-        let text = source.get(block.key.offset..end).unwrap_or_default();
-        let trimmed = block.key.offset + text.trim_end().len();
-        let last = line_start(source, trimmed);
-        let line = source.get(last..trimmed).unwrap_or_default();
-        if last > block.key.offset && line.starts_with('#') {
-            end = last;
-        } else {
-            end = trimmed;
-            break;
-        }
-    }
+    let end = trimmed_end(source, block.key.offset, block.end);
 
     let indent = fields
         .first()
@@ -312,7 +584,7 @@ fn block(block: &Block<'_>) -> Result<String, Error> {
             text.replace_range(from..to, &replacement);
         }
     }
-    Ok(format!("# {}\n{text}", block.comment))
+    Ok(text)
 }
 
 /// Returns the start of the line of the key at `offset`, or of the comment lines right above it.

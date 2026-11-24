@@ -172,7 +172,7 @@ fn help() {
     Runs each category's script, scores its metrics, lists the opportunities that would raise the scores most, and compares sizes, counts, checks, and line targets with each metric's baseline. Reads uphill.yaml or uphill.toml, at the root or in .agents, from this directory or the nearest parent. Writes .uphill/report.json, report.md, and report.html.
 
     Commands:
-      add        Copy a pack's categories into uphill.yaml and its scripts into the project: a local directory, owner/name/path on GitHub, or a Git URL followed by //path, each with an optional @ref
+      add        Copy a pack's categories into uphill.yaml and its scripts into the project: a local directory, owner/name/path on GitHub, or a Git URL followed by //path, each with an optional @ref. With --update, merge the changes of each added category's pack
       blame      Name the commit that last moved a metric: from its baselines, or by measuring commits since <ref>, or every commit, in temporary checkouts and bisecting
       check      Run each script once and check the metric lines it writes
       dashboard  Write .uphill/dashboard.html from the latest noted runs of each repository: a Git URL, a local path, or owner/name on GitHub
@@ -1641,16 +1641,19 @@ fn init_points_the_brief_at_the_closest_example() {
 
 #[test]
 fn add_copies_a_packs_categories_and_scripts_into_the_project() {
-    let pack = fixture("pack");
-    let project = tempfile::tempdir().unwrap();
+    let parent = tempfile::tempdir().unwrap();
+    let pack = parent.path().join("pack");
+    let project = parent.path().join("project");
+    fs::create_dir_all(&pack).unwrap();
+    fs::create_dir_all(&project).unwrap();
+    copy(fixture("pack").path(), &pack);
     let config = "own:\n  run: echo \"files 2\" >> \"$UPHILL_METRICS\"\n  files: {}\n";
-    fs::write(project.path().join("uphill.yaml"), config).unwrap();
-    let source = pack.path().to_string_lossy().into_owned();
-    let mask = |text: &str| text.replace(&source, "[pack]");
+    fs::write(project.join("uphill.yaml"), config).unwrap();
 
     // Each category keeps its comments, takes the pack's top-level `run` and `timeout` when it
-    // sets none, and runs the copied scripts beside the project's configuration.
-    let output = uphill_in(project.path(), &["add", &source], &[]);
+    // sets none, and runs the copied scripts beside the project's configuration. Its comment
+    // records the command that adds it again, with a local pack's path from the project root.
+    let output = uphill_in(&project, &["add", "../pack"], &[]);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     insta::assert_snapshot!(stdout(&output), @"
     Added footprint, lines to uphill.yaml
@@ -1658,13 +1661,13 @@ fn add_copies_a_packs_categories_and_scripts_into_the_project() {
 
     Fit the scripts and targets to this project, then run `uphill check`
     ");
-    let added = fs::read_to_string(project.path().join("uphill.yaml")).unwrap();
-    insta::assert_snapshot!(mask(&added), @r#"
+    let added = fs::read_to_string(project.join("uphill.yaml")).unwrap();
+    insta::assert_snapshot!(added, @r#"
     own:
       run: echo "files 2" >> "$UPHILL_METRICS"
       files: {}
 
-    # Added by `uphill add [pack]`.
+    # Added by `uphill add ../pack footprint`.
     # Bytes the project ships.
     footprint:
       run: sh metrics/sizes.sh
@@ -1672,81 +1675,230 @@ fn add_copies_a_packs_categories_and_scripts_into_the_project() {
       # Sum of every shipped file.
       total: { target: 1kB }
 
-    # Added by `uphill add [pack]`.
+    # Added by `uphill add ../pack lines`.
     lines:
       run: sh metrics/lines.sh
       timeout: 30s
       # Lines in the project's sources.
       count: {}
     "#);
-    let output = check(project.path(), &[]);
+    let output = check(&project, &[]);
     assert_eq!(output.status.code(), Some(0), "{}", stdout(&output));
 
     // A category the project declares stops the command.
-    let output = uphill_in(project.path(), &["add", &source, "lines"], &[]);
+    let output = uphill_in(&project, &["add", "../pack", "lines"], &[]);
     assert_eq!(output.status.code(), Some(2));
-    insta::assert_snapshot!(mask(&stderr(&output)), @"
-    error[duplicate-category] [pack]/.agents/uphill.yaml:13:1: the project already declares category `lines`. Add it under another name with `--as <name>`
+    insta::assert_snapshot!(stderr(&output), @"
+    error[duplicate-category] ../pack/.agents/uphill.yaml:13:1: the project already declares category `lines`. Add it under another name with `--as <name>`
       13 | lines:
          | ^
     ");
 
+    // An update of an unchanged pack changes nothing. A local pack records no commit, so a script
+    // that differs from the pack's is a conflict until `--force` takes the pack's version.
+    let output = uphill_in(&project, &["add", "--update"], &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(stdout(&output), @"
+    current   footprint
+    current   lines
+    ");
+    fs::write(pack.join(".agents/metrics/lib.sh"), "count=5\n").unwrap();
+    let output = uphill_in(&project, &["add", "--update"], &[]);
+    assert_eq!(output.status.code(), Some(1));
+    insta::assert_snapshot!(stdout(&output), @"
+    conflict  metrics/lib.sh  changed in both this project and the pack
+
+    Nothing was written. Merge by hand, or run `uphill add --update --force` to take the pack's version
+    ");
+    assert_eq!(
+        fs::read_to_string(project.join("metrics/lib.sh")).unwrap(),
+        "count=3\n"
+    );
+    let output = uphill_in(&project, &["add", "--update", "--force"], &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(stdout(&output), @"
+    current   footprint
+    current   lines
+    updated   metrics/lib.sh
+    ");
+    assert_eq!(
+        fs::read_to_string(project.join("metrics/lib.sh")).unwrap(),
+        "count=5\n"
+    );
+    assert_eq!(
+        fs::read_to_string(project.join("uphill.yaml")).unwrap(),
+        added
+    );
+
     // `--as` adds a category under another name. A script that differs from the pack's copy
     // stops the command before it writes anything.
-    let other = tempfile::tempdir().unwrap();
+    let other = parent.path().join("other");
+    fs::create_dir_all(other.join("metrics")).unwrap();
     let config = "lines:\n  run: echo \"words 5\" >> \"$UPHILL_METRICS\"\n  words: {}\n";
-    fs::write(other.path().join("uphill.yaml"), config).unwrap();
-    fs::create_dir(other.path().join("metrics")).unwrap();
-    fs::write(other.path().join("metrics/lib.sh"), "count=4\n").unwrap();
-    let output = uphill_in(other.path(), &["add", &source, "lines", "--as", "loc"], &[]);
+    fs::write(other.join("uphill.yaml"), config).unwrap();
+    fs::write(other.join("metrics/lib.sh"), "count=4\n").unwrap();
+    let output = uphill_in(&other, &["add", "../pack", "lines", "--as", "loc"], &[]);
     assert_eq!(output.status.code(), Some(2));
     insta::assert_snapshot!(stderr(&output), @"error: metrics/lib.sh exists and differs from the pack's copy. Move it, then run `uphill add` again");
     assert_eq!(
-        fs::read_to_string(other.path().join("uphill.yaml")).unwrap(),
+        fs::read_to_string(other.join("uphill.yaml")).unwrap(),
         config
     );
-    assert!(!other.path().join("metrics/lines.sh").exists());
+    assert!(!other.join("metrics/lines.sh").exists());
 
-    fs::remove_file(other.path().join("metrics/lib.sh")).unwrap();
-    let output = uphill_in(other.path(), &["add", &source, "lines", "--as", "loc"], &[]);
+    fs::remove_file(other.join("metrics/lib.sh")).unwrap();
+    let output = uphill_in(&other, &["add", "../pack", "lines", "--as", "loc"], &[]);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
-    let added = fs::read_to_string(other.path().join("uphill.yaml")).unwrap();
-    insta::assert_snapshot!(mask(added.strip_prefix(config).unwrap()), @"
+    let added = fs::read_to_string(other.join("uphill.yaml")).unwrap();
+    insta::assert_snapshot!(added.strip_prefix(config).unwrap(), @"
 
-    # Added by `uphill add [pack]`.
+    # Added by `uphill add ../pack lines --as loc`.
     loc:
       run: sh metrics/lines.sh
       timeout: 30s
       # Lines in the project's sources.
       count: {}
     ");
+}
 
-    // A pack in a Git repository is fetched at its ref, and a project without a configuration
-    // gets `.agents/uphill.yaml`.
+#[test]
+fn add_update_merges_a_packs_changes_since_its_recorded_commit() {
+    // The pack lives in a Git repository, and each commit's hash is masked as it is made.
     let repository = tempfile::tempdir().unwrap();
     let packed = repository.path().join("packs/sizes");
     fs::create_dir_all(&packed).unwrap();
-    copy(pack.path(), &packed);
+    copy(fixture("pack").path(), &packed);
     git(repository.path(), &["init", "-q", "-b", "main"]);
-    commit(repository.path());
-    let empty = tempfile::tempdir().unwrap();
-    let remote = format!("{}//packs/sizes@main", repository.path().display());
-    let output = uphill_in(empty.path(), &["add", &remote, "footprint"], &[]);
+    let mut commits: Vec<String> = Vec::new();
+    let commit_pack = |commits: &mut Vec<String>| {
+        commit(repository.path());
+        commits.push(
+            git(repository.path(), &["rev-parse", "HEAD"])
+                .trim()
+                .to_owned(),
+        );
+    };
+    commit_pack(&mut commits);
+    let mask = |text: &str, commits: &[String]| {
+        let mut text = text.replace(&repository.path().display().to_string(), "[repository]");
+        for (index, commit) in commits.iter().enumerate() {
+            text = text
+                .replace(commit.as_str(), &format!("[c{}]", index + 1))
+                .replace(&commit[..7], &format!("[c{}s]", index + 1));
+        }
+        text
+    };
+    let edit = |path: &Path, from: &str, to: &str| {
+        let text = fs::read_to_string(path).unwrap();
+        assert!(text.contains(from), "{} has `{from}`", path.display());
+        fs::write(path, text.replace(from, to)).unwrap();
+    };
+
+    // A project without a configuration gets `.agents/uphill.yaml`, and each comment records the
+    // pack's commit.
+    let project = tempfile::tempdir().unwrap();
+    let source = format!("{}//packs/sizes", repository.path().display());
+    let config = project.path().join(".agents/uphill.yaml");
+    let output = uphill_in(project.path(), &["add", &source], &[]);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
-    let written = fs::read_to_string(empty.path().join(".agents/uphill.yaml")).unwrap();
-    let written = masked(repository.path(), &written)
-        .replace(&repository.path().display().to_string(), "[repository]");
-    insta::assert_snapshot!(written, @"
-    # Added by `uphill add [repository]//packs/sizes@abc1234`.
+    insta::assert_snapshot!(mask(&fs::read_to_string(&config).unwrap(), &commits), @"
+    # Added by `uphill add [repository]//packs/sizes footprint` at [c1].
     # Bytes the project ships.
     footprint:
       run: sh .agents/metrics/sizes.sh
       timeout: 30s
       # Sum of every shipped file.
       total: { target: 1kB }
+
+    # Added by `uphill add [repository]//packs/sizes lines` at [c1].
+    lines:
+      run: sh .agents/metrics/lines.sh
+      timeout: 30s
+      # Lines in the project's sources.
+      count: {}
     ");
-    let output = check(empty.path(), &[]);
+    let output = check(project.path(), &[]);
     assert_eq!(output.status.code(), Some(0), "{}", stdout(&output));
+
+    // The pack changes footprint and a script, and the project changes lines. Each side's change
+    // comes through, and every comment records the new commit.
+    edit(
+        &packed.join(".agents/uphill.yaml"),
+        "total: { target: 1kB }",
+        "total: { target: 2kB }",
+    );
+    edit(&packed.join(".agents/metrics/lib.sh"), "count=3", "count=5");
+    commit_pack(&mut commits);
+    edit(&config, "  count: {}", "  count: { weight: 2 }");
+    let output = uphill_in(project.path(), &["add", "--update"], &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(mask(&stdout(&output), &commits), @"
+    updated   footprint from [c1s] to [c2s]
+    kept      lines from [c1s] to [c2s], with this project's changes
+    updated   .agents/metrics/lib.sh
+    ");
+    let merged = fs::read_to_string(&config).unwrap();
+    insta::assert_snapshot!(mask(&merged, &commits), @"
+    # Added by `uphill add [repository]//packs/sizes footprint` at [c2].
+    # Bytes the project ships.
+    footprint:
+      run: sh .agents/metrics/sizes.sh
+      timeout: 30s
+      # Sum of every shipped file.
+      total: { target: 2kB }
+
+    # Added by `uphill add [repository]//packs/sizes lines` at [c2].
+    lines:
+      run: sh .agents/metrics/lines.sh
+      timeout: 30s
+      # Lines in the project's sources.
+      count: { weight: 2 }
+    ");
+    assert_eq!(
+        fs::read_to_string(project.path().join(".agents/metrics/lib.sh")).unwrap(),
+        "count=5\n"
+    );
+
+    // When the pack changes lines too, the update writes nothing until `--force` takes the pack's
+    // version.
+    edit(
+        &packed.join(".agents/uphill.yaml"),
+        "# Lines in the project's sources.",
+        "# Lines of source code.",
+    );
+    commit_pack(&mut commits);
+    let output = uphill_in(project.path(), &["add", "--update"], &[]);
+    assert_eq!(output.status.code(), Some(1));
+    insta::assert_snapshot!(stdout(&output), @"
+    conflict  lines  changed in both this project and the pack
+
+    Nothing was written. Merge by hand, or run `uphill add --update --force` to take the pack's version
+    ");
+    assert_eq!(fs::read_to_string(&config).unwrap(), merged);
+
+    let output = uphill_in(
+        project.path(),
+        &["add", "--update", "lines", "--force"],
+        &[],
+    );
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(mask(&stdout(&output), &commits), @"updated   lines from [c2s] to [c3s]");
+    insta::assert_snapshot!(mask(&fs::read_to_string(&config).unwrap(), &commits), @"
+    # Added by `uphill add [repository]//packs/sizes footprint` at [c2].
+    # Bytes the project ships.
+    footprint:
+      run: sh .agents/metrics/sizes.sh
+      timeout: 30s
+      # Sum of every shipped file.
+      total: { target: 2kB }
+
+    # Added by `uphill add [repository]//packs/sizes lines` at [c3].
+    lines:
+      run: sh .agents/metrics/lines.sh
+      timeout: 30s
+      # Lines of source code.
+      count: {}
+    ");
 }
 
 #[test]

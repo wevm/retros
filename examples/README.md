@@ -17,6 +17,8 @@ bun install
 uphill
 ```
 
+Each example is also a pack. `uphill add wevm/uphill/examples/web-app` copies its categories and scripts into another project, and prints the example's `README.md`, which says what to fit.
+
 A target comes from one of three places. `target` in `uphill.yaml` is the default for every item. A script can write its own target on a line, such as `latency /health 0.29ms target 500µs`, when it knows the context. `targets` in `uphill.yaml` sets targets by item pattern, such as `{ index.html: 8kB }`, and has the final say.
 
 The web app needs Chrome. Lighthouse finds an installed Chrome, or the one at `CHROME_PATH`. Its performance category writes times, so Uphill runs it 5 times, and a full run takes about 3 minutes.

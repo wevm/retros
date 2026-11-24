@@ -28,16 +28,20 @@ use incur::{Io, Parser};
 #[derive(Parser)]
 #[incur(name = "uphill", version)]
 enum Command {
-    /// Copy a pack's categories into uphill.yaml and its scripts into the project: a local directory, owner/name/path on GitHub, or a Git URL followed by //path, each with an optional @ref
+    /// Copy a pack's categories into uphill.yaml and its scripts into the project: a local directory, owner/name/path on GitHub, or a Git URL followed by //path, each with an optional @ref. With --update, merge the changes of each added category's pack
     Add {
-        /// The pack, such as wevm/uphill/examples/web-app
+        /// The pack, such as wevm/uphill/examples/web-app. With --update, a category to update
         #[incur(arg)]
-        pack: String,
-        /// The pack's categories to add, or every category
+        pack: Option<String>,
+        /// The pack's categories to add, or every category. With --update, the categories to update, or every added category
         #[incur(arg)]
         categories: Option<Vec<String>>,
         /// Add the one category under this name
         r#as: Option<String>,
+        /// With --update, take the pack's version of each category and script that both sides changed
+        force: bool,
+        /// Fetch the pack of each added category again and merge its changes
+        update: bool,
     },
     /// Name the commit that last moved a metric: from its baselines, or by measuring commits since <ref>, or every commit, in temporary checkouts and bisecting
     Blame {
@@ -155,14 +159,27 @@ fn run(command: Command) -> ExitCode {
     match command {
         Command::Add {
             categories,
+            force,
             pack,
             r#as,
-        } => add::run(&pack, &categories.unwrap_or_default(), r#as.as_deref()).unwrap_or_else(
-            |message| {
+            update,
+        } => {
+            let categories = categories.unwrap_or_default();
+            let result = match (update, pack) {
+                (true, pack) => {
+                    let names: Vec<String> = pack.into_iter().chain(categories).collect();
+                    add::update(&names, force)
+                }
+                (false, Some(pack)) => add::run(&pack, &categories, r#as.as_deref()),
+                (false, None) => {
+                    return usage("uphill add needs a pack, such as wevm/uphill/examples/web-app");
+                }
+            };
+            result.unwrap_or_else(|message| {
                 let _ = writeln!(std::io::stderr(), "{message}");
                 ExitCode::from(2)
-            },
-        ),
+            })
+        }
         Command::Blame {
             category,
             item,

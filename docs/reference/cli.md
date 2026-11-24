@@ -9,6 +9,7 @@ The `uphill` binary runs a project's scripts, scores the metrics, and writes rep
 ```text
 uphill [category] [--compare <ref>] [--compact] [--note] [--update] [--require-baseline] [--require-targets]
 uphill add <pack> [category...] [--as <name>]
+uphill add --update [category...] [--force]
 uphill check
 uphill dashboard <repository>...
 uphill init
@@ -44,6 +45,13 @@ Copies a pack's categories into the project's `uphill.yaml`, or every category w
 ```sh
 # Add the performance category of the web-app example.
 uphill add wevm/uphill/examples/web-app performance
+```
+
+`--update` fetches the pack of each added category, or of the categories it names, and merges the changes since the commit its comment records. When the project and the pack both changed a category or script, it writes nothing and exits with status 1. `--force` takes the pack's version instead.
+
+```sh
+# Merge the pack's changes into every added category.
+uphill add --update
 ```
 
 ### `uphill check`
