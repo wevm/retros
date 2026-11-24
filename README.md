@@ -72,7 +72,7 @@ uphill
 # Score one category.
 uphill speed
 
-# Accept this run: write its values and line targets to each metric's baseline.
+# Accept this run: write its values and line targets to uphill.baseline.yaml.
 uphill --update
 
 # Fail when anything differs from the baselines.

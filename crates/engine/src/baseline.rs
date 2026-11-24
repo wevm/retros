@@ -1,6 +1,8 @@
-//! Baselines: each metric's `baseline` key records the sizes, counts, and checks that
-//! `uphill --update` accepted, and the targets scripts set on their lines. Each run reports what
-//! changed since.
+//! Baselines: the baseline file beside the configuration, `uphill.baseline.yaml` or
+//! `uphill.baseline.toml`, records the sizes, counts, and checks that `uphill --update` accepted
+//! for each metric, and the targets scripts set on their lines. Each run reports what changed
+//! since. The configuration holds what people write, and the baseline file holds what
+//! `uphill --update` writes, so Uphill rewrites the whole file instead of editing it in place.
 //!
 //! A metric without items records one value. A metric with items records each item, sorted by
 //! name. A category whose lines name subjects records each subject first, in the order the run
@@ -13,22 +15,27 @@
 //!
 //! ```yaml
 //! footprint:
-//!   run: bun metrics/footprint.ts
-//!   bundle: { target: 30kB, baseline: 27.5kB }
-//!   modules: { baseline: 412 }
+//!   bundle: 27.5kB
+//!   modules: 412
 //!   export-size:
-//!     target: 5kB
-//!     baseline:
-//!       viem: 1kB
-//!       viem/chains: 61kB target 80kB
+//!     viem: 1kB
+//!     viem/chains: 61kB target 80kB
 //!
 //! speed:
-//!   run: bun metrics/speed.ts
-//!   import-time: { target: 30ms, baseline: { viem: target 20ms } }
+//!   import-time:
+//!     viem: target 20ms
 //! ```
+//!
+//! Older configurations set each metric's `baseline` key instead. Uphill still reads it, so older
+//! revisions compare and keep their history, and `uphill --update` moves it into the baseline file.
+
+use std::borrow::Cow;
+use std::fmt::Write;
+
+use yaml_rust2::Yaml;
 
 use crate::config::{self, Better, Config, Format, Metric, without_locations};
-use crate::document::{Kind as NodeKind, Node};
+use crate::document::{self, Kind as NodeKind, Node};
 use crate::edit;
 use crate::error::{Code, Error, Location};
 use crate::format::{SIZES, TIMES};
@@ -273,44 +280,227 @@ pub fn compare(config: &Config, report: &Report) -> Vec<Change> {
     changes
 }
 
-/// Returns the configuration source with this run's sizes, counts, checks, and line targets as
-/// each metric's `baseline`. A category that did not run or failed keeps its baselines, and a
-/// metric whose baseline is unchanged keeps its text, so updating twice writes the same file.
+/// Returns `config` with the baselines that the baseline file `source` records. An entry for a
+/// category or metric that `config` does not declare is left out, and the next `uphill --update`
+/// drops it. An entry replaces a `baseline` key that an older configuration sets.
 ///
 /// # Errors
 ///
-/// Returns an error when a metric's baseline must change but its configuration has a form
-/// Uphill cannot edit, such as a TOML metric defined with dotted keys.
-pub fn write(
-    source: &str,
-    format: Format,
-    config: &Config,
-    report: &Report,
-) -> Result<String, Error> {
-    let changes = updates(config, report);
-    if changes.is_empty() {
+/// Returns an error for YAML or TOML syntax, a file that does not map categories to metrics, and
+/// a baseline that does not parse.
+pub fn read(mut config: Config, source: &str, format: Format) -> Result<Config, Error> {
+    let Some(document) = document::parse(source, format)? else {
+        return Ok(config);
+    };
+    let NodeKind::Mapping(categories) = &document.kind else {
+        return Err(not_mapping(source, document.offset));
+    };
+
+    for (key, value) in categories {
+        let NodeKind::Mapping(metrics) = &value.kind else {
+            return Err(not_mapping(source, value.offset));
+        };
+        let mut category = config
+            .categories
+            .iter_mut()
+            .find(|category| Some(category.name.as_str()) == key.text());
+        for (key, value) in metrics {
+            let baseline = parse(source, value)?;
+            let metric = category.as_deref_mut().and_then(|category| {
+                category
+                    .metrics
+                    .iter_mut()
+                    .find(|metric| Some(metric.name.as_str()) == key.text())
+            });
+            if let Some(metric) = metric {
+                metric.baseline = Some(baseline);
+            }
+        }
+    }
+
+    Ok(config)
+}
+
+/// Returns the baseline file with this run's sizes, counts, checks, and line targets for each
+/// metric of `config`, or an empty string when no metric records any. A category that did not
+/// run or failed keeps its baselines, so updating twice from the same code writes the same file.
+///
+/// Categories and metrics keep the order the configuration declares, and a baseline with items or
+/// subjects takes one line per entry, so a change shows as one line in a diff.
+pub fn write(config: &Config, report: &Report, format: Format) -> String {
+    let config = apply(config, &updates(config, report));
+    let categories: Vec<(&str, Vec<(String, Baseline)>)> = config
+        .categories
+        .iter()
+        .map(|category| {
+            let metrics = category
+                .metrics
+                .iter()
+                .filter_map(|metric| Some((metric.name.clone(), metric.baseline.clone()?)))
+                .collect::<Vec<_>>();
+            (category.name.as_str(), metrics)
+        })
+        .filter(|(_, metrics)| !metrics.is_empty())
+        .collect();
+    if categories.is_empty() {
+        return String::new();
+    }
+
+    let mut out = String::from(
+        "# Written by `uphill --update`: the accepted sizes, counts, checks, and line targets of each\n# metric. Each run reports what changed since.\n",
+    );
+    for (category, metrics) in &categories {
+        match format {
+            Format::Toml => toml_table(&mut out, &[category], metrics),
+            Format::Yaml => {
+                let _ = write!(out, "\n{}:", yaml_key(category));
+                yaml_block(&mut out, metrics, 2);
+                out.push('\n');
+            }
+        }
+    }
+    out
+}
+
+/// Writes YAML entries, one per line at `indent` spaces: a record after its key, or a mapping on
+/// the lines below it.
+fn yaml_block(out: &mut String, entries: &[(String, Baseline)], indent: usize) {
+    for (key, baseline) in entries {
+        let _ = write!(out, "\n{:indent$}{}:", "", yaml_key(key));
+        match baseline {
+            Baseline::Map(entries) => yaml_block(out, entries, indent + 2),
+            Baseline::Record(record) => {
+                let _ = write!(out, " {}", text(*record).0);
+            }
+        }
+    }
+}
+
+/// Writes a TOML table at `path` with the records of `entries`, then a table of its own for each
+/// mapping, such as `[footprint.export-size]`. A table without records gets no header.
+fn toml_table(out: &mut String, path: &[&str], entries: &[(String, Baseline)]) {
+    let header: Vec<String> = path.iter().map(|key| toml_key(key).into_owned()).collect();
+    let mut records = entries.iter().filter_map(|(key, baseline)| match baseline {
+        Baseline::Record(record) => Some((key, record)),
+        Baseline::Map(_) => None,
+    });
+    if let Some(first) = records.next() {
+        let _ = write!(out, "\n[{}]\n", header.join("."));
+        for (key, record) in std::iter::once(first).chain(records) {
+            let value = match text(*record) {
+                (text, true) => text,
+                (text, false) => quoted(&text),
+            };
+            let _ = writeln!(out, "{} = {value}", toml_key(key));
+        }
+    }
+
+    for (key, baseline) in entries {
+        if let Baseline::Map(entries) = baseline {
+            let path: Vec<&str> = path.iter().copied().chain([key.as_str()]).collect();
+            toml_table(out, &path, entries);
+        }
+    }
+}
+
+/// Formats a YAML key, unquoted when it is a plain name that YAML reads as a string.
+fn yaml_key(name: &str) -> Cow<'_, str> {
+    let plain = name
+        .bytes()
+        .next()
+        .is_some_and(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+        && name.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'-' | b'.' | b'/' | b'@' | b'_')
+        })
+        && matches!(Yaml::from_str(name), Yaml::String(_));
+    if plain {
+        Cow::Borrowed(name)
+    } else {
+        Cow::Owned(quoted(name))
+    }
+}
+
+/// Formats a TOML key, bare when TOML allows it.
+fn toml_key(name: &str) -> Cow<'_, str> {
+    if !name.is_empty()
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+    {
+        Cow::Borrowed(name)
+    } else {
+        Cow::Owned(quoted(name))
+    }
+}
+
+/// Formats a double-quoted string, which YAML and TOML escape the same way.
+fn quoted(text: &str) -> String {
+    let mut out = String::from('"');
+    for c in text.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\t' => out.push_str("\\t"),
+            c if c.is_control() => {
+                let _ = write!(out, "\\u{:04X}", u32::from(c));
+            }
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+/// Returns the configuration `source` without the `baseline` keys that older configurations set,
+/// or `source` itself when it sets none.
+///
+/// # Errors
+///
+/// Returns an error when `source` does not parse, or when a metric's `baseline` has a form that
+/// Uphill cannot remove, such as a TOML table of its own.
+pub fn strip(source: &str, format: Format) -> Result<String, Error> {
+    let config = config::parse(source, format)?;
+    let inline: Vec<(&str, &str)> = config
+        .categories
+        .iter()
+        .flat_map(|category| {
+            category
+                .metrics
+                .iter()
+                .filter(|metric| metric.baseline.is_some())
+                .map(|metric| (category.name.as_str(), metric.name.as_str()))
+        })
+        .collect();
+    if inline.is_empty() {
         return Ok(source.to_owned());
     }
-    let updated = edit::baselines(source, format, &changes);
+    let stripped = edit::remove(source, format, &inline);
 
     // The editor reads only part of the syntax, so the file it writes must parse to the same
-    // configuration with the new baselines.
-    let written = config::parse(&updated, format).ok().map(without_locations);
-    if written.as_ref() == Some(&without_locations(apply(config, &changes))) {
-        return Ok(updated);
+    // configuration without baselines.
+    let mut expected = without_locations(config.clone());
+    for metric in expected.categories.iter_mut().flat_map(|c| &mut c.metrics) {
+        metric.baseline = None;
+    }
+    let written = config::parse(&stripped, format).ok().map(without_locations);
+    if written.as_ref() == Some(&expected) {
+        return Ok(stripped);
     }
 
-    // Blames the first metric whose baseline did not come through.
-    let blamed = changes
+    // Blames the first metric whose baseline is still there.
+    let blamed = inline
         .iter()
-        .find(|(category, metric, baseline)| {
-            let written = written.as_ref().and_then(|w| find(w, category, metric));
-            written.is_none_or(|written| written.baseline != *baseline)
+        .find(|(category, metric)| {
+            written
+                .as_ref()
+                .and_then(|written| find(written, category, metric))
+                .is_none_or(|written| written.baseline.is_some())
         })
-        .or(changes.first());
-    let (category, metric) = blamed.map_or(("", ""), |(category, metric, _)| (*category, *metric));
-    let location = find(config, category, metric).map(|metric| metric.location);
-    Err(cannot(format, metric, location))
+        .or(inline.first());
+    let (category, metric) = blamed.map_or(("", ""), |(category, metric)| (*category, *metric));
+    let location = find(&config, category, metric).map(|metric| metric.location);
+    Err(cannot(metric, location))
 }
 
 /// Returns `config` with the baselines a run records and no others, as a first `uphill --update`
@@ -695,18 +885,24 @@ fn record(text: &str) -> Option<Record> {
 }
 
 #[cold]
-fn cannot(format: Format, metric: &str, location: Option<Location>) -> Error {
-    let example = format.pick(
-        format!("a mapping, such as `{metric}: {{ target: 5kB }}`"),
-        format!("an inline table, such as `{metric} = {{ target = \"5kB\" }}`"),
-    );
+fn cannot(metric: &str, location: Option<Location>) -> Error {
     Error {
         code: Code::InvalidType,
         location,
         message: format!(
-            "Uphill cannot write the baseline of metric `{metric}` in this form. Write the metric as {example}, then run `uphill --update` again"
+            "Uphill cannot move the baseline of metric `{metric}` into the baseline file. Delete the metric's `baseline` key, then run `uphill --update` again"
         ),
     }
+}
+
+#[cold]
+fn not_mapping(source: &str, offset: usize) -> Error {
+    Error::at(
+        Code::InvalidType,
+        source,
+        offset,
+        "expected a mapping of category names to metrics, and of metric names to baselines. Run `uphill --update` to rewrite the baseline file".to_owned(),
+    )
 }
 
 #[cold]

@@ -67,7 +67,7 @@ Uphill keeps Lighthouse's scoring and depth, and replaces its fixed browser gath
 18. **Descriptions.** Categories and metrics take a `description`, and every report shows it, so a reader knows what a number measures without opening `uphill.yaml`. Decided 2026-11-23.
 19. **`.agents/`.** Uphill reads `uphill.yaml` or `uphill.toml`, at the project root or in `.agents/`, from the current directory or the nearest parent, and it is an error for one directory to have more than one. Scripts run from the project root, the directory that holds the configuration or `.agents`, so a configuration kept with a project's agent files still measures the whole project. Reports go to `.uphill/` in the project root. Decided 2026-11-23.
 20. **Titles.** Categories and metrics take a `title`, such as `Time to first request`, which the HTML and Markdown reports show. Without one, the name shows in words: `request-out` reads `Request out`. The terminal, baselines, and metric lines keep names. Decided 2026-11-23.
-21. **Baselines live in the configuration.** Each metric's `baseline` key holds what `uphill --update` accepted, next to its `target`, so one file holds a metric's requirement and its last accepted value. Uphill edits the file in place and keeps its comments and formatting. A baseline with items or subjects takes one line per entry, so a change shows as one line in a diff. When an edit would change anything else, Uphill writes nothing. This replaces `uphill.lock`. Decided 2026-11-23.
+21. **Baselines live in the configuration.** Each metric's `baseline` key holds what `uphill --update` accepted, next to its `target`, so one file holds a metric's requirement and its last accepted value. Uphill edits the file in place and keeps its comments and formatting. A baseline with items or subjects takes one line per entry, so a change shows as one line in a diff. When an edit would change anything else, Uphill writes nothing. This replaces `uphill.lock`. Decided 2026-11-23, and replaced by decision 36.
 22. **`--compare` adds to a run.** `uphill --compare <ref>` measures `<ref>` in a temporary Git worktree with this checkout's categories and commands. Timings run 8 interleaved pairs, alternating which side runs first. Exact metrics compare with `<ref>`'s baselines, or with its run when it has none. The gates keep their meaning. Decided 2026-11-23.
 23. **`setup`.** A top-level `setup` command, such as `bun install --frozen-lockfile`, runs once in each checkout Uphill creates, with the top-level `timeout`. The current checkout is assumed ready. A failed setup stops the run with status 2, and `setup` is no longer a category name. Decided 2026-11-23.
 24. **Notes.** A line may end with `note <text>`, after any target, such as `note "hero.svg has no alt text"`. Scripts take the note from the tool that found the miss. Notes come from the first round, stay out of baselines, and show under their item in every report. Decided 2026-11-23.
@@ -82,6 +82,7 @@ Uphill keeps Lighthouse's scoring and depth, and replaces its fixed browser gath
 33. **Report notes.** `uphill --note` also keeps the run's `report.json`, byte for byte, as a note on `HEAD` under `refs/notes/uphill-report`. A dashboard across repositories then reads each noted commit's full report, with scores, targets, and titles, through the Git hosting API, without a clone, a token for public repositories, or rescoring. CI artifacts expire, need a token even on public repositories, and exist only on one CI, so they cannot serve that reader. A second ref keeps the compact notes small, since trends and `uphill log` read up to 1,000 of them. CI fetches and pushes both refs with the pattern `refs/notes/uphill*`. Decided 2026-11-23, extending decision 28.
 34. **`uphill dashboard`.** `uphill dashboard <repository>...` reads the latest noted runs of several repositories and writes `.uphill/dashboard.html` in the current directory, with a summary in the terminal. A repository is a Git URL, a local path, or `owner/name` on GitHub. Uphill fetches the default branch as commits only, and both notes refs, into a temporary bare repository with Git's own credentials, then removes it. Each subject of each repository gets a row: the category scores of its newest noted run, each category's trend across the last 99 noted runs, and the metrics, targets, and opportunities of its report note, or the values of its compact note without one. The dashboard needs no host, makes no network requests, and reads private repositories without a token of its own. A hosted page and a page that fetches notes in the browser lost, since one needs a host and the other needs a token in the browser for private repositories. Decided 2026-11-23, building on decision 33.
 35. **incur parses the command line.** `crates/cli` declares its commands with [incur](https://github.com/wevm/incur): `uphill [category]` as the root command and the others as a `Parser` enum. incur prints help, the version, the `--llms` manifest, and shell completions, so an agent reads every command and flag from the binary. Commands still write their own output and exit with 0, 1, or 2, and an argument that incur rejects goes to standard error with status 2. `uphill skills add` installs skills that incur generates from the commands. MCP stays off, since commands write to standard output. Decided 2026-11-24.
+36. **Baselines live in a baseline file.** `uphill --update` writes `uphill.baseline.yaml` or `uphill.baseline.toml` beside the configuration, in its format. The file mirrors the configuration's categories and metrics and holds only baselines, one line per item or subject. The configuration then holds only what people write, while viem's baselines run to thousands of lines. Uphill writes the whole file, so the in-place editor only removes the `baseline` keys of older configurations, and a TOML metric with dotted keys no longer blocks an update. Uphill still reads those keys, so older revisions compare and keep their `uphill log` history, and `uphill --update` moves them into the file. This replaces decision 21. Decided 2026-11-24 with jxom.
 
 ## The Contract
 
@@ -94,8 +95,9 @@ footprint:
   # Gzipped bytes of each export. The script sets its own target for exports that need one, and
   # `targets` overrides any item by pattern.
   export-size: { target: 5kB, targets: { "viem/chains/*": 1kB } }
-  # `uphill --update` writes the baseline, the accepted value each run compares with.
-  install-size: { target: 10MB, baseline: 45.6MB }
+  # `uphill --update` writes the baseline, the accepted value each run compares with, to
+  # `uphill.baseline.yaml`.
+  install-size: { target: 10MB }
 
 speed:
   run: bun metrics/speed.ts
@@ -130,7 +132,7 @@ uphill check
 uphill init
 ```
 
-- **Baselines:** `uphill --update` writes each metric's `baseline` into the configuration, which is committed. A recorded line target follows its value, as in `viem/chains: 61kB target 80kB`.
+- **Baselines:** `uphill --update` writes each metric's baseline to `uphill.baseline.yaml` or `uphill.baseline.toml` beside the configuration, and both files are committed. A recorded line target follows its value, as in `viem/chains: 61kB target 80kB`.
 - **Files:** `.uphill/report.html`, `report.json`, and `report.md` are written on every run and ignored by Git.
 - **Exit status:** 0 when every category passes, 1 when a category fails or a gate fails, and 2 when Uphill cannot run, such as for an unknown argument or an invalid `uphill.yaml`.
 

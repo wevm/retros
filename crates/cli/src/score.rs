@@ -2,10 +2,11 @@
 //! each category as it finishes, then the opportunities and the changes since the baselines.
 //! Categories that share a `run` command share one run. It writes `.uphill/report.json`,
 //! `.uphill/report.md`, and `.uphill/report.html` in the project root. With `--update`, it writes
-//! this run's sizes, counts, checks, and line targets to each metric's `baseline` in the
-//! configuration. With `--compare <ref>`, it also checks out `<ref>` in a temporary worktree,
-//! runs timings in interleaved pairs there and here, and compares sizes, counts, and checks with
-//! the revision's baselines, or with its own run when it has none.
+//! this run's sizes, counts, checks, and line targets to the baseline file beside the
+//! configuration, and moves an older configuration's `baseline` keys there. With `--compare <ref>`,
+//! it also checks out `<ref>` in a temporary worktree, runs timings in interleaved pairs there and
+//! here, and compares sizes, counts, and checks with the revision's baselines, or with its own run
+//! when it has none.
 //!
 //! With `--compact`, for agent loops, it prints the scores on one line and each missed target
 //! with its note instead of each category's metrics. With `--note`, it keeps the run as a Git note
@@ -61,7 +62,7 @@ pub(crate) struct Options {
     pub(crate) require_baseline: bool,
     /// Exit with status 1 when a metric misses its target or a script fails
     pub(crate) require_targets: bool,
-    /// Write this run's sizes, counts, checks, and line targets as baselines
+    /// Write this run's sizes, counts, checks, and line targets to the baseline file
     pub(crate) update: bool,
 }
 
@@ -71,7 +72,7 @@ pub(crate) struct Options {
 ///
 /// Returns a message for the terminal when the category is unknown, when Uphill cannot run a
 /// script at all, when it cannot check out or set up the revision to compare with, when it cannot
-/// write a baseline into the configuration, or when it cannot write a file.
+/// move an older configuration's baselines into the baseline file, or when it cannot write a file.
 pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, String> {
     let prefix = &project.prefix;
 
@@ -285,14 +286,27 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
         "{prefix}.uphill/report.json, {prefix}.uphill/report.md, {prefix}.uphill/report.html"
     );
     if options.update {
+        // An older configuration's `baseline` keys move into the baseline file.
         let name = &project.name;
-        let updated = baseline::write(&project.source, project.format, &project.config, &report)
+        let stripped = baseline::strip(&project.source, project.format)
             .map_err(|error| crate::diagnostic("error", &error, name, &project.source))?;
-        if updated != project.source {
-            std::fs::write(&project.path, updated)
+        let updated = baseline::write(&project.config, &report, project.format);
+        let sidecar = &project.baselines_name;
+        if Some(&updated) != project.baselines_source.as_ref() {
+            let result = if updated.is_empty() {
+                std::fs::remove_file(&project.baselines)
+            } else {
+                std::fs::write(&project.baselines, &updated)
+            };
+            result.map_err(|error| format!("error: could not write {sidecar}: {error}"))?;
+            if !updated.is_empty() {
+                let _ = write!(written, ", {sidecar}");
+            }
+        }
+        if stripped != project.source {
+            std::fs::write(&project.path, stripped)
                 .map_err(|error| format!("error: could not write {name}: {error}"))?;
-            written.push_str(", ");
-            written.push_str(name);
+            let _ = write!(written, ", {name}");
         }
     }
     if options.note {
@@ -363,13 +377,12 @@ fn prepare(
     let label = &worktree.label;
     let mut out = format!("Comparing with {label}\n");
 
-    let place = project
-        .path
-        .strip_prefix(&project.root)
-        .unwrap_or(&project.path);
-    let config = std::fs::read_to_string(worktree.root.join(place))
+    let relative =
+        |path: &std::path::Path| path.strip_prefix(&project.root).unwrap_or(path).to_owned();
+    let baselines = std::fs::read_to_string(worktree.root.join(relative(&project.baselines))).ok();
+    let config = std::fs::read_to_string(worktree.root.join(relative(&project.path)))
         .ok()
-        .and_then(|source| config::parse(&source, project.format).ok());
+        .and_then(|source| crate::project::load(&source, baselines.as_deref(), project.format));
     if !config
         .as_ref()
         .is_some_and(|config| config::alike(config, &project.config))

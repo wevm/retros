@@ -63,13 +63,12 @@ Each run writes three reports to `.uphill/` in the project root. `report.html` i
 
 ## Record a Baseline
 
-`uphill --update` writes each metric's accepted value to its `baseline` key. Commit the configuration, and every later run reports what changed since then.
+`uphill --update` writes each metric's accepted value to `uphill.baseline.yaml`, beside the configuration. Commit both files, and every later run reports what changed since then.
 
-```yaml title=".agents/uphill.yaml"
-# uphill --update added the baseline key.
+```yaml title=".agents/uphill.baseline.yaml"
+# uphill --update wrote this file. The configuration stays as it was.
 footprint:
-  run: sh .agents/metrics/footprint.sh
-  bundle-size: { target: 5kB, baseline: 6.9kB }
+  bundle-size: 6.9kB
 ```
 
 ## Agent Setup

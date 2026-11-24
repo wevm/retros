@@ -81,7 +81,7 @@ Lists the commits on the first-parent history that changed a metric's baseline, 
 
 ```text
 $ uphill log footprint source-size
-footprint source-size in the baselines of uphill.yaml
+footprint source-size in the baselines of uphill.baseline.yaml
 
   fd268f9  2026-11-23  172 B  from 138 B  accept size
   84337c9  2026-11-23  138 B              init
@@ -105,7 +105,7 @@ Names the commit that last moved a metric. When baselines record the metric, `bl
 
 ```text
 $ uphill blame footprint source-size
-fd268f9 moved footprint source-size from 138 B to 172 B, by the baselines in uphill.yaml
+fd268f9 moved footprint source-size from 138 B to 172 B, by the baselines in uphill.baseline.yaml
   2026-11-23  accept size
 ```
 
@@ -226,7 +226,7 @@ uphill --compare main
 
 ### `--update`
 
-Writes this run's sizes, counts, checks, and line targets to each metric's `baseline` key in the configuration. Uphill keeps the rest of the file as it was.
+Writes this run's sizes, counts, checks, and line targets to the baseline file beside the configuration, `uphill.baseline.yaml` or `uphill.baseline.toml`. It also moves the `baseline` keys of an older configuration into that file, and keeps the rest of the configuration as it was.
 
 ```sh
 # Accept this run as the baseline.

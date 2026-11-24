@@ -13,7 +13,7 @@ Uphill scores a project against its targets the way Lighthouse scores a page. Sc
 5. When one target does not fit every item, have the script write that item's own target on its line. A root entry point that bundles every subpath is one such item. Put the reason in a comment beside the code that sets the target.
 6. When a measurement misses, have the script write the tool's reason as its note. A failing test's message and the lint rule that fired are such reasons.
 7. Run `uphill check` and fix what it reports until it passes. Then run `uphill` and read the scores and opportunities.
-8. Add `.uphill/` to `.gitignore`. When the scores look right, run `uphill --update` to record each metric's baseline in the configuration, and commit it.
+8. Add `.uphill/` to `.gitignore`. When the scores look right, run `uphill --update` to record each metric's baseline in `.agents/uphill.baseline.yaml`, and commit both files.
 
 ## Configuration
 

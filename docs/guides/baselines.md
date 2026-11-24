@@ -4,15 +4,14 @@ A baseline is the last accepted value of a metric. Uphill compares every run wit
 
 ## Overview
 
-`uphill --update` writes each metric's `baseline` key into the configuration, next to its `target`. The configuration is committed, so accepting a regression or loosening a script's target is a reviewed change, like any other line of code.
+`uphill --update` writes each metric's accepted value to `uphill.baseline.yaml`, beside the configuration. Both files are committed, so accepting a regression or loosening a script's target is a reviewed change, like any other line of code.
 
 Baselines hold sizes, counts, checks, and the targets scripts write on their lines. These are the same on every machine. Timings differ between machines, so a baseline never holds them. The [Comparing Revisions](./comparing.md) guide compares timings instead.
 
-```yaml title="uphill.yaml"
-# uphill --update wrote the baseline key.
+```yaml title="uphill.baseline.yaml"
+# uphill --update wrote this file. The configuration keeps only what people write.
 footprint:
-  run: sh metrics/footprint.sh
-  bundle-size: { target: 5kB, baseline: 6.9kB }
+  bundle-size: 6.9kB
 ```
 
 ## Walkthrough
@@ -21,29 +20,25 @@ This walkthrough uses the `pages` category from [Writing Scripts](./scripts.md),
 
 ### Record the Values
 
-`uphill --update` runs every category and writes what it measured. A metric with items takes one line per item, so a later change to one item shows as one line in a diff. Uphill keeps the comments and formatting of the rest of the file.
+`uphill --update` runs every category and writes what it measured. A metric with items takes one line per item, so a later change to one item shows as one line in a diff. The configuration stays as it was.
 
 ```text
 $ uphill --update
 ...
-Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html, uphill.yaml
+Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html, uphill.baseline.yaml
 ```
 
-```yaml title="uphill.yaml"
-# The pages category runs one script, which writes two metrics per page.
+```yaml title="uphill.baseline.yaml"
+# The pages category writes two metrics per page.
 pages:
-  run: sh metrics/pages.sh
   page-size:
-    target: 20kB
-    baseline:
-      about.html: 9015B
-      index.html: 14034B
-      pricing.html: 31037B
+    about.html: 9015B
+    index.html: 14034B
+    pricing.html: 31037B
   has-title:
-    baseline:
-      about.html: fail
-      index.html: pass
-      pricing.html: pass
+    about.html: fail
+    index.html: pass
+    pricing.html: pass
 ```
 
 ### Read the Changes
@@ -72,22 +67,21 @@ $ uphill --require-baseline
 
 ### Accept the Change
 
-`uphill --update` accepts the run. The diff of the configuration shows each accepted change on its own line, and the next run with `--require-baseline` passes.
+`uphill --update` accepts the run. The diff of the baseline file shows each accepted change on its own line, and the next run with `--require-baseline` passes.
 
-```diff title="uphill.yaml"
-     baseline:
-       about.html: 9015B
-+      blog.html: 4034B
-       index.html: 14034B
--      pricing.html: 31037B
-+      pricing.html: 33037B
+```diff title="uphill.baseline.yaml"
+   page-size:
+     about.html: 9015B
++    blog.html: 4034B
+     index.html: 14034B
+-    pricing.html: 31037B
++    pricing.html: 33037B
    has-title:
-     baseline:
--      about.html: fail
-+      about.html: pass
-+      blog.html: pass
-       index.html: pass
-       pricing.html: pass
+-    about.html: fail
++    about.html: pass
++    blog.html: pass
+     index.html: pass
+     pricing.html: pass
 ```
 
 ## Recipes
@@ -96,11 +90,10 @@ $ uphill --require-baseline
 
 A baseline records the target a script writes on a line, after the value. When a script changes its own target, the run reports it as looser or tighter, so a loosened target cannot pass review unseen.
 
-```yaml title="uphill.yaml"
+```yaml title="uphill.baseline.yaml"
 # The chains entry point wrote a 15 kB target on its line.
-entry-size:
-  target: 5kB
-  baseline:
+footprint:
+  entry-size:
     chains: 12033B target 15kB
     index: 6112B
     utils: 1132B
@@ -124,23 +117,34 @@ speed:
 
 ### Baselines in TOML
 
-`uphill --update` edits `uphill.toml` in place too, and writes a baseline with items as an inline table. A metric written with dotted keys, such as `entry-size.target = "5kB"`, cannot take a baseline, so Uphill writes nothing and names the metric.
+A project with `uphill.toml` gets `uphill.baseline.toml`. A metric with items takes a table of its own, one line per item.
 
-```toml title="uphill.toml"
-# uphill --update added the baseline key.
+```toml title="uphill.baseline.toml"
+# uphill --update wrote this file beside uphill.toml.
 [footprint.entry-size]
-target = "5kB"
-targets = { "chains" = "8kB" }
-baseline = { chains = "12033B", index = "6112B", utils = "1132B" }
+chains = "12033B target 15kB"
+index = "6112B"
+utils = "1132B"
+```
+
+### Move Older Baselines
+
+Older configurations set a `baseline` key on each metric. Uphill still reads it, and `uphill --update` moves every one into the baseline file and removes the key, keeping the rest of the configuration as it was.
+
+```diff title="uphill.yaml"
+ footprint:
+   run: sh metrics/footprint.sh
+-  bundle-size: { target: 5kB, baseline: 6.9kB }
++  bundle-size: { target: 5kB }
 ```
 
 ### Trace a Metric
 
-Each baseline lives in Git, so its history is the metric's history. `uphill log` lists the commits that changed a baseline, and `uphill blame` names the last one. With `--require-baseline` in CI, that commit is the change that moved the metric.
+The baseline file lives in Git, so its history is the metric's history. `uphill log` lists the commits that changed a baseline, and `uphill blame` names the last one. With `--require-baseline` in CI, that commit is the change that moved the metric.
 
 ```text
 $ uphill log footprint source-size
-footprint source-size in the baselines of uphill.yaml
+footprint source-size in the baselines of uphill.baseline.yaml
 
   fd268f9  2026-11-23  172 B  from 138 B  accept size
   84337c9  2026-11-23  138 B              init

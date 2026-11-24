@@ -6,7 +6,7 @@
 //! share one run of it. A top-level `setup` command prepares each checkout that
 //! `uphill --compare` creates. A metric is a mapping of optional keys: `target`, `poor`,
 //! `targets`, `weight`, `score`, `better`, `varies`, `title`, `description`, and `baseline`, which
-//! `uphill --update` writes. `target` is the default for every item, a metric line can set its
+//! older configurations set and the baseline file now holds. `target` is the default for every item, a metric line can set its
 //! own, and `targets` sets targets by item pattern and has the final say. `poor` is the value that
 //! scores 50 against the default target, and twice the target without it.
 //!
@@ -145,8 +145,8 @@ impl Category {
 /// A configured metric.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Metric {
-    /// The sizes, counts, checks, and line targets that `uphill --update` last accepted, or `None`
-    /// before the first update.
+    /// The sizes, counts, checks, and line targets that `uphill --update` last accepted, from the
+    /// baseline file or an older configuration's `baseline` key, or `None` before the first update.
     pub baseline: Option<Baseline>,
     /// Which direction is better. Defaults to lower.
     pub better: Better,

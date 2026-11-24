@@ -1,6 +1,6 @@
 # Configuration
 
-`uphill.yaml` or `uphill.toml` declares the categories, the command that measures each one, and the target of each metric. Both formats accept the same keys.
+`uphill.yaml` or `uphill.toml` declares the categories, the command that measures each one, and the target of each metric. Both formats accept the same keys. `uphill --update` writes accepted values to a [baseline file](#baseline-file) beside it.
 
 ## Files
 
@@ -275,22 +275,44 @@ page-size: { target: 20kB, description: Bytes of HTML each page sends. }
 - **Type:** a value, or a mapping of items to values
 - **Default:** none
 
-The last accepted value, which `uphill --update` writes. A metric with items takes one line per item, and a line target follows its value. With subjects, each subject has its own entry. Timings have no baseline.
+The last accepted value in older configurations. Uphill still reads it, so older revisions compare and keep their history. `uphill --update` moves it into the [baseline file](#baseline-file) and removes the key. When both record a metric, the baseline file applies.
 
 ```yaml title="uphill.yaml"
-# Written by uphill --update.
+# An older configuration. The next uphill --update moves 6.9kB into uphill.baseline.yaml.
 bundle-size: { target: 5kB, baseline: 6.9kB }
-entry-size:
-  target: 5kB
-  baseline:
+```
+
+## Baseline File
+
+`uphill.baseline.yaml` or `uphill.baseline.toml` sits beside the configuration, in the same format, and holds the last accepted value of each metric. `uphill --update` writes the whole file, so edit the configuration instead. Commit both files.
+
+Categories and metrics keep the order the configuration declares. A metric with items takes one line per item, and a line target follows its value. With subjects, each subject has its own entry. Timings record only their line targets.
+
+#### YAML
+
+```yaml title="uphill.baseline.yaml"
+# Written by uphill --update, beside uphill.yaml.
+footprint:
+  bundle-size: 6.9kB
+  entry-size:
     chains: 12033B target 15kB
     index: 6112B
-export-size:
-  target: 2kB
-  baseline:
+  export-size:
     node:
       format: 900B
       parse: 1.1kB
     web:
       parse: 1.3kB target 1kB
+```
+
+#### TOML
+
+```toml title="uphill.baseline.toml"
+# Written by uphill --update, beside uphill.toml. A metric with items takes a table of its own.
+[footprint]
+bundle-size = "6.9kB"
+
+[footprint.entry-size]
+chains = "12033B target 15kB"
+index = "6112B"
 ```

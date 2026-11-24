@@ -167,7 +167,7 @@ fn help() {
       --note              Keep this run as a Git note on HEAD, for trends and `uphill log`
       --require-baseline  Exit with status 1 when anything differs from the baselines
       --require-targets   Exit with status 1 when a metric misses its target or a script fails
-      --update            Write this run's sizes, counts, checks, and line targets as baselines
+      --update            Write this run's sizes, counts, checks, and line targets to the baseline file
 
     Runs each category's script, scores its metrics, lists the opportunities that would raise the scores most, and compares sizes, counts, checks, and line targets with each metric's baseline. Reads uphill.yaml or uphill.toml, at the root or in .agents, from this directory or the nearest parent. Writes .uphill/report.json, report.md, and report.html.
 
@@ -689,7 +689,7 @@ fn baselines_record_line_targets_and_gate_every_change() {
     );
 
     // Each metric's baseline records the targets lines set, including a timing's, whose value it
-    // leaves out. A baseline with items takes one line per item, so a flow metric becomes a block.
+    // leaves out. A baseline with items takes one line per item.
     edit(
         "footprint.sh",
         "export-size viem 1kB\n",
@@ -700,44 +700,43 @@ fn baselines_record_line_targets_and_gate_every_change() {
         "render encode 2ms",
         "render encode 2ms target 3ms",
     );
+    let config = fs::read_to_string(project.path().join("uphill.yaml")).unwrap();
     let recorded = uphill_in(project.path(), &["--update"], &[]);
 
+    // The configuration stays as people wrote it, and the baseline file keeps the declared order.
     assert_eq!(recorded.status.code(), Some(0));
-    let config = fs::read_to_string(project.path().join("uphill.yaml")).unwrap();
-    insta::assert_snapshot!(config, @r#"
-    # Scores one value, a list, an unscored count, and a list of checks, then timings over 5 rounds
-    # and a count where higher is better.
+    assert_eq!(
+        fs::read_to_string(project.path().join("uphill.yaml")).unwrap(),
+        config
+    );
+    let baselines = fs::read_to_string(project.path().join("uphill.baseline.yaml")).unwrap();
+    insta::assert_snapshot!(baselines, @r#"
+    # Written by `uphill --update`: the accepted sizes, counts, checks, and line targets of each
+    # metric. Each run reports what changed since.
 
     footprint:
-      run: sh footprint.sh
-      bundle: { target: 5kB, baseline: 27.5kB }
+      bundle: 27.5kB
       export-size:
-        target: 5kB
-        baseline:
-          viem: 1kB target 2kB
-          viem/accounts: 2kB
-          viem/actions: 3kB
-          viem/chains: 10kB
-          viem/ens: 4kB
-          viem/op-stack: 9kB
-          viem/siwe: 5kB
-          viem/utils: 8kB
-          viem/window: 6kB
-          viem/zksync: 7kB
-      modules: { baseline: 412 }
+        viem: 1kB target 2kB
+        viem/accounts: 2kB
+        viem/actions: 3kB
+        viem/chains: 10kB
+        viem/ens: 4kB
+        viem/op-stack: 9kB
+        viem/siwe: 5kB
+        viem/utils: 8kB
+        viem/window: 6kB
+        viem/zksync: 7kB
+      modules: 412
       links:
-        baseline:
-          about.html: fail
-          "blog/first post.html": pass
-          index.html: pass
+        about.html: fail
+        "blog/first post.html": pass
+        index.html: pass
 
     speed:
-      run: sh speed.sh
       render:
-        target: 2ms
-        baseline:
-          encode: target 3ms
-      throughput: { target: 2000, better: higher, weight: 2, baseline: 2588 }
+        encode: target 3ms
+      throughput: 2588
     "#);
 
     // An improvement alone fails the gate until it is accepted, so it becomes the new floor.
@@ -762,13 +761,13 @@ Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
     let accepted = uphill_in(project.path(), &["footprint", "--update"], &[]);
     assert_eq!(accepted.status.code(), Some(0));
 
-    // Updating again from the same code leaves the configuration as it is.
-    let config = fs::read_to_string(project.path().join("uphill.yaml")).unwrap();
+    // Updating again from the same code leaves the baseline file as it is.
+    let baselines = fs::read_to_string(project.path().join("uphill.baseline.yaml")).unwrap();
     let again = uphill_in(project.path(), &["footprint", "--update"], &[]);
     assert_eq!(again.status.code(), Some(0));
     assert_eq!(
-        fs::read_to_string(project.path().join("uphill.yaml")).unwrap(),
-        config
+        fs::read_to_string(project.path().join("uphill.baseline.yaml")).unwrap(),
+        baselines
     );
 
     edit(
@@ -820,19 +819,16 @@ Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
     // Accepting the changes rewrites only the lines of the items that changed.
     let accepted = uphill_in(project.path(), &["footprint", "--update"], &[]);
     assert_eq!(accepted.status.code(), Some(0));
-    let expected = config
+    let expected = baselines
+        .replace("    viem: 1kB target 2kB\n", "    viem: 1kB target 3kB\n")
+        .replace("    viem/chains: 10kB\n", "    viem/chains: 12kB\n")
         .replace(
-            "      viem: 1kB target 2kB\n",
-            "      viem: 1kB target 3kB\n",
+            "    viem/siwe: 5kB\n",
+            "    viem/siwe: 5kB\n    viem/tempo: 4kB\n",
         )
-        .replace("      viem/chains: 10kB\n", "      viem/chains: 12kB\n")
-        .replace(
-            "      viem/siwe: 5kB\n",
-            "      viem/siwe: 5kB\n      viem/tempo: 4kB\n",
-        )
-        .replace("      viem/window: 6kB\n", "");
+        .replace("    viem/window: 6kB\n", "");
     assert_eq!(
-        fs::read_to_string(project.path().join("uphill.yaml")).unwrap(),
+        fs::read_to_string(project.path().join("uphill.baseline.yaml")).unwrap(),
         expected
     );
 }
@@ -872,39 +868,24 @@ fn subjects_share_one_run_and_score_on_their_own() {
       new     ts: footprint  install-size
       new     ts: footprint  wasm-size
 
-    Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html, uphill.yaml
+    Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html, uphill.baseline.yaml
     ");
 
     // Baselines record each subject. zc's peak memory varies, so only ts's line target is kept.
-    let config = fs::read_to_string(project.path().join("uphill.yaml")).unwrap();
-    insta::assert_snapshot!(config, @r#"
-    # Two subjects, zc and ts, measured by one script that both categories share. zc's peak memory
-    # varies from round to round, and ts writes a wasm size that zc does not. Footprint and its peak
-    # memory have titles, and the other names show in words.
-    run: sh harnesses.sh
-
-    speed:
-      description: Time the harness spends that is not the model's.
-      startup: { target: 30ms, description: "Spawn to exit of `--version`." }
+    let baselines = fs::read_to_string(project.path().join("uphill.baseline.yaml")).unwrap();
+    insta::assert_snapshot!(baselines, @"
+    # Written by `uphill --update`: the accepted sizes, counts, checks, and line targets of each
+    # metric. Each run reports what changed since.
 
     footprint:
-      title: Size and memory
       turn-rss:
-        target: 16MB
-        varies: true
-        title: "Peak memory, one turn"
-        baseline:
-          ts: target 57MB
+        ts: target 57MB
       install-size:
-        target: 10MB
-        baseline:
-          zc: 2MB
-          ts: 4MB
+        zc: 2MB
+        ts: 4MB
       wasm-size:
-        target: 350kB
-        baseline:
-          ts: 250kB
-    "#);
+        ts: 250kB
+    ");
 
     let markdown = fs::read_to_string(project.path().join(".uphill/report.md")).unwrap();
     insta::assert_snapshot!(markdown, @"
@@ -1341,7 +1322,7 @@ fn blame_bisects_commits_until_baselines_record_the_metric_and_log_lists_them() 
     let output = uphill_in(dir, &["log", "footprint", "bundle"], &[]);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     insta::assert_snapshot!(named(&stdout(&output)), @"
-    footprint bundle in the baselines of uphill.yaml
+    footprint bundle in the baselines of uphill.baseline.yaml
 
       commit6  2026-01-06  28 kB  from 30 kB  perf: subset the font
       commit5  2026-01-05  30 kB              chore: record baselines
@@ -1350,7 +1331,7 @@ fn blame_bisects_commits_until_baselines_record_the_metric_and_log_lists_them() 
     let output = uphill_in(dir, &["blame", "footprint", "bundle"], &[]);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     insta::assert_snapshot!(named(&stdout(&output)), @"
-    commit6 moved footprint bundle from 30 kB to 28 kB, by the baselines in uphill.yaml
+    commit6 moved footprint bundle from 30 kB to 28 kB, by the baselines in uphill.baseline.yaml
       2026-01-06  perf: subset the font
     ");
 
@@ -1660,14 +1641,9 @@ fn init_points_the_brief_at_the_closest_example() {
 #[test]
 fn rejects_an_invalid_baseline() {
     let project = fixture("scored");
-    let path = project.path().join("uphill.yaml");
-    let config = fs::read_to_string(&path).unwrap();
     fs::write(
-        &path,
-        config.replace(
-            "bundle: { target: 5kB }",
-            "bundle: { target: 5kB, baseline: 27.5 kilobytes }",
-        ),
+        project.path().join("uphill.baseline.yaml"),
+        "footprint:\n  bundle: 27.5 kilobytes\n",
     )
     .unwrap();
 
@@ -1675,21 +1651,18 @@ fn rejects_an_invalid_baseline() {
 
     assert_eq!(output.status.code(), Some(2));
     insta::assert_snapshot!(stderr(&output), @"
-    error[invalid-value] uphill.yaml:6:36: expected a size, count, or check, optionally followed by `target <value>`, or a mapping of items or subjects to them. Run `uphill --update` to rewrite the baseline
-      6 |   bundle: { target: 5kB, baseline: 27.5 kilobytes }
-        |                                    ^
+    error[invalid-value] uphill.baseline.yaml:2:11: expected a size, count, or check, optionally followed by `target <value>`, or a mapping of items or subjects to them. Run `uphill --update` to rewrite the baseline
+      2 |   bundle: 27.5 kilobytes
+        |           ^
     ");
 }
 
 #[test]
-fn update_writes_toml_baselines_in_place() {
+fn update_writes_a_toml_baseline_file_and_moves_inline_baselines_into_it() {
     let project = fixture("passing");
     let path = project.path().join("uphill.toml");
-    fs::write(
-        &path,
-        "[footprint]\nrun = \"sh metrics/footprint.sh\"\nexport-size = { target = \"5kB\" } # gzipped\nmodules = {}\n\n[speed]\nrun = \"sh metrics/speed.sh\"\n\n[speed.render]\ntarget = \"2ms\" # per item\n",
-    )
-    .unwrap();
+    let config = "[footprint]\nrun = \"sh metrics/footprint.sh\"\nexport-size.target = \"5kB\" # gzipped\nmodules = { baseline = 400 }\n\n[speed]\nrun = \"sh metrics/speed.sh\"\n\n[speed.render]\ntarget = \"2ms\" # per item\n";
+    fs::write(&path, config).unwrap();
     let speed = project.path().join("metrics/speed.sh");
     let script = fs::read_to_string(&speed).unwrap();
     fs::write(
@@ -1698,47 +1671,45 @@ fn update_writes_toml_baselines_in_place() {
     )
     .unwrap();
 
-    // Inline tables take the baseline on their line, and a table with a header takes a new line.
+    // The inline baseline moves into the baseline file, and a metric with dotted keys needs no
+    // edit. A baseline with items takes a table of its own, one line per item.
     let output = uphill_in(project.path(), &["--update"], &[]);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
-    let config = fs::read_to_string(&path).unwrap();
-    insta::assert_snapshot!(config, @r#"
-    [footprint]
-    run = "sh metrics/footprint.sh"
-    export-size = { target = "5kB", baseline = { viem = "4.2kB", "viem/chains" = "61kB" } } # gzipped
-    modules = { baseline = 412 }
+    assert!(
+        stdout(&output).ends_with(
+            "\nWrote .uphill/report.json, .uphill/report.md, .uphill/report.html, uphill.baseline.toml, uphill.toml\n"
+        ),
+        "{}",
+        stdout(&output)
+    );
+    assert_eq!(
+        fs::read_to_string(&path).unwrap(),
+        config.replace("modules = { baseline = 400 }", "modules = {}")
+    );
+    let baselines = fs::read_to_string(project.path().join("uphill.baseline.toml")).unwrap();
+    insta::assert_snapshot!(baselines, @r#"
+    # Written by `uphill --update`: the accepted sizes, counts, checks, and line targets of each
+    # metric. Each run reports what changed since.
 
-    [speed]
-    run = "sh metrics/speed.sh"
+    [footprint]
+    modules = 412
+
+    [footprint.export-size]
+    viem = "4.2kB"
+    "viem/chains" = "61kB"
 
     [speed.render]
-    target = "2ms" # per item
-    baseline = { encode = "target 300µs" }
+    encode = "target 300µs"
     "#);
 
-    // Without its line target, the timing records nothing, so its baseline goes.
+    // Without its line target, the timing records nothing, so its table goes.
     fs::write(&speed, script).unwrap();
     let output = uphill_in(project.path(), &["--update"], &[]);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     assert_eq!(
-        fs::read_to_string(&path).unwrap(),
-        config.replace("baseline = { encode = \"target 300µs\" }\n", "")
+        fs::read_to_string(project.path().join("uphill.baseline.toml")).unwrap(),
+        baselines.replace("\n[speed.render]\nencode = \"target 300µs\"\n", "")
     );
-
-    // A metric defined with dotted keys is left alone, and nothing is written.
-    let dotted = config.replace(
-        "export-size = { target = \"5kB\", baseline = { viem = \"4.2kB\", \"viem/chains\" = \"61kB\" } }",
-        "export-size.target = \"5kB\"",
-    );
-    fs::write(&path, &dotted).unwrap();
-    let output = uphill_in(project.path(), &["--update"], &[]);
-    assert_eq!(output.status.code(), Some(2));
-    insta::assert_snapshot!(stderr(&output), @r#"
-    error[invalid-type] uphill.toml:3:1: Uphill cannot write the baseline of metric `export-size` in this form. Write the metric as an inline table, such as `export-size = { target = "5kB" }`, then run `uphill --update` again
-      3 | export-size.target = "5kB" # gzipped
-        | ^
-    "#);
-    assert_eq!(fs::read_to_string(&path).unwrap(), dotted);
 }
 
 #[test]
@@ -1948,12 +1919,13 @@ fn check_with_an_invalid_config_names_it_relative_to_the_current_directory() {
 }
 
 #[test]
-fn agents_config_runs_from_the_project_root_and_records_its_baselines_in_place() {
+fn agents_config_runs_from_the_project_root_and_moves_inline_baselines_beside_it() {
     let dir = tempfile::tempdir().unwrap();
     fs::create_dir_all(dir.path().join(".agents/metrics")).unwrap();
+    // An older configuration records the baseline in the metric's `baseline` key.
     fs::write(
         dir.path().join(".agents/uphill.yaml"),
-        "footprint:\n  run: sh .agents/metrics/manifests.sh\n  manifests: { target: 2 }\n",
+        "footprint:\n  run: sh .agents/metrics/manifests.sh\n  manifests: { target: 2, baseline: 3 } # manifests\n",
     )
     .unwrap();
     // The script counts manifests in the directory it runs from, which is the project root.
@@ -1972,14 +1944,21 @@ fn agents_config_runs_from_the_project_root_and_records_its_baselines_in_place()
       ●  99  manifests  1  target 2
 
     Since the baseline
-      new  footprint  manifests
+      better  footprint  manifests  3 → 1
 
-    Wrote ../.uphill/report.json, ../.uphill/report.md, ../.uphill/report.html, ../.agents/uphill.yaml
+    Wrote ../.uphill/report.json, ../.uphill/report.md, ../.uphill/report.html, ../.agents/uphill.baseline.yaml, ../.agents/uphill.yaml
     ");
     insta::assert_snapshot!(fs::read_to_string(dir.path().join(".agents/uphill.yaml")).unwrap(), @"
     footprint:
       run: sh .agents/metrics/manifests.sh
-      manifests: { target: 2, baseline: 1 }
+      manifests: { target: 2 } # manifests
+    ");
+    insta::assert_snapshot!(fs::read_to_string(dir.path().join(".agents/uphill.baseline.yaml")).unwrap(), @"
+    # Written by `uphill --update`: the accepted sizes, counts, checks, and line targets of each
+    # metric. Each run reports what changed since.
+
+    footprint:
+      manifests: 1
     ");
     assert!(dir.path().join(".uphill/report.html").exists());
 

@@ -1,9 +1,10 @@
 //! `uphill log` and `uphill blame`: one metric across the commits of the repository, and the notes
 //! under `refs/notes/uphill` that keep past runs.
 //!
-//! `log` reads the metric's baseline in each version of the configuration on the first-parent
-//! history, so it lists the commits that accepted a new value. A metric without baselines, such as
-//! a timing, comes from the runs `uphill --note` kept. `blame` names the commit that last
+//! `log` reads the metric's baseline in each version of the baseline file, or of an older
+//! configuration's `baseline` key, on the first-parent history, so it lists the commits that
+//! accepted a new value. A metric without baselines, such as a timing, comes from the runs
+//! `uphill --note` kept. `blame` names the commit that last
 //! moved the metric. It reads the same baselines when they record the metric. Otherwise it checks
 //! out commits in temporary worktrees, measures each, and bisects. Each commit runs the category's
 //! `run` command from its own configuration when that declares the category, so a script that
@@ -18,7 +19,7 @@ use std::process::{Command, ExitCode, Stdio};
 
 use engine::baseline;
 use engine::compare::Timing;
-use engine::config::{self, Category};
+use engine::config::Category;
 use engine::history::Run;
 use engine::lines::Line;
 use engine::value::{Kind, Value};
@@ -163,7 +164,11 @@ pub(crate) fn log(project: &Project, selector: &Selector) -> Result<ExitCode, St
             out.push_str(&table(&rows));
         }
     } else {
-        let _ = writeln!(out, "{name} in the baselines of {}\n", project.name);
+        let _ = writeln!(
+            out,
+            "{name} in the baselines of {}\n",
+            project.baselines_name
+        );
         let shown = |value: Option<Value>| value.map_or("none".to_owned(), engine::format::value);
         let rows: Vec<[String; 5]> = points
             .iter()
@@ -217,12 +222,12 @@ pub(crate) fn blame(
                     "{} moved {name} from {} to {value}, by the baselines in {}",
                     commit.short,
                     engine::format::value(before),
-                    project.name
+                    project.baselines_name
                 ),
                 None => writeln!(
                     out,
                     "{} recorded {name} at {value}, the first baseline in {}",
-                    commit.short, project.name
+                    commit.short, project.baselines_name
                 ),
             };
             let _ = writeln!(out, "  {}  {}", commit.date, commit.title);
@@ -234,20 +239,21 @@ pub(crate) fn blame(
     Ok(ExitCode::SUCCESS)
 }
 
-/// Reads the metric's baseline in each version of the configuration on the first-parent history
-/// and returns the commits where it changed, oldest first.
+/// Reads the metric's baseline in each version of the configuration and its baseline file on the
+/// first-parent history and returns the commits where it changed, oldest first.
 ///
 /// # Errors
 ///
 /// Returns a message for the terminal when the project is not in a Git repository or Git fails.
 fn points(project: &Project, selector: &Selector) -> Result<Vec<Point>, String> {
     worktree::repository(&project.root)?;
-    let place = project
-        .path
-        .strip_prefix(&project.root)
-        .unwrap_or(&project.path)
-        .to_string_lossy()
-        .into_owned();
+    let relative = |path: &Path| {
+        path.strip_prefix(&project.root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .into_owned()
+    };
+    let (place, sidecar) = (relative(&project.path), relative(&project.baselines));
     let log = worktree::git(
         &project.root,
         &[
@@ -258,27 +264,32 @@ fn points(project: &Project, selector: &Selector) -> Result<Vec<Point>, String> 
             FORMAT,
             "--",
             &place,
+            &sidecar,
         ],
     )?;
 
     let mut points = Vec::new();
     let mut last = None;
     for commit in Commit::parse(&log) {
-        let value = worktree::git(
-            &project.root,
-            &["show", &format!("{}:./{place}", commit.hash)],
-        )
-        .ok()
-        .and_then(|source| config::parse(&source, project.format).ok())
-        .and_then(|config| {
-            baseline::value(
-                &config,
-                &selector.category,
-                &selector.metric,
-                selector.subject.as_deref(),
-                selector.item.as_deref(),
+        let show = |path: &str| {
+            worktree::git(
+                &project.root,
+                &["show", &format!("{}:./{path}", commit.hash)],
             )
-        });
+            .ok()
+        };
+        let baselines = show(&sidecar);
+        let value = show(&place)
+            .and_then(|source| project::load(&source, baselines.as_deref(), project.format))
+            .and_then(|config| {
+                baseline::value(
+                    &config,
+                    &selector.category,
+                    &selector.metric,
+                    selector.subject.as_deref(),
+                    selector.item.as_deref(),
+                )
+            });
         if value != last {
             points.push(Point {
                 before: last,
