@@ -1,0 +1,6 @@
+[footprint 14]
+binary-size 2884304B
+dependencies 54
+[speed 99]
+startup 635µs
+check 1615µs
