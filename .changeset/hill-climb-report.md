@@ -2,4 +2,4 @@
 'uphill': patch
 ---
 
-`report.md` and `report.html` are titled "Hill climb report".
+Titled `report.md` and `report.html` "Hill climb report".

@@ -2,4 +2,4 @@
 'uphill': patch
 ---
 
-`uphill` parses its command line with incur. `--help` lists each command's arguments and flags, `uphill <command> --help` describes one command, `--version` prints only the version, `--llms` prints a manifest for agents, `uphill completions <shell>` prints a completion script, and `uphill skills add` installs agent skills generated from the commands.
+Moved command line parsing to incur. `--help` listed each command's arguments and flags, `uphill <command> --help` described one command, `--version` printed only the version, `--llms` printed a manifest for agents, `uphill completions <shell>` printed a completion script, and `uphill skills add` installed agent skills generated from the commands.

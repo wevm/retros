@@ -2,4 +2,4 @@
 'uphill': patch
 ---
 
-`uphill --update` no longer fails with "could not write uphill.baseline.yaml" when a run records nothing and the project has no baseline file yet.
+Fixed `uphill --update` failing with "could not write uphill.baseline.yaml" when a run recorded nothing and the project had no baseline file yet.

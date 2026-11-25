@@ -2,4 +2,4 @@
 'uphill': patch
 ---
 
-`uphill add --update [category...]` fetches the pack of each added category and merges its changes since the commit the category's comment records. A category or script that only one side changed takes that side, and one that both changed is a conflict that writes nothing unless `--force` takes the pack's version. Each example has a `README.md` that `uphill add` prints, saying what to fit.
+Added `uphill add --update [category...]`, which fetched the pack of each added category and merged its changes since the commit the category's comment recorded. A category or script that only one side changed took that side, and one that both changed was a conflict that wrote nothing unless `--force` took the pack's version. Each example gained a `README.md` that `uphill add` printed, saying what to fit.
