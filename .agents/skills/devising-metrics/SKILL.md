@@ -70,17 +70,14 @@ lint src/parse.rs fail note "line 88: index without a bounds check"
 
 ## Patterns
 
-Research the published patterns of the project's language and domain before choosing metrics. Turn each rule that a tool can count, and each threshold that a domain publishes, into a metric. Then make each threshold stricter for the project.
+Research the published patterns of the project's language and domain before choosing metrics. The references below are examples of what to look for, not metrics to copy. Find the references that fit the project, then derive its metrics from the rules and thresholds they publish.
 
-- **TigerStyle and NASA's Power of Ten:** Assertions per function (at least 2), functions longer than 70 lines, unbounded loops and queues, recursion, allocations after startup, and third-party dependencies (zero).
-- **The strictest rule set:** Each rule of the language's strictest linter and type checker, and of the project's AGENTS.md, as a check per file. Count the escape hatches, such as calls that can panic, unchecked casts, and unsafe blocks.
-- **Lighthouse:** The performance metrics of each page, with Lighthouse's weights as `weight`. The weights are First Contentful Paint 10, Speed Index 10, Largest Contentful Paint 25, Total Blocking Time 30, and Cumulative Layout Shift 25. Each audit is a check per page.
-- **Lighthouse control points:** Each Lighthouse metric has two control points, which map to `target` and `poor`, such as 2.5 s and 4 s for mobile Largest Contentful Paint.
-- **Core Web Vitals:** "Good" at the 75th percentile of the field: LCP 2.5 s, INP 200 ms, and CLS 0.1.
-- **RED:** Rate, errors, and duration for each endpoint or handler. Measure the median and 99th percentile duration under concurrency, and the status of each malformed request.
-- **USE:** Utilization, saturation (queue depth), and errors for each resource that the sketch names.
-- **Surfaces:** Size, load time, and time and allocations per call for each export or entry point. Startup time and peak memory for each command. Write amplification and `fsync` calls per operation for storage.
-- **Correctness:** Each deterministic simulation seed, fuzz corpus entry, differential case, and eval case as a check, with the failing input as its note.
+- **TigerStyle:** A language-neutral style for safety and performance. Its explicit limits, assertions, and static allocation show how a style rule becomes a count.
+- **NASA's Power of Ten:** Rules for safety-critical code. Each rule is narrow enough that a tool can check it.
+- **The language's strictest rule set:** The strictest configuration of the language's linter and type checker, and the project's AGENTS.md. Its escape hatches show where the project gives up a guarantee.
+- **Lighthouse and Core Web Vitals:** How the web scores pages. Each metric has a weight and two control points, which map to `weight`, `target`, and `poor`.
+- **RED and USE:** How services and resources are monitored. RED measures the rate, errors, and duration of requests. USE measures the utilization, saturation, and errors of resources.
+- **Deterministic simulation and differential testing:** How correctness becomes countable. Each seed or case that fails is one check.
 
 TigerStyle's performance rule is to sketch the four resources at design time, when the 1000 times wins are available. Use those sketches as targets, and measure each resource that the sketch names.
 
