@@ -6,6 +6,7 @@ use crate::baseline;
 use crate::config::Category;
 use crate::error::{Code, Error};
 use crate::lines::Line;
+use crate::value::Value;
 
 /// The text a finding points into.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -196,8 +197,11 @@ fn check_group(category: &Category, name: &str, group: &[&Line<'_>], report: &mu
         }
     }
 
+    // A metric whose every line skips does not apply, so its targets, of any unit, go unchecked.
+    let skipped = group.iter().all(|line| line.value == Value::Skip);
     match category.metrics.iter().find(|metric| metric.name == name) {
         None if category.dropped.iter().any(|dropped| dropped == name) => {}
+        Some(_) if skipped => {}
         None => report.warnings.push(error(
             Code::UnconfiguredMetric,
             first,

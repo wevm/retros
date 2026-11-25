@@ -130,6 +130,15 @@ fn reports_values_that_do_not_match_their_target() {
 }
 
 #[test]
+fn passes_a_metric_with_a_target_whose_every_line_skips() {
+    // A metric that does not apply, such as bundle sizes in a project without entry points, skips
+    // whatever the unit of its target.
+    let report = check("export-size skip note \"no entry points\"\nmodules 412\n");
+
+    insta::assert_snapshot!(report, @"passed: true, metrics: 2");
+}
+
+#[test]
 fn reports_targets_on_some_lines_only() {
     let report = check("export-size 4.2kB\nmodules viem 412 target 500\nmodules ox 120\n");
 

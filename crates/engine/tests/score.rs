@@ -145,14 +145,16 @@ fn checks_that_skip_have_no_score() {
   image-alt: { weight: 10 }
   video-caption: { weight: 10 }
   links: { weight: 3 }
+  page-size: { target: 20kB, weight: 10 }
 "#;
     // A skipped check, like an audit Lighthouse marks not applicable, leaves the category, and a
-    // skipped item counts toward neither side of a list.
+    // skipped item counts toward neither side of a list. A sized metric that skips leaves it too.
     let lines = "image-alt fail
 video-caption skip
 links a pass
 links b skip
 links c pass
+page-size skip
 ";
 
     let scored = scored(config, &[lines]);
@@ -162,6 +164,7 @@ links c pass
     image-alt 0 Some(0)
     video-caption 1 None
     links 1 Some(100)
+    page-size 1 None
     ");
 }
 
