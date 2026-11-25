@@ -48,7 +48,10 @@ correctness:
   exports-resolve: {}
 
 # TypeScript conventions in each source file, with oxlint, TypeScript, and oxfmt, in categories
-# such as `style` and `documentation`. The repository's commit pins the pack, and its tools install
-# from its lockfile.
+# such as `style` and `documentation`. The library measures its own footprint and speed above, so
+# the entry leaves out the pack's library categories. The repository's commit pins the pack, and
+# its tools install from its lockfile.
 packs:
-  - { pack: ../../packs/typescript, install: true }
+  - pack: ../../packs/typescript
+    categories: [correctness, style, architecture, documentation, testing, configuration]
+    install: true

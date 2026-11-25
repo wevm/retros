@@ -1,11 +1,20 @@
-# TypeScript conventions in tracked .ts, .tsx, .cts and .mts files, including declarations.
-# Source archives without Git use matching files outside the excluded output and dependency
-# directories. Each source file is an item. Syntax checks skip files that OXC cannot parse.
+# TypeScript conventions in tracked .ts, .tsx, .cts and .mts files, including declarations, and
+# what a published library costs the projects that use it. Source archives without Git use
+# matching files outside the excluded output and dependency directories. Each source file is an
+# item. Syntax checks skip files that OXC cannot parse.
 
-# With `install: true`, the pack installs oxlint, oxfmt, oxc-parser, and the TypeScript binding
-# API from its lockfile. The project's compiler, linter, and formatter check its own conventions.
+# With `install: true`, the pack installs oxlint, oxfmt, oxc-parser, the TypeScript binding API,
+# rolldown, fast-check, acorn, and magic-string from its lockfile. The project's compiler, linter,
+# formatter, and vitest check its own conventions and run its tests.
 
-# Every category reads the lines of this one script, which runs once.
+# The library categories, from `footprint` on, read the build and the entry points of package.json
+# `exports`, so build the package first, and set `setup` to build each checkout that `--compare`
+# creates. Without an ES module entry point, as in an application, their metrics skip. The project
+# sets its own inputs in `.agents/typescript.ts`, whose type is `Config` in metrics/library.ts.
+# Items are named the way users import them: a namespace member as `<entry>:<Namespace>.<member>`,
+# such as `lib:Math.add`, a whole namespace as `lib:Math`, and an index entry by its specifier.
+
+# Every convention category reads the lines of this one script, which runs once.
 run: bun metrics/typescript.ts
 
 correctness:
@@ -131,3 +140,109 @@ configuration:
   script-runners: {}
   # Whether the dependencies and scripts of each package.json are in alphabetical order.
   sorted-keys: {}
+
+footprint:
+  run: bun metrics/footprint.ts
+  # Gzipped bytes a consumer bundles to import one export the way users import it, such as
+  # `import { Math } from 'lib'; export const $ = Math.add` for `lib:Math.add`, a whole namespace,
+  # or a whole index entry. rolldown bundles and minifies each import for the browser. Above 3 kB,
+  # the note names the three packages or modules that render the most bytes.
+  entry-size: {}
+  # Whether `import 'lib/Math'` bundles to nothing when the bundler ignores `"sideEffects": false`,
+  # as it does once the library is inlined into another package's bundle. Top-level code a bundler
+  # cannot prove pure, such as a call without a `/*#__PURE__*/` annotation, a runtime TypeScript
+  # namespace, or a static class field, fails the check.
+  tree-shaking: {}
+  # `entry-size` of the hot items that `hot` in `.agents/typescript.ts` lists.
+  hot-entry-size: {}
+
+speed:
+  run: bun metrics/speed.ts
+  # The recording replays the project's vitest tests once, and is cached until the sources, the
+  # tests, or the lockfile change.
+  timeout: 60m
+  # CPU time per call of each public function, replaying the arguments the project's tests call it
+  # with, in a fresh `node --single-threaded` process per function. The library's caches, when
+  # `caches` empties them, are empty before every call, and the note gives the time with them warm.
+  call-time: {}
+  # Heap bytes each call allocates.
+  call-memory: { varies: true }
+  # CPU time to import each entry point, index entries included, in a fresh Node process.
+  import-time: {}
+  # Heap bytes each entry point holds once imported.
+  import-memory: {}
+  # The same four metrics for the hot items. Few hot calls allocate more than they should, and a
+  # p90 would hide them, so that list scores its worst item.
+  hot-call-time: {}
+  hot-call-memory: { varies: true, score: max }
+  hot-import-time: {}
+  hot-import-memory: {}
+
+# How much of the library the speed bench reaches. It shares the speed script's run.
+coverage:
+  run: bun metrics/speed.ts
+  timeout: 60m
+  # Whether each public function has a call the bench can replay: one that returned or resolved in
+  # the project's tests with arguments that rebuild in another process. The note says why not
+  # otherwise, such as a function every test calls with a closure.
+  benched: {}
+
+# Type-checking cost of every public export, values and types, from the built declarations. Each
+# export gets a consumer that imports it and forces its type to resolve, checked in a fresh program
+# with the library's compiler options, minus a baseline that only imports the entry. It needs Node
+# 26 or later, whose V8 reports the bytes a check allocates. With an older `node` first on PATH, it
+# runs its workers on `npx --yes node@26`, which needs the network the first time.
+types:
+  run: bun metrics/types.ts
+  timeout: 15m
+  # Type instantiations to check one use of each public export, with namespace members counted as
+  # exports. A use is `typeof` the value, with `Parameters` and `ReturnType` for a function, or the
+  # type at its defaults, plus one level of properties.
+  instantiations: {}
+  # CPU time to check that use.
+  check-time: {}
+  # Heap bytes that check allocates.
+  check-memory: { varies: true }
+  # Instantiations of each test in the type-test files that `types.benches` names, with the
+  # test's function added back to the file without its tests. A test that pins a count gets that
+  # count plus 20% as its target.
+  bench-instantiations: {}
+  # `instantiations` of the hot items. Few items have a lower target, so this list scores its
+  # worst item.
+  hot-instantiations: { score: max }
+
+# Type-checking cost at the call sites the project's tests write: one call per public function, the
+# first its own runtime tests make, else its type tests. Each call is copied into
+# `const $uphill = <call>` and checked in a fresh checker once its imports and fixtures resolve.
+# Instantiations are exact, so one run suffices.
+call-types:
+  run: bun metrics/types-calls.ts
+  timeout: 20m
+  # Instantiations of that call.
+  instantiations: {}
+  # `instantiations` of the hot items, scored by the worst item.
+  hot-instantiations: { score: max }
+
+# Whether each public function has a call in the project's tests that call-types measures. The note
+# says why not. It shares the call-types script's run.
+type-coverage:
+  run: bun metrics/types-calls.ts
+  timeout: 20m
+  type-benched: {}
+
+# Fuzzing of every public function: boundary mutations of the arguments the project's tests pass it,
+# from a corpus the speed recording fills, and the structured properties of `fuzz.properties`.
+fuzz:
+  run: bun metrics/fuzz.ts
+  timeout: 20m
+  # Whether each public function has a fuzz harness that ran. The note lists the harnesses, or says
+  # why there is none.
+  fuzzed: {}
+  # Whether fuzzing found no failure: no undocumented TypeError, RangeError, or SyntaxError on an
+  # input that keeps the declared types, no stack overflow, hang, or runaway memory, and no broken
+  # property. The note gives the minimized input.
+  fuzz-clean: {}
+  # Percent of the function's own source lines in the build that ran under fuzzing.
+  fuzz-coverage: { better: higher }
+  # `fuzz-coverage` of the hot items: every line of their own source should run.
+  hot-fuzz-coverage: { better: higher }

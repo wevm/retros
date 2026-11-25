@@ -98,7 +98,7 @@ The [`packs/`](packs) directory of this repository has these packs:
 | [`git`](packs/git) | Commit messages and repository hygiene |
 | [`rust`](packs/rust) | Lints, formatting, docs, panics, `unsafe`, tests, and manifests in Rust |
 | [`tigerstyle`](packs/tigerstyle) | TigerStyle limits: function length, line length, recursion, and assertions |
-| [`typescript`](packs/typescript) | Types, imports, modules, docs, and tests in TypeScript |
+| [`typescript`](packs/typescript) | Types, imports, modules, docs, and tests in TypeScript, and a library's bundle size, speed, type cost, and fuzzing |
 | [`web`](packs/web) | Accessibility, best practices, focus and motion styles, and asset sizes |
 | [`writing-docs`](packs/writing-docs) | Prose in Markdown: sentence and paragraph length, voice, word choice, and heading case |
 
