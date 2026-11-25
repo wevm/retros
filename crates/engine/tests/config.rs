@@ -114,8 +114,16 @@ footprint:
                     },
                 ],
                 name: "speed",
-                run: "node metrics/speed.mjs",
-                timeout: 1.5s,
+                scripts: [
+                    Script {
+                        metrics: [
+                            "throughput",
+                            "decode",
+                        ],
+                        run: "node metrics/speed.mjs",
+                        timeout: 1.5s,
+                    },
+                ],
                 title: None,
             },
             Category {
@@ -210,8 +218,17 @@ footprint:
                     },
                 ],
                 name: "footprint",
-                run: "node metrics/footprint.mjs",
-                timeout: 600s,
+                scripts: [
+                    Script {
+                        metrics: [
+                            "export-size",
+                            "bundle",
+                            "modules",
+                        ],
+                        run: "node metrics/footprint.mjs",
+                        timeout: 600s,
+                    },
+                ],
                 title: None,
             },
         ],
@@ -244,7 +261,7 @@ d:
     let timeouts: Vec<String> = config
         .categories
         .iter()
-        .map(|category| engine::format::duration(category.timeout))
+        .map(|category| engine::format::duration(category.timeout()))
         .collect();
 
     insta::assert_debug_snapshot!(timeouts, @r#"
@@ -465,8 +482,8 @@ fn shares_a_top_level_run_and_rejects_a_metric_in_two_sharing_categories() {
             format!(
                 "{} `{}` {} {:?} varies={}",
                 category.name,
-                category.run,
-                engine::format::duration(category.timeout),
+                category.run(),
+                engine::format::duration(category.timeout()),
                 metric.description,
                 metric.varies
             )

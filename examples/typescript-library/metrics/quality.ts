@@ -1,8 +1,8 @@
 /**
- * Runs the tools the library already uses and writes what they report: Bun's test runner for
- * tests and coverage, TypeScript for type errors, oxlint for lint, and oxfmt for formatting. A
- * failing check is a measurement, so the script still exits with status 0. Each miss carries the
- * tool's own reason as its note.
+ * Runs Bun's test runner and writes whether each test passes and how much of each source file the
+ * tests cover, then imports each entry point. A failing check is a measurement, so the script still
+ * exits with status 0. Each miss carries the tool's own reason as its note. The typescript pack
+ * measures types, lint, and formatting.
  *
  * @module
  */
@@ -13,7 +13,6 @@ import * as path from 'node:path'
 
 const pkg = await Bun.file('package.json').json()
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'quality-'))
-const sources = [...new Bun.Glob('src/**/*.ts').scanSync()].sort()
 const lines: string[] = []
 
 run('bun', [
@@ -52,44 +51,6 @@ for (const record of lcov
     `coverage ${file} ${found === 0 ? 100 : ((hit / found) * 100).toFixed(1)}${note(missed.length > 0 && `no test runs ${ranges(missed)}`)}`,
   )
 }
-
-// TypeScript prints one `file(line,column): error TS…` line per error.
-const types = run('node_modules/.bin/tsc', ['-p', '.', '--pretty', 'false'])
-for (const file of sources) {
-  const error = types
-    .split('\n')
-    .map((line) => /^(.+)\((\d+),\d+\): error (.+)$/.exec(line))
-    .find((match) => match?.[1] === file)
-  lines.push(
-    `types ${file} ${error ? 'fail' : 'pass'}${note(error && `line ${error[2]}: ${error[3]}`)}`,
-  )
-}
-
-const lint: {
-  diagnostics: {
-    filename: string
-    labels: { span: { line: number } }[]
-    message: string
-  }[]
-} = JSON.parse(run('node_modules/.bin/oxlint', ['--format=json', 'src']))
-for (const file of sources) {
-  const diagnostic = lint.diagnostics.find(
-    (diagnostic) => diagnostic.filename === file,
-  )
-  const line = diagnostic?.labels[0]?.span.line
-  lines.push(
-    `lint ${file} ${diagnostic ? 'fail' : 'pass'}${note(diagnostic && `line ${line}: ${diagnostic.message}`)}`,
-  )
-}
-
-// oxfmt lists each file whose formatting differs, one per line.
-const unformatted = run('node_modules/.bin/oxfmt', ['--list-different', 'src'])
-  .split('\n')
-  .map((line) => line.trim())
-for (const file of sources)
-  lines.push(
-    `formatted ${file} ${unformatted.includes(file) ? 'fail' : 'pass'}`,
-  )
 
 for (const [entry, file] of Object.entries<string>(pkg.exports)) {
   const error = await import(path.resolve(file)).then(

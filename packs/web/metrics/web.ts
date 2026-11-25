@@ -4,7 +4,7 @@
  * rules read each `.tsx` and `.jsx` file, and stylelint with `@double-great/stylelint-a11y` reads
  * each `.css` file for motion, color scheme, and focus overrides. The script itself only adds the
  * gzip size of each script and stylesheet in the built site, which no tool reports as a metric
- * line.
+ * line. When the project's package.json has a `build` script, the script runs it first.
  *
  * @module
  */
@@ -18,10 +18,7 @@ import * as ChromeLauncher from 'chrome-launcher'
 import lighthouse from 'lighthouse'
 import stylelint from 'stylelint'
 
-/**
- * The directory of the built site. The `run` command builds it first, such as `pnpm build && bun
- * metrics/web.ts`.
- */
+/** The directory of the built site, which the project's `build` script writes. */
 const site = 'dist'
 
 /** The oxlint rules behind `controls`: accessible names, keyboard support, and native elements. */
@@ -75,12 +72,38 @@ const ignored =
   /(^|\/)(\.agents\/packs|dist|build|coverage|node_modules|out|vendor)\//
 const lines: string[] = []
 
+build()
 await audits()
 controls()
 await styles()
 sizes()
 
 fs.appendFileSync(process.env.UPHILL_METRICS!, `${lines.join('\n')}\n`)
+
+/** Runs the `build` script of the project's package.json, when it has one, and fails with it. */
+function build(): void {
+  const manifest = fs.existsSync('package.json')
+    ? (JSON.parse(fs.readFileSync('package.json', 'utf8')) as build.Manifest)
+    : {}
+  if (!manifest.scripts?.build) return
+
+  const result = Bun.spawnSync(['bun', 'run', 'build'], {
+    stderr: 'inherit',
+    stdout: 'inherit',
+  })
+  if (result.exitCode !== 0) {
+    process.stderr.write(`build exited with status ${result.exitCode}\n`)
+    process.exit(1)
+  }
+}
+
+declare namespace build {
+  /** The part of package.json that names the build. */
+  type Manifest = {
+    /** The package's scripts, such as `build`. */
+    readonly scripts?: Readonly<Record<string, string>> | undefined
+  }
+}
 
 /**
  * Writes whether each page passes each Lighthouse audit that counts toward the accessibility and
@@ -221,7 +244,9 @@ async function styles(): Promise<void> {
     return
   }
 
+  // The plugin resolves from the pack's directory, where it is installed, not the project's.
   const result = await stylelint.lint({
+    configBasedir: import.meta.dir,
     config: {
       plugins: ['@double-great/stylelint-a11y'],
       rules: Object.fromEntries(

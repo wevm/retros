@@ -2,6 +2,9 @@
   "name": "tide",
   "private": true,
   "type": "module",
+  "scripts": {
+    "build": "bun metrics/build.ts"
+  },
   "devDependencies": {
     "chrome-launcher": "1.2.3",
     "lighthouse": "13.6.0"

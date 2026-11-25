@@ -1,6 +1,7 @@
-//! Measures categories: runs their script, reads the metric lines, and checks them against each
-//! category's configuration. Categories with the same `run` command share one run, and each line
-//! goes to the category that configures its metric. A run whose first round writes a time, or a
+//! Measures categories: runs their scripts, reads the metric lines, and checks them against each
+//! category's configuration. Uphill measures one unit per script of a category (see
+//! [`Category::units`]) and merges the units of a category before it scores it. Units with the
+//! same `run` command share one run, and each line goes to the unit that configures its metric. A run whose first round writes a time, or a
 //! metric that varies, runs again until it has run [`engine::score::ROUNDS`] times, or
 //! [`engine::compare::PAIRS`] times beside another revision's checkout.
 
@@ -8,6 +9,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use engine::config::Category;
+use engine::lines::Line;
 use engine::report::Failure;
 use engine::value::Kind;
 
@@ -25,14 +27,53 @@ pub(crate) struct Measured {
     pub(crate) warnings: Vec<String>,
 }
 
+/// What one unit measured at `HEAD`, and in another revision when it ran there, with the
+/// position of its group and its position in the group.
+pub(crate) struct Ran {
+    pub(crate) base: Option<Result<Measured, Failure>>,
+    pub(crate) group: usize,
+    pub(crate) index: usize,
+    pub(crate) result: Result<Measured, Failure>,
+}
+
+/// Returns the units of every category, in the order of the categories and their scripts.
+pub(crate) fn units(categories: &[Category]) -> Vec<Category> {
+    categories.iter().flat_map(Category::units).collect()
+}
+
+/// Returns the lines of `category` for each round, merged from what each of its units measured:
+/// the unit's group, its position in the group, and its result. The outer result fails when two
+/// units write the same item.
+///
+/// # Errors
+///
+/// Returns a message for the terminal when a round's text no longer parses, which the checks
+/// already ruled out.
+pub(crate) fn merged<'s>(
+    category: &Category,
+    parts: &[(&[&Category], usize, &'s Measured)],
+) -> Result<Result<Vec<Vec<Line<'s>>>, Failure>, String> {
+    let rounds = parts
+        .iter()
+        .map(|(group, index, measured)| crate::score::rounds(group, *index, &measured.sources))
+        .collect::<Result<Vec<_>, String>>()?;
+    Ok(
+        engine::check::merge(category, &rounds).map_err(|error| Failure {
+            details: String::new(),
+            message: error.message,
+        }),
+    )
+}
+
 /// Groups categories that share a `run` command, in the order of each group's first category.
 pub(crate) fn groups<'c>(categories: &[&'c Category]) -> Vec<Vec<&'c Category>> {
     let mut groups: Vec<Vec<&'c Category>> = Vec::new();
     for &category in categories {
-        match groups
-            .iter_mut()
-            .find(|group| group.first().is_some_and(|first| first.run == category.run))
-        {
+        match groups.iter_mut().find(|group| {
+            group
+                .first()
+                .is_some_and(|first| first.run() == category.run())
+        }) {
             Some(group) => group.push(category),
             None => groups.push(vec![category]),
         }
@@ -151,7 +192,7 @@ impl<'a> Run<'a> {
             timed: false,
             timeout: group
                 .iter()
-                .map(|category| category.timeout)
+                .map(|category| category.timeout())
                 .max()
                 .unwrap_or(Duration::ZERO),
         }
@@ -165,8 +206,8 @@ impl<'a> Run<'a> {
         };
         let (group, project, round) = (self.group, self.project, self.rounds);
 
-        let run = script::run(&first.run, self.root, self.timeout)
-            .map_err(|error| format!("error: could not run `{}`: {error}", first.run))?;
+        let run = script::run(first.run(), self.root, self.timeout)
+            .map_err(|error| format!("error: could not run `{}`: {error}", first.run()))?;
         let mut fail_all = |details: String, message: String| {
             self.results = group
                 .iter()

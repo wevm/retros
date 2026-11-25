@@ -2,7 +2,7 @@
 //! tests copy a fixture from `tests/fixtures/` into a temporary directory and run real scripts.
 
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::time::{Duration, Instant};
 
@@ -39,23 +39,28 @@ fn fixture(name: &str) -> TempDir {
     )
 }
 
-/// Copies the project `name` from the repository's `examples/` into a new temporary directory,
-/// and installs its packages from its lockfile.
-fn example(name: &str) -> TempDir {
-    let dir = copied(
-        &Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../examples")
-            .join(name),
-    );
-    if dir.path().join("package.json").exists() {
+/// Copies the example `name` to `examples/<name>` in a temporary directory, beside a copy of
+/// `packs/` that its `../../packs` entries name, and returns the directory and the example.
+fn example(name: &str) -> (TempDir, PathBuf) {
+    let repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let dir = tempfile::tempdir().unwrap();
+    let project = dir.path().join("examples").join(name);
+    for (from, to) in [
+        (repo.join("examples").join(name), &project),
+        (repo.join("packs"), &dir.path().join("packs")),
+    ] {
+        fs::create_dir_all(to).unwrap();
+        copy(&from, to);
+    }
+    if project.join("package.json").exists() {
         let install = Command::new("bun")
             .args(["install", "--frozen-lockfile"])
-            .current_dir(dir.path())
+            .current_dir(&project)
             .output()
             .expect("bun runs");
         assert!(install.status.success(), "{}", stderr(&install));
     }
-    dir
+    (dir, project)
 }
 
 fn copied(project: &Path) -> TempDir {
@@ -2139,6 +2144,89 @@ fn add_rejects_links_escaping_paths_fork_commits_and_ambiguous_refs() {
 }
 
 #[test]
+fn packs_merge_categories_with_the_same_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let write = |path: &str, text: &str| {
+        let path = dir.path().join(path);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, text).unwrap();
+    };
+    // Two packs share `style` and its `formatted` metric, and only the first declares `docs`.
+    write(
+        "packs/a/uphill.yaml",
+        "run: sh a.sh\nstyle:\n  formatted: {}\n  long-lines: {}\ndocs:\n  module-docs: {}\n",
+    );
+    write(
+        "packs/a/a.sh",
+        "printf 'formatted a.rs pass\\nformatted b.rs fail\\nlong-lines a.rs pass\\nmodule-docs a.rs pass\\n' >> \"$UPHILL_METRICS\"\n",
+    );
+    write(
+        "packs/b/uphill.yaml",
+        "style:\n  title: Code Style\n  run: sh b.sh\n  formatted: { weight: 9 }\n  nested-ternaries: {}\n",
+    );
+    write(
+        "packs/b/b.sh",
+        "printf 'formatted c.ts pass\\nnested-ternaries c.ts pass\\n' >> \"$UPHILL_METRICS\"\n",
+    );
+    // The project adds a metric with its own script, and weighs a pack's metric.
+    write(
+        "uphill.yaml",
+        "packs:\n  - ./packs/a\n  - ./packs/b\nstyle:\n  run: echo 'spelling pass' >> \"$UPHILL_METRICS\"\n  spelling: {}\n  long-lines: { weight: 2 }\n",
+    );
+
+    let output = uphill_in(dir.path(), &["--compact"], &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(stdout(&output), @"
+    style 93, docs 100
+
+    Missed targets
+      style  formatted b.rs  fail
+
+    Opportunities
+      +7  style  formatted b.rs  fail → pass
+
+    No baseline yet. Run `uphill --update` to record these values as the baseline.
+
+    Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
+    ");
+
+    let output = check(dir.path(), &[]);
+    insta::assert_snapshot!(stdout(&output), @"
+    ✓ style  4 metrics
+    ✓ docs   1 metric
+
+    2 passed
+    ");
+
+    // Two scripts that write the same item of a merged metric fail the category.
+    write(
+        "packs/b/b.sh",
+        "printf 'formatted a.rs pass\\nnested-ternaries c.ts pass\\n' >> \"$UPHILL_METRICS\"\n",
+    );
+    let output = check(dir.path(), &[]);
+    assert_eq!(output.status.code(), Some(1));
+    insta::assert_snapshot!(stdout(&output), @"
+    ✗ style  item `a.rs` of metric `formatted` is written by two scripts of `style`
+    ✓ docs   1 metric
+
+    1 passed, 1 failed
+    ");
+
+    // A project category that only adjusts a pack's metrics cannot replace its script.
+    write(
+        "uphill.yaml",
+        "packs:\n  - ./packs/a\ndocs:\n  run: echo\n  module-docs: { weight: 2 }\n",
+    );
+    let output = check(dir.path(), &[]);
+    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(stderr(&output), @"
+    error[unexpected-key] uphill.yaml:4:3: `run` runs the metrics that `docs` adds, and it adds none. A pack's metrics keep the pack's script
+      4 |   run: echo
+        |   ^
+    ");
+}
+
+#[test]
 fn packs_must_be_pinned_allowed_and_approved_to_install() {
     let host = Host::new();
     let project = packed_project();
@@ -2508,37 +2596,52 @@ fn check_passes_every_example() {
     // Lighthouse, Cargo, and the benchmarks each take a while, so the examples run at once.
     let [typescript_library, web_app, rust_api] = std::thread::scope(|scope| {
         ["typescript-library", "web-app", "rust-api"]
-            .map(|name| scope.spawn(move || check(example(name).path(), &[])))
+            .map(|name| {
+                scope.spawn(move || {
+                    let (_dir, project) = example(name);
+                    check(&project, &[])
+                })
+            })
             .map(|handle| handle.join().unwrap())
     });
 
     assert_eq!(typescript_library.status.code(), Some(0));
     insta::assert_snapshot!(stdout(&typescript_library), @"
-    ✓ footprint  6 metrics
-    ✓ speed      2 metrics
-    ✓ quality    6 metrics
+    ✓ footprint      6 metrics
+    ✓ speed          2 metrics
+    ✓ testing        7 metrics
+    ✓ correctness    7 metrics
+    ✓ style          17 metrics
+    ✓ architecture   10 metrics
+    ✓ documentation  3 metrics
+    ✓ dependencies   6 metrics
 
-    3 passed
+    8 passed
     ");
 
     assert_eq!(web_app.status.code(), Some(0));
     insta::assert_snapshot!(stdout(&web_app), @"
-    ✓ performance     6 metrics
-    ✓ accessibility   1 metric
-    ✓ best-practices  1 metric
+    ✓ performance     7 metrics
     ✓ seo             1 metric
+    ✓ accessibility   5 metrics
+    ✓ best-practices  2 metrics
 
     4 passed
     ");
 
     assert_eq!(rust_api.status.code(), Some(0));
     insta::assert_snapshot!(stdout(&rust_api), @"
-    ✓ footprint    2 metrics
-    ✓ latency      3 metrics
-    ✓ reliability  4 metrics
-    ✓ quality      4 metrics
+    ✓ footprint      2 metrics
+    ✓ latency        3 metrics
+    ✓ reliability    4 metrics
+    ✓ testing        7 metrics
+    ✓ correctness    15 metrics
+    ✓ style          7 metrics
+    ✓ architecture   2 metrics
+    ✓ documentation  3 metrics
+    ✓ dependencies   7 metrics
 
-    4 passed
+    9 passed
     ");
 }
 

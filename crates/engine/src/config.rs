@@ -9,8 +9,10 @@
 //! default target, and twice the target without it.
 //!
 //! A top-level `packs` key lists packs whose categories the project runs too (see
-//! [`crate::pack`]). A category with the name of a pack's category overrides it key by key, and
-//! `metric: false` drops one of its metrics.
+//! [`crate::pack`]). Categories with the same name merge into one: each keeps its own script, and
+//! a metric that two packs declare takes the items of both. A project category with the name of
+//! a pack's category adds its own metrics, overrides a pack metric key by key, and drops one with
+//! `metric: false`.
 //!
 //! The baseline file beside the configuration holds the targets (see [`crate::baseline`]). Older
 //! configurations set `target`, `targets`, and `baseline` on each metric instead. Uphill still
@@ -125,7 +127,7 @@ pub(crate) fn without_locations(mut config: Config) -> Config {
     config
 }
 
-/// A category: one script and the metrics it writes.
+/// A category: the metrics it scores and the scripts that write them.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Category {
     /// What the category measures, for reports.
@@ -138,19 +140,59 @@ pub struct Category {
     pub metrics: Vec<Metric>,
     /// The category name, such as `footprint`.
     pub name: String,
-    /// The shell command that runs the script. Categories with the same command share one run.
-    pub run: String,
-    /// How long one run may take before Uphill stops it. Defaults to 10 minutes.
-    pub timeout: Duration,
+    /// The scripts that write the metrics, one per declaration of the category: the project's
+    /// and each pack's. A category of one file has one.
+    pub scripts: Vec<Script>,
     /// The name reports show, such as `Best Practices`.
     pub title: Option<String>,
 }
 
 impl Category {
+    /// Returns the command of the first script. A category from [`Category::units`] has one.
+    pub fn run(&self) -> &str {
+        self.scripts.first().map_or("", |script| &script.run)
+    }
+
+    /// Returns how long the first script may run. A category from [`Category::units`] has one.
+    pub fn timeout(&self) -> Duration {
+        self.scripts
+            .first()
+            .map_or(DEFAULT_TIMEOUT, |script| script.timeout)
+    }
+
     /// Returns the name reports show: the `title`, or else the name in words, such as `Speed`.
     pub fn title(&self) -> String {
         self.title.clone().unwrap_or_else(|| words(&self.name))
     }
+
+    /// Returns one category per script, each with that script and only the metrics it writes, in
+    /// the order of the scripts. Uphill measures these and scores the whole category.
+    pub fn units(&self) -> Vec<Category> {
+        self.scripts
+            .iter()
+            .map(|script| Category {
+                metrics: self
+                    .metrics
+                    .iter()
+                    .filter(|metric| script.metrics.contains(&metric.name))
+                    .cloned()
+                    .collect(),
+                scripts: vec![script.clone()],
+                ..self.clone()
+            })
+            .collect()
+    }
+}
+
+/// One script of a category and the metrics it writes there.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Script {
+    /// The names of the metrics the script writes for the category.
+    pub metrics: Vec<String>,
+    /// The shell command that runs the script. Scripts with the same command share one run.
+    pub run: String,
+    /// How long one run may take before Uphill stops it. Defaults to 10 minutes.
+    pub timeout: Duration,
 }
 
 /// A configured metric.
@@ -308,15 +350,19 @@ pub fn parse(source: &str, format: Format) -> Result<Config, Error> {
 }
 
 /// Parses the source text of a configuration in `format` and adds the categories of its packs,
-/// in the order `packs` lists them, after the project's own. A project category with a pack
-/// category's name overrides that category key by key, and `metric: false` drops a metric. A
-/// pack's sizes, counts, and checks stay behind, and each pack category and metric takes the
-/// location of its entry, so an error points into the project's configuration.
+/// in the order `packs` lists them, after the project's own. Pack categories with the same name
+/// merge in the order of the entries: the category keeps every script, and a metric that an
+/// earlier pack declares keeps that pack's keys and takes the items of both scripts. A project
+/// category with a pack category's name takes its place in the project's order, adds its own
+/// metrics with its own script, overrides a pack metric key by key, and drops one with
+/// `metric: false`. A pack's sizes, counts, and checks
+/// stay behind, and each pack category and metric takes the location of its entry, so an error
+/// points into the project's configuration.
 ///
 /// # Errors
 ///
-/// Returns the errors of [`parse`], an entry's category that its pack does not declare, a
-/// category that two packs declare, and an override of a metric that the pack does not declare.
+/// Returns the errors of [`parse`], an entry's category that its pack does not declare, and a
+/// `run` in a project category that only overrides a pack's metrics.
 pub fn compose(source: &str, format: Format, packs: &[Pack]) -> Result<Config, Error> {
     let Some(document) = document::parse(source, format)? else {
         return Err(nothing_configured(format));
@@ -372,25 +418,33 @@ pub fn compose(source: &str, format: Format, packs: &[Pack]) -> Result<Config, E
             ));
         };
 
-        if let Some(base) = packed.iter_mut().find(|base| base.name == name) {
-            *base = self::category(source, format, key, name, fields, &defaults, Some(base))?;
-            continue;
-        }
+        // A pack category that the project declares takes the project's place in the order.
+        let base = packed
+            .iter()
+            .position(|base| base.name == name)
+            .map(|index| packed.remove(index));
         categories.push(self::category(
-            source, format, key, name, fields, &defaults, None,
+            source,
+            format,
+            key,
+            name,
+            fields,
+            &defaults,
+            base.as_ref(),
         )?);
     }
     categories.append(&mut packed);
 
-    for (index, category) in categories.iter().enumerate() {
+    let units: Vec<Category> = categories.iter().flat_map(Category::units).collect();
+    for (index, unit) in units.iter().enumerate() {
         // A shared run gives each line to the category that configures its metric, so a metric
         // name can belong to only one of the categories that share it.
-        for other in categories
+        for other in units
             .iter()
             .take(index)
-            .filter(|other| other.run == category.run)
+            .filter(|other| other.name != unit.name && other.run() == unit.run())
         {
-            if let Some(metric) = category
+            if let Some(metric) = unit
                 .metrics
                 .iter()
                 .find(|metric| other.metrics.iter().any(|m| m.name == metric.name))
@@ -400,7 +454,7 @@ pub fn compose(source: &str, format: Format, packs: &[Pack]) -> Result<Config, E
                     location: Some(metric.location),
                     message: format!(
                         "metric `{}` is in `{}` and `{}`, which share the same `run`, so Uphill cannot tell which category its lines belong to",
-                        metric.name, other.name, category.name
+                        metric.name, other.name, unit.name
                     ),
                 });
             }
@@ -446,17 +500,6 @@ fn from_packs(packs: &[Pack]) -> Result<Vec<Category>, Error> {
             {
                 continue;
             }
-            if let Some(other) = categories.iter().find(|c| c.name == category.name) {
-                return Err(Error {
-                    code: Code::DuplicateCategory,
-                    location: Some(entry.location),
-                    message: format!(
-                        "category `{}` is in pack `{}` and in an earlier pack. Take it from one with `categories`",
-                        other.name, entry.name
-                    ),
-                });
-            }
-
             let mut category = category.clone();
             category.location = entry.location;
             for metric in &mut category.metrics {
@@ -466,7 +509,24 @@ fn from_packs(packs: &[Pack]) -> Result<Vec<Category>, Error> {
                     pattern.location = entry.location;
                 }
             }
-            categories.push(category);
+
+            let Some(earlier) = categories.iter_mut().find(|c| c.name == category.name) else {
+                categories.push(category);
+                continue;
+            };
+            earlier.description = earlier.description.take().or(category.description);
+            earlier.title = earlier.title.take().or(category.title);
+            for name in category.dropped {
+                if !earlier.dropped.contains(&name) {
+                    earlier.dropped.push(name);
+                }
+            }
+            for metric in category.metrics {
+                if !earlier.metrics.iter().any(|m| m.name == metric.name) {
+                    earlier.metrics.push(metric);
+                }
+            }
+            earlier.scripts.append(&mut category.scripts);
         }
     }
     Ok(categories)
@@ -503,43 +563,35 @@ fn category(
     let mut description = base.and_then(|base| base.description.clone());
     let mut dropped = base.map(|base| base.dropped.clone()).unwrap_or_default();
     let mut metrics = base.map(|base| base.metrics.clone()).unwrap_or_default();
+    // The metrics this declaration adds, which its own script writes.
+    let mut own: Vec<String> = Vec::new();
     let mut run = None;
-    let mut timeout = base.map_or(defaults.timeout, |base| base.timeout);
+    let mut timeout = None;
     let mut title = base.and_then(|base| base.title.clone());
 
     for (field, value) in fields {
         match self::key(source, field)? {
             "description" => description = Some(string(source, value, "description")?.to_owned()),
-            "run" => run = Some(command(source, value, "run")?),
-            "timeout" => timeout = duration(source, value)?,
+            "run" => run = Some((command(source, value, "run")?, field.offset)),
+            "timeout" => timeout = Some((duration(source, value)?, field.offset)),
             "title" => title = Some(string(source, value, "title")?.to_owned()),
             metric => {
                 check_name(source, field, metric, "metric")?;
 
-                let inherited = metrics.iter().position(|m| m.name == metric);
-                if let Some(base) = base
-                    && inherited.is_none()
-                {
-                    return Err(Error::at(
-                        Code::UnexpectedKey,
-                        source,
-                        field.offset,
-                        format!(
-                            "metric `{metric}` is not in the pack's category `{}`, so there is nothing to override",
-                            base.name
-                        ),
-                    ));
-                }
+                let inherited = base
+                    .filter(|base| base.metrics.iter().any(|m| m.name == metric))
+                    .and_then(|_| metrics.iter().position(|m| m.name == metric));
                 if is_false(value) {
                     let Some(index) = inherited else {
-                        return Err(Error::at(
-                            Code::InvalidType,
-                            source,
-                            value.offset,
-                            format!(
+                        let message = match base {
+                            Some(_) => format!(
+                                "`{metric}: false` drops a pack's metric, and no pack's `{name}` declares `{metric}`"
+                            ),
+                            None => format!(
                                 "`{metric}: false` drops a pack's metric, and `{name}` is not a pack's category"
                             ),
-                        ));
+                        };
+                        return Err(Error::at(Code::InvalidType, source, value.offset, message));
                     };
                     dropped.push(metrics.remove(index).name);
                     continue;
@@ -567,31 +619,56 @@ fn category(
                     }
                 };
 
-                match inherited {
-                    Some(index) => {
-                        let base = metrics.remove(index);
-                        let merged = self::metric(source, format, field, metric, keys, Some(base))?;
-                        metrics.insert(index, merged);
-                    }
-                    None => metrics.push(self::metric(source, format, field, metric, keys, None)?),
+                if let Some(index) = inherited {
+                    let base = metrics.remove(index);
+                    let merged = self::metric(source, format, field, metric, keys, Some(base))?;
+                    metrics.insert(index, merged);
+                } else {
+                    own.push(metric.to_owned());
+                    metrics.push(self::metric(source, format, field, metric, keys, None)?);
                 }
             }
         }
     }
 
-    let Some(run) = run
-        .or_else(|| base.map(|base| base.run.clone()))
-        .or_else(|| defaults.run.clone())
-    else {
-        return Err(Error::at(
-            Code::RunMissing,
-            source,
-            key.offset,
-            format!(
-                "category `{name}` has no `run` command. Add one, or a top-level `run` that every category shares"
-            ),
-        ));
-    };
+    // The project's own metrics come before the packs' in reports.
+    metrics.sort_by_key(|metric| !own.contains(&metric.name));
+
+    let mut scripts = base.map(|base| base.scripts.clone()).unwrap_or_default();
+    // A pack category that the project only adjusts runs the pack's scripts alone.
+    if base.is_some() && own.is_empty() {
+        if let Some((_, offset)) = run {
+            return Err(Error::at(
+                Code::UnexpectedKey,
+                source,
+                offset,
+                format!(
+                    "`run` runs the metrics that `{name}` adds, and it adds none. A pack's metrics keep the pack's script"
+                ),
+            ));
+        }
+        if let Some((timeout, _)) = timeout {
+            for script in &mut scripts {
+                script.timeout = timeout;
+            }
+        }
+    } else {
+        let Some(run) = run.map(|(run, _)| run).or_else(|| defaults.run.clone()) else {
+            return Err(Error::at(
+                Code::RunMissing,
+                source,
+                key.offset,
+                format!(
+                    "category `{name}` has no `run` command. Add one, or a top-level `run` that every category shares"
+                ),
+            ));
+        };
+        scripts.push(Script {
+            metrics: own,
+            run,
+            timeout: timeout.map_or(defaults.timeout, |(timeout, _)| timeout),
+        });
+    }
 
     if metrics.is_empty() {
         return Err(Error::at(
@@ -608,8 +685,7 @@ fn category(
         location: base.map_or_else(|| Location::of(source, key.offset), |base| base.location),
         metrics,
         name: name.to_owned(),
-        run,
-        timeout,
+        scripts,
         title,
     })
 }

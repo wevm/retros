@@ -7,8 +7,10 @@
 # project's entry sets `install: true`. The project's own TypeScript and oxfmt check its types and
 # formatting.
 
-typescript:
-  run: bun metrics/typescript.ts
+# Every category reads the lines of this one script, which runs once.
+run: bun metrics/typescript.ts
+
+correctness:
   # Whether TypeScript reports no errors in each file. It skips without `tsc` or `tsgo` in
   # `node_modules/.bin`.
   type-errors: {}
@@ -17,6 +19,18 @@ typescript:
   compiler-options: {}
   # Whether each file avoids `any`, by oxlint's `typescript/no-explicit-any`.
   explicit-any: {}
+  # Whether oxlint, with the project's own configuration, reports nothing in each file.
+  lint: {}
+  # Whether each file avoids `Math.random()`, by oxlint's `eslint/no-restricted-properties`. Use
+  # `crypto.getRandomValues()`.
+  math-random: {}
+  # Whether files under `src/` log nothing through `console`, by oxlint's `eslint/no-console`.
+  console-calls: {}
+
+style:
+  # Whether oxfmt, with the project's own configuration, leaves each file unchanged. It skips
+  # without the oxfmt package in `node_modules`.
+  formatted: {}
   # Whether each file avoids enums. Use unions or `as const` objects.
   enums: {}
   # Whether each file declares shapes with `type`, by oxlint's
@@ -31,29 +45,6 @@ typescript:
   # Whether type-only imports and exports say `type`, by oxlint's `typescript/consistent-type-imports`
   # and `typescript/consistent-type-exports`.
   type-imports: {}
-  # Whether no module imports itself through a cycle, by oxlint's `import/no-cycle`.
-  import-cycles: {}
-  # Whether module-shaped files, such as `./Store.js`, are imported as namespaces
-  # (`import * as Store`) instead of by name. Types and components may be named.
-  namespace-imports: {}
-  # Whether Node built-ins are imported as namespaces (`import * as fs from 'node:fs'`).
-  node-imports: {}
-  # Whether modules are re-exported as namespaces (`export * as Store`), not flattened into a
-  # barrel with `export *` or `export { … } from`.
-  flat-reexports: {}
-  # Whether imports are static. A dynamic import marks a real runtime or bundle boundary.
-  dynamic-imports: {}
-  # Whether each file avoids imports for their side effects, such as `import './register.js'`, by
-  # oxlint's `import/no-unassigned-import`.
-  side-effect-imports: {}
-  # Whether the project has no JavaScript source files. Configuration files are exempt.
-  javascript-files: {}
-  # Whether each published package.json sets `sideEffects`, so bundlers can tree-shake it.
-  side-effects: {}
-  # Whether classes are limited to errors and framework entrypoints. Use functions and plain data.
-  classes: {}
-  # Whether each error class sets a namespaced `name`, such as `'Config.InvalidError'`.
-  error-names: {}
   # Whether module constants are camelCase, not UPPER_CASE.
   uppercase-constants: {}
   # Whether option bags default in the signature (`options: fn.Options = {}`), not `options?`.
@@ -79,21 +70,41 @@ typescript:
   let-across-try: {}
   # Whether each file has no section-divider comments, such as `// ----`.
   section-dividers: {}
+
+architecture:
+  # Whether no module imports itself through a cycle, by oxlint's `import/no-cycle`.
+  import-cycles: {}
+  # Whether module-shaped files, such as `./Store.js`, are imported as namespaces
+  # (`import * as Store`) instead of by name. Types and components may be named.
+  namespace-imports: {}
+  # Whether Node built-ins are imported as namespaces (`import * as fs from 'node:fs'`).
+  node-imports: {}
+  # Whether modules are re-exported as namespaces (`export * as Store`), not flattened into a
+  # barrel with `export *` or `export { … } from`.
+  flat-reexports: {}
+  # Whether imports are static. A dynamic import marks a real runtime or bundle boundary.
+  dynamic-imports: {}
+  # Whether each file avoids imports for their side effects, such as `import './register.js'`, by
+  # oxlint's `import/no-unassigned-import`.
+  side-effect-imports: {}
+  # Whether classes are limited to errors and framework entrypoints. Use functions and plain data.
+  classes: {}
+  # Whether each error class sets a namespaced `name`, such as `'Config.InvalidError'`.
+  error-names: {}
   # Whether `this` appears only in classes. Factories close over their state.
   this-outside-classes: {}
   # Whether module scope holds only constants: no `let`, and no empty `Map` or `Set` caches.
   module-state: {}
-  # Whether each file avoids `Math.random()`, by oxlint's `eslint/no-restricted-properties`. Use
-  # `crypto.getRandomValues()`.
-  math-random: {}
-  # Whether files under `src/` log nothing through `console`, by oxlint's `eslint/no-console`.
-  console-calls: {}
+
+documentation:
   # Whether each file starts with a TSDoc `@module` comment that describes its responsibility.
   module-docs: {}
   # Whether every export has TSDoc. Overloads share the first signature's comment.
   export-docs: {}
   # Whether every property of an exported type has TSDoc.
   property-docs: {}
+
+testing:
   # Whether each test file uses real implementations: no `vi.mock`, `vi.fn`, fake timers, stubbed
   # globals, or mocking packages. oxlint's restricted-method and restricted-import rules report them.
   mocks: {}
@@ -106,11 +117,12 @@ typescript:
   sleeps: {}
   # Whether each module has one test file, not `Module.context.test.ts` files.
   split-test-files: {}
-  # Whether oxlint, with the project's own configuration, reports nothing in each file.
-  lint: {}
-  # Whether oxfmt, with the project's own configuration, leaves each file unchanged. It skips
-  # without the oxfmt package in `node_modules`.
-  formatted: {}
+
+dependencies:
+  # Whether the project has no JavaScript source files. Configuration files are exempt.
+  javascript-files: {}
+  # Whether each published package.json sets `sideEffects`, so bundlers can tree-shake it.
+  side-effects: {}
   # Whether the project neither depends on nor configures Prettier.
   prettier: {}
   # Whether each package.json in a pnpm workspace references its versions with `catalog:`.

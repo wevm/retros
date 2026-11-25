@@ -1,6 +1,6 @@
 # Packs
 
-A pack is a directory with an `uphill.yaml` or `uphill.toml` and the scripts its `run` commands name. A project lists packs under `packs`, and Uphill runs their categories after the project's own. Uphill pins each remote pack to a commit and vendors it into the project.
+A pack is a directory with an `uphill.yaml` or `uphill.toml` and the scripts its `run` commands name. A project lists packs under `packs`, and Uphill runs their categories after the project's own, merged by name. Uphill pins each remote pack to a commit and vendors it into the project.
 
 ## Overview
 
@@ -82,19 +82,41 @@ uphill add https://gitlab.com/acme/metrics.git//packs/api@main
 uphill add ./packs/api
 ```
 
+### Merge Categories
+
+Packs share categories in the manner of Lighthouse, such as `correctness`, `style`, `documentation`, and `testing`. Categories with the same name merge into one score, the weighted mean of every metric. Each pack's script runs once.
+
+```yaml title="uphill.yaml"
+# The rust and typescript packs both write `style`, so the report shows one Style score.
+packs:
+  - wevm/uphill/packs/rust@94bd79a3bb8a413ff7080c08b2acec8b7c39e8ce # main
+  - { pack: wevm/uphill/packs/typescript@94bd79a3bb8a413ff7080c08b2acec8b7c39e8ce, install: true } # main
+```
+
+A metric that two packs declare in one category, such as `formatted`, is one metric with the items of both scripts. The first pack's keys apply. Two scripts that write the same item fail the category.
+
+### Adjust Categories
+
+A project category with a pack category's name merges with it, in the project's place. Its new metrics run with its own `run` command. A key on a pack metric overrides that key, and `metric: false` drops the metric.
+
+```yaml title="uphill.yaml"
+# The project's test script joins the packs' `testing` category.
+testing:
+  run: bun metrics/tests.ts
+  passing: {}
+  # Weigh the packs' inline snapshot check more, and drop their snapshot file check.
+  inline-snapshots: { weight: 3 }
+  snapshot-files: false
+```
+
 ### Take Some Categories
 
-Names after the pack limit the entry to those categories. A project category with a pack category's name overrides it key by key, and `metric: false` drops one metric.
+Names after the pack limit the entry to those categories.
 
 ```yaml title="uphill.yaml"
 packs:
-  # Run only the pack's `typescript` category.
-  - { pack: wevm/uphill/packs/typescript@94bd79a3bb8a413ff7080c08b2acec8b7c39e8ce, categories: [typescript], install: true } # main
-
-typescript:
-  # Weigh the lint check more, and drop the Prettier check.
-  lint: { weight: 3 }
-  prettier: false
+  # Run only the pack's `style` and `documentation` categories.
+  - { pack: wevm/uphill/packs/typescript@94bd79a3bb8a413ff7080c08b2acec8b7c39e8ce, categories: [style, documentation], install: true } # main
 ```
 
 ### Update a Pack
@@ -154,7 +176,7 @@ uphill remove typescript
 
 ### Write a Pack
 
-A pack needs only its configuration and scripts. Write paths in `run` from the pack's directory, and Uphill rewrites them to start at the project root. Put tools in a `package.json` with a lockfile, and resolve them from the script's own directory first.
+A pack needs only its configuration and scripts. Write paths in `run` from the pack's directory, and Uphill rewrites them to start at the project root. Use the shared category names. Put tools in a `package.json` with a lockfile, and resolve them from the script's own directory first.
 
 ```text
 packs/lighthouse/

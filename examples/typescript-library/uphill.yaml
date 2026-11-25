@@ -1,7 +1,8 @@
 # A TypeScript library of formatters. The scripts run the tools the library already uses: Bun's
-# bundler and test runner, mitata, TypeScript, oxlint and oxfmt. It misses a few targets on purpose,
-# so the report shows how misses read: `weekday` builds an `Intl` formatter on every call,
-# `percent` has no test, and `date.ts` declares a constant it never uses.
+# bundler and test runner, and mitata. The typescript pack runs oxlint, and the library's own
+# TypeScript and oxfmt. It misses a few targets on purpose, so the report shows how misses read:
+# `weekday` builds an `Intl` formatter on every call, `percent` has no test, and `date.ts` declares
+# a constant it never uses.
 
 # Installs packages in each checkout that `uphill --compare` and `uphill blame` create.
 setup: bun install --frozen-lockfile
@@ -32,18 +33,22 @@ speed:
   # more room than arithmetic.
   call-time: {}
 
-quality:
+# The pack's `testing` and `correctness` merge with these. Both categories read one run of the script.
+testing:
   run: bun metrics/quality.ts
   # Whether each test passes in `bun test`.
   tests: {}
   # Percentage of lines tests cover in each source file. Higher is better, so the least covered file
   # is scored.
   coverage: { better: higher }
-  # Whether TypeScript reports no errors in each source file.
-  types: {}
-  # Whether oxlint reports nothing in each source file.
-  lint: {}
-  # Whether oxfmt leaves each source file unchanged.
-  formatted: {}
+
+correctness:
+  run: bun metrics/quality.ts
   # Whether each entry point in package.json imports.
   exports-resolve: {}
+
+# TypeScript conventions in each source file, with oxlint, TypeScript, and oxfmt, in categories
+# such as `style` and `documentation`. The repository's commit pins the pack, and its tools install
+# from its lockfile.
+packs:
+  - { pack: ../../packs/typescript, install: true }

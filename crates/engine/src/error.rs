@@ -36,8 +36,6 @@ impl Location {
 pub enum Code {
     /// A metric line written twice in one run, or an item written twice for one metric.
     Duplicate,
-    /// A category that two packs declare.
-    DuplicateCategory,
     /// A metric in two categories that share one `run` command.
     DuplicateMetric,
     /// A name with characters other than ASCII letters, digits, `-`, `_`, and `.`.
@@ -92,7 +90,6 @@ impl Code {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Duplicate => "duplicate",
-            Self::DuplicateCategory => "duplicate-category",
             Self::DuplicateMetric => "duplicate-metric",
             Self::InvalidName => "invalid-name",
             Self::InvalidNumber => "invalid-number",

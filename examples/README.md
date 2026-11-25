@@ -6,9 +6,9 @@ Every example misses a few targets on purpose, so its report shows how misses, o
 
 | Example | Tools | Categories | Contextual targets |
 | --- | --- | --- | --- |
-| [`typescript-library`](typescript-library) | Bun's bundler and test runner, mitata, TypeScript, oxlint, oxfmt | Footprint, speed, and quality of a formatting library: entry and export sizes, tree-shaking, import and call times, tests, coverage, type errors, lint, and formatting | The root entry may cost the sum of its subpaths. Formatters that call `Intl` get more time per call. |
-| [`web-app`](web-app) | Lighthouse | Performance, accessibility, best practices, and SEO of a marketing site: Lighthouse's metrics on each page, and each weighted audit as a check | The landing page loads a hero image, so it gets more time to paint and more bytes. |
-| [`rust-api`](rust-api) | Cargo, clippy, rustfmt | Footprint, latency, reliability, and quality of an HTTP API on Rust's standard library | Each endpoint's latency target comes from the work it does, and its tail may take three times as long. |
+| [`typescript-library`](typescript-library) | Bun's bundler and test runner, mitata, and the typescript pack | Footprint, speed, testing, and correctness of a formatting library: entry and export sizes, tree-shaking, import and call times, tests, and coverage, beside the typescript pack's categories | The root entry may cost the sum of its subpaths. Formatters that call `Intl` get more time per call. |
+| [`web-app`](web-app) | Lighthouse and the web pack | Performance and SEO of a marketing site, with Lighthouse's metrics on each page, and the web pack's accessibility and best practices | The landing page loads a hero image, so it gets more time to paint and more bytes. |
+| [`rust-api`](rust-api) | Cargo and the rust pack | Footprint, latency, reliability, and testing of an HTTP API on Rust's standard library, beside the rust pack's categories | Each endpoint's latency target comes from the work it does, and its tail may take three times as long. |
 
 ```sh
 # Install the example's tools, then score every category and write .uphill/report.md.

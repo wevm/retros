@@ -26,9 +26,10 @@ use engine::baseline;
 use engine::compare::Comparison;
 use engine::config::{self, Category, Config};
 use engine::lines::Line;
-use engine::report::{CategoryReport, Report};
+use engine::report::{CategoryReport, Failure, Report};
 use incur::Parser;
 
+use crate::measure::Ran;
 use crate::project::Project;
 use crate::script::{self, Outcome};
 use crate::worktree::{self, Worktree};
@@ -132,34 +133,61 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
     };
     let mut timings = Vec::new();
 
-    let all: Vec<&Category> = project.config.categories.iter().collect();
-    for group in measure::groups(&all) {
-        let chosen =
-            |category: &Category| categories.iter().any(|chosen| chosen.name == category.name);
-        if !group.iter().any(|category| chosen(category)) {
+    let units = measure::units(&project.config.categories);
+    let all: Vec<&Category> = units.iter().collect();
+    let groups = measure::groups(&all);
+    let chosen = |name: &str| categories.iter().any(|chosen| chosen.name == name);
+    // What each unit measured, in the order of `all`. A category scores once all its units ran.
+    let mut ran: Vec<Option<Ran>> = all.iter().map(|_| None).collect();
+    let mut scored: Vec<bool> = categories.iter().map(|_| false).collect();
+
+    for (number, group) in groups.iter().enumerate() {
+        if !group.iter().any(|unit| chosen(&unit.name)) {
             continue;
         }
 
-        // Each category's entries, one per subject, with the warnings its lines produced.
-        let mut entries: Vec<(CategoryReport, Vec<String>)> = Vec::new();
         let (results, base) = match &worktree {
             Some(worktree) => measure::pairs(
                 project,
                 &project.root,
                 &worktree.root,
-                &group,
-                &group,
+                group,
+                group,
                 baselines.is_none(),
             )?,
-            None => (measure::group(project, &project.root, &group, true)?, None),
+            None => (measure::group(project, &project.root, group, true)?, None),
         };
         let mut base = base.map(Vec::into_iter);
-
-        for (index, (category, result)) in group.iter().zip(results).enumerate() {
+        for (index, (unit, result)) in group.iter().zip(results).enumerate() {
             let base = base.as_mut().and_then(Iterator::next);
-            if !chosen(category) {
+            if let Some(at) = all.iter().position(|other| std::ptr::eq(*other, *unit)) {
+                ran[at] = Some(Ran {
+                    base,
+                    group: number,
+                    index,
+                    result,
+                });
+            }
+        }
+
+        // Each category's entries, one per subject, with the warnings its lines produced.
+        let mut entries: Vec<(CategoryReport, Vec<String>)> = Vec::new();
+        for (category, scored) in categories.iter().zip(&mut scored) {
+            let parts: Vec<&Ran> = all
+                .iter()
+                .zip(&ran)
+                .filter(|(unit, _)| unit.name == category.name)
+                .filter_map(|(_, ran)| ran.as_ref())
+                .collect();
+            if *scored {
                 continue;
             }
+            // Categories print in order, so one that waits for a later script holds back the rest.
+            if parts.len() < category.scripts.len() {
+                break;
+            }
+            *scored = true;
+
             let entry = |subject, result| CategoryReport {
                 description: category.description.clone(),
                 name: category.name.clone(),
@@ -167,9 +195,14 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
                 subject,
                 title: category.title(),
             };
+            let unit = |ran: &Ran, measured| (groups[ran.group].as_slice(), ran.index, measured);
 
             let mut warnings = Vec::new();
-            if let (Some(Err(failure)), Some(worktree)) = (&base, &worktree) {
+            let base_failure = parts.iter().find_map(|ran| match &ran.base {
+                Some(Err(failure)) => Some(failure),
+                _ => None,
+            });
+            if let (Some(failure), Some(worktree)) = (base_failure, &worktree) {
                 let mut warning = format!(
                     "warning: {} failed in {}: {}",
                     category.name, worktree.label, failure.message
@@ -180,19 +213,39 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
                 warnings.push(warning);
             }
 
-            match result {
+            let head: Result<Vec<_>, &Failure> = parts
+                .iter()
+                .map(|ran| ran.result.as_ref().map(|measured| unit(ran, measured)))
+                .collect();
+            let rounds = match head {
+                Err(failure) => Err(failure.clone()),
+                Ok(head) => measure::merged(category, &head)?,
+            };
+            match rounds {
                 Err(failure) => entries.push((entry(None, Err(failure)), warnings)),
-                Ok(measured) => {
-                    let rounds = rounds(&group, index, &measured.sources)?;
-                    if let Some(Ok(base)) = &base {
-                        let base_rounds = self::rounds(&group, index, &base.sources)?;
+                Ok(rounds) => {
+                    let base: Option<Vec<_>> = parts
+                        .iter()
+                        .map(|ran| match &ran.base {
+                            Some(Ok(measured)) => Some(unit(ran, measured)),
+                            _ => None,
+                        })
+                        .collect();
+                    if let Some(base) = base
+                        && let Ok(base_rounds) = measure::merged(category, &base)?
+                    {
                         timings.extend(engine::compare::timings(category, &base_rounds, &rounds));
                         for (subject, scored) in engine::score::subjects(category, &base_rounds) {
                             base_report.categories.push(entry(subject, Ok(scored)));
                         }
                     }
 
-                    let mut warnings = [measured.warnings, warnings].concat();
+                    let mut warnings: Vec<String> = parts
+                        .iter()
+                        .filter_map(|ran| ran.result.as_ref().ok())
+                        .flat_map(|measured| measured.warnings.iter().cloned())
+                        .chain(warnings)
+                        .collect();
                     for (subject, scored) in engine::score::subjects(category, &rounds) {
                         entries.push((entry(subject, Ok(scored)), std::mem::take(&mut warnings)));
                     }
@@ -408,7 +461,8 @@ fn prepare(
     let mut files: Vec<&str> = Vec::new();
     for word in categories
         .iter()
-        .flat_map(|category| category.run.split_whitespace())
+        .flat_map(|category| &category.scripts)
+        .flat_map(|script| script.run.split_whitespace())
     {
         let word = word.trim_matches(['"', '\'']);
         if !files.contains(&word) && project.root.join(word).is_file() {

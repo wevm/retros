@@ -19,18 +19,13 @@ performance:
   # Bytes each page transfers, with everything it loads.
   total-byte-weight: { weight: 10 }
 
-accessibility:
-  run: bun metrics/lighthouse.ts accessibility
-  # Whether each page passes each accessibility audit that counts toward Lighthouse's score.
-  audits: {}
-
-best-practices:
-  # Reports show a title, or else the name in words.
-  title: Best Practices
-  run: bun metrics/lighthouse.ts best-practices
-  audits: {}
-
 seo:
   title: SEO
   run: bun metrics/lighthouse.ts seo
   audits: {}
+
+# Accessibility, best practices, focus and motion styles, and asset sizes, from the site that
+# package.json's `build` script writes to `dist/`. The pack's `performance` merges with the one
+# above, and its tools install from its lockfile.
+packs:
+  - { pack: ../../packs/web, install: true }

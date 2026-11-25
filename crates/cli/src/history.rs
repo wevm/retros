@@ -467,6 +467,8 @@ struct Bisect<'a> {
     index: usize,
     project: &'a Project,
     selector: &'a Selector,
+    /// The position of the measured script among the category's scripts.
+    unit: usize,
     /// Whether the metric is a time or varies, so each commit runs in pairs beside `HEAD`.
     timed: bool,
 }
@@ -551,7 +553,7 @@ impl Bisect<'_> {
     }
 
     /// Returns the categories of the group with the `run` command that the configuration in the
-    /// checkout at `root` declares for the category, when it declares the category.
+    /// checkout at `root` declares for the category's measured script, when it declares it.
     fn own(&self, root: &Path) -> Vec<Category> {
         let run = project::find(root)
             .ok()
@@ -563,13 +565,21 @@ impl Bisect<'_> {
                     .into_iter()
                     .find(|category| category.name == self.category.name)
             })
-            .map(|category| category.run);
+            .and_then(|category| {
+                category
+                    .scripts
+                    .into_iter()
+                    .nth(self.unit)
+                    .map(|script| script.run)
+            });
         self.group
             .iter()
             .map(|&category| {
                 let mut category = category.clone();
                 if let Some(run) = &run {
-                    category.run.clone_from(run);
+                    for script in &mut category.scripts {
+                        script.run.clone_from(run);
+                    }
                 }
                 category
             })
@@ -611,15 +621,14 @@ fn bisect(
         commits.splice(0..0, Commit::parse(&first));
     }
 
-    let all: Vec<&Category> = project.config.categories.iter().collect();
-    let group = measure::groups(&all)
-        .into_iter()
-        .find(|group| group.iter().any(|c| c.name == category.name))
-        .unwrap_or_default();
-    let index = group
+    let units: Vec<Category> = project
+        .config
+        .categories
         .iter()
-        .position(|c| c.name == category.name)
-        .unwrap_or_default();
+        .flat_map(Category::units)
+        .collect();
+    let all: Vec<&Category> = units.iter().collect();
+    let groups = measure::groups(&all);
 
     print(&format!(
         "Bisecting {name} across {}, measuring each in a temporary checkout\n",
@@ -627,26 +636,52 @@ fn bisect(
     ));
 
     let head = checkout(project, "HEAD")?;
-    let measured = measure::group(project, &head.root, &group, true)?
-        .into_iter()
-        .nth(index)
-        .ok_or_else(|| format!("error: HEAD does not measure {name}"))?
-        .map_err(|failure| format!("error: {name} failed at HEAD: {}", failure.message))?;
-    let rounds = score::rounds(&group, index, &measured.sources)?;
-    let at_head =
-        median(selector, &rounds).ok_or_else(|| format!("error: HEAD does not measure {name}"))?;
+    // A merged category's metric can come from several scripts, so the first script that
+    // measures the selection at `HEAD` is the one to bisect.
+    let mut found = None;
+    for (unit, own) in category.units().iter().enumerate() {
+        if !own
+            .metrics
+            .iter()
+            .any(|metric| metric.name == selector.metric)
+        {
+            continue;
+        }
+        let Some((group, index)) = groups.iter().find_map(|group| {
+            group
+                .iter()
+                .position(|c| c.name == own.name && c.scripts == own.scripts)
+                .map(|index| (group.clone(), index))
+        }) else {
+            continue;
+        };
+        let measured = measure::group(project, &head.root, &group, true)?
+            .into_iter()
+            .nth(index)
+            .ok_or_else(|| format!("error: HEAD does not measure {name}"))?
+            .map_err(|failure| format!("error: {name} failed at HEAD: {}", failure.message))?;
+        let rounds = score::rounds(&group, index, &measured.sources)?;
+        if let Some(value) = median(selector, &rounds) {
+            found = Some((group, index, unit, value));
+            break;
+        }
+    }
+    let (group, index, unit, at_head) =
+        found.ok_or_else(|| format!("error: HEAD does not measure {name}"))?;
+    let measuring = group.get(index).copied().unwrap_or(category);
     let varies = category
         .metrics
         .iter()
         .any(|metric| metric.name == selector.metric && metric.varies);
     let bisect = Bisect {
         at_head,
-        category,
+        category: measuring,
         group,
         head,
         index,
         project,
         selector,
+        unit,
         timed: at_head.kind() == Kind::Time || (varies && at_head.kind() != Kind::Check),
     };
     let after = engine::format::value(at_head);

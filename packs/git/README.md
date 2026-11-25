@@ -2,6 +2,8 @@
 
 Measures commit messages and repository hygiene. commitlint reads each of the last 50 commits with the conventional rules, and `git diff --check` reads whitespace. `UPHILL_GIT_COMMITS` sets the number of commits to read.
 
+Its metrics go into the shared categories `style` and `commits`. Each merges with the category of its name in the project and its other packs.
+
 ## Requirements
 
 - **Bun:** Runs the script and installs commitlint from the pack's lockfile.

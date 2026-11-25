@@ -13,3 +13,11 @@ speed:
   startup: {}
   # Time `uphill check` takes for one category whose script writes one line.
   check: {}
+
+# The conventions this repository follows, from its own packs. The repository's commit pins them,
+# and the writing-docs, git, and typescript packs install their tools from their lockfiles.
+packs:
+  - ./packs/rust
+  - { pack: ./packs/writing-docs, install: true }
+  - { pack: ./packs/git, install: true }
+  - { pack: ./packs/typescript, install: true }

@@ -64,14 +64,14 @@ allowed-packs: [wevm/*]
 - **Type:** list of sources, or mappings with `pack`, `categories`, and `install`
 - **Default:** none
 
-The packs whose categories run after the project's own. A remote entry is pinned to a full commit, and its files live in `.agents/packs/<name>/`. A comment at the end of the line names the ref that `uphill update` follows. `install: true` approves installing the pack's dependencies from its lockfile, without install scripts.
+The packs whose categories run after the project's own. Categories with the same name merge into one, and a project category merges with a pack's category of its name (see [Packs](../guides/packs.md#merge-categories)). A remote entry is pinned to a full commit, and its files live in `.agents/packs/<name>/`. A comment at the end of the line names the ref that `uphill update` follows. `install: true` approves installing the pack's dependencies from its lockfile, without install scripts.
 
 ```yaml title="uphill.yaml"
 packs:
   # A remote pack, pinned to a commit. `uphill update` follows main.
   - wevm/uphill/packs/rust@94bd79a3bb8a413ff7080c08b2acec8b7c39e8ce # main
-  # Only one category, with its dependencies installed.
-  - { pack: wevm/uphill/packs/typescript@94bd79a3bb8a413ff7080c08b2acec8b7c39e8ce, categories: [typescript], install: true } # main
+  # Only two categories, with its dependencies installed.
+  - { pack: wevm/uphill/packs/typescript@94bd79a3bb8a413ff7080c08b2acec8b7c39e8ce, categories: [style, testing], install: true } # main
   # A local pack, which the project's own commit pins.
   - ./packs/api
 ```

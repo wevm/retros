@@ -280,8 +280,12 @@ fn read(root: &Path, dir: &Path, entry: Entry) -> Result<Pack, String> {
     config::validate(&config)
         .map_err(|error| crate::diagnostic("error", &error, &file, &source))?;
 
-    for category in &mut config.categories {
-        category.run = rewrite(&category.run, dir, &shown);
+    for script in config
+        .categories
+        .iter_mut()
+        .flat_map(|category| &mut category.scripts)
+    {
+        script.run = rewrite(&script.run, dir, &shown);
     }
     Ok(Pack { config, entry })
 }

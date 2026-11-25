@@ -304,3 +304,53 @@ fn check_group(category: &Category, name: &str, group: &[&Line<'_>], report: &mu
         }
     }
 }
+
+/// Combines the rounds that each script of a category wrote, in the order of its scripts, into
+/// the category's rounds. A script that ran fewer rounds repeats its last one, which holds the
+/// same sizes, counts, and checks.
+///
+/// # Errors
+///
+/// Returns an error when two scripts write the same item of a metric, or the same metric without
+/// items, for one subject.
+pub fn merge<'a>(
+    category: &Category,
+    parts: &[Vec<Vec<Line<'a>>>],
+) -> Result<Vec<Vec<Line<'a>>>, Error> {
+    let mut written: BTreeSet<(&str, &str, &str)> = BTreeSet::new();
+    for part in parts {
+        let mut own = BTreeSet::new();
+        for line in part.first().into_iter().flatten() {
+            let key = (
+                line.subject.unwrap_or_default(),
+                line.metric,
+                line.item.as_deref().unwrap_or_default(),
+            );
+            if written.contains(&key) {
+                let thing = match line.item.as_deref() {
+                    Some(item) => format!("item `{item}` of metric `{}`", line.metric),
+                    None => format!("metric `{}`", line.metric),
+                };
+                return Err(Error {
+                    code: Code::Duplicate,
+                    location: None,
+                    message: format!("{thing} is written by two scripts of `{}`", category.name),
+                });
+            }
+            own.insert(key);
+        }
+        written.append(&mut own);
+    }
+
+    let rounds = parts.iter().map(Vec::len).max().unwrap_or_default();
+    Ok((0..rounds)
+        .map(|round| {
+            parts
+                .iter()
+                .filter_map(|part| part.get(round).or_else(|| part.last()))
+                .flatten()
+                .cloned()
+                .collect()
+        })
+        .collect())
+}

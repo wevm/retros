@@ -2,13 +2,10 @@
 # Go, Swift, C, and TypeScript file that Git tracks. Clippy and oxlint measure function length where
 # they can, and a small scanner reads the rest. Each file is an item.
 
-tigerstyle:
-  run: bun metrics/tigerstyle.ts
-  # Whether every function fits the hard limit of 70 lines, by clippy's `too_many_lines` in Rust,
-  # oxlint's `max-lines-per-function` in TypeScript, and the scanner elsewhere.
-  function-length: {}
-  # Whether every line fits the hard limit of 100 columns.
-  line-length: {}
+# Every category reads the lines of this one script, which runs once.
+run: bun metrics/tigerstyle.ts
+
+correctness:
   # Whether no function calls itself. Recursion has no bound that a reader can check.
   recursion: {}
   # Whether Rust and Zig code uses explicitly sized integers, such as `u32`, not `usize`.
@@ -18,11 +15,20 @@ tigerstyle:
   assertion-density: { better: higher }
   # Whether each assertion checks one condition: `assert(a); assert(b);`, not `assert(a and b)`.
   compound-assertions: {}
+
+style:
+  # Whether every function fits the hard limit of 70 lines, by clippy's `too_many_lines` in Rust,
+  # oxlint's `max-lines-per-function` in TypeScript, and the scanner elsewhere.
+  function-length: {}
+  # Whether every line fits the hard limit of 100 columns.
+  line-length: {}
   # Whether each comment is a sentence, with a capital letter and a full stop or a colon.
   comment-sentences: {}
   # Whether code is indented with 4 spaces. Go keeps the tabs of gofmt.
   indentation: {}
   # Whether file names are `snake_case`.
   file-names: {}
+
+dependencies:
   # Whether each manifest declares no runtime dependencies.
   zero-dependencies: {}
