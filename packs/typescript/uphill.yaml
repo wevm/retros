@@ -118,7 +118,7 @@ testing:
   # Whether each module has one test file, not `Module.context.test.ts` files.
   split-test-files: {}
 
-dependencies:
+configuration:
   # Whether the project has no JavaScript source files. Configuration files are exempt.
   javascript-files: {}
   # Whether each published package.json sets `sideEffects`, so bundlers can tree-shake it.

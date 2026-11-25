@@ -2614,7 +2614,7 @@ fn check_passes_every_example() {
     ✓ style          17 metrics
     ✓ architecture   10 metrics
     ✓ documentation  3 metrics
-    ✓ dependencies   6 metrics
+    ✓ configuration  6 metrics
 
     8 passed
     ");
@@ -2639,7 +2639,7 @@ fn check_passes_every_example() {
     ✓ style          7 metrics
     ✓ architecture   2 metrics
     ✓ documentation  3 metrics
-    ✓ dependencies   7 metrics
+    ✓ configuration  7 metrics
 
     9 passed
     ");

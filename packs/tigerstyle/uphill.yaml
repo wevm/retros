@@ -29,6 +29,6 @@ style:
   # Whether file names are `snake_case`.
   file-names: {}
 
-dependencies:
+configuration:
   # Whether each manifest declares no runtime dependencies.
   zero-dependencies: {}
