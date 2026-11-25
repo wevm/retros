@@ -93,7 +93,7 @@ mkdir -p "$dir/bin"
 mv "$tmp/uphill" "$dir/bin/uphill"
 chmod +x "$dir/bin/uphill"
 
-echo "Installed $("$dir/bin/uphill" --version) to $dir/bin/uphill"
+echo "Installed uphill $("$dir/bin/uphill" --version) to $dir/bin/uphill"
 case ":$PATH:" in
   *":$dir/bin:"*) ;;
   *) echo "Add it to PATH in your shell profile: export PATH=\"$dir/bin:\$PATH\"" ;;

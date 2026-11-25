@@ -62,7 +62,7 @@ jobs:
       - name: Check version
         run: |
           version=$("target/$TARGET/release/uphill" --version)
-          expected="uphill $(node -p "require('./npm/package.json').version")"
+          expected=$(node -p "require('./npm/package.json').version")
           echo "$version"
           if [ "$version" != "$expected" ]; then
             echo "::error::The binary prints '$version', but npm/package.json expects '$expected'. Run 'bun npm/version.ts'."

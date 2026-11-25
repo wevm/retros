@@ -153,8 +153,9 @@ fn help() {
     let output = uphill(&["--help"]);
 
     assert!(output.status.success());
-    insta::assert_snapshot!(stdout(&output), @"
-    uphill@0.0.3 — Score metrics against their targets and compare them with their baselines
+    // `pnpm changeset:version` sets the version on each release.
+    insta::assert_snapshot!(stdout(&output).replace(env!("CARGO_PKG_VERSION"), "[version]"), @"
+    uphill@[version] — Score metrics against their targets and compare them with their baselines
 
     Usage: uphill [category] [options] | <command>
 
