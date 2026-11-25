@@ -1,44 +1,43 @@
-# Plain technical writing, measured in the copy of each Markdown file that Git tracks. textlint
-# reads each file, with published rules where one exists and a few local rules where none does.
-# Code blocks, inline code, and URLs are not prose.
+# The textlint Markdown parser supplies prose from paragraphs, headings, and table cells.
+# Link labels and emphasis retain their text. Markdown code, URL text, and comments do not count.
 
-# textlint and its rules are the pack's dependencies. They install from its lockfile when the
-# project's entry sets `install: true`.
+# Bun installs the pack's tools from its lockfile when the project sets `install: true`.
 
 # The script that writes every metric.
 run: bun metrics/writing-docs.ts
 
 documentation:
-  # Whether each sentence has 25 words or fewer, by textlint's `en-max-word-count`.
+  # Whether each sentence in a paragraph has at most 25 words. sentence-splitter finds the sentences.
+  # A word is a whitespace-delimited token with at least one letter or digit.
   sentence-words: {}
   # Whether each paragraph has 50 words or fewer: "about 40 words, and never more than 50".
   paragraph-words: {}
   # Whether each paragraph has six sentences or fewer.
   paragraph-sentences: {}
-  # Whether the prose is in the active voice, by write-good's passive check.
+  # Whether write-good reports a possible passive phrase, such as "is processed". A match fails the check.
   passive-voice: {}
-  # Whether the prose uses the short, common word, such as "use" for "utilize", by write-good's
-  # wordy check.
+  # Whether the prose avoids entries in write-good's list of wordy phrases, such as "in order to".
   wordy-words: {}
-  # Whether the prose avoids weasel words, such as "very" and "several", by write-good.
+  # Whether the prose avoids entries in write-good's list of weasel words, such as "very".
   weasel-words: {}
-  # Whether the prose writes about the code, not about the reader: no "you" or "your".
+  # Whether the prose avoids "you" and related forms such as "your" and "yourself".
   second-person: {}
-  # Whether the prose uses precise verbs, such as "returns", not "gives" or "gets".
+  # Whether compromise tags a base or third-person form of get, give, hand, know, say, see, or tell
+  # as a verb. A match fails the check, not a noun such as "hands" in "both hands move".
   conversational-verbs: {}
-  # Whether main verbs are simple tenses, not progressive ("is running") or perfect ("has run").
+  # Flags adjacent be + tagged gerund or have + past form, including unchanged participles such as
+  # "has run". These are English phrase matches, not a judgment about the sentence's main verb.
   verb-tenses: {}
-  # Whether the prose writes words, not Latin abbreviations such as "e.g.".
+  # Whether the prose avoids the abbreviations "e.g.", "i.e.", and "etc.".
   latin-abbreviations: {}
   # Whether the prose has no semicolons.
   semicolons: {}
   # Whether the prose has no em dashes.
   em-dashes: {}
-  # Whether the prose has no emoji.
+  # Whether the prose avoids Unicode RGI emoji sequences, including flag pairs and keycaps.
   emoji: {}
-  # Whether every heading is in Title Case: articles, coordinating conjunctions, and prepositions of
-  # four or fewer letters stay lowercase unless they begin or end it. `headingCase` in the script
-  # switches to sentence case.
+  # Whether headings follow Title Case with lowercase minor words except at each end.
+  # `productNames` keeps exact spellings such as "npm". `headingCase` switches to sentence case.
   heading-case: {}
   # Whether every heading has fewer than four words.
   heading-words: {}

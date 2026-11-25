@@ -31,11 +31,13 @@ commits:
   # Whether each subject states the change, not the reason: no "because", "so that", or
   # "in order to".
   subject-reasons: {}
-  # Whether each subject starts with an imperative verb, such as "add", not "adds" or "added".
+  # Whether the opening verb has a known base form, such as "add", not "adds" or "added".
+  # Words without a verb entry in the English lexicon skip.
   imperative-subjects: {}
-  # Whether each `fix:` commit changes a test, so a regression test comes with the fix.
+  # Whether each `fix:` commit adds or edits a test source path, excluding fixtures and snapshots.
+  # A changed path does not prove a test ran or covered the fix.
   fix-tests: {}
-  # Whether each changeset is one sentence that starts with a past-tense verb.
+  # Whether each changeset is one sentence whose opening verb has a known past-tense form.
   changeset-sentences: {}
   # Whether Git tracks no build output, installed packages, or `.env` files.
   tracked-output: {}

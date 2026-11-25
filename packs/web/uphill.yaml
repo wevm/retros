@@ -20,11 +20,13 @@ accessibility:
   # Whether each component uses native controls with accessible names and keyboard support, by
   # oxlint's `jsx-a11y` rules.
   controls: {}
-  # Whether each transition and animation has a `prefers-reduced-motion` override.
+  # Whether each selector that sets animation or transition declares a matching reduced-motion
+  # override of `none` or zero duration. This checks authored CSS, not the browser's cascade.
   reduced-motion: {}
   # Whether no `:focus` style removes the outline without a visible alternative.
   focus-outlines: {}
-  # Whether each `:hover` style has a `:focus` or `:focus-visible` companion.
+  # Whether each positive `:hover` selector has the corresponding `:focus` or `:focus-visible`
+  # selector in the same stylesheet and nesting context. Each hover selector is an item.
   focus-styles: {}
 
 best-practices:

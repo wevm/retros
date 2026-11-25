@@ -1,18 +1,16 @@
-# TypeScript conventions, measured in each `.ts` and `.tsx` file that Git tracks. oxlint reports
-# each convention that one of its rules covers, with only the pack's rules turned on. The script
-# reads the rest from oxc-parser's syntax tree. Each file is an item, and a failing check names the
-# first line at fault.
+# TypeScript conventions in tracked .ts, .tsx, .cts and .mts files, including declarations.
+# Source archives without Git use matching files outside the excluded output and dependency
+# directories. Each source file is an item. Syntax checks skip files that OXC cannot parse.
 
-# oxlint, oxfmt, and oxc-parser are the pack's dependencies. They install from its lockfile when
-# the project's entry sets `install: true`. The project's own TypeScript checks its types, and the
-# project's own linter and formatter check `lint` and `formatted`.
+# With `install: true`, the pack installs oxlint, oxfmt, oxc-parser, and the TypeScript binding
+# API from its lockfile. The project's compiler, linter, and formatter check its own conventions.
 
 # Every category reads the lines of this one script, which runs once.
 run: bun metrics/typescript.ts
 
 correctness:
-  # Whether TypeScript reports no errors in each file. It skips without `tsc` or `tsgo` in
-  # `node_modules/.bin`.
+  # Checks files listed by the project's tsc or tsgo, including referenced projects. Files
+  # outside its programs skip. Diagnostics without a measured source file use the config as item.
   type-errors: {}
   # Whether tsconfig.json sets `strict`, `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`,
   # and `verbatimModuleSyntax`, which the conventions treat as design constraints.
@@ -40,14 +38,14 @@ style:
   # Whether each file declares shapes with `type`, by oxlint's
   # `typescript/consistent-type-definitions`.
   interfaces: {}
-  # Whether array types are `readonly T[]`. A mutable array is part of the contract only when
-  # callers mutate it.
+  # Whether array annotations are readonly, except where tracked code directly mutates the
+  # binding or a function's result. Mutations in downstream packages are not visible.
   mutable-arrays: {}
   # Whether imports name their file extension, by oxlint's `import/extensions`, so the source stays
   # valid under NodeNext.
   import-extensions: {}
-  # Whether type-only imports and exports say `type`, by oxlint's `typescript/consistent-type-imports`
-  # and `typescript/consistent-type-exports`.
+  # Whether type-only imports and exports say `type`. oxlint checks imports. The TypeScript
+  # checker resolves named exports. An unresolved export skips unless another violation is known.
   type-imports: {}
   # Whether module constants are camelCase, not UPPER_CASE.
   uppercase-constants: {}
@@ -125,7 +123,7 @@ testing:
 configuration:
   # Whether the project has no JavaScript source files. Configuration files are exempt.
   javascript-files: {}
-  # Whether each published package.json sets `sideEffects`, so bundlers can tree-shake it.
+  # Whether each named, non-private package declares sideEffects as a boolean or file-pattern list.
   side-effects: {}
   # Whether each package.json in a pnpm workspace references its versions with `catalog:`.
   catalog-versions: {}

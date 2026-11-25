@@ -52,6 +52,8 @@ fn example(name: &str) -> (TempDir, PathBuf) {
         fs::create_dir_all(to).unwrap();
         copy(&from, to);
     }
+    git(&project, &["init", "-q"]);
+    git(&project, &["add", "."]);
     if project.join("package.json").exists() {
         let install = Command::new("bun")
             .args(["install", "--frozen-lockfile"])

@@ -1,9 +1,6 @@
 /**
- * Measures the project's TypeScript against its conventions. oxlint reports each convention that
- * one of its rules covers, from one run with only those rules. The script reads the rest from
- * oxc-parser's syntax tree, such as import styles, error names, and TSDoc, and reads the manifests
- * and compiler options as JSON. Each source file or manifest is an item, and a failing check
- * carries the first problem as its note.
+ * Measures TypeScript conventions with the pack's lint rules, syntax trees, and binding checks.
+ * The project's compiler and formatter supply separate verdicts for the files they check.
  *
  * @module
  */
@@ -15,13 +12,15 @@ import * as path from 'node:path'
 
 import { parseSync } from 'oxc-parser'
 
+import * as Bindings from './bindings.js'
+import * as Compiler from './compiler.js'
+
 /**
  * Paths that are not maintained source, such as build output, installed packages, and vendored
  * packs.
  */
 const ignored = [
   /(^|\/)(\.agents\/packs|dist|build|coverage|node_modules|target)\//,
-  /\.d\.[cm]?ts$/,
 ]
 
 /** Compiler options the conventions treat as design constraints. */
@@ -84,7 +83,13 @@ const oxlint = {
       rules: { 'eslint/no-console': 'error' },
     },
     {
-      files: ['**/*.test.*', '**/*.spec.*', '**/*.test-d.*'],
+      files: [
+        '**/*.test.*',
+        '**/*.spec.*',
+        '**/*.test-d.*',
+        '**/*_test.*',
+        '**/*_spec.*',
+      ],
       rules: {
         'eslint/no-console': 'off',
         'eslint/no-restricted-globals': ['error', 'setTimeout', 'setInterval'],
@@ -125,7 +130,6 @@ const oxlint = {
       { allow: ['**/*.css', '**/*.scss'] },
     ],
     'typescript/consistent-type-definitions': ['error', 'type'],
-    'typescript/consistent-type-exports': 'error',
     'typescript/consistent-type-imports': 'error',
     'typescript/no-explicit-any': 'error',
   },
@@ -200,86 +204,87 @@ const files = list(['*.ts', '*.tsx', '*.mts', '*.cts']).filter(
   (file) => !ignored.some((pattern) => pattern.test(file)),
 )
 const tests = files.filter((file) =>
-  /\.(test|spec|test-d)\.[cm]?tsx?$/.test(file),
+  /[._](test|spec|test-d)\.[cm]?tsx?$/.test(file),
 )
 const sources = new Map(files.map((file) => [file, read(file)]))
 const lines: string[] = []
+const projects = Compiler.projects()
+const bindings = Bindings.inspect(files, projects)
 /** The diagnostics of the oxlint run with the pack's rules, once it ran. */
-const cache: { configured?: readonly Diagnostic[] } = {}
+const cache: { configured?: ReturnType<typeof diagnostics> } = {}
 
 if (files.length === 0) {
   process.stderr.write('Found no TypeScript files to measure\n')
   process.exit(1)
 }
 
-types()
-modules()
-style()
-docs()
-testing()
-tooling()
-fs.appendFileSync(process.env.UPHILL_METRICS!, `${lines.join('\n')}\n`)
+const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'uphill-typescript-'))
+try {
+  types()
+  modules()
+  style()
+  docs()
+  testing()
+  tooling()
+  fs.appendFileSync(process.env.UPHILL_METRICS!, `${lines.join('\n')}\n`)
+} finally {
+  fs.rmSync(temporary, { force: true, recursive: true })
+}
 
 /** Writes type errors, compiler options, and the type constructs the conventions ban. */
 function types(): void {
-  const compiler = ['node_modules/.bin/tsgo', 'node_modules/.bin/tsc'].find(
-    (bin) => fs.existsSync(bin),
-  )
-  if (compiler) {
-    const output = Bun.spawnSync([
-      compiler,
-      '--noEmit',
-      '--pretty',
-      'false',
-    ]).stdout.toString()
-    const errors = [
-      ...output.matchAll(/^(.+?)\((\d+),\d+\): error (TS\d+: .+)$/gm),
-    ]
+  const compiler = Compiler.measure(files, projects, temporary)
+  if (compiler.bin && projects.length) {
     for (const file of files) {
-      const error = errors.find((match) => path.normalize(match[1]!) === file)
-      check({
-        item: file,
-        metric: 'type-errors',
-        problems: error ? [`line ${error[2]}: ${error[3]}`] : [],
-      })
+      const errors = compiler.errors.get(file)
+      if (errors || compiler.checked.has(file))
+        check({ item: file, metric: 'type-errors', problems: errors ?? [] })
+      else
+        lines.push(
+          `type-errors ${quote(file)} skip note "not checked by TypeScript"`,
+        )
     }
+    for (const [file, problems] of compiler.errors)
+      if (!sources.has(file))
+        check({ item: file, metric: 'type-errors', problems })
   } else
-    lines.push('type-errors skip note "no tsgo or tsc in node_modules/.bin"')
+    lines.push(
+      `type-errors skip${note(compiler.bin ? 'no tsconfig.json' : 'no tsgo or tsc in node_modules/.bin')}`,
+    )
 
-  const options = tsconfig('tsconfig.json')
-  for (const option of compilerOptions)
-    check({
-      item: option,
-      metric: 'compiler-options',
-      problems:
-        options?.[option] === true
-          ? []
-          : [
-              options
-                ? `tsconfig.json does not set ${option}`
-                : 'no tsconfig.json',
-            ],
-    })
+  if (!compiler.options.size) compiler.options.set('tsconfig.json', {})
+  for (const [config, options] of compiler.options)
+    for (const option of compilerOptions)
+      check({
+        item: config === 'tsconfig.json' ? option : `${config}: ${option}`,
+        metric: 'compiler-options',
+        problems:
+          options[option] === true
+            ? []
+            : [
+                projects.length
+                  ? `${config} does not set ${option}`
+                  : 'no tsconfig.json',
+              ],
+      })
 
   lint(['explicit-any', 'interfaces'])
 
   // oxlint has no rule that bans enums or requires `readonly` arrays, so the syntax tree answers.
   for (const [file, source] of sources) {
     const enums: string[] = []
-    const arrays: string[] = []
-    walk(source, (node, parents) => {
+    walk(source, (node) => {
       if (node.type === 'TSEnumDeclaration')
         enums.push(`line ${source.line(node)}: enum ${node.id.name}`)
-      const parent = parents.at(-1)
-      const readonly =
-        parent?.type === 'TSTypeOperator' && parent.operator === 'readonly'
-      if (node.type === 'TSArrayType' && !readonly)
-        arrays.push(`line ${source.line(node)}: ${source.text(node)}`)
-      if (node.type === 'TSTypeReference' && node.typeName?.name === 'Array')
-        arrays.push(`line ${source.line(node)}: ${source.text(node)}`)
     })
     check({ item: file, metric: 'enums', problems: enums })
-    check({ item: file, metric: 'mutable-arrays', problems: arrays })
+    const evidence = bindings.get(file)
+    check({
+      item: file,
+      metric: 'mutable-arrays',
+      problems: evidence?.arrays ?? [],
+      skip: !evidence ? 'no TypeScript syntax tree' : undefined,
+    })
   }
 }
 
@@ -310,7 +315,7 @@ function modules(): void {
       if (item.type === 'ImportDeclaration' && item.importKind !== 'type') {
         const values = item.specifiers.filter(
           (specifier: Node) =>
-            specifier.type === 'ImportSpecifier' &&
+            specifier.type !== 'ImportNamespaceSpecifier' &&
             specifier.importKind !== 'type',
         )
         const target = path.join(
@@ -318,7 +323,8 @@ function modules(): void {
           String(specifier).replace(/\.[cm]?jsx?$/, ''),
         )
         const component =
-          file.endsWith('.tsx') || fs.existsSync(`${target}.tsx`)
+          target.endsWith('.tsx') ||
+          (!fs.existsSync(`${target}.ts`) && fs.existsSync(`${target}.tsx`))
         if (
           relative &&
           values.length > 0 &&
@@ -326,7 +332,7 @@ function modules(): void {
           !component
         )
           namespaces.push(
-            `line ${source.line(item)}: named import from '${specifier}'`,
+            `line ${source.line(item)}: non-namespace import from '${specifier}'`,
           )
         const name = String(specifier)
         if (
@@ -334,7 +340,9 @@ function modules(): void {
           (name.startsWith('node:') ||
             (builtins.has(name) && !name.includes(':')))
         )
-          node.push(`line ${source.line(item)}: named import from '${name}'`)
+          node.push(
+            `line ${source.line(item)}: non-namespace import from '${name}'`,
+          )
       }
 
       if (item.type === 'ExportAllDeclaration' && !item.exported && relative)
@@ -372,20 +380,24 @@ function modules(): void {
   })
 
   const packages = manifests().filter(
-    (manifest) => manifest.json.exports || manifest.json.main,
+    (manifest) =>
+      manifest.json.private !== true && typeof manifest.json.name === 'string',
   )
   for (const manifest of packages)
     check({
       item: manifest.file,
       metric: 'side-effects',
       problems:
-        manifest.json.sideEffects === false ||
-        Array.isArray(manifest.json.sideEffects)
+        typeof manifest.json.sideEffects === 'boolean' ||
+        (Array.isArray(manifest.json.sideEffects) &&
+          manifest.json.sideEffects.every(
+            (entry: unknown) => typeof entry === 'string',
+          ))
           ? []
-          : ['package.json does not set "sideEffects"'],
+          : ['set "sideEffects" to a boolean or an array of file patterns'],
     })
   if (packages.length === 0)
-    lines.push('side-effects skip note "no package.json with exports"')
+    lines.push('side-effects skip note "no named, non-private package.json"')
 }
 
 /** Writes classes, error names, constants, parameters, ternaries, local types, and module state. */
@@ -419,21 +431,26 @@ function style(): void {
           })
         if ((base ?? '').endsWith('Error')) {
           let value: string | undefined
-          walk({ ...source, program: node }, (member) => {
+          for (const member of node.body.body) {
+            if (member.static) continue
             if (
               member.type === 'PropertyDefinition' &&
-              member.key?.name === 'name' &&
-              typeof member.value?.value === 'string'
+              keyName(member.key, member.computed) === 'name'
             )
-              value = member.value.value
-            if (
-              member.type === 'AssignmentExpression' &&
-              member.left?.object?.type === 'ThisExpression' &&
-              member.left.property?.name === 'name' &&
-              typeof member.right?.value === 'string'
-            )
-              value = member.right.value
-          })
+              value = member.value?.value
+            if (member.kind !== 'constructor') continue
+            for (const statement of member.value.body.body) {
+              const assignment = statement.expression
+              if (
+                assignment?.type === 'AssignmentExpression' &&
+                assignment.operator === '=' &&
+                assignment.left.object?.type === 'ThisExpression' &&
+                keyName(assignment.left.property, assignment.left.computed) ===
+                  'name'
+              )
+                value = assignment.right.value
+            }
+          }
           if (!value || !/^[A-Z]\w*(\.[A-Z]\w*)+$/.test(value))
             add({
               metric: 'error-names',
@@ -465,7 +482,10 @@ function style(): void {
           if (
             node.kind === 'const' &&
             ['Map', 'Set', 'WeakMap', 'WeakSet'].includes(constructed) &&
-            declarator.init.arguments.length === 0
+            (declarator.init.arguments.length === 0 ||
+              (declarator.init.arguments.length === 1 &&
+                declarator.init.arguments[0]?.type === 'ArrayExpression' &&
+                !declarator.init.arguments[0].elements.length))
           )
             add({
               metric: 'module-state',
@@ -591,18 +611,6 @@ function style(): void {
               node: statement,
               text: `${declarator.id.name} is returned on the next line`,
             })
-          if (
-            statement.type === 'VariableDeclaration' &&
-            statement.kind === 'let' &&
-            declarator &&
-            !declarator.init &&
-            next?.type === 'TryStatement'
-          )
-            add({
-              metric: 'let-across-try',
-              node: statement,
-              text: `let ${declarator.id?.name} is assigned across try and catch`,
-            })
         })
       }
 
@@ -637,6 +645,7 @@ function style(): void {
           `line ${source.lineAt(comment.start)}: a section divider`,
         )
 
+    problems['let-across-try'] = bindings.get(file)?.acrossTry ?? []
     for (const metric of [
       'classes',
       'error-names',
@@ -667,58 +676,79 @@ function style(): void {
 function docs(): void {
   for (const [file, source] of sources) {
     const first = source.program.body[0]
-    const header = source.comments.find(
+    const header = source.comments.some(
       (comment) =>
         comment.type === 'Block' &&
         comment.value.startsWith('*') &&
+        moduleTag(comment.value) &&
         (!first || comment.end <= first.start),
     )
     check({
       item: file,
       metric: 'module-docs',
-      problems: header?.value.includes('@module')
+      problems: header
         ? []
         : ['no TSDoc `@module` comment before the first statement'],
     })
 
     const exports: string[] = []
     const properties: string[] = []
-    let previous: string | undefined
     const visit = (statements: Node[]) => {
+      const locals = new Map<string, Node>()
       for (const statement of statements) {
-        const declaration =
-          statement.type === 'ExportNamedDeclaration' ||
-          statement.type === 'ExportDefaultDeclaration'
-            ? statement.declaration
-            : undefined
-        if (!declaration) continue
-        const name: string =
-          declaration.id?.name ??
-          declaration.declarations?.[0]?.id?.name ??
-          declaration.id?.value ??
-          'default'
-        const overload = name === previous && /Function/.test(declaration.type)
-        previous = name
-        if (!overload && !source.documented(statement))
-          exports.push(`line ${source.line(statement)}: ${name}`)
-
-        const members: Node[] = (() => {
-          if (declaration.type === 'TSInterfaceDeclaration')
-            return declaration.body.body
-          if (declaration.typeAnnotation?.type === 'TSTypeLiteral')
-            return declaration.typeAnnotation.members
-          return []
-        })()
-        for (const member of members)
-          if (member.type.endsWith('Signature') && !source.documented(member))
-            properties.push(
-              `line ${source.line(member)}: ${name}.${member.key?.name ?? member.key?.value ?? '…'}`,
+        if (statement.id?.name) locals.set(statement.id.name, statement)
+        for (const entry of statement.declarations ?? [])
+          if (entry.id?.name) locals.set(entry.id.name, statement)
+      }
+      let previous: string | undefined
+      for (const statement of statements) {
+        if (!/^Export(Named|Default|All)Declaration$/.test(statement.type)) {
+          previous = undefined
+          continue
+        }
+        const declarations = statement.declaration
+          ? [statement.declaration]
+          : (statement.specifiers ?? [statement]).map(
+              (specifier: Node) =>
+                (!statement.source && locals.get(specifier.local?.name)) ||
+                specifier,
             )
-        if (
-          declaration.type === 'TSModuleDeclaration' &&
-          declaration.body?.body
-        )
-          visit(declaration.body.body)
+        for (const declaration of declarations) {
+          const name: string =
+            declaration.id?.name ??
+            declaration.declarations?.[0]?.id?.name ??
+            declaration.id?.value ??
+            declaration.exported?.name ??
+            statement.source?.value ??
+            'default'
+          const overload =
+            name === previous && /Function/.test(declaration.type)
+          previous = declaration.type === 'TSDeclareFunction' ? name : undefined
+          if (
+            !overload &&
+            !source.documented(statement) &&
+            !source.documented(declaration)
+          )
+            exports.push(`line ${source.line(statement)}: ${name}`)
+
+          const members: Node[] = (() => {
+            if (declaration.type === 'TSInterfaceDeclaration')
+              return declaration.body.body
+            if (declaration.typeAnnotation?.type === 'TSTypeLiteral')
+              return declaration.typeAnnotation.members
+            return []
+          })()
+          for (const member of members)
+            if (member.type.endsWith('Signature') && !source.documented(member))
+              properties.push(
+                `line ${source.line(member)}: ${name}.${member.key?.name ?? member.key?.value ?? '…'}`,
+              )
+          if (
+            declaration.type === 'TSModuleDeclaration' &&
+            declaration.body?.body
+          )
+            visit(declaration.body.body)
+        }
       }
     }
     visit(source.program.body)
@@ -729,15 +759,22 @@ function docs(): void {
 
 /** Writes mocks, inline snapshots, snapshot files, sleeps, and split test files. */
 function testing(): void {
+  const snapshots = list(['*.snap']).filter(
+    (file) => !ignored.some((pattern) => pattern.test(file)),
+  )
+  check({
+    metric: 'snapshot-files',
+    problems: snapshots.map((file) => `${file} is a snapshot file`),
+  })
+
   if (tests.length === 0) {
     for (const metric of [
       'mocks',
       'sleeps',
       'split-test-files',
-      'snapshot-files',
       'inline-snapshots',
     ])
-      lines.push(`${metric} skip note "no test files"`)
+      lines.push(`${metric} "TypeScript tests" skip note "no test files"`)
     return
   }
 
@@ -745,19 +782,7 @@ function testing(): void {
 
   // No linter rule counts inline snapshots or names test files, so the syntax tree answers.
   for (const file of tests) {
-    const source = sources.get(file)!
-    let expects = 0
-    let inline = 0
-    walk(source, (node) => {
-      const callee = node.type === 'CallExpression' ? node.callee : undefined
-      if (callee?.type === 'Identifier' && callee.name === 'expect') expects++
-      if (
-        /^(toMatchInlineSnapshot|toThrowErrorMatchingInlineSnapshot)$/.test(
-          callee?.property?.name ?? '',
-        )
-      )
-        inline++
-    })
+    const evidence = bindings.get(file)
     check({
       item: file,
       metric: 'split-test-files',
@@ -771,22 +796,84 @@ function testing(): void {
     check({
       item: file,
       metric: 'inline-snapshots',
+      skip: evidence ? undefined : 'no TypeScript syntax tree',
       problems:
-        inline < expects
+        evidence && evidence.inline < evidence.assertions
           ? [
-              `${expects - inline} of ${expects} assertions are not inline snapshots`,
+              `${evidence.assertions - evidence.inline} of ${evidence.assertions} assertions are not inline snapshots`,
             ]
           : [],
     })
   }
+}
 
-  const snapshots = list(['*.snap']).filter(
-    (file) => !ignored.some((pattern) => pattern.test(file)),
-  )
-  check({
-    metric: 'snapshot-files',
-    problems: snapshots.map((file) => `${file} is a snapshot file`),
-  })
+/** Attributes formatter verdicts only to files counted by oxfmt or `vp fmt`. */
+function formatting(tool: Tool): void {
+  const command = tool.command.filter((flag) => flag !== '--list-different')
+  const clean = new Map<string, boolean>()
+  const valid = files.filter((file) => !sources.get(file)?.error)
+  const measure = (batch: readonly string[]): void => {
+    const result = Bun.spawnSync(
+      [
+        ...command,
+        '--check',
+        '--no-error-on-unmatched-pattern',
+        '--',
+        ...batch,
+      ],
+      {
+        env: { ...process.env, NO_COLOR: '1' },
+      },
+    )
+    const out = result.stdout.toString()
+    const err = result.stderr.toString().trim()
+    const count = Number(/^Finished in .* on (\d+) files?\b/m.exec(out)?.[1])
+    if (
+      ![0, 1].includes(result.exitCode) ||
+      !Number.isInteger(count) ||
+      count > batch.length
+    )
+      throw new Error(`oxfmt: ${err || out || `exit ${result.exitCode}`}`)
+    if (count === 0 && result.success) return
+
+    // Oxfmt reports the number of examined files, but does not list the ones it ignored.
+    if (count > 0 && count !== batch.length) {
+      const mid = Math.floor(batch.length / 2)
+      measure(batch.slice(0, mid))
+      measure(batch.slice(mid))
+      return
+    }
+
+    const changed = new Set<string>()
+    if (!result.success) {
+      const listing = Bun.spawnSync([...tool.command, '--', ...batch])
+      for (const file of listing.stdout.toString().split(/\r?\n/))
+        if (file) changed.add(path.normalize(file))
+      if (
+        listing.exitCode !== 1 ||
+        listing.stderr.length ||
+        !changed.size ||
+        [...changed].some((file) => !batch.includes(file))
+      )
+        throw new Error(`oxfmt: ${listing.stderr.toString() || out}`)
+    }
+    for (const file of batch) clean.set(file, !changed.has(file))
+  }
+  for (let start = 0; start < valid.length; start += 500)
+    measure(valid.slice(start, start + 500))
+
+  for (const file of files)
+    check({
+      item: file,
+      metric: 'formatted',
+      skip:
+        sources.get(file)?.error ??
+        (clean.has(file) ? undefined : `not examined by ${tool.name}`),
+      problems:
+        clean.get(file) === false
+          ? [`${tool.name} would change this file`]
+          : [],
+    })
 }
 
 /**
@@ -930,8 +1017,30 @@ function tooling(): void {
     return
   }
   const workspace = fs.existsSync('pnpm-workspace.yaml')
+    ? ((
+        Bun.YAML.parse(fs.readFileSync('pnpm-workspace.yaml', 'utf8')) as {
+          packages?: string[]
+        } | null
+      )?.packages ?? ['**'])
+    : undefined
   for (const manifest of packages) {
-    if (workspace)
+    const directory = path.dirname(manifest.file)
+    if (
+      workspace &&
+      (directory === '.' ||
+        (workspace.some(
+          (pattern) =>
+            !pattern.startsWith('!') &&
+            new Bun.Glob(pattern.replace(/^\.\//, '')).match(directory),
+        ) &&
+          !workspace.some(
+            (pattern) =>
+              pattern.startsWith('!') &&
+              new Bun.Glob(pattern.slice(1).replace(/^\.\//, '')).match(
+                directory,
+              ),
+          )))
+    )
       check({
         item: manifest.file,
         metric: 'catalog-versions',
@@ -949,12 +1058,12 @@ function tooling(): void {
     check({
       item: manifest.file,
       metric: 'script-runners',
-      problems: Object.entries<string>(manifest.json.scripts ?? {})
-        .filter((entry) => /\b(tsx|ts-node)\b/.test(entry[1]))
-        .map(
-          (entry) =>
-            `script ${entry[0]} runs ${/\btsx\b/.test(entry[1]) ? 'tsx' : 'ts-node'}`,
-        ),
+      problems: Object.entries<string>(manifest.json.scripts ?? {}).flatMap(
+        (entry) => {
+          const runner = scriptRunner(entry[1])
+          return runner ? [`script ${entry[0]} runs ${runner}`] : []
+        },
+      ),
     })
 
     check({
@@ -990,38 +1099,58 @@ type Diagnostic = { file: string; line: number; message: string; rule: string }
 type Tool = {
   command: readonly string[]
   name: string
-  parse: (output: string) => readonly Diagnostic[]
+  parse: (
+    output: string,
+    batch: readonly string[],
+    command: readonly string[],
+  ) => {
+    checked?: readonly string[]
+    found: readonly Diagnostic[]
+  }
 }
 
 /** Writes one check per file for each lint metric, from one oxlint run with the pack's rules. */
 function lint(metrics: readonly string[]): void {
   cache.configured ??= (() => {
     const oxlint = tool({
-      flags: ['-c', config(), '--format', 'json'],
+      flags: [
+        '-c',
+        config(),
+        '--no-ignore',
+        '--disable-nested-config',
+        '--format',
+        'json',
+      ],
       name: 'oxlint',
       pack: true,
       parse: oxlintReport,
     })
-    const found = typeof oxlint === 'string' ? oxlint : diagnostics(oxlint)
-    if (typeof found === 'string') {
-      process.stderr.write(`${found}\n`)
-      process.exit(1)
-    }
-    return found
+    if (typeof oxlint === 'string') throw new Error(oxlint)
+    return diagnostics(oxlint, files)
   })()
   const configured = cache.configured
   for (const metric of metrics) {
     const rule = rules[metric]!
-    for (const file of rule.files())
+    for (const file of rule.files()) {
+      const evidence =
+        metric === 'type-imports' ? bindings.get(file) : undefined
+      const problems = configured.found
+        .filter(
+          (diagnostic) => diagnostic.file === file && rule.match(diagnostic),
+        )
+        .map(describe)
+      problems.push(...(evidence?.typeExports ?? []))
       check({
         item: file,
         metric,
-        problems: configured
-          .filter(
-            (diagnostic) => diagnostic.file === file && rule.match(diagnostic),
-          )
-          .map(describe),
+        problems,
+        skip: !configured.checked.has(file)
+          ? 'not examined by oxlint'
+          : problems.length
+            ? undefined
+            : evidence?.unresolved[0],
       })
+    }
   }
 }
 
@@ -1035,20 +1164,31 @@ function verdicts(options: verdicts.Options): void {
     lines.push(`${metric} skip${note(tool)}`)
     return
   }
-  const found = diagnostics(tool)
-  if (typeof found === 'string') {
-    lines.push(`${metric} skip${note(found)}`)
-    return
-  }
 
-  for (const file of files)
-    check({
-      item: file,
-      metric,
-      problems: found
-        .filter((diagnostic) => diagnostic.file === file)
-        .map((diagnostic) => problem(diagnostic, tool.name)),
-    })
+  try {
+    if (metric === 'formatted' && ['oxfmt', 'vp'].includes(tool.name)) {
+      formatting(tool)
+      return
+    }
+    const inputs =
+      metric === 'formatted'
+        ? files.filter((file) => !sources.get(file)?.error)
+        : files
+    const { checked, found } = diagnostics(tool, inputs)
+    for (const file of files)
+      check({
+        item: file,
+        metric,
+        problems: found
+          .filter((diagnostic) => diagnostic.file === file)
+          .map((diagnostic) => problem(diagnostic, tool.name)),
+        skip: checked.has(file) ? undefined : `not examined by ${tool.name}`,
+      })
+  } catch (error) {
+    lines.push(
+      `${metric} skip${note(error instanceof Error ? error.message : String(error))}`,
+    )
+  }
 }
 
 declare namespace verdicts {
@@ -1093,35 +1233,43 @@ declare namespace tool {
 }
 
 /**
- * Runs `tool` on every file, in batches that fit a command line, and returns its diagnostics. A
- * tool that exits with an error and reports nothing failed, and the result is the reason.
+ * Runs the tool in bounded batches and records which files its report covered. Invalid output
+ * and execution failures are not evidence of a clean batch.
  */
-function diagnostics(tool: Tool): readonly Diagnostic[] | string {
+function diagnostics(tool: Tool, inputs: readonly string[]) {
+  const checked = new Set<string>()
   const found: Diagnostic[] = []
-  for (let start = 0; start < files.length; start += 500) {
-    const result = Bun.spawnSync([
-      ...tool.command,
-      ...files.slice(start, start + 500),
-    ])
-    const batch = (() => {
-      try {
-        return tool.parse(result.stdout.toString())
-      } catch {
-        return undefined
-      }
-    })()
-    if (!batch || (result.exitCode !== 0 && batch.length === 0)) {
-      const reason = result.stderr.toString().replace(/\s+/g, ' ').trim()
-      return `${tool.name} failed: ${reason.slice(0, 200) || `exit status ${result.exitCode}`}`
+  for (let start = 0; start < inputs.length; start += 500) {
+    const batch = inputs.slice(start, start + 500)
+    const result = Bun.spawnSync([...tool.command, '--', ...batch])
+    const output = result.stdout.toString()
+    try {
+      const parsed = tool.parse(output, batch, tool.command)
+      if (
+        (!result.success && (result.exitCode !== 1 || !parsed.found.length)) ||
+        parsed.found.some((diagnostic) => !batch.includes(diagnostic.file))
+      )
+        throw new Error(`exit status ${result.exitCode}`)
+      for (const file of parsed.checked ?? batch) checked.add(file)
+      found.push(...parsed.found)
+    } catch (error) {
+      const reason = (result.stderr.toString() || output || String(error))
+        .replace(/\s+/g, ' ')
+        .trim()
+      throw new Error(`${tool.name} failed: ${reason.slice(0, 300)}`)
     }
-    found.push(...batch)
   }
-  return found
+  return { checked, found }
 }
 
 /** Reads the JSON report of oxlint, which `vp lint` writes too. */
-function oxlintReport(output: string): readonly Diagnostic[] {
+function oxlintReport(
+  output: string,
+  batch: readonly string[],
+  command: readonly string[],
+) {
   const report = JSON.parse(output.slice(output.indexOf('{'))) as {
+    number_of_files: number
     diagnostics: {
       code?: string
       filename: string
@@ -1129,21 +1277,39 @@ function oxlintReport(output: string): readonly Diagnostic[] {
       message: string
     }[]
   }
-  return report.diagnostics.map((diagnostic) => ({
+  const found = report.diagnostics.map((diagnostic) => ({
     file: relative(diagnostic.filename),
     line: diagnostic.labels[0]?.span.line ?? 1,
     message: diagnostic.message,
     rule: diagnostic.code ?? '',
   }))
+  if (report.number_of_files === batch.length) return { checked: batch, found }
+  if (report.number_of_files === 0) return { checked: [], found }
+
+  const listing = Bun.spawnSync([...command, '--debug=files', '--', ...batch])
+  const checked = listing.stdout
+    .toString()
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map(relative)
+  if (
+    !listing.success ||
+    checked.length !== report.number_of_files ||
+    checked.some((file) => !batch.includes(file))
+  )
+    throw new Error(
+      `${listing.stderr.toString() || 'oxlint did not identify the checked files'}`,
+    )
+  return { checked, found }
 }
 
 /** Reads the JSON report of ESLint, which `bun lint` writes too. */
-function eslintReport(output: string): readonly Diagnostic[] {
+function eslintReport(output: string) {
   const report = JSON.parse(output.slice(output.indexOf('['))) as {
     filePath: string
     messages: { line?: number; message: string; ruleId: string | null }[]
   }[]
-  return report.flatMap((entry) =>
+  const found = report.flatMap((entry) =>
     entry.messages.map((message) => ({
       file: relative(entry.filePath),
       line: message.line ?? 1,
@@ -1151,33 +1317,35 @@ function eslintReport(output: string): readonly Diagnostic[] {
       rule: message.ruleId ?? '',
     })),
   )
+  return { checked: report.map((entry) => relative(entry.filePath)), found }
 }
 
 /** Reads GitHub workflow annotations, which Biome writes with `--reporter=github`. */
-function annotations(output: string): readonly Diagnostic[] {
+function annotations(output: string) {
   const decode = (text: string) =>
     text.replace(/%(25|0D|0A|3A|2C)/gi, (escape) => decodeURIComponent(escape))
-  return [...output.matchAll(/^::(?:error|warning|notice) (.*?)::(.*)$/gm)].map(
-    (match) => {
-      const properties = new Map(
-        match[1]!.split(',').map((property) => {
-          const index = property.indexOf('=')
-          return [property.slice(0, index), decode(property.slice(index + 1))]
-        }),
-      )
-      return {
-        file: relative(properties.get('file') ?? ''),
-        line: Number(properties.get('line') ?? 1),
-        message: decode(match[2]!),
-        rule: properties.get('title') ?? '',
-      }
-    },
-  )
+  const found = [
+    ...output.matchAll(/^::(?:error|warning|notice) (.*?)::(.*)$/gm),
+  ].map((match) => {
+    const properties = new Map(
+      match[1]!.split(',').map((property) => {
+        const index = property.indexOf('=')
+        return [property.slice(0, index), decode(property.slice(index + 1))]
+      }),
+    )
+    return {
+      file: relative(properties.get('file') ?? ''),
+      line: Number(properties.get('line') ?? 1),
+      message: decode(match[2]!),
+      rule: properties.get('title') ?? '',
+    }
+  })
+  return { found }
 }
 
 /** Reads one path per line, which formatters write with `--list-different`. */
-function paths(output: string): readonly Diagnostic[] {
-  return output
+function paths(output: string) {
+  const found = output
     .split('\n')
     .filter((line) => line.trim() !== '')
     .map((line) => ({
@@ -1186,6 +1354,7 @@ function paths(output: string): readonly Diagnostic[] {
       message: '',
       rule: '',
     }))
+  return { found }
 }
 
 /** Returns a path that a tool reported, absolute or not, relative to the project root. */
@@ -1195,10 +1364,7 @@ function relative(file: string): string {
 
 /** Writes the pack's oxlint configuration to a temporary file, and returns its path. */
 function config(): string {
-  const file = path.join(
-    fs.mkdtempSync(path.join(os.tmpdir(), 'uphill-oxlint-')),
-    'oxlintrc.json',
-  )
+  const file = path.join(temporary, 'oxlintrc.json')
   fs.writeFileSync(file, JSON.stringify(oxlint))
   return file
 }
@@ -1281,14 +1447,20 @@ function read(file: string) {
     value: string
   }[]
 
+  const error = result.errors[0]
   return {
     comments,
+    error: error
+      ? `oxc-parser: line ${lineAt(error.labels[0]?.start ?? 0)}: ${error.message}`
+      : undefined,
     /** Returns whether a TSDoc comment ends right before the node, with only whitespace between. */
     documented: (node: Node) =>
       comments.some(
         (comment) =>
           comment.type === 'Block' &&
           comment.value.startsWith('*') &&
+          !moduleTag(comment.value) &&
+          comment.end <= node.start &&
           text.slice(comment.end, node.start).trim() === '',
       ),
     line: (node: Node) => lineAt(node.start),
@@ -1338,26 +1510,38 @@ function insideClass(parents: Node[]): boolean {
   return false
 }
 
-/** Reads `compilerOptions` from a tsconfig file and the relative files it extends. */
-function tsconfig(file: string): Record<string, unknown> | undefined {
-  if (!fs.existsSync(file)) return undefined
-  const text = fs
-    .readFileSync(file, 'utf8')
-    .replace(/("(?:\\.|[^"\\])*")|\/\/[^\n]*|\/\*[\s\S]*?\*\//g, '$1')
-    .replace(/,(\s*[}\]])/g, '$1')
-  const json = JSON.parse(text)
-  const bases = (
-    Array.isArray(json.extends) ? json.extends : [json.extends]
-  ).filter(Boolean) as string[]
-  const inherited = bases.map((base) => {
-    const resolved = base.startsWith('.')
-      ? path.join(path.dirname(file), base)
-      : path.join('node_modules', base)
-    return (
-      tsconfig(resolved.endsWith('.json') ? resolved : `${resolved}.json`) ?? {}
+/** Matches a TSDoc block tag, not a mention or prefix in prose. */
+function moduleTag(comment: string): boolean {
+  return /^\s*\*?\s*@module(?:\s|$)/m.test(comment)
+}
+
+/** Returns the literal property name, without mistaking a computed variable for its value. */
+function keyName(key: Node, computed: boolean): string | undefined {
+  return key?.type === 'Literal' ? key.value : computed ? undefined : key?.name
+}
+
+/** Checks command positions, not arbitrary arguments or the extension of a Bun entry point. */
+function scriptRunner(script: string): string | undefined {
+  let command = true
+  for (const token of script.match(
+    /(?:"(?:\\.|[^"\\])*"|'[^']*'|\\.|[^\s;&|"'\\])+|[;&|\n]+/g,
+  ) ?? []) {
+    if (/^[;&|\n]+$/.test(token)) {
+      command = true
+      continue
+    }
+    const word = token.replace(/^(['"])(.*)\1$/, '$2')
+    if (!command) continue
+    if (
+      /^(?:\w+=|[-])/.test(word) ||
+      /^(?:env|exec|npx|bunx|pnpm|yarn|npm|dlx|x)$/.test(word)
     )
-  })
-  return Object.assign({}, ...inherited, json.compilerOptions)
+      continue
+    const name = path.basename(word)
+    if (name === 'tsx' || name === 'ts-node') return name
+    command = false
+  }
+  return undefined
 }
 
 /** Returns each package.json that Git tracks, outside installed packages. */
@@ -1381,15 +1565,13 @@ function dependencies(json: Record<string, Node>): [string, string, string][] {
   )
 }
 
-/** Returns the tracked and untracked files that match `patterns` and that Git does not ignore. */
+/** Returns tracked files in a checkout, or matching files when measuring a source archive. */
 function list(patterns: string[]): string[] {
   const result = Bun.spawnSync(
     [
       'git',
       'ls-files',
       '--cached',
-      '--others',
-      '--exclude-standard',
       '-z',
       '--',
       ...patterns.flatMap((pattern) => [pattern, `**/${pattern}`]),
@@ -1412,6 +1594,15 @@ function list(patterns: string[]): string[] {
 function check(options: check.Options): void {
   const { item, metric, problems } = options
   const subject = item === undefined ? metric : `${metric} ${quote(item)}`
+  const skip =
+    options.skip ??
+    (item && !['type-errors', 'lint', 'split-test-files'].includes(metric)
+      ? sources.get(item)?.error
+      : undefined)
+  if (skip) {
+    lines.push(`${subject} skip${note(skip)}`)
+    return
+  }
   const more = problems.length > 1 ? ` (and ${problems.length - 1} more)` : ''
   lines.push(
     problems.length === 0
@@ -1436,5 +1627,6 @@ declare namespace check {
     item?: string | undefined
     metric: string
     problems: readonly string[]
+    skip?: string | undefined
   }
 }

@@ -8,6 +8,8 @@
     "chrome-launcher": "1.2.3",
     "lighthouse": "13.6.0",
     "oxlint": "1.95.0",
+    "postcss": "8.5.33",
+    "postcss-selector-parser": "7.2.1",
     "stylelint": "18.1.0"
   }
 }

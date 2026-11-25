@@ -1,0 +1,9 @@
+{
+  "name": "uphill-rust-pack",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "tree-sitter-rust": "0.24.0",
+    "web-tree-sitter": "0.25.10"
+  }
+}

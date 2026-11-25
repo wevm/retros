@@ -123,6 +123,8 @@ packs:
 
 `uphill update` moves each remote pack, or the named ones, to the newest commit of the ref in its comment, or of the default branch. The review shows what changed: `+` for a new file or capability, `~` for a changed file, and `-` for a removed one.
 
+If an update adds dependencies, review the lockfile and set `install: true` on the pack entry. The Rust, TigerStyle, and Deslop packs need this setting for their parsers. An update preserves the existing install permission.
+
 ```text
 $ uphill update typescript
 typescript  94bd79a → 47fd804 (main, 3 days old)

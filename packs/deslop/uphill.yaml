@@ -1,8 +1,6 @@
-# The four lints of deslop-please (https://github.com/deterministic-machines/deslop-please), an
-# architectural linter: deep modules, narrow interfaces. deslop-please measures a Cargo workspace
-# when it is installed, and a small scanner measures Rust without it and Zig, Go, Swift, C, and
-# TypeScript. A module is a file, a Go package, or a C source with its header, and each module is an
-# item. The pack leaves out `wide-directory` and `long-file`, which measure size, not structure.
+# The four architecture lints of https://github.com/deterministic-machines/deslop-please.
+# Each item is a file, Go package, or C source with its header. A skipped item does not score.
+# See README.md for the native Rust build configuration and the scanner's coverage.
 
 # The script that writes every metric.
 run: bun metrics/deslop.ts

@@ -1,9 +1,8 @@
 /**
  * Measures the structure of source files with the four lints of deslop-please
  * (https://github.com/deterministic-machines/deslop-please): deep modules and narrow interfaces.
- * deslop-please reads Rust through rust-analyzer, so it measures Rust when it is installed. No tool
- * reads the other languages, so a small scanner removes comments and strings, matches braces, and
- * reads imports, types, fields, and functions in Rust, Zig, Go, Swift, C, and TypeScript. A module
+ * deslop-please reads Rust through rust-analyzer. The TypeScript checker resolves module, field,
+ * and function references. A scanner reads the other source declarations and imports. A module
  * is a file, a Go package, or a C source with its header. Tests are not read. Each module is an
  * item, and a failing check carries the first finding.
  *
@@ -12,6 +11,9 @@
 
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import * as Imports from './Imports.js'
+import * as Rust from './Rust.js'
+import * as TypeScript from './TypeScript.js'
 
 /** The lints, in the order deslop-please lists them. Each lint is a metric. */
 const lints = [
@@ -82,20 +84,21 @@ const keywords = new Set([
 ])
 
 /** File names whose module encloses every module in their directory. */
-const roots = new Set([
-  'index.ts',
-  'index.tsx',
-  'lib.rs',
-  'main.rs',
-  'main.zig',
-  'mod.rs',
-  'root.zig',
-])
+const roots = new Set(['lib.rs', 'main.rs', 'mod.rs'])
 
-const files = list(
+const candidates = list(
   Object.keys(languages).map((extension) => `*${extension}`),
 ).filter(
   (file) => !ignored.some((pattern) => pattern.test(file)) && !tests.test(file),
+)
+const rust = candidates.some((file) => file.endsWith('.rs'))
+  ? Rust.workspace()
+  : undefined
+const files = candidates.filter(
+  (file) =>
+    !rust ||
+    !file.endsWith('.rs') ||
+    (!rust.diagnostics && rust.files.has(file)),
 )
 const known = new Set(files)
 const lineStarts = new Map<string, number[]>()
@@ -104,8 +107,11 @@ const modules = [...new Set(files.map(moduleOf))]
 const findings = new Map<string, Map<string, string[]>>(
   lints.map((lint) => [lint, new Map()]),
 )
+const skipped = new Map<string, Map<string, string>>(
+  lints.map((lint) => [lint, new Map()]),
+)
 
-if (files.length === 0) {
+if (candidates.length === 0) {
   fs.appendFileSync(
     process.env.UPHILL_METRICS!,
     `${lints.map((lint) => `${lint} skip note "no source files"`).join('\n')}\n`,
@@ -113,6 +119,13 @@ if (files.length === 0) {
   process.exit(0)
 }
 
+const ts = TypeScript.analyze(
+  files.filter((file) => /\.(?:m?ts|tsx)$/.test(file)),
+)
+if (ts.incomplete)
+  for (const file of ts.edges.keys())
+    for (const lint of lints) skipped.get(lint)!.set(file, ts.incomplete)
+const imports = await Imports.analyze(files)
 const graph = uses()
 const extents = types()
 const tangles = circles(typeGraph())
@@ -121,19 +134,34 @@ moduleCycles()
 tangled()
 fieldLeaks()
 shallowModules()
-const rust = deslopPlease()
+for (const file of candidates.filter((file) => !known.has(file))) {
+  modules.push(file)
+  if (!rust!.files.has(file))
+    for (const lint of lints) skipped.get(lint)!.set(file, rust!.reason)
+}
+if (rust?.diagnostics) nativeFindings(rust.diagnostics)
 
 const lines = lints.flatMap((lint) =>
   modules.map((module) => {
-    const problems =
-      rust?.get(lint)?.get(module) ??
-      (rust && module.endsWith('.rs')
-        ? []
-        : (findings.get(lint)!.get(module) ?? []))
+    const backend =
+      module.endsWith('.rs') || module === 'Cargo.toml'
+        ? (rust?.label ?? 'Rust source scanner')
+        : ts.edges.has(module)
+          ? 'TypeScript source program'
+          : 'source scanner'
+    const problems = findings.get(lint)!.get(module) ?? []
     const first = problems[0]
-    if (!first) return `${lint} ${quote(module)} pass`
-    const more = problems.length > 1 ? ` (and ${problems.length - 1} more)` : ''
-    return `${lint} ${quote(module)} fail note ${quote(`${first}${more}`)}`
+    const prefix = `${lint} ${quote(module)}`
+    const reason = skipped.get(lint)!.get(module)
+    if (!first)
+      return reason
+        ? `${prefix} skip note ${quote(`${backend}: ${reason}`)}`
+        : `${prefix} pass note ${quote(backend)}`
+    const more =
+      problems.length > heldInMind
+        ? ` (and ${problems.length - heldInMind} more)`
+        : ''
+    return `${prefix} fail note ${quote(`${backend}: ${problems.slice(0, heldInMind).join(' | ')}${more}`)}`
   }),
 )
 fs.appendFileSync(process.env.UPHILL_METRICS!, `${lines.join('\n')}\n`)
@@ -158,12 +186,8 @@ function moduleOf(file: string): string {
   return file
 }
 
-/**
- * Returns the directory or path prefix that a module encloses: a root file's directory, a Go
- * package, or the path without its extension, as `a.rs` encloses `a/b.rs`.
- */
+/** Returns the directory a Rust module encloses, as `a.rs` encloses `a/b.rs`. */
 function scopeOf(module: string): string {
-  if (module.endsWith('/')) return module.slice(0, -1)
   if (roots.has(path.basename(module))) return path.dirname(module)
   return module.replace(/\.\w+$/, '')
 }
@@ -173,6 +197,7 @@ function scopeOf(module: string): string {
  * circle, as deslop-please counts circles only among siblings.
  */
 function related(a: string, b: string): boolean {
+  if (!a.endsWith('.rs') || !b.endsWith('.rs')) return false
   const encloses = (outer: string, inner: string) =>
     outer !== inner &&
     (scopeOf(outer) === '.' || `${inner}/`.startsWith(`${scopeOf(outer)}/`))
@@ -182,74 +207,82 @@ function related(a: string, b: string): boolean {
 /** Returns, by module, the other modules its code imports or names. */
 function uses(): Map<string, Set<string>> {
   const edges = new Map(modules.map((module) => [module, new Set<string>()]))
-  const goModules = list(['go.mod']).map((file) => ({
-    dir: path.dirname(file),
-    name: /^module\s+(\S+)/m.exec(fs.readFileSync(file, 'utf8'))?.[1] ?? '',
-  }))
+  const goModules = list(['go.mod'])
+    .map((file) => ({
+      dir: path.dirname(file),
+      name:
+        /^\s*module\s+"?([^"\s]+)/m.exec(fs.readFileSync(file, 'utf8'))?.[1] ??
+        '',
+    }))
+    .sort((a, b) => b.name.length - a.name.length)
+  const unresolved = new Map<Language, string>()
 
   for (const file of files) {
     const source = sources.get(file)!
     const dir = path.dirname(file)
-    const targets: string[] = []
-    const live = (index: number) => source.code[index] === source.text[index]
-
-    if (source.extension.endsWith('ts') || source.extension === '.tsx') {
-      const pattern =
-        /\b(?:import|export)\s+(?:type\s+)?[\w\s{},*$]*?\bfrom\s*(['"])(\.{1,2}\/[^'"]+)\1|\bimport\s*\(\s*(['"])(\.{1,2}\/[^'"]+)\3\s*\)/g
-      for (const match of source.text.matchAll(pattern))
-        if (live(match.index))
-          targets.push(...resolveScript(path.join(dir, match[2] ?? match[4]!)))
-    }
-    if (source.extension === '.rs')
-      for (const match of source.code.matchAll(
-        /\b(crate|super|self)((?:::\w+)+)/g,
-      ))
-        targets.push(...resolveRust(file, match[1]!, match[2]!.slice(2)))
-    if (source.extension === '.zig')
-      for (const match of source.text.matchAll(
-        /@import\(\s*"([^"]+\.zig)"\s*\)/g,
-      ))
-        if (live(match.index)) targets.push(path.join(dir, match[1]!))
-    if (source.extension === '.c' || source.extension === '.h')
-      for (const match of source.text.matchAll(/^\s*#\s*include\s+"([^"]+)"/gm))
-        targets.push(path.join(dir, match[1]!))
-    if (source.extension === '.go')
-      for (const match of source.text.matchAll(/"([\w.\-/]+)"/g)) {
-        const owner = goModules.find(
-          (module) => module.name && match[1]!.startsWith(`${module.name}/`),
-        )
-        if (owner)
-          targets.push(
-            `${path.join(owner.dir, match[1]!.slice(owner.name.length + 1))}/x.go`,
-          )
-      }
-
     const from = moduleOf(file)
+    const targets = [...(ts.edges.get(file) ?? [])]
+    const unknown = (description: string) =>
+      unresolved.set(source.language, `${file}: ${description}`)
+
+    const incomplete = imports.incomplete.get(file)
+    if (incomplete) unknown(incomplete)
+    if (incomplete === 'syntax error')
+      for (const lint of lints)
+        skipped.get(lint)!.set(from, `${file}: ${incomplete}`)
+    if (source.extension === '.rs') {
+      if (/\bmod\s+\w+\s*\{/.test(source.code))
+        skipped
+          .get('module-cycle')!
+          .set(file, 'inline Rust modules require deslop-please')
+      if (/\b(?:crate|self|super)\s*::\s*\{|\binclude!\s*\(/.test(source.code))
+        unknown('grouped root paths and include! require deslop-please')
+      for (const match of source.code.matchAll(
+        /\b(crate|super|self)((?:\s*::\s*\w+)+)/g,
+      )) {
+        const target = resolveRust(
+          file,
+          match[1]!,
+          match[2]!.replaceAll(/\s/g, '').slice(2),
+        )
+        if (target.length === 0) unknown(`unresolved Rust path ${match[0]}`)
+        targets.push(...target)
+      }
+    }
+    for (const specifier of imports.edges.get(file) ?? []) {
+      if (source.extension === '.go') {
+        const owner = goModules.find(
+          (module) =>
+            module.name &&
+            (specifier === module.name ||
+              specifier.startsWith(`${module.name}/`)),
+        )
+        if (!owner) {
+          if (goModules.length === 0) unknown('no go.mod for import resolution')
+          continue
+        }
+        const to = `${path.join(owner.dir, specifier.slice(owner.name.length))}/`
+        if (!edges.has(to)) unknown(`unresolved package ${specifier}`)
+        else if (from !== to) edges.get(from)!.add(to)
+      } else
+        targets.push(
+          source.extension === '.swift' ? specifier : path.join(dir, specifier),
+        )
+    }
     for (const target of targets) {
-      const to = target.endsWith('/x.go')
-        ? `${path.dirname(target)}/`
-        : known.has(target)
-          ? moduleOf(target)
-          : undefined
-      if (to && to !== from && edges.has(to)) edges.get(from)!.add(to)
+      const to = moduleOf(target)
+      if (!known.has(target)) unknown(`unresolved module ${target}`)
+      else if (to !== from) edges.get(from)!.add(to)
     }
   }
-  return edges
-}
 
-/** Returns the files that a relative TypeScript import names, trying each way it resolves. */
-function resolveScript(target: string): string[] {
-  const stem = target.replace(/\.[mc]?[jt]sx?$/, '')
-  return [
-    target,
-    `${stem}.ts`,
-    `${stem}.tsx`,
-    `${stem}.mts`,
-    `${target}/index.ts`,
-    `${target}/index.tsx`,
-  ]
-    .filter((candidate) => known.has(candidate))
-    .slice(0, 1)
+  for (const [file, source] of sources) {
+    const reason = unresolved.get(source.language)
+    if (reason)
+      for (const lint of ['module-cycle', 'shallow-module'])
+        skipped.get(lint)!.set(moduleOf(file), reason)
+  }
+  return edges
 }
 
 /** Returns the file of the longest module path that a Rust path names, such as `crate::a::b`. */
@@ -361,7 +394,12 @@ function types(): Map<string, Extent[]> {
         .filter((extent) => extent.declaration)
         .map((extent) => moduleOf(extent.file)),
     )
-    if (declaring.size !== 1) found.delete(name)
+    if (declaring.size !== 1) {
+      found.delete(name)
+      for (const module of declaring)
+        for (const lint of ['field-leak', 'tangle'])
+          skipped.get(lint)!.set(module, `ambiguous type name ${name}`)
+    }
   }
   return found
 }
@@ -406,22 +444,14 @@ function tangled(): void {
  * value is no leak. The type's methods and the types in its tangle are inside it.
  */
 function fieldLeaks(): void {
-  const declared = new Map<string, string[]>()
-  const fieldsOf = new Map<string, string[]>()
   for (const [name, list] of extents) {
     const declaration = list.find((extent) => extent.declaration)
     if (!declaration) continue
     const fields = fieldNames(declaration)
-    fieldsOf.set(name, fields)
-    for (const field of fields)
-      declared.set(field, [...(declared.get(field) ?? []), name])
-  }
-
-  for (const [name, fields] of fieldsOf) {
-    const list = extents.get(name)!
+    const owner = moduleOf(declaration.file)
+    const language = sources.get(declaration.file)!.language
     const tangle = tangles.find((members) => members.includes(name)) ?? [name]
     const inside = tangle.flatMap((member) => extents.get(member) ?? [])
-    const unique = fields.filter((field) => declared.get(field)?.length === 1)
     const works = list.some((extent) => {
       const code = sources
         .get(extent.file)!
@@ -432,14 +462,16 @@ function fieldLeaks(): void {
         new RegExp(`\\b(?:${receiver})\\.${field}\\b`).test(code),
       )
     })
-    if (!works || unique.length === 0) continue
+    if (!works || fields.length < 2) continue
 
     const leaks = new Map<string, string[]>()
     for (const file of files) {
-      const code = sources.get(file)!.code
-      for (const field of unique) {
+      const source = sources.get(file)!
+      if (source.language !== language) continue
+      const { code } = source
+      for (const field of fields) {
         const pattern = new RegExp(
-          `\\.${field}\\b(?=\\s*(?:[-+*/%|&^]?=(?!=)|\\+\\+|--|\\[|\\.\\w+\\s*\\())|&mut\\s+[\\w.]+\\.${field}\\b`,
+          `\\.\\s*${field}\\b(?=\\s*(?:[-+*/%|&^]?=(?!=)|\\+\\+|--|\\[|\\.\\w+\\s*\\())|&mut\\s+[\\w.]+\\.${field}\\b`,
           'g',
         )
         for (const match of code.matchAll(pattern)) {
@@ -449,28 +481,64 @@ function fieldLeaks(): void {
               match.index >= extent.start &&
               match.index < extent.end,
           )
-          if (!insider)
-            leaks.set(field, [
-              ...(leaks.get(field) ?? []),
-              `${file}:${lineAt(code, match.index)}`,
-            ])
+          if (insider) continue
+          const at = match.index + match[0].length - field.length
+          const place = `${file}:${lineAt(code, at)}`
+          const receiver = ts.edges.has(file)
+            ? ts.properties.get(file)?.get(at)
+            : receiverType(source, at)
+          if (receiver === undefined)
+            skipped
+              .get('field-leak')!
+              .set(owner, `unresolved receiver of ${field} at ${place}`)
+          else if (
+            receiver ===
+            (ts.edges.has(file) ? `${declaration.file}:${name}` : name)
+          )
+            leaks.set(field, [...(leaks.get(field) ?? []), place])
         }
       }
     }
     if (leaks.size === 0 || leaks.size === fields.length) continue
 
-    const module = moduleOf(list.find((extent) => extent.declaration)!.file)
     for (const [field, places] of leaks)
       find(
         'field-leak',
-        module,
-        `\`${name}.${field}\` is known outside \`${name}\`: ${places.length} ${places.length === 1 ? 'place' : 'places'}, first ${places[0]}`,
+        owner,
+        `\`${name}.${field}\` in ${owner} accessed at ${listed(places)}`,
       )
   }
 }
 
+/** Resolves simple annotated receivers. A spelling without a binding is not type evidence. */
+function receiverType(
+  source: ReturnType<typeof parse>,
+  at: number,
+): string | undefined {
+  const prefix = source.code.slice(0, at)
+  const receiver = /(?<![\w.])\b(\w+)\s*\.\s*$/.exec(prefix)?.[1]
+  if (!receiver) return undefined
+  const start = source.functions.findLast((fn) => fn.offset < at)?.offset ?? 0
+  const scope = prefix.slice(start)
+  const pattern =
+    source.extension === '.go'
+      ? `\\b${receiver}\\s+\\*?(?:\\w+\\.)?(\\w+)`
+      : `\\b${receiver}\\s*:\\s*(?:[&*]\\s*)?(?:'\\w+\\s+)?(?:mut\\s+|const\\s+|inout\\s+)?(?:\\w+(?:::|\\.))*(\\w+)`
+  const bindings = [...scope.matchAll(new RegExp(pattern, 'g'))]
+  if (
+    bindings.length !== 1 ||
+    new RegExp(`\\b(?:let|var|const)\\s+(?:mut\\s+)?${receiver}\\s*=`).test(
+      scope,
+    )
+  )
+    return undefined
+  return bindings[0]![1]
+}
+
 /** Returns the field names that a type's declaration lists at the top level of its body. */
 function fieldNames(extent: Extent): string[] {
+  if (ts.edges.has(extent.file))
+    return [...(ts.fieldsOf.get(`${extent.file}:${extent.name}`) ?? [])]
   const source = sources.get(extent.file)!
   const body = source.code.slice(extent.start, extent.end)
   let depth = 0
@@ -520,25 +588,24 @@ function shallowModules(): void {
   const users = new Map(modules.map((module) => [module, new Set<string>()]))
   for (const [from, to] of graph)
     for (const module of to) users.get(module)!.add(from)
-  for (const module of modules)
-    if (module.endsWith('.swift'))
-      for (const other of modules)
-        if (other !== module && other.endsWith('.swift'))
-          users.get(module)!.add(other)
-
   for (const module of modules) {
     const names = defined.get(module)!
+    if (names.size <= heldInMind) continue
     const callers = [...users.get(module)!]
     const code = files
       .filter((file) => callers.includes(moduleOf(file)))
       .map((file) => sources.get(file)!.code)
       .join('\n')
-    const shown = [...names].filter(
-      (name) =>
-        callers.some((caller) => !defined.get(caller)?.has(name)) &&
-        new RegExp(`(?<![\\w])${name}\\s*\\(`).test(code),
-    )
+    const shown = ts.edges.has(module)
+      ? [...ts.shown.get(module)!].filter((name) => names.has(name))
+      : [...names].filter(
+          (name) =>
+            callers.some((caller) => !defined.get(caller)?.has(name)) &&
+            new RegExp(`(?<![\\w])${name}\\s*\\(`).test(code),
+        )
     const hidden = names.size - shown.length
+    if (ts.edges.has(module) && ts.unknownCall)
+      skipped.get('shallow-module')!.set(module, ts.unknownCall)
     if (shown.length > heldInMind && hidden <= shown.length)
       find(
         'shallow-module',
@@ -548,57 +615,48 @@ function shallowModules(): void {
   }
 }
 
-/**
- * Runs deslop-please on a Cargo workspace when it is installed, and returns its findings by lint
- * and file. A diagnostic without a location belongs to the `workspace` item. If
- * `.deslop-please.allow` exists, the tool reads it, so listed debt passes and new errors still
- * fail.
- */
-function deslopPlease(): Map<string, Map<string, string[]>> | undefined {
-  if (
-    !fs.existsSync('Cargo.toml') ||
-    !files.some((file) => file.endsWith('.rs'))
-  )
-    return undefined
-  const allow = '.deslop-please.allow'
-  const result = (() => {
-    try {
-      return Bun.spawnSync(
-        ['deslop-please', ...(fs.existsSync(allow) ? ['--allow', allow] : [])],
-        {
-          env: { ...process.env, NO_COLOR: '1' },
-          stderr: 'pipe',
-          stdout: 'pipe',
-        },
-      )
-    } catch {
-      return undefined
+/** Attributes native circles to their reported files and leaks to the type, not the first access. */
+function nativeFindings(output: string): void {
+  const measured = modules.filter((file) => rust!.files.has(file))
+
+  for (const block of output.split(/(?=^error\[)/m)) {
+    const header = /^error\[([\w-]+)\]: (.+)/.exec(block)
+    const lint = lints.find((lint) => lint === header?.[1])
+    if (!lint) continue
+    const sites = [
+      ...block.matchAll(/^  (?:-->|= note:) (.+?\.rs):(\d+):\d+/gm),
+    ]
+    const notes = [...block.matchAll(/^  = note: (.+)/gm)].map(
+      (note) => note[1],
+    )
+    const text = `${header![2]}; ${notes.join('; ') || sites[0]?.[0].trim() || 'no source location'}`
+    const files = new Set(sites.map((site) => site[1]!))
+    if (lint === 'field-leak') {
+      files.clear()
+      const type = /^    ([\w:]+)\s*$/m.exec(block)?.[1]
+      const declarations = type && rust!.owners.get(type)
+      if (declarations && declarations.size === 1)
+        for (const owner of declarations) files.add(owner)
     }
-  })()
-  if (!result) return undefined
-  const output = `${result.stdout.toString()}${result.stderr.toString()}`
+    if (
+      files.size === 0 ||
+      /\band \d+ more (?:tie|place|module)|; also at /m.test(block)
+    )
+      for (const module of measured)
+        skipped
+          .get(lint)!
+          .set(module, 'native diagnostic has incomplete file attribution')
 
-  // A completed run ends with `deslop-please: ok` or `deslop-please: N errors`. Any other end means
-  // it could not index the workspace, so the run fails instead of passing every file.
-  if (!/^deslop-please: (ok|\d+ errors?\b)/m.test(output)) {
-    process.stderr.write(output)
-    process.exit(1)
+    if (files.size === 0) files.add('Cargo.toml')
+    for (const file of files) {
+      if (!modules.includes(file)) {
+        modules.push(file)
+        for (const other of lints)
+          skipped.get(other)!.set(file, 'diagnostic location only')
+      }
+      find(lint, file, text)
+    }
   }
-
-  const found = new Map<string, Map<string, string[]>>(
-    lints.map((lint) => [lint, new Map()]),
-  )
-  for (const match of output.matchAll(
-    /^error\[([\w-]+)\]: (.*)\n(?:\s+--> (.+?):(\d+):\d+)?/gm,
-  )) {
-    const byFile = found.get(match[1]!)
-    if (!byFile) continue
-    const file = match[3] ?? 'workspace'
-    if (!modules.includes(file)) modules.push(file)
-    const text = match[4] ? `line ${match[4]}: ${match[2]}` : match[2]!
-    byFile.set(file, [...(byFile.get(file) ?? []), text])
-  }
-  return found
 }
 
 /** Returns the strongly connected groups of more than one node, in first-seen order (Tarjan). */
@@ -695,6 +753,10 @@ function parse(file: string) {
         const stop = text.indexOf('*/', index + 2)
         return stop === -1 ? text.length : stop + 2
       }
+      if (char === '`' && extension === '.go') {
+        const stop = text.indexOf('`', index + 1)
+        return stop === -1 ? text.length : stop + 1
+      }
       if (char === "'" && extension === '.rs') {
         // A char literal closes within a few characters, and a lifetime does not close at all.
         const literal =
@@ -722,7 +784,7 @@ function parse(file: string) {
     if (name && !keywords.has(name))
       functions.push({ name, offset: match.index })
   }
-  return { code: blanked, extension, functions, language, text }
+  return { code: blanked, extension, functions, language }
 }
 
 /**

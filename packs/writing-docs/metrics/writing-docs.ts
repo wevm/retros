@@ -1,22 +1,18 @@
 /**
- * Measures the copy of the project's Markdown against plain technical writing: short sentences and
- * paragraphs, active voice, plain words, no second person, and short headings in one case.
- * textlint reads each file, with published rules where one exists (en-max-word-count, write-good,
- * and pattern) and a few local rules where none does. Each file is an item, and a failing check
- * carries the first problem as its note. Code blocks, inline code, and URLs are not prose, so
- * textlint skips them.
+ * Measures length, heading case, and editorial patterns in rendered Markdown prose.
+ * Each file is an item. A failing check names its first match and source line.
  *
  * @module
  */
 
 import * as fs from 'node:fs'
 
-import pattern from '@textlint-rule/textlint-rule-pattern'
-import type { AnyTxtNode } from '@textlint/ast-node-types'
-import { TextlintKernel, type TextlintKernelRule } from '@textlint/kernel'
-import markdown from '@textlint/textlint-plugin-markdown'
-import maxWordCount from 'textlint-rule-en-max-word-count'
-import writeGood from 'textlint-rule-write-good'
+import { brill } from 'brill'
+import nlp from 'compromise/two'
+import { split } from 'sentence-splitter'
+import writeGood from 'write-good'
+
+import * as Prose from './prose.js'
 
 /**
  * Files that are not documentation, such as generated changelogs, agent guidance, and vendored
@@ -32,6 +28,17 @@ const ignored = [
 /** `title` for Title Case headings, or `sentence` for sentence case. */
 const headingCase: 'sentence' | 'title' = 'title'
 
+/** Exact product spellings that ordinary heading capitalization would change. */
+const productNames = [
+  'GitHub',
+  'iOS',
+  'macOS',
+  'Node.js',
+  'npm',
+  'pnpm',
+  'TypeScript',
+]
+
 /** write-good checks, each turned on alone so that each metric reads one kind. */
 const writeGoodOff = {
   adverb: false,
@@ -45,89 +52,62 @@ const writeGoodOff = {
   weasel: false,
 }
 
-/** Words and marks the conventions ban, each as one textlint pattern. */
-const patterns = {
-  'conversational-verbs': {
-    message: 'Use a precise verb, such as "returns", not a conversational one',
-    pattern: '/\\b(hands|gets|gives|sees|knows|says|tells)\\b/i',
-  },
-  'em-dashes': {
-    message: 'Use a comma, a colon, or parentheses, not an em dash',
-    pattern: '/—/',
-  },
-  emoji: {
-    message: 'Remove the emoji',
-    pattern: '/\\p{Extended_Pictographic}/u',
-  },
-  'latin-abbreviations': {
-    message: 'Write the words, not a Latin abbreviation',
-    pattern: '/\\b(e\\.g\\.|i\\.e\\.|etc\\.)/i',
-  },
-  'second-person': {
-    message: 'Write about the code, not the reader',
-    pattern: "/\\byou(r|rs|rself|'re|'ll|'ve)?\\b/i",
-  },
-  semicolons: {
-    message: 'Split the sentence, not with a semicolon',
-    pattern: '/;/',
-  },
-  'verb-tenses': {
-    message: 'Use a simple tense, not a progressive or perfect one',
-    pattern:
-      '/\\b(?:is|are|was|were|been|being)\\s+(?!(?:nothing|something|anything|everything|during|string|thing)\\b)[a-z]+ing\\b|\\b(?:has|have|had)\\s+(?:been|[a-z]+ed)\\b/i',
-  },
-} as const
+type Finding = { index: number; reason: string }
+type Rule = (block: ReturnType<typeof analyze>) => readonly Finding[]
 
-/** The textlint rules behind each metric. */
-const metrics = {
-  'conversational-verbs': patternRule('conversational-verbs'),
-  'em-dashes': patternRule('em-dashes'),
-  emoji: patternRule('emoji'),
-  'heading-case': {
-    options: {},
-    rule: headingRule((text) =>
-      cased(text) ? undefined : `"${text}" is not in ${headingCase} case`,
+const metrics: Record<string, Rule> = {
+  'conversational-verbs': (block) => block.verbs.conversational,
+  'em-dashes': pattern(/—/g, 'Em dash'),
+  emoji: pattern(/\p{RGI_Emoji}/gv, 'Emoji'),
+  'heading-case': (block) =>
+    block.kind === 'Header' && !cased(block.words)
+      ? [
+          {
+            index: 0,
+            reason: `"${excerpt(block.text)}" is not in ${headingCase} case`,
+          },
+        ]
+      : [],
+  'heading-words': (block) =>
+    block.kind === 'Header'
+      ? overLimit(block.words.length, 3, 'words', block.text)
+      : [],
+  'latin-abbreviations': pattern(
+    /\b(?:e\.g\.|i\.e\.|etc\.)/gi,
+    'Latin abbreviation',
+  ),
+  'paragraph-sentences': (block) => {
+    const excess = block.sentences[6]
+    return excess
+      ? overLimit(
+          block.sentences.length,
+          6,
+          'sentences',
+          excess.raw,
+          excess.range[0],
+        )
+      : []
+  },
+  'paragraph-words': (block) =>
+    block.kind === 'Paragraph'
+      ? overLimit(block.words.length, 50, 'words', block.text)
+      : [],
+  'passive-voice': (block) =>
+    writeGood(block.text, { ...writeGoodOff, passive: true }),
+  'second-person': pattern(
+    /\byou(?:r|rs|rsel(?:f|ves)|['’](?:re|ll|ve|d))?\b/gi,
+    'Second person',
+  ),
+  semicolons: pattern(/;/g, 'Semicolon'),
+  'sentence-words': (block) =>
+    block.sentences.flatMap((sentence) =>
+      overLimit(sentence.words, 25, 'words', sentence.raw, sentence.range[0]),
     ),
-  },
-  'heading-words': {
-    options: {},
-    rule: headingRule((text) =>
-      text.split(/\s+/).filter(Boolean).length >= 4
-        ? `"${text}" has 4 or more words`
-        : undefined,
-    ),
-  },
-  'latin-abbreviations': patternRule('latin-abbreviations'),
-  'paragraph-sentences': {
-    options: {},
-    rule: paragraphRule((text) =>
-      sentences(text) > 6
-        ? `${sentences(text)} sentences in one paragraph`
-        : undefined,
-    ),
-  },
-  'paragraph-words': {
-    options: {},
-    rule: paragraphRule((text) =>
-      words(text) > 50 ? `${words(text)} words in one paragraph` : undefined,
-    ),
-  },
-  'passive-voice': {
-    options: { ...writeGoodOff, passive: true },
-    rule: writeGood,
-  },
-  'second-person': patternRule('second-person'),
-  semicolons: patternRule('semicolons'),
-  'sentence-words': { options: { max: 25 }, rule: maxWordCount },
-  'verb-tenses': patternRule('verb-tenses'),
-  'weasel-words': {
-    options: { ...writeGoodOff, weasel: true },
-    rule: writeGood,
-  },
-  'wordy-words': {
-    options: { ...writeGoodOff, tooWordy: true },
-    rule: writeGood,
-  },
+  'verb-tenses': (block) => block.verbs.tenses,
+  'weasel-words': (block) =>
+    writeGood(block.text, { ...writeGoodOff, weasel: true }),
+  'wordy-words': (block) =>
+    writeGood(block.text, { ...writeGoodOff, tooWordy: true }),
 }
 
 const files = markdownFiles()
@@ -136,103 +116,138 @@ if (files.length === 0) {
   process.exit(1)
 }
 
-const kernel = new TextlintKernel()
 const lines: string[] = []
 for (const file of files) {
-  const result = await kernel.lintText(fs.readFileSync(file, 'utf8'), {
-    ext: '.md',
-    filePath: file,
-    plugins: [{ plugin: markdown, pluginId: 'markdown' }],
-    rules: Object.entries(metrics).map((entry) => ({
-      options: entry[1].options,
-      rule: entry[1].rule,
-      ruleId: entry[0],
-    })),
-  })
-  for (const metric of Object.keys(metrics)) {
-    const messages = result.messages.filter(
-      (message) => message.ruleId === metric,
+  const blocks = Prose.blocks(fs.readFileSync(file, 'utf8')).map(analyze)
+
+  for (const [metric, check] of Object.entries(metrics)) {
+    const messages = blocks.flatMap((block) =>
+      check(block).map(
+        (finding) => `line ${block.lineAt(finding.index)}: ${finding.reason}`,
+      ),
     )
     const more = messages.length > 1 ? ` (and ${messages.length - 1} more)` : ''
     const first = messages[0]
     lines.push(
       first
-        ? `${metric} ${quote(file)} fail note ${quote(`line ${first.line}: ${first.message}${more}`)}`
+        ? `${metric} ${quote(file)} fail note ${quote(first + more)}`
         : `${metric} ${quote(file)} pass`,
     )
   }
 }
 fs.appendFileSync(process.env.UPHILL_METRICS!, `${lines.join('\n')}\n`)
 
-function patternRule(name: keyof typeof patterns) {
-  // The rule is CommonJS with an `__esModule` default, which Bun unwraps and NodeNext types do not.
-  const rule = pattern as unknown as TextlintKernelRule['rule']
-  return { options: { patterns: [patterns[name]] }, rule }
+function analyze(block: Prose.Block) {
+  const sentences =
+    block.kind === 'Paragraph'
+      ? split(block.text)
+          .filter((node) => node.type === 'Sentence')
+          .map((node) => ({
+            range: node.range,
+            raw: node.raw,
+            words: words(node.raw).length,
+          }))
+          .filter((sentence) => sentence.words > 0)
+      : []
+
+  return {
+    ...block,
+    sentences,
+    verbs: verbPatterns(block.text),
+    words: words(block.text),
+  }
 }
 
-/**
- * Returns a local textlint rule that reports each paragraph whose text `problem` returns a message
- * for.
- */
-function paragraphRule(
-  problem: (text: string) => string | undefined,
-): TextlintKernelRule['rule'] {
-  return (context) => ({
-    [context.Syntax.Paragraph!](node: AnyTxtNode) {
-      const message = problem(text(node))
-      if (message) context.report(node, new context.RuleError(message))
-    },
+function excerpt(text: string): string {
+  const visible = text.replaceAll('\uFFFC', '…').trim()
+  return visible.length > 80 ? `${visible.slice(0, 79)}…` : visible
+}
+
+function overLimit(
+  count: number,
+  limit: number,
+  unit: string,
+  text: string,
+  index = 0,
+): readonly Finding[] {
+  return count > limit
+    ? [
+        {
+          index,
+          reason: `${count} ${unit} (limit ${limit}): "${excerpt(text)}"`,
+        },
+      ]
+    : []
+}
+
+function pattern(expression: RegExp, name: string): Rule {
+  return (block) =>
+    Array.from(block.text.matchAll(expression), (match) => ({
+      index: match.index,
+      reason: `${name}: "${match[0]}"`,
+    }))
+}
+
+function words(prose: string): readonly string[] {
+  return prose.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word))
+}
+
+function verbPatterns(text: string) {
+  type Term = {
+    normal: string
+    offset: { length: number; start: number }
+    tags: readonly string[]
+  }
+  const conversational: Finding[] = []
+  const tenses: Finding[] = []
+  const sentences: readonly { terms: readonly Term[] }[] = nlp(text).json({
+    offset: true,
+    terms: { offset: true },
   })
-}
 
-/**
- * Returns a local textlint rule that reports each heading whose text `problem` returns a message
- * for.
- */
-function headingRule(
-  problem: (text: string) => string | undefined,
-): TextlintKernelRule['rule'] {
-  return (context) => ({
-    [context.Syntax.Header!](node: AnyTxtNode) {
-      // A heading that is one identifier, such as `target`, names code, not copy.
-      if (
-        'children' in node &&
-        node.children.length === 1 &&
-        node.children[0]!.type === 'Code'
-      )
-        return
-      const message = problem(text(node).trim())
-      if (message) context.report(node, new context.RuleError(message))
-    },
-  })
-}
+  for (const sentence of sentences) {
+    for (const [index, term] of sentence.terms.entries()) {
+      if (!term.tags.includes('Verb')) continue
+      const start = term.offset.start
+      const end = start + term.offset.length
+      if (/^(?:get|give|hand|know|say|see|tell)s?$/.test(term.normal))
+        conversational.push({
+          index: start,
+          reason: `Conversational verb: "${text.slice(start, end)}"`,
+        })
 
-/**
- * Returns the prose of a node: its text and the text of its links, with inline code as one word.
- */
-function text(node: AnyTxtNode): string {
-  if (node.type === 'Code') return 'code'
-  if (node.type === 'Str' && 'value' in node) return node.value
-  return 'children' in node ? node.children.map(text).join('') : ''
-}
+      const next = sentence.terms[index + 1]
+      if (!next || !/^\s+$/.test(text.slice(end, next.offset.start))) continue
 
-function words(prose: string): number {
-  return prose.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word)).length
-}
+      const progressive =
+        /^(?:am|are|be|been|being|is|was|were)$/.test(term.normal) &&
+        next.tags.includes('Gerund')
+      // Some past participles also have a bare verb form, such as "run" in "has run".
+      const tags = Object.hasOwn(brill, next.normal)
+        ? brill[next.normal]
+        : undefined
+      const perfect =
+        /^(?:had|has|have)$/.test(term.normal) &&
+        (next.tags.includes('PastTense') ||
+          (tags?.[0] === 'VB' && tags.includes('VBN')))
+      if (!progressive && !perfect) continue
 
-/** Counts sentences, which end at `.`, `?`, or `!` before a capital letter or digit. */
-function sentences(prose: string): number {
-  return prose
-    .replace(/\b(e\.g|i\.e|etc|vs)\./g, '$1')
-    .split(/(?<=[.!?])\s+(?=["'(]?[A-Z0-9])/)
-    .filter((sentence) => words(sentence) > 0).length
+      const phrase = text.slice(start, next.offset.start + next.offset.length)
+      tenses.push({
+        index: start,
+        reason: `Possible ${progressive ? 'progressive' : 'perfect'}: "${phrase}"`,
+      })
+    }
+  }
+
+  return { conversational, tenses }
 }
 
 /**
  * Returns whether a heading follows the configured case. Words with digits, dots, or inner capitals
  * are names.
  */
-function cased(heading: string): boolean {
+function cased(list: readonly string[]): boolean {
   const minor = new Set([
     'a',
     'an',
@@ -263,15 +278,14 @@ function cased(heading: string): boolean {
     'with',
     'yet',
   ])
-  const list = heading.split(/\s+/).filter(Boolean)
   return list.every((word, index) => {
     const letters = word.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, '')
-    if (
-      !letters ||
-      /[^\p{L}'-]/u.test(letters) ||
-      /\p{L}\p{Lu}/u.test(letters) ||
-      word === 'code'
+    const product = productNames.find(
+      (name) => name.toLowerCase() === letters.toLowerCase(),
     )
+    if (product) return letters === product
+
+    if (!letters || /[^\p{L}'-]/u.test(letters) || /\p{L}\p{Lu}/u.test(letters))
       return true
     const upper = /^\p{Lu}/u.test(letters)
     if (index === 0) return upper

@@ -1,0 +1,11 @@
+{
+  "name": "uphill-tigerstyle-pack",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "1.4.5",
+    "tree-sitter-rust": "0.24.0",
+    "tree-sitter-wasms": "0.1.13",
+    "web-tree-sitter": "0.25.10"
+  }
+}

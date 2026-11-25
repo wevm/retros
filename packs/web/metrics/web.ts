@@ -1,10 +1,7 @@
 /**
- * Measures a website with the tools that already cover each concern. Lighthouse runs its
- * accessibility and best-practices audits on every page of the built site. oxlint's `jsx-a11y`
- * rules read each `.tsx` and `.jsx` file, and stylelint with `@double-great/stylelint-a11y` reads
- * each `.css` file for motion, color scheme, and focus overrides. The script itself only adds the
- * gzip size of each script and stylesheet in the built site, which no tool reports as a metric
- * line. When the project's package.json has a `build` script, the script runs it first.
+ * Runs the project's build, audits its HTML pages with Lighthouse, and measures gzip asset sizes.
+ * Oxlint checks JSX controls. Stylelint checks color schemes and focus outlines. Selector pairs
+ * and reduced-motion declarations are measured from the same stylesheets that stylelint examined.
  *
  * @module
  */
@@ -17,6 +14,8 @@ import * as zlib from 'node:zlib'
 import * as ChromeLauncher from 'chrome-launcher'
 import lighthouse from 'lighthouse'
 import stylelint from 'stylelint'
+
+import * as Selectors from './selectors.js'
 
 /** The directory of the built site, which the project's `build` script writes. */
 const site = 'dist'
@@ -64,9 +63,12 @@ const controlRules = [
 const styleRules = {
   'color-schemes': 'a11y/media-prefers-color-scheme',
   'focus-outlines': 'a11y/no-outline-none',
-  'focus-styles': 'a11y/selector-pseudo-class-focus',
-  'reduced-motion': 'a11y/media-prefers-reduced-motion',
 } as const
+const styleMetrics = [
+  ...Object.keys(styleRules),
+  'focus-styles',
+  'reduced-motion',
+]
 
 const ignored =
   /(^|\/)(\.agents\/packs|dist|build|coverage|node_modules|out|vendor)\//
@@ -144,15 +146,44 @@ async function audits(): Promise<void> {
         onlyCategories: ['accessibility', 'best-practices'],
         port: chrome.port,
       })
-      const report = result!.lhr
+      const report = result?.lhr
+      if (!report || report.runtimeError)
+        throw new Error(
+          `${page}: ${report?.runtimeError?.message ?? 'Lighthouse returned no report'}`,
+        )
 
       for (const category of ['accessibility', 'best-practices']) {
         for (const reference of report.categories[category]!.auditRefs) {
           const audit = report.audits[reference.id]!
-          if (reference.weight === 0 || audit.score === null) continue
-
           const item = quote(`${path.relative(site, page)} ${reference.id}`)
-          const reason = [audit.title, audit.displayValue]
+          if (audit.scoreDisplayMode === 'error')
+            throw new Error(`${page} ${reference.id}: ${audit.errorMessage}`)
+          if (reference.weight === 0) continue
+          if (audit.score === null) {
+            lines.push(
+              `${category} ${item} skip note ${quote(audit.scoreDisplayMode)}`,
+            )
+            continue
+          }
+
+          const nodes =
+            audit.details?.type === 'table'
+              ? audit.details.items.flatMap((row) => {
+                  const node = row.node
+                  return node &&
+                    typeof node === 'object' &&
+                    'selector' in node &&
+                    typeof node.selector === 'string'
+                    ? [node.selector]
+                    : []
+                })
+              : []
+          const reason = [
+            audit.title,
+            audit.displayValue,
+            nodes[0],
+            nodes.length > 1 ? `and ${nodes.length - 1} more` : '',
+          ]
             .filter(Boolean)
             .join('. ')
           lines.push(
@@ -192,7 +223,7 @@ function controls(): void {
   fs.writeFileSync(
     config,
     JSON.stringify({
-      categories: {},
+      categories: { correctness: 'off' },
       plugins: ['jsx-a11y'],
       rules: Object.fromEntries(
         controlRules.map((rule) => [`jsx-a11y/${rule}`, 'error']),
@@ -201,28 +232,51 @@ function controls(): void {
   )
 
   const found: { file: string; text: string }[] = []
-  for (let start = 0; start < files.length; start += 500) {
-    const output = Bun.spawnSync([
-      linter,
-      '-c',
-      config,
-      '--format',
-      'json',
-      ...files.slice(start, start + 500),
-    ]).stdout.toString()
-    const report = JSON.parse(output.slice(output.indexOf('{'))) as {
-      diagnostics: {
-        code?: string
-        filename: string
-        labels: { span: { line: number } }[]
-        message: string
-      }[]
+  try {
+    for (let start = 0; start < files.length; start += 500) {
+      const batch = files.slice(start, start + 500)
+      const result = Bun.spawnSync([
+        linter,
+        '-c',
+        config,
+        '--format',
+        'json',
+        '--no-ignore',
+        '--',
+        ...batch,
+      ])
+      const output = result.stdout.toString().trim()
+      if (!output.startsWith('{'))
+        throw new Error(`oxlint: ${result.stderr.toString().trim() || output}`)
+      const report = JSON.parse(output) as {
+        number_of_files: number
+        diagnostics: {
+          code?: string
+          filename: string
+          labels: { span: { line: number } }[]
+          message: string
+        }[]
+      }
+      if (
+        report.number_of_files !== batch.length ||
+        (!result.success &&
+          (result.exitCode !== 1 || !report.diagnostics.length))
+      )
+        throw new Error(
+          `oxlint checked ${report.number_of_files} of ${batch.length} files (exit ${result.exitCode}): ${result.stderr}`,
+        )
+      for (const diagnostic of report.diagnostics) {
+        if (!diagnostic.code || !/^[\w-]+\(.+\)$/.test(diagnostic.code))
+          throw new Error(`${diagnostic.filename}: ${diagnostic.message}`)
+        if (!diagnostic.code.startsWith('jsx-a11y(')) continue
+        found.push({
+          file: path.normalize(diagnostic.filename),
+          text: `line ${diagnostic.labels[0]?.span.line ?? 1}: ${diagnostic.message} (${diagnostic.code})`,
+        })
+      }
     }
-    for (const diagnostic of report.diagnostics)
-      found.push({
-        file: path.normalize(diagnostic.filename),
-        text: `line ${diagnostic.labels[0]?.span.line ?? 1}: ${diagnostic.message} (${diagnostic.code ?? 'jsx-a11y'})`,
-      })
+  } finally {
+    fs.rmSync(path.dirname(config), { recursive: true, force: true })
   }
 
   for (const file of files)
@@ -239,7 +293,7 @@ function controls(): void {
 async function styles(): Promise<void> {
   const files = list(['*.css'])
   if (files.length === 0) {
-    for (const metric of Object.keys(styleRules))
+    for (const metric of styleMetrics)
       lines.push(`${metric} skip note "no .css files"`)
     return
   }
@@ -256,14 +310,31 @@ async function styles(): Promise<void> {
     files: [...files],
   })
 
-  for (const [metric, rule] of Object.entries(styleRules))
-    for (const file of files) {
-      const entry = result.results.find(
-        (result) =>
-          result.source && path.relative(process.cwd(), result.source) === file,
+  const byFile = new Map(
+    result.results.map((entry) => [
+      entry.source && path.relative(process.cwd(), entry.source),
+      entry,
+    ]),
+  )
+  for (const file of files) {
+    const entry = byFile.get(file)
+    if (!entry || entry.ignored) {
+      for (const metric of styleMetrics)
+        lines.push(
+          `${metric} ${quote(file)} skip note "not linted by stylelint"`,
+        )
+      continue
+    }
+
+    const error =
+      entry.parseErrors[0] ??
+      entry.invalidOptionWarnings[0] ??
+      entry.warnings.find(
+        (warning) => !Object.values<string>(styleRules).includes(warning.rule),
       )
-      const warnings =
-        entry?.warnings.filter((warning) => warning.rule === rule) ?? []
+    if (error) throw new Error(`${file}: ${error.text}`)
+    for (const [metric, rule] of Object.entries(styleRules)) {
+      const warnings = entry.warnings.filter((warning) => warning.rule === rule)
       check({
         item: file,
         metric,
@@ -272,6 +343,22 @@ async function styles(): Promise<void> {
         ),
       })
     }
+
+    for (const [metric, findings] of Object.entries(
+      Selectors.measure(fs.readFileSync(file, 'utf8'), file),
+    )) {
+      if (findings.length === 0)
+        lines.push(
+          `${metric} ${quote(file)} skip note "no applicable selectors"`,
+        )
+      for (const finding of findings)
+        check({
+          item: `${file} ${finding.item}`,
+          metric,
+          problems: finding.problem ? [finding.problem] : [],
+        })
+    }
+  }
 }
 
 /** Writes the gzip size of each script and stylesheet in the built site. */
@@ -313,6 +400,7 @@ function list(patterns: readonly string[]): string[] {
     '--',
     ...patterns.flatMap((pattern) => [pattern, `**/${pattern}`]),
   ])
+  if (!result.success) throw new Error(`git ls-files: ${result.stderr}`)
   return [...new Set(result.stdout.toString().split('\0'))]
     .filter((file) => file && fs.existsSync(file) && !ignored.test(file))
     .sort()

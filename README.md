@@ -84,7 +84,7 @@ A pack is a set of categories and scripts that measure common conventions. `uphi
 uphill add wevm/uphill/packs/typescript@main
 
 # Add only some of a pack's categories.
-uphill add wevm/uphill/packs/rust@main rust
+uphill add wevm/uphill/packs/rust@main correctness style
 
 # Review and take the newest commit of each pack.
 uphill update
@@ -94,7 +94,7 @@ The [`packs/`](packs) directory of this repository has these packs:
 
 | Pack | Measures |
 | --- | --- |
-| [`deslop`](packs/deslop) | Module cycles, tangles, leaked fields, and shallow modules in Rust |
+| [`deslop`](packs/deslop) | Module cycles across six languages, plus architecture checks where the pack can resolve types and callers |
 | [`git`](packs/git) | Commit messages and repository hygiene |
 | [`rust`](packs/rust) | Lints, formatting, docs, panics, `unsafe`, tests, and manifests in Rust |
 | [`tigerstyle`](packs/tigerstyle) | TigerStyle limits: function length, line length, recursion, and assertions |

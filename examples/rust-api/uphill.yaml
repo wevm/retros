@@ -42,4 +42,4 @@ testing:
 # workspace's lints, in categories such as `correctness` and `style`. The repository's commit pins
 # the pack.
 packs:
-  - ../../packs/rust
+  - { pack: ../../packs/rust, install: true }

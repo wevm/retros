@@ -30,6 +30,11 @@ jobs:
       - name: Run tests
         run: cargo test --workspace --all-features
 
+      - name: Verify pack measurements
+        run: |
+          for lock in packs/*/bun.lock; do bun install --cwd "${lock%/*}" --frozen-lockfile --ignore-scripts; done
+          bun test --timeout 120000 ./tests/packs
+
       # Uphill's own timings, compared with the same commit, must stay within noise on a GitHub
       # runner. This checks the verdict rule of `--compare` on real timings.
       - name: Compare with the same commit

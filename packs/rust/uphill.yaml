@@ -1,7 +1,6 @@
-# Rust conventions, measured with Cargo's own tools: clippy and rustc report what their lints
-# cover, and the script reads the manifests and the few rules no lint covers.
-# Each source file or manifest is an item, and a failing check carries its first warning. Files
-# under `tests/`, `benches/`, and `examples/` may panic and print.
+# Cargo tools report compiler and formatter findings. Syntax trees and manifests cover the rest.
+# Each source file or manifest is an item. An incomplete run keeps its confirmed diagnostics
+# and skips checks without a verdict. Tests, benches, and examples may panic and print.
 
 # Every category reads the lines of this one script, which runs once.
 run: bun metrics/rust.ts
@@ -62,7 +61,7 @@ style:
 architecture:
   # Whether items another crate cannot reach are `pub(crate)`, as rustc's `unreachable_pub` reads.
   unreachable-pub: {}
-  # Whether a `mod` declaration reaches each Rust file.
+  # Whether a workspace target, compiler input, or rustfmt traversal reaches each Rust file.
   orphaned-files: {}
 
 documentation:
@@ -102,6 +101,6 @@ configuration:
   # Whether the release profile sets `opt-level = 3`, `lto = "fat"`, `codegen-units = 1`, and
   # `strip = "symbols"`.
   release-profile: {}
-  # Third-party crates the workspace compiles. No target: its baseline records the count, so a
-  # new dependency shows in review.
+  # Distinct nonmember package IDs in a normal workspace build, including build dependencies.
+  # The baseline records the count without a target.
   dependencies: {}

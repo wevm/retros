@@ -1,11 +1,13 @@
 # TigerStyle (https://tigerstyle.dev), the TigerBeetle coding style, measured in each Rust, Zig,
-# Go, Swift, C, and TypeScript file that Git tracks. Clippy and oxlint measure function length where
-# they can, and a small scanner reads the rest. Each file is an item.
+# Go, Swift, C, and TypeScript file that Git tracks. Tree-sitter reads source spans and calls.
+# The project's optional Clippy and oxlint supply additional length diagnostics.
 
 # Every category reads the lines of this one script, which runs once.
 run: bun metrics/tigerstyle.ts
 
 correctness:
+  # Whether the grammar could measure the file without syntax recovery.
+  source-coverage: { weight: 0 }
   # Whether no function calls itself. Recursion has no bound that a reader can check.
   recursion: {}
   # Whether Rust and Zig code uses explicitly sized integers, such as `u32`, not `usize`.
@@ -17,9 +19,10 @@ correctness:
   compound-assertions: {}
 
 style:
-  # Whether every function fits the hard limit of 70 lines, by clippy's `too_many_lines` in Rust,
-  # oxlint's `max-lines-per-function` in TypeScript, and the scanner elsewhere.
+  # Whether every function fits the hard limit of 70 physical lines, including its signature.
   function-length: {}
+  # Exact lines per function. Comparisons show improvements even when the file still fails.
+  function-lines: {}
   # Whether every line fits the hard limit of 100 columns.
   line-length: {}
   # Whether each comment is a sentence, with a capital letter and a full stop or a colon.

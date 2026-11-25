@@ -13,6 +13,8 @@ import * as fs from 'node:fs'
 import conventional from '@commitlint/config-conventional'
 import lint from '@commitlint/lint'
 import createPreset from 'conventional-changelog-conventionalcommits'
+import { lexicon } from 'en-lexicon'
+import { split } from 'sentence-splitter'
 
 /** Commits to read, from `HEAD` back. */
 const depth = Number(process.env.UPHILL_GIT_COMMITS ?? 50)
@@ -84,7 +86,7 @@ async function commits(): Promise<void> {
   for (const entry of entries) {
     const result = await lint(entry.message, conventional.rules, { parserOpts })
     for (const [metric, names] of Object.entries(groups)) {
-      const errors = result.errors.filter((error) =>
+      const errors = [...result.errors, ...result.warnings].filter((error) =>
         (names as readonly string[]).includes(error.name),
       )
       check({
@@ -105,13 +107,11 @@ async function commits(): Promise<void> {
         ? [`states a reason: ${header}`]
         : [],
     })
-    const verb = description.split(/\s/)[0] ?? ''
-    check({
+    verbForm({
+      form: 'VB',
       item: entry.hash,
       metric: 'imperative-subjects',
-      problems: /^[a-z]+(ed|[^s]s)$/.test(verb)
-        ? [`"${verb}" is not imperative: ${header}`]
-        : [],
+      text: description,
     })
 
     if (/^fix(\(|!|:)/.test(header)) {
@@ -119,14 +119,21 @@ async function commits(): Promise<void> {
       const changed = run([
         'git',
         'show',
+        '--diff-filter=ACMR',
         '--name-only',
+        '-z',
         '--format=',
         entry.hash,
-      ]).split('\n')
-      const tested = changed.some((file) =>
-        /(^|\/)(tests?|__tests__|spec)\/|[._](test|spec)\.\w+$|_test\.\w+$/.test(
-          file,
-        ),
+      ]).split('\0')
+      const tested = changed.some(
+        (file) =>
+          /(?:^|\/)(?:tests?|__tests__|spec)\/|(?:[._-](?:test|spec)|(?:Test|Spec)(?:s)?)\.[^./]+$|(?:^|\/)test_[^/]+$/.test(
+            file,
+          ) &&
+          /\.(?:[cm]?[jt]sx?|rs|zig|go|swift|py|rb|sh|bats|c|cc|cpp|cs|java|kt|kts|scala|php|exs|hs|lua|dart|m|mm)$/i.test(
+            file,
+          ) &&
+          !/(?:^|\/)(?:__fixtures__|fixtures|__snapshots__)\//.test(file),
       )
       check({
         item: entry.hash,
@@ -144,26 +151,42 @@ async function commits(): Promise<void> {
 /** Writes whitespace errors, workflow key order, changeset sentences, and tracked build output. */
 function hygiene(): void {
   const tracked = run(['git', 'ls-files', '-z']).split('\0').filter(Boolean)
+  const present = tracked.filter((file) => fs.existsSync(file))
 
   // `git diff --check` against the empty tree reads every tracked line for whitespace errors.
   const empty = run(['git', 'hash-object', '-t', 'tree', '/dev/null']).trim()
-  const errors = run(['git', 'diff', '--check', empty, 'HEAD'])
+  const errors = run(
+    [
+      'git',
+      '-c',
+      'core.quotepath=false',
+      'diff',
+      '--no-color',
+      '--relative',
+      '--check',
+      empty,
+      '--',
+    ],
+    [0, 2],
+  )
     .split('\n')
     .map((line) => /^(.+?):(\d+): (.+)$/.exec(line))
     .filter((match) => match !== null)
-  // `git ls-files --eol` marks binary files `i/-text`.
+  // The w/ field describes working-tree content independently of the staged blob.
   const binary = new Set(
     run(['git', 'ls-files', '--eol', '-z'])
       .split('\0')
-      .filter((entry) => entry.startsWith('i/-text'))
-      .map((entry) => entry.split('\t')[1]),
+      .filter((entry) =>
+        /\bw\/-text\s/.test(entry.slice(0, entry.indexOf('\t'))),
+      )
+      .map((entry) => entry.slice(entry.indexOf('\t') + 1)),
   )
-  for (const file of tracked.filter(
-    (file) =>
-      !/\.(md|mdx|patch|diff|snap)$/.test(file) &&
-      fs.existsSync(file) &&
-      !binary.has(file),
-  )) {
+  const text = present.filter(
+    (file) => !/\.(md|mdx|patch|diff|snap)$/.test(file) && !binary.has(file),
+  )
+  if (!text.length)
+    lines.push('whitespace skip note "no applicable tracked text files"')
+  for (const file of text) {
     const error = errors.find((match) => match[1] === file)
     check({
       item: file,
@@ -172,15 +195,13 @@ function hygiene(): void {
     })
   }
 
-  const workflows = tracked.filter((file) =>
+  const workflows = present.filter((file) =>
     /^\.github\/workflows\/[^/]+\.ya?ml$/.test(file),
   )
   for (const file of workflows) {
-    const keys = fs
-      .readFileSync(file, 'utf8')
-      .split('\n')
-      .map((line) => /^([\w-]+):/.exec(line)?.[1])
-      .filter((key) => key !== undefined)
+    const workflow = Bun.YAML.parse(fs.readFileSync(file, 'utf8'))
+    const keys =
+      workflow && typeof workflow === 'object' ? Object.keys(workflow) : []
     const rest = keys.filter((key) => key !== 'name' && key !== 'on')
     const expected = [
       ...keys.filter((key) => key === 'name' || key === 'on'),
@@ -201,7 +222,7 @@ function hygiene(): void {
   if (workflows.length === 0)
     lines.push('workflow-keys skip note "no workflows"')
 
-  const changesets = tracked.filter(
+  const changesets = present.filter(
     (file) =>
       /^\.changeset\/[^/]+\.md$/.test(file) && !file.endsWith('README.md'),
   )
@@ -211,19 +232,21 @@ function hygiene(): void {
       .replace(/^---[\s\S]*?---/, '')
       .replace(/```[\s\S]*?```/g, '')
       .trim()
-    const sentences = body.split(/(?<=[.!?])\s+(?=[A-Z`])/).filter(Boolean)
-    const verb = body.replace(/^[^A-Za-z]+/, '').split(/\s/)[0] ?? ''
-    check({
+    const sentences = split(body).filter((node) => node.type === 'Sentence')
+    if (sentences.length !== 1) {
+      check({
+        item: file,
+        metric: 'changeset-sentences',
+        problems: [`${sentences.length} sentences, not one`],
+      })
+      continue
+    }
+
+    verbForm({
+      form: 'VBD',
       item: file,
       metric: 'changeset-sentences',
-      problems: [
-        ...(sentences.length > 1
-          ? [`${sentences.length} sentences, not one`]
-          : []),
-        ...(/^[A-Z][a-z]*(ed|ade|ote|ilt|ent|ept|ound|un)$/.test(verb)
-          ? []
-          : [`"${verb}" is not a past-tense verb`]),
-      ],
+      text: body,
     })
   }
   if (changesets.length === 0)
@@ -241,9 +264,43 @@ function subject(message: string): string {
   return message.split('\n')[0] ?? ''
 }
 
-/** Runs a command and returns its standard output. A failing exit status is a measurement. */
-function run(command: readonly string[]): string {
-  return Bun.spawnSync([...command], { stderr: 'ignore' }).stdout.toString()
+/** The lexicon can confirm a word form, not the mood of a sentence or a new technical verb. */
+function verbForm(options: {
+  form: 'VB' | 'VBD'
+  item: string
+  metric: string
+  text: string
+}): void {
+  const verb = /^\s*([A-Za-z]+)\b/.exec(options.text)?.[1]?.toLowerCase() ?? ''
+  const tags = Object.hasOwn(lexicon, verb)
+    ? lexicon[verb]?.split('|')
+    : undefined
+  if (!tags?.some((tag) => tag.startsWith('VB'))) {
+    lines.push(
+      `${options.metric} ${quote(options.item)} skip note ${quote(`no known verb form for the opening word: ${verb}`)}`,
+    )
+    return
+  }
+
+  const label = options.form === 'VB' ? 'base' : 'past-tense'
+  check({
+    item: options.item,
+    metric: options.metric,
+    problems: tags.includes(options.form)
+      ? []
+      : [`"${verb}" is not a ${label} form`],
+  })
+}
+
+/** A whitespace diagnostic sets bit 1 of Git's status; a Git invocation error is not a check. */
+function run(
+  command: readonly string[],
+  statuses: readonly number[] = [0],
+): string {
+  const result = Bun.spawnSync([...command])
+  if (!statuses.includes(result.exitCode))
+    throw new Error(`${command.join(' ')}: ${result.stderr}`)
+  return result.stdout.toString()
 }
 
 /**
