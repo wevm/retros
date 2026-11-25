@@ -3,9 +3,9 @@
 # reads the rest from oxc-parser's syntax tree. Each file is an item, and a failing check names the
 # first line at fault.
 
-# oxlint and oxc-parser are the pack's dependencies. They install from its lockfile when the
-# project's entry sets `install: true`. The project's own TypeScript and oxfmt check its types and
-# formatting.
+# oxlint, oxfmt, and oxc-parser are the pack's dependencies. They install from its lockfile when
+# the project's entry sets `install: true`. The project's own TypeScript checks its types, and the
+# project's own linter and formatter check `lint` and `formatted`.
 
 # Every category reads the lines of this one script, which runs once.
 run: bun metrics/typescript.ts
@@ -19,7 +19,9 @@ correctness:
   compiler-options: {}
   # Whether each file avoids `any`, by oxlint's `typescript/no-explicit-any`.
   explicit-any: {}
-  # Whether oxlint, with the project's own configuration, reports nothing in each file.
+  # Whether the project's linter, with its own configuration, reports nothing in each file. The
+  # linter is `bun lint` when bunfig.toml has a `[lint]` section or a script runs it, or else the
+  # first of ESLint, Biome, oxlint, and Vite Plus in package.json. Without one, the pack's oxlint runs.
   lint: {}
   # Whether each file avoids `Math.random()`, by oxlint's `eslint/no-restricted-properties`. Use
   # `crypto.getRandomValues()`.
@@ -28,8 +30,10 @@ correctness:
   console-calls: {}
 
 style:
-  # Whether oxfmt, with the project's own configuration, leaves each file unchanged. It skips
-  # without the oxfmt package in `node_modules`.
+  # Whether the project's formatter, with its own configuration, leaves each file unchanged. The
+  # formatter is `bun fmt` when bunfig.toml has a `[fmt]` section or a script runs it, or else the
+  # first of Prettier, Biome, dprint, oxfmt, and Vite Plus in package.json. Without one, the pack's
+  # oxfmt runs.
   formatted: {}
   # Whether each file avoids enums. Use unions or `as const` objects.
   enums: {}
@@ -123,8 +127,6 @@ configuration:
   javascript-files: {}
   # Whether each published package.json sets `sideEffects`, so bundlers can tree-shake it.
   side-effects: {}
-  # Whether the project neither depends on nor configures Prettier.
-  prettier: {}
   # Whether each package.json in a pnpm workspace references its versions with `catalog:`.
   catalog-versions: {}
   # Whether scripts run TypeScript directly, not through `tsx` or `ts-node`.

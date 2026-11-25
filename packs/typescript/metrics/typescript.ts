@@ -790,50 +790,140 @@ function testing(): void {
 }
 
 /**
- * Writes the project's own lint and format verdicts, then Prettier, catalog versions, script
- * runners, and the key order of each package.json.
+ * Writes the verdicts of the project's own linter and formatter, then catalog versions, script
+ * runners, and the key order of each package.json. The pack's oxlint and oxfmt stand in for a
+ * project that uses no linter or formatter.
  */
 function tooling(): void {
-  // oxlint and oxfmt read the project's own configuration here, unlike the rule metrics above.
-  const own = diagnostics([])
-  for (const file of files)
-    check({
-      item: file,
-      metric: 'lint',
-      problems: own
-        .filter((diagnostic) => diagnostic.file === file)
-        .map(describe),
-    })
+  const manifest: Record<string, Node> = fs.existsSync('package.json')
+    ? JSON.parse(fs.readFileSync('package.json', 'utf8'))
+    : {}
+  const declared = new Set(dependencies(manifest).map((entry) => entry[0]))
+  const scripts = Object.values<string>(manifest.scripts ?? {}).join('\n')
+  const bunfig = fs.existsSync('bunfig.toml')
+    ? fs.readFileSync('bunfig.toml', 'utf8')
+    : ''
+  const bun = (command: string) =>
+    new RegExp(`^\\[${command}[\\].]`, 'm').test(bunfig) ||
+    new RegExp(`\\bbun ${command}\\b`).test(scripts)
+  const help = Bun.spawnSync([process.execPath, '--help']).stdout.toString()
+  // A Bun without the command runs the project's script of that name instead, and that script may
+  // run `bun <command>` again.
+  const builtin = (options: {
+    command: string
+    flags: readonly string[]
+    parse: Tool['parse']
+  }): Tool | string =>
+    new RegExp(`^ {2}${options.command} `, 'm').test(help)
+      ? {
+          command: [
+            process.execPath,
+            options.command,
+            '--no-script',
+            ...options.flags,
+          ],
+          name: `bun ${options.command}`,
+          parse: options.parse,
+        }
+      : `bun ${Bun.version} has no ${options.command} command`
 
-  const formatter = bin('oxfmt')
-  if (formatter) {
-    const unformatted = new Set(
-      Bun.spawnSync([formatter, '--list-different', ...files])
-        .stdout.toString()
-        .split('\n')
-        .map((line) => path.normalize(line.trim())),
-    )
-    for (const file of files)
-      check({
-        item: file,
-        metric: 'formatted',
-        problems: unformatted.has(file) ? ['oxfmt would change this file'] : [],
+  // The first tool the project uses wins. Bun's tools come first, since they read ESLint, oxlint,
+  // Prettier, and oxfmt configurations too.
+  const linter = (() => {
+    if (bun('lint'))
+      return builtin({
+        command: 'lint',
+        flags: ['--format', 'json'],
+        parse: eslintReport,
       })
-  } else lines.push('formatted skip note "no oxfmt package in node_modules"')
+    if (declared.has('eslint'))
+      return tool({
+        flags: ['--format', 'json', '--no-warn-ignored'],
+        name: 'eslint',
+        parse: eslintReport,
+      })
+    if (declared.has('@biomejs/biome'))
+      return tool({
+        flags: ['lint', '--reporter=github'],
+        name: 'biome',
+        package: '@biomejs/biome',
+        parse: annotations,
+      })
+    if (declared.has('oxlint'))
+      return tool({
+        flags: ['--format', 'json'],
+        name: 'oxlint',
+        parse: oxlintReport,
+      })
+    if (declared.has('vite-plus'))
+      return tool({
+        flags: ['lint', '--format', 'json'],
+        name: 'vp',
+        package: 'vite-plus',
+        parse: oxlintReport,
+      })
+    return tool({
+      flags: ['--format', 'json'],
+      name: 'oxlint',
+      pack: true,
+      parse: oxlintReport,
+    })
+  })()
+  verdicts({
+    metric: 'lint',
+    problem: (diagnostic, name) => `${name}: ${describe(diagnostic)}`,
+    tool: linter,
+  })
+
+  const formatter = (() => {
+    if (bun('fmt'))
+      return builtin({
+        command: 'fmt',
+        flags: ['--list-different'],
+        parse: paths,
+      })
+    if (declared.has('prettier'))
+      return tool({
+        flags: ['--list-different'],
+        name: 'prettier',
+        parse: paths,
+      })
+    if (declared.has('@biomejs/biome'))
+      return tool({
+        flags: ['format', '--reporter=github'],
+        name: 'biome',
+        package: '@biomejs/biome',
+        parse: annotations,
+      })
+    if (declared.has('dprint'))
+      return tool({
+        flags: ['check', '--list-different'],
+        name: 'dprint',
+        parse: paths,
+      })
+    if (declared.has('oxfmt'))
+      return tool({ flags: ['--list-different'], name: 'oxfmt', parse: paths })
+    if (declared.has('vite-plus'))
+      return tool({
+        flags: ['fmt', '--list-different'],
+        name: 'vp',
+        package: 'vite-plus',
+        parse: paths,
+      })
+    return tool({
+      flags: ['--list-different'],
+      name: 'oxfmt',
+      pack: true,
+      parse: paths,
+    })
+  })()
+  verdicts({
+    metric: 'formatted',
+    problem: (_, name) => `${name} would change this file`,
+    tool: formatter,
+  })
 
   const packages = manifests()
-  const prettier = [
-    ...list(['.prettierrc', '.prettierrc.*', 'prettier.config.*']).map(
-      (file) => `${file} configures Prettier`,
-    ),
-    ...packages
-      .filter((manifest) =>
-        dependencies(manifest.json).some((entry) => entry[0] === 'prettier'),
-      )
-      .map((manifest) => `${manifest.file} depends on prettier`),
-  ]
-  check({ metric: 'prettier', problems: prettier })
-
   if (packages.length === 0) {
     for (const metric of ['catalog-versions', 'script-runners', 'sorted-keys'])
       lines.push(`${metric} skip note "no package.json"`)
@@ -893,12 +983,32 @@ function tooling(): void {
     lines.push('catalog-versions skip note "no pnpm-workspace.yaml"')
 }
 
-/** One oxlint diagnostic: its rule, such as `eslint(no-console)`, and where it points. */
+/** One diagnostic of a linter or formatter: its rule, such as `eslint(no-console)`, and where it points. */
 type Diagnostic = { file: string; line: number; message: string; rule: string }
+
+/** A linter or formatter: its name in notes, its command without files, and its output parser. */
+type Tool = {
+  command: readonly string[]
+  name: string
+  parse: (output: string) => readonly Diagnostic[]
+}
 
 /** Writes one check per file for each lint metric, from one oxlint run with the pack's rules. */
 function lint(metrics: readonly string[]): void {
-  cache.configured ??= diagnostics(['-c', config()])
+  cache.configured ??= (() => {
+    const oxlint = tool({
+      flags: ['-c', config(), '--format', 'json'],
+      name: 'oxlint',
+      pack: true,
+      parse: oxlintReport,
+    })
+    const found = typeof oxlint === 'string' ? oxlint : diagnostics(oxlint)
+    if (typeof found === 'string') {
+      process.stderr.write(`${found}\n`)
+      process.exit(1)
+    }
+    return found
+  })()
   const configured = cache.configured
   for (const metric of metrics) {
     const rule = rules[metric]!
@@ -915,41 +1025,172 @@ function lint(metrics: readonly string[]): void {
   }
 }
 
-/** Runs oxlint on every file, in batches that fit a command line, and returns its diagnostics. */
-function diagnostics(flags: readonly string[]): readonly Diagnostic[] {
-  const linter = bin('oxlint')
-  if (!linter) {
-    process.stderr.write(
-      'Found no oxlint package in node_modules. Install it with `bun add -d oxlint`\n',
-    )
-    process.exit(1)
+/**
+ * Writes one check per file for `metric` from the diagnostics of `tool`, or a skip with the reason
+ * when the tool is missing or fails.
+ */
+function verdicts(options: verdicts.Options): void {
+  const { metric, problem, tool } = options
+  if (typeof tool === 'string') {
+    lines.push(`${metric} skip${note(tool)}`)
+    return
   }
+  const found = diagnostics(tool)
+  if (typeof found === 'string') {
+    lines.push(`${metric} skip${note(found)}`)
+    return
+  }
+
+  for (const file of files)
+    check({
+      item: file,
+      metric,
+      problems: found
+        .filter((diagnostic) => diagnostic.file === file)
+        .map((diagnostic) => problem(diagnostic, tool.name)),
+    })
+}
+
+declare namespace verdicts {
+  /** The metric, the problem text of one diagnostic, and the tool or the reason it is missing. */
+  type Options = {
+    metric: string
+    problem: (diagnostic: Diagnostic, name: string) => string
+    tool: Tool | string
+  }
+}
+
+/**
+ * Returns the installed linter or formatter `name`, from the project's `node_modules` or, with
+ * `pack`, from the pack's. Returns the reason instead when it is not installed.
+ */
+function tool(options: tool.Options): Tool | string {
+  const { flags, name, pack = false, parse } = options
+  const manifest = options.package ?? name
+  const file = bin({
+    command: name,
+    from: pack ? import.meta.dir : process.cwd(),
+    name: manifest,
+  })
+  if (!file)
+    return pack
+      ? `no ${manifest} in the pack's node_modules`
+      : `${manifest} is in package.json but not in node_modules`
+  return { command: [file, ...flags], name, parse }
+}
+
+declare namespace tool {
+  /** A tool's command name, its flags and output parser, and the package that provides it. */
+  type Options = {
+    flags: readonly string[]
+    name: string
+    /** The package that provides the command, when its name differs. */
+    package?: string | undefined
+    /** Whether the tool is the pack's own fallback instead of the project's. */
+    pack?: boolean | undefined
+    parse: Tool['parse']
+  }
+}
+
+/**
+ * Runs `tool` on every file, in batches that fit a command line, and returns its diagnostics. A
+ * tool that exits with an error and reports nothing failed, and the result is the reason.
+ */
+function diagnostics(tool: Tool): readonly Diagnostic[] | string {
   const found: Diagnostic[] = []
   for (let start = 0; start < files.length; start += 500) {
-    const output = Bun.spawnSync([
-      linter,
-      ...flags,
-      '--format',
-      'json',
+    const result = Bun.spawnSync([
+      ...tool.command,
       ...files.slice(start, start + 500),
-    ]).stdout.toString()
-    const report = JSON.parse(output.slice(output.indexOf('{'))) as {
-      diagnostics: {
-        code?: string
-        filename: string
-        labels: { span: { line: number } }[]
-        message: string
-      }[]
+    ])
+    const batch = (() => {
+      try {
+        return tool.parse(result.stdout.toString())
+      } catch {
+        return undefined
+      }
+    })()
+    if (!batch || (result.exitCode !== 0 && batch.length === 0)) {
+      const reason = result.stderr.toString().replace(/\s+/g, ' ').trim()
+      return `${tool.name} failed: ${reason.slice(0, 200) || `exit status ${result.exitCode}`}`
     }
-    for (const diagnostic of report.diagnostics)
-      found.push({
-        file: path.normalize(diagnostic.filename),
-        line: diagnostic.labels[0]?.span.line ?? 1,
-        message: diagnostic.message,
-        rule: diagnostic.code ?? '',
-      })
+    found.push(...batch)
   }
   return found
+}
+
+/** Reads the JSON report of oxlint, which `vp lint` writes too. */
+function oxlintReport(output: string): readonly Diagnostic[] {
+  const report = JSON.parse(output.slice(output.indexOf('{'))) as {
+    diagnostics: {
+      code?: string
+      filename: string
+      labels: { span: { line: number } }[]
+      message: string
+    }[]
+  }
+  return report.diagnostics.map((diagnostic) => ({
+    file: relative(diagnostic.filename),
+    line: diagnostic.labels[0]?.span.line ?? 1,
+    message: diagnostic.message,
+    rule: diagnostic.code ?? '',
+  }))
+}
+
+/** Reads the JSON report of ESLint, which `bun lint` writes too. */
+function eslintReport(output: string): readonly Diagnostic[] {
+  const report = JSON.parse(output.slice(output.indexOf('['))) as {
+    filePath: string
+    messages: { line?: number; message: string; ruleId: string | null }[]
+  }[]
+  return report.flatMap((entry) =>
+    entry.messages.map((message) => ({
+      file: relative(entry.filePath),
+      line: message.line ?? 1,
+      message: message.message,
+      rule: message.ruleId ?? '',
+    })),
+  )
+}
+
+/** Reads GitHub workflow annotations, which Biome writes with `--reporter=github`. */
+function annotations(output: string): readonly Diagnostic[] {
+  const decode = (text: string) =>
+    text.replace(/%(25|0D|0A|3A|2C)/gi, (escape) => decodeURIComponent(escape))
+  return [...output.matchAll(/^::(?:error|warning|notice) (.*?)::(.*)$/gm)].map(
+    (match) => {
+      const properties = new Map(
+        match[1]!.split(',').map((property) => {
+          const index = property.indexOf('=')
+          return [property.slice(0, index), decode(property.slice(index + 1))]
+        }),
+      )
+      return {
+        file: relative(properties.get('file') ?? ''),
+        line: Number(properties.get('line') ?? 1),
+        message: decode(match[2]!),
+        rule: properties.get('title') ?? '',
+      }
+    },
+  )
+}
+
+/** Reads one path per line, which formatters write with `--list-different`. */
+function paths(output: string): readonly Diagnostic[] {
+  return output
+    .split('\n')
+    .filter((line) => line.trim() !== '')
+    .map((line) => ({
+      file: relative(line.trim()),
+      line: 1,
+      message: '',
+      rule: '',
+    }))
+}
+
+/** Returns a path that a tool reported, absolute or not, relative to the project root. */
+function relative(file: string): string {
+  return path.relative(process.cwd(), path.resolve(file))
 }
 
 /** Writes the pack's oxlint configuration to a temporary file, and returns its path. */
@@ -967,15 +1208,15 @@ function describe(diagnostic: Diagnostic): string {
 }
 
 /**
- * Returns the command-line file of an installed package, such as `node_modules/oxlint/bin/oxlint`,
- * or `undefined`. It looks in `node_modules` beside the script and then in each directory above
- * it, so the pack's own dependencies come before the project's. It reads the package, not
- * `node_modules/.bin`, where another tool, such as Vite Plus, may install a wrapper under the same
- * name.
+ * Returns the file of the command `command` in the installed package `name`, such as
+ * `node_modules/oxlint/bin/oxlint`, or `undefined`. It looks in `node_modules` in `from` and then
+ * in each directory above it. It reads the package, not `node_modules/.bin`, where another tool,
+ * such as Vite Plus, may install a wrapper under the same name.
  */
-function bin(name: string): string | undefined {
+function bin(options: bin.Options): string | undefined {
+  const { command, from, name } = options
   const directory = (() => {
-    for (let at = import.meta.dir; ; at = path.dirname(at)) {
+    for (let at = from; ; at = path.dirname(at)) {
       const candidate = path.join(at, 'node_modules', name)
       if (fs.existsSync(path.join(candidate, 'package.json'))) return candidate
       if (path.dirname(at) === at) return undefined
@@ -989,8 +1230,13 @@ function bin(name: string): string | undefined {
       bin?: string | Record<string, string>
     }
   ).bin
-  const file = typeof field === 'string' ? field : field?.[name]
+  const file = typeof field === 'string' ? field : field?.[command]
   return file ? path.join(directory, file) : undefined
+}
+
+declare namespace bin {
+  /** The package, its command, and the directory to start the search from. */
+  type Options = { command: string; from: string; name: string }
 }
 
 /** Returns the files under `src/` that are not tests, where `console` is banned. */
