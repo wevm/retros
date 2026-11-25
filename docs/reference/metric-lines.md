@@ -68,7 +68,7 @@ video-caption skip
 
 - **Format:** `target` and a value, such as `target 15kB`
 
-The item's own target, which replaces the metric's `target` key. It is greater than zero and in the same kind of unit as the value, and a check cannot have one. A pattern in the `targets` key replaces it.
+The item's target, which replaces the default target until the baseline file holds one for the item. It is greater than zero and in the same kind of unit as the value, and a check cannot have one. A pattern in the baseline file replaces it too.
 
 ```text
 entry-size chains 12033B target 15kB

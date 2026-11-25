@@ -1,40 +1,48 @@
-//! Baselines: the baseline file beside the configuration, `uphill.baseline.yaml` or
-//! `uphill.baseline.toml`, records the sizes, counts, and checks that `uphill --update` accepted
-//! for each metric, and the targets scripts set on their lines. Each run reports what changed
-//! since. The configuration holds what people write, and the baseline file holds what
-//! `uphill --update` writes, so Uphill rewrites the whole file instead of editing it in place.
+//! Baselines and targets: the baseline file beside the configuration, `uphill.baseline.yaml` or
+//! `uphill.baseline.toml`, holds each metric's targets and the sizes, counts, and checks that
+//! `uphill --update` accepted. Each run reports what changed since. The configuration holds how
+//! each metric is measured and scored, and Uphill rewrites the whole baseline file instead of
+//! editing it in place, so its comments do not survive an update.
 //!
-//! A metric without items records one value. A metric with items records each item, sorted by
-//! name. A category whose lines name subjects records each subject first, in the order the run
-//! wrote them.
+//! A metric without items records one baseline and its target. A metric with items records each
+//! item, sorted by name, with its baseline and its own target side by side. A category whose lines name
+//! subjects records each subject first, in the order the run wrote them. Timings and metrics that
+//! vary record only their targets, because their values differ between machines and runs.
 //!
-//! A line that sets its own target records it after the value, as metric lines write it. A script
-//! that loosens its own target then changes the baseline like a regression does. Timings and
-//! metrics that vary record only their line targets, because their values differ between machines
-//! and runs. Updating twice from the same code writes the same file.
+//! A key with `*` and only a target is a pattern, which sets the target of each item without its
+//! own, and `*` alone is the default. An item's own target has the final say, then the first
+//! pattern that matches, then the target on its line, then the default. `uphill --update` writes
+//! the target each item scored against as its own, so a pattern or a line target applies to an
+//! item until the file holds one for it. Updating twice from the same code writes the same file.
 //!
 //! ```yaml
 //! footprint:
-//!   bundle: 27.5kB
-//!   modules: 412
+//!   bundle: { baseline: 27.5kB, target: 30kB }
+//!   modules: { baseline: 412 }
 //!   export-size:
-//!     viem: 1kB
-//!     viem/chains: 61kB target 80kB
+//!     "*": { target: 5kB }
+//!     "viem/chains/*": { target: 80kB }
+//!     viem: { baseline: 1kB, target: 5kB }
+//!     viem/chains: { baseline: 61kB, target: 80kB }
 //!
 //! speed:
 //!   import-time:
-//!     viem: target 20ms
+//!     viem: { target: 20ms }
 //! ```
 //!
-//! Older configurations set each metric's `baseline` key instead. Uphill still reads it, so older
-//! revisions compare and keep their history, and `uphill --update` moves it into the baseline file.
+//! Uphill still reads the short form of older files, such as `61kB target 80kB`.
+//!
+//! Older configurations set each metric's `target`, `targets`, and `baseline` keys instead. Uphill
+//! still reads them, so older revisions compare and keep their history, and `uphill --update`
+//! moves them into the baseline file.
 
 use std::borrow::Cow;
 use std::fmt::Write;
 
 use yaml_rust2::Yaml;
 
-use crate::config::{self, Better, Config, Format, Metric, without_locations};
+use crate::check::Source;
+use crate::config::{self, Better, Config, Format, Metric, Pattern, without_locations};
 use crate::document::{self, Kind as NodeKind, Node};
 use crate::edit;
 use crate::error::{Code, Error, Location};
@@ -55,7 +63,8 @@ pub enum Baseline {
 /// What a baseline records for one measurement.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Record {
-    /// The target the measurement's line sets, unless a pattern in `targets` overrides it.
+    /// The measurement's own target, which has the final say over patterns, its line, and the
+    /// default.
     pub target: Option<Value>,
     /// The size, count, or check, or `None` for a timing.
     pub value: Option<Value>,
@@ -141,13 +150,22 @@ impl Entry {
     }
 }
 
-/// Returns whether any metric in `config` has a baseline.
+/// Returns whether any metric in `config` records a size, count, or check. Targets alone are not a
+/// baseline.
 pub fn recorded(config: &Config) -> bool {
     config
         .categories
         .iter()
         .flat_map(|category| &category.metrics)
-        .any(|metric| metric.baseline.is_some())
+        .any(|metric| metric.baseline.as_ref().is_some_and(valued))
+}
+
+/// Returns whether a baseline records a size, count, or check, not only targets.
+fn valued(baseline: &Baseline) -> bool {
+    match baseline {
+        Baseline::Map(entries) => entries.iter().any(|(_, baseline)| valued(baseline)),
+        Baseline::Record(record) => record.value.is_some(),
+    }
 }
 
 /// Returns every difference between the categories that ran and their baselines, in report order.
@@ -214,10 +232,15 @@ pub fn compare(config: &Config, report: &Report) -> Vec<Change> {
             for (item, before, after) in pair(&before, &after) {
                 match (before, after) {
                     (Some(before), Some(after)) => {
-                        if let (Some(old), Some(new)) = (before.value, after.value)
-                            && let Some(direction) = direction(old, new, metric.metric.better)
-                        {
-                            push(name, item, Some(old), Some(new), direction);
+                        // A record with only a target has no accepted value yet.
+                        match (before.value, after.value) {
+                            (Some(old), Some(new)) => {
+                                if let Some(direction) = direction(old, new, metric.metric.better) {
+                                    push(name, item, Some(old), Some(new), direction);
+                                }
+                            }
+                            (None, Some(new)) => push(name, item, None, Some(new), Direction::New),
+                            _ => {}
                         }
                         if let Some((old, new, direction)) =
                             target_change(&metric.metric, item, before.target, after.target)
@@ -237,7 +260,11 @@ pub fn compare(config: &Config, report: &Report) -> Vec<Change> {
                 .metrics
                 .iter()
                 .any(|scored| scored.metric.name == metric.name);
-            if !written && recorded_entry(metric, subject).is_some() {
+            let valued = |entry: Entry| match entry {
+                Entry::Items(items) => items.iter().any(|(_, record)| record.value.is_some()),
+                Entry::Single(record) => record.value.is_some(),
+            };
+            if !written && recorded_entry(metric, subject).is_some_and(valued) {
                 push(&metric.name, None, None, None, Direction::Gone);
             }
         }
@@ -257,10 +284,11 @@ pub fn compare(config: &Config, report: &Report) -> Vec<Change> {
             let Some(Baseline::Map(subjects)) = &metric.baseline else {
                 continue;
             };
-            for (subject, _) in subjects {
-                if ran
-                    .iter()
-                    .any(|category| category.subject.as_ref() == Some(subject))
+            for (subject, baseline) in subjects {
+                if !valued(baseline)
+                    || ran
+                        .iter()
+                        .any(|category| category.subject.as_ref() == Some(subject))
                 {
                     continue;
                 }
@@ -280,9 +308,10 @@ pub fn compare(config: &Config, report: &Report) -> Vec<Change> {
     changes
 }
 
-/// Returns `config` with the baselines that the baseline file `source` records. An entry for a
-/// category or metric that `config` does not declare is left out, and the next `uphill --update`
-/// drops it. An entry replaces a `baseline` key that an older configuration sets.
+/// Returns `config` with the targets and baselines that the baseline file `source` records. An
+/// entry for a category or metric that `config` does not declare is left out, and the next
+/// `uphill --update` drops it. An entry replaces the `baseline` key that an older configuration
+/// sets, its default replaces `target`, and its patterns replace `targets`.
 ///
 /// # Errors
 ///
@@ -305,7 +334,7 @@ pub fn read(mut config: Config, source: &str, format: Format) -> Result<Config, 
             .iter_mut()
             .find(|category| Some(category.name.as_str()) == key.text());
         for (key, value) in metrics {
-            let baseline = parse(source, value)?;
+            let (baseline, default, patterns) = targets(source, value)?;
             let metric = category.as_deref_mut().and_then(|category| {
                 category
                     .metrics
@@ -313,7 +342,13 @@ pub fn read(mut config: Config, source: &str, format: Format) -> Result<Config, 
                     .find(|metric| Some(metric.name.as_str()) == key.text())
             });
             if let Some(metric) = metric {
-                metric.baseline = Some(baseline);
+                metric.baseline = baseline;
+                if default.is_some() {
+                    metric.target = default;
+                }
+                if !patterns.is_empty() {
+                    metric.targets = patterns;
+                }
             }
         }
     }
@@ -321,14 +356,67 @@ pub fn read(mut config: Config, source: &str, format: Format) -> Result<Config, 
     Ok(config)
 }
 
-/// Returns the baseline file with this run's sizes, counts, checks, and line targets for each
-/// metric of `config`, or an empty string when no metric records any. A category that did not
-/// run or failed keeps its baselines, so updating twice from the same code writes the same file.
-///
-/// Categories and metrics keep the order the configuration declares, and a baseline with items or
-/// subjects takes one line per entry, so a change shows as one line in a diff.
+/// One metric of the baseline file: its baseline, its default target, and its patterns.
+type Targets = (Option<Baseline>, Option<Value>, Vec<Pattern>);
+
+/// Parses one metric of the baseline file into its baseline, its default target, and its
+/// patterns. A record without items sets the default too, so `bundle: { target: 5kB }` targets a
+/// metric before its first update.
+fn targets(source: &str, node: &Node) -> Result<Targets, Error> {
+    if let Some(record) = record(source, node) {
+        let record = record?;
+        return Ok((Some(Baseline::Record(record)), record.target, Vec::new()));
+    }
+    let NodeKind::Mapping(pairs) = &node.kind else {
+        return Err(invalid(source, node.offset));
+    };
+
+    let mut default = None;
+    let mut patterns = Vec::new();
+    let mut entries = Vec::new();
+    for (key, value) in pairs {
+        let name = key.text().ok_or_else(|| invalid(source, key.offset))?;
+        let pattern = match record(source, value) {
+            Some(Ok(Record {
+                target: Some(target),
+                value: None,
+            })) if name.contains('*') => Some(target),
+            _ => None,
+        };
+        match pattern {
+            Some(target) if name == "*" => default = Some(target),
+            Some(target) => patterns.push(Pattern {
+                location: Location::of(source, key.offset),
+                pattern: name.to_owned(),
+                source: Source::Baselines,
+                target,
+            }),
+            None => entries.push((name.to_owned(), parse_at(source, value, 1)?)),
+        }
+    }
+
+    Ok((
+        (!entries.is_empty()).then_some(Baseline::Map(entries)),
+        default,
+        patterns,
+    ))
+}
+
+/// Returns the baseline file with each metric's targets, and this run's sizes, counts, and checks
+/// with the target each measurement scored against, or an empty string when no metric has any. A
+/// category that did not run or failed keeps its baselines, so updating twice from the same code
+/// writes the same file.
 pub fn write(config: &Config, report: &Report, format: Format) -> String {
-    let config = apply(config, &updates(config, report));
+    render(&apply(config, &updates(config, report)), format)
+}
+
+/// Returns the baseline file that holds the targets and baselines of `config`, or an empty string
+/// when no metric has any.
+///
+/// Categories and metrics keep the order the configuration declares. A metric with items or
+/// subjects takes one line per pattern, then one per entry, so a change shows as one line in a
+/// diff.
+pub fn render(config: &Config, format: Format) -> String {
     let categories: Vec<(&str, Vec<(String, Baseline)>)> = config
         .categories
         .iter()
@@ -336,7 +424,7 @@ pub fn write(config: &Config, report: &Report, format: Format) -> String {
             let metrics = category
                 .metrics
                 .iter()
-                .filter_map(|metric| Some((metric.name.clone(), metric.baseline.clone()?)))
+                .filter_map(|metric| Some((metric.name.clone(), file_entry(metric)?)))
                 .collect::<Vec<_>>();
             (category.name.as_str(), metrics)
         })
@@ -347,7 +435,7 @@ pub fn write(config: &Config, report: &Report, format: Format) -> String {
     }
 
     let mut out = String::from(
-        "# Written by `uphill --update`: the accepted sizes, counts, checks, and line targets of each\n# metric. Each run reports what changed since.\n",
+        "# Each measurement's `baseline`, the size, count, or check `uphill --update` accepted, and its\n# `target`. Edit a target here, and each run reports what changed since the baseline.\n",
     );
     for (category, metrics) in &categories {
         match format {
@@ -362,6 +450,45 @@ pub fn write(config: &Config, report: &Report, format: Format) -> String {
     out
 }
 
+/// Returns what the baseline file holds for a metric: its record with its target, or its default
+/// and patterns before its items or subjects, or `None` when it has neither targets nor baseline.
+fn file_entry(metric: &Metric) -> Option<Baseline> {
+    let only = |target| {
+        Baseline::Record(Record {
+            target: Some(target),
+            value: None,
+        })
+    };
+    let entries = match &metric.baseline {
+        Some(Baseline::Record(record)) => {
+            return Some(Baseline::Record(Record {
+                target: record.target.or(metric.target),
+                value: record.value,
+            }));
+        }
+        Some(Baseline::Map(entries)) => entries.as_slice(),
+        None if metric.targets.is_empty() => return metric.target.map(only),
+        None => &[],
+    };
+
+    // A pattern without `*`, from an older configuration, names one item, and the item's own
+    // target takes its place.
+    let patterns = metric
+        .target
+        .map(|target| ("*".to_owned(), only(target)))
+        .into_iter()
+        .chain(
+            metric
+                .targets
+                .iter()
+                .map(|p| (p.pattern.clone(), only(p.target))),
+        )
+        .filter(|(key, _)| !entries.iter().any(|(entry, _)| entry == key));
+    Some(Baseline::Map(
+        patterns.chain(entries.iter().cloned()).collect(),
+    ))
+}
+
 /// Writes YAML entries, one per line at `indent` spaces: a record after its key, or a mapping on
 /// the lines below it.
 fn yaml_block(out: &mut String, entries: &[(String, Baseline)], indent: usize) {
@@ -370,7 +497,7 @@ fn yaml_block(out: &mut String, entries: &[(String, Baseline)], indent: usize) {
         match baseline {
             Baseline::Map(entries) => yaml_block(out, entries, indent + 2),
             Baseline::Record(record) => {
-                let _ = write!(out, " {}", text(*record).0);
+                let _ = write!(out, " {}", inline(*record, Format::Yaml));
             }
         }
     }
@@ -387,11 +514,7 @@ fn toml_table(out: &mut String, path: &[&str], entries: &[(String, Baseline)]) {
     if let Some(first) = records.next() {
         let _ = write!(out, "\n[{}]\n", header.join("."));
         for (key, record) in std::iter::once(first).chain(records) {
-            let value = match text(*record) {
-                (text, true) => text,
-                (text, false) => quoted(&text),
-            };
-            let _ = writeln!(out, "{} = {value}", toml_key(key));
+            let _ = writeln!(out, "{} = {}", toml_key(key), inline(*record, Format::Toml));
         }
     }
 
@@ -452,13 +575,13 @@ pub(crate) fn quoted(text: &str) -> String {
     out
 }
 
-/// Returns the configuration `source` without the `baseline` keys that older configurations set,
-/// or `source` itself when it sets none.
+/// Returns the configuration `source` without the `target`, `targets`, and `baseline` keys that
+/// older configurations set, or `source` itself when it sets none.
 ///
 /// # Errors
 ///
-/// Returns an error when `source` does not parse, or when a metric's `baseline` has a form that
-/// Uphill cannot remove, such as a TOML table of its own.
+/// Returns an error when `source` does not parse, or when one of those keys has a form that Uphill
+/// cannot remove, such as a TOML baseline in a table of its own.
 pub fn strip(source: &str, format: Format) -> Result<String, Error> {
     let config = config::parse(source, format)?;
     let inline: Vec<(&str, &str)> = config
@@ -468,39 +591,51 @@ pub fn strip(source: &str, format: Format) -> Result<String, Error> {
             category
                 .metrics
                 .iter()
-                .filter(|metric| metric.baseline.is_some())
+                .filter(|metric| moves(metric))
                 .map(|metric| (category.name.as_str(), metric.name.as_str()))
         })
         .collect();
     if inline.is_empty() {
         return Ok(source.to_owned());
     }
-    let stripped = edit::remove(source, format, &inline);
+    // One key at a time, so the edits of one pass never overlap.
+    let stripped = ["baseline", "target", "targets"]
+        .into_iter()
+        .fold(source.to_owned(), |text, key| {
+            edit::remove(&text, format, &inline, key)
+        });
 
     // The editor reads only part of the syntax, so the file it writes must parse to the same
-    // configuration without baselines.
+    // configuration without targets and baselines.
     let mut expected = without_locations(config.clone());
     for metric in expected.categories.iter_mut().flat_map(|c| &mut c.metrics) {
         metric.baseline = None;
+        metric.target = None;
+        metric.targets.clear();
     }
     let written = config::parse(&stripped, format).ok().map(without_locations);
     if written.as_ref() == Some(&expected) {
         return Ok(stripped);
     }
 
-    // Blames the first metric whose baseline is still there.
+    // Blames the first metric whose keys are still there.
     let blamed = inline
         .iter()
         .find(|(category, metric)| {
             written
                 .as_ref()
                 .and_then(|written| find(written, category, metric))
-                .is_none_or(|written| written.baseline.is_some())
+                .is_none_or(moves)
         })
         .or(inline.first());
     let (category, metric) = blamed.map_or(("", ""), |(category, metric)| (*category, *metric));
     let location = find(&config, category, metric).map(|metric| metric.location);
     Err(cannot(metric, location))
+}
+
+/// Returns whether an older configuration sets a metric's `target`, `targets`, or `baseline`.
+fn moves(metric: &Metric) -> bool {
+    metric.baseline.is_some() || metric.target.is_some() || !metric.targets.is_empty()
 }
 
 /// Returns `config` with the baselines a run records and no others, as a first `uphill --update`
@@ -587,13 +722,27 @@ pub fn value(
     subject: Option<&str>,
     item: Option<&str>,
 ) -> Option<Value> {
-    match (
-        recorded_entry(find(config, category, metric)?, subject)?,
-        item,
-    ) {
-        (Entry::Single(record), None) => record.value,
-        (Entry::Items(items), Some(item)) => items.iter().find(|(name, _)| name == item)?.1.value,
-        _ => None,
+    lookup(find(config, category, metric)?, subject, item)?.value
+}
+
+/// Returns the own target the baseline file sets for one measurement of a metric: of a subject,
+/// and of one of its items.
+pub(crate) fn target(metric: &Metric, subject: Option<&str>, item: Option<&str>) -> Option<Value> {
+    lookup(metric, subject, item)?.target
+}
+
+/// Returns a metric's record of one measurement: of a subject, and of one of its items.
+fn lookup<'m>(metric: &'m Metric, subject: Option<&str>, item: Option<&str>) -> Option<&'m Record> {
+    let mut baseline = metric.baseline.as_ref()?;
+    for key in [subject, item].into_iter().flatten() {
+        let Baseline::Map(entries) = baseline else {
+            return None;
+        };
+        baseline = &entries.iter().find(|(name, _)| name == key)?.1;
+    }
+    match baseline {
+        Baseline::Record(record) => Some(record),
+        Baseline::Map(_) => None,
     }
 }
 
@@ -611,46 +760,42 @@ fn find<'c>(config: &'c Config, category: &str, metric: &str) -> Option<&'c Metr
 /// Parses a metric's `baseline`: a record, a mapping of items or subjects to records, or a
 /// mapping of subjects to mappings of items.
 pub(crate) fn parse(source: &str, node: &Node) -> Result<Baseline, Error> {
-    fn parse_at(source: &str, node: &Node, depth: usize) -> Result<Baseline, Error> {
-        match &node.kind {
-            NodeKind::Mapping(pairs) if depth < 2 && !pairs.is_empty() => pairs
-                .iter()
-                .map(|(key, value)| {
-                    let key = key.text().ok_or_else(|| invalid(source, key.offset))?;
-                    Ok((key.to_owned(), parse_at(source, value, depth + 1)?))
-                })
-                .collect::<Result<_, Error>>()
-                .map(Baseline::Map),
-            NodeKind::Scalar { text, .. } if !node.is_null() => record(text)
-                .map(Baseline::Record)
-                .ok_or_else(|| invalid(source, node.offset)),
-            _ => Err(invalid(source, node.offset)),
-        }
-    }
-
     parse_at(source, node, 0)
 }
 
-/// Formats a record as metric lines write it, such as `61kB target 80kB`, `412`, or
-/// `target 20ms`. Returns whether it is a number, which TOML writes without quotes.
-pub(crate) fn text(record: Record) -> (String, bool) {
-    let parts: Vec<String> = [
-        record.value.map(exact),
-        record
-            .target
-            .map(|target| format!("target {}", exact(target))),
-    ]
-    .into_iter()
-    .flatten()
-    .collect();
-    let number = matches!(
-        record,
-        Record {
-            target: None,
-            value: Some(Value::Count(_))
-        }
-    );
-    (parts.join(" "), number)
+/// Parses a baseline at `depth` mappings below the metric, which allows two.
+fn parse_at(source: &str, node: &Node, depth: usize) -> Result<Baseline, Error> {
+    if let Some(record) = record(source, node) {
+        return record.map(Baseline::Record);
+    }
+    match &node.kind {
+        NodeKind::Mapping(pairs) if depth < 2 && !pairs.is_empty() => pairs
+            .iter()
+            .map(|(key, value)| {
+                let key = key.text().ok_or_else(|| invalid(source, key.offset))?;
+                Ok((key.to_owned(), parse_at(source, value, depth + 1)?))
+            })
+            .collect::<Result<_, Error>>()
+            .map(Baseline::Map),
+        _ => Err(invalid(source, node.offset)),
+    }
+}
+
+/// Formats a record as an inline mapping, such as `{ baseline: 61kB, target: 80kB }` in YAML or
+/// `{ baseline = "61kB", target = "80kB" }` in TOML, which writes counts without quotes.
+fn inline(record: Record, format: Format) -> String {
+    let parts: Vec<String> = [("baseline", record.value), ("target", record.target)]
+        .into_iter()
+        .filter_map(|(key, value)| {
+            let value = value?;
+            Some(match (format, value) {
+                (Format::Toml, Value::Count(_)) => format!("{key} = {}", exact(value)),
+                (Format::Toml, _) => format!("{key} = {}", quoted(&exact(value))),
+                (Format::Yaml, _) => format!("{key}: {}", exact(value)),
+            })
+        })
+        .collect();
+    format!("{{ {} }}", parts.join(", "))
 }
 
 /// Formats a value so it parses back to the same amount, in the largest unit that keeps the number
@@ -732,31 +877,27 @@ fn pair<'a>(
     }
 }
 
-/// Returns the entry a scored metric records, or `None` for a timing without line targets.
+/// Returns the entry a scored metric records, with the target each measurement scored against,
+/// or `None` for a timing without targets.
 fn entry(metric: &MetricScore) -> Option<Entry> {
     let timing = varies(metric);
+    let default = metric.metric.target;
 
     if metric.items.is_empty() {
         let value = (!timing).then(|| metric.single());
-        if value.is_none() && metric.line_target.is_none() {
+        let target = metric.own_target.or(default);
+        if value.is_none() && target.is_none() {
             return None;
         }
-        return Some(Entry::Single(Record {
-            target: metric.line_target,
-            value,
-        }));
+        return Some(Entry::Single(Record { target, value }));
     }
 
-    // An item's own target is its line's, unless a pattern in `targets` overrides it.
     let mut items: Vec<(String, Record)> = metric
         .items
         .iter()
         .map(|item| {
-            let line = item
-                .target
-                .filter(|_| metric.metric.pattern(&item.name).is_none());
             let record = Record {
-                target: line,
+                target: item.target.or(default),
                 value: (!timing).then_some(item.value),
             };
             (item.name.clone(), record)
@@ -853,9 +994,49 @@ fn same(a: f64, b: f64) -> bool {
     (a - b).abs() <= f64::EPSILON * a.abs().max(b.abs())
 }
 
-/// Parses a record: a value, a value followed by `target <value>`, or `target <value>` alone for a
-/// timing.
-fn record(text: &str) -> Option<Record> {
+/// Parses a record node: a mapping with `baseline`, `target`, or both, such as
+/// `{ baseline: 61kB, target: 80kB }`, or the short form of older files, such as
+/// `61kB target 80kB`. Returns `None` for a node of another form, such as a mapping of items.
+fn record(source: &str, node: &Node) -> Option<Result<Record, Error>> {
+    let pairs = match &node.kind {
+        NodeKind::Scalar { text, .. } if !node.is_null() => {
+            return Some(short(text).ok_or_else(|| invalid(source, node.offset)));
+        }
+        NodeKind::Mapping(pairs)
+            if pairs
+                .iter()
+                .all(|(_, value)| matches!(value.kind, NodeKind::Scalar { .. }))
+                && pairs
+                    .iter()
+                    .any(|(key, _)| matches!(key.text(), Some("baseline" | "target"))) =>
+        {
+            pairs
+        }
+        _ => return None,
+    };
+
+    let mut record = Record::default();
+    for (key, node) in pairs {
+        let text = node.text().filter(|_| !node.is_null());
+        let parsed = match key.text() {
+            Some("baseline") => text
+                .and_then(baseline_value)
+                .map(|value| record.value = Some(value)),
+            Some("target") => text
+                .and_then(target_value)
+                .map(|target| record.target = Some(target)),
+            _ => return Some(Err(invalid(source, key.offset))),
+        };
+        if parsed.is_none() {
+            return Some(Err(invalid(source, node.offset)));
+        }
+    }
+    Some(Ok(record))
+}
+
+/// Parses the short form of a record: a value, a value followed by `target <value>`, or
+/// `target <value>` alone for a timing.
+fn short(text: &str) -> Option<Record> {
     let (recorded, target) = match text.strip_prefix("target ") {
         Some(target) => (None, Some(target)),
         None => match text.split_once(" target ") {
@@ -864,24 +1045,30 @@ fn record(text: &str) -> Option<Record> {
         },
     };
 
-    let value = match recorded {
-        Some(recorded) => Some(
-            value::parse(recorded)
-                .ok()
-                .filter(|value| value.kind() != Kind::Time)?,
-        ),
-        None => None,
-    };
-    let target = match target {
-        Some(target) => Some(
-            value::parse(target)
-                .ok()
-                .filter(|target| target.amount().is_some())?,
-        ),
-        None => None,
-    };
+    Some(Record {
+        target: match target {
+            Some(target) => Some(target_value(target)?),
+            None => None,
+        },
+        value: match recorded {
+            Some(recorded) => Some(baseline_value(recorded)?),
+            None => None,
+        },
+    })
+}
 
-    Some(Record { target, value })
+/// Parses an accepted value: a size, count, or check, since a timing has none.
+fn baseline_value(text: &str) -> Option<Value> {
+    value::parse(text)
+        .ok()
+        .filter(|value| value.kind() != Kind::Time)
+}
+
+/// Parses a target, which has an amount, so a check cannot be one.
+fn target_value(text: &str) -> Option<Value> {
+    value::parse(text)
+        .ok()
+        .filter(|target| target.amount().is_some())
 }
 
 #[cold]
@@ -890,7 +1077,7 @@ fn cannot(metric: &str, location: Option<Location>) -> Error {
         code: Code::InvalidType,
         location,
         message: format!(
-            "Uphill cannot move the baseline of metric `{metric}` into the baseline file. Delete the metric's `baseline` key, then run `uphill --update` again"
+            "Uphill cannot move the `target`, `targets`, or `baseline` key of metric `{metric}` into the baseline file. Move them by hand, then run `uphill --update` again"
         ),
     }
 }
@@ -901,7 +1088,7 @@ fn not_mapping(source: &str, offset: usize) -> Error {
         Code::InvalidType,
         source,
         offset,
-        "expected a mapping of category names to metrics, and of metric names to baselines. Run `uphill --update` to rewrite the baseline file".to_owned(),
+        "expected a mapping of category names to metrics, and of metric names to targets and baselines".to_owned(),
     )
 }
 
@@ -911,6 +1098,6 @@ fn invalid(source: &str, offset: usize) -> Error {
         Code::InvalidValue,
         source,
         offset,
-        "expected a size, count, or check, optionally followed by `target <value>`, or a mapping of items or subjects to them. Run `uphill --update` to rewrite the baseline".to_owned(),
+        "expected `{ baseline: <value>, target: <value> }` with either key or both, or a mapping of items, patterns, or subjects to them. A baseline is a size, count, or check, and a target is a size, time, or count".to_owned(),
     )
 }

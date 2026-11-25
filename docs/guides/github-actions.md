@@ -108,7 +108,7 @@ The last line names the command, the commit, and the workflow run. This excerpt 
 
 ### Gate on Baselines
 
-`--require-baseline` fails the job when a size, count, check, or line target differs from its baseline, so each change to them comes with an `uphill --update`.
+`--require-baseline` fails the job when a size, count, or check differs from its baseline, so each change to them comes with an `uphill --update`.
 
 ```yaml title=".github/workflows/uphill.yml"
 # Fail when anything differs from the baselines.

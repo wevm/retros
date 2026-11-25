@@ -1,0 +1,7 @@
+# The pack's targets go with its categories. Its sizes and counts stay behind.
+
+footprint:
+  total: { baseline: 900B, target: 1kB }
+
+lines:
+  count: { baseline: 1200 }

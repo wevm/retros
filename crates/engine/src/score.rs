@@ -1,15 +1,16 @@
 //! Scores: medians across rounds, list roll-ups, Lighthouse's log-normal curve, the weighted
 //! mean of a category, and the opportunities that would raise it.
 //!
-//! Each measurement is scored against its own target: the first pattern in the metric's `targets`
-//! that matches its item, else the target its line sets, else the metric's `target`. A value at
-//! its target scores 90, and a value at the metric's `poor`, twice the target by default, scores
-//! 50. A list collapses to the item furthest past its own target at the configured rank, so the
-//! p90 of a list is the item with at most a tenth of the list further past its target. Scores
+//! Each measurement is scored against its own target: the one the baseline file sets for it, else
+//! the first pattern that matches its item, else the target its line sets, else the default. A
+//! value at its target scores 90, and a value at the metric's `poor`, twice the target by default,
+//! scores 50. A list collapses to the item furthest past its own target at the configured rank, so
+//! the p90 of a list is the item with at most a tenth of the list further past its target. Scores
 //! follow Lighthouse's arithmetic: a metric's score is a whole number from 0 to 100, from
 //! `Util.computeLogNormalScore`, and a category's score is the weighted mean of its metric scores
 //! as `ReportScoring.arithmeticMean` computes it, rounded.
 
+use crate::baseline;
 use crate::config::{Better, Category, Metric, Rollup};
 use crate::lines::Line;
 use crate::value::{Kind, Value};
@@ -44,12 +45,13 @@ pub struct MetricScore {
     pub items: Vec<Item>,
     /// The kind of value the script wrote.
     pub kind: Kind,
-    /// The target the line sets, for a metric written without items.
-    pub line_target: Option<Value>,
     /// The metric's configuration.
     pub metric: Metric,
     /// The note the line sets, for a metric written without items.
     pub note: Option<String>,
+    /// The own target of a metric written without items: from the baseline file, or else from
+    /// its line.
+    pub own_target: Option<Value>,
     /// The score from 0 to 100. A check has one unless every item skips, and other metrics have
     /// one when every measurement has a target.
     pub score: Option<u8>,
@@ -85,8 +87,8 @@ pub struct Item {
     pub name: String,
     /// Why the item is what it is, from its line in the first round.
     pub note: Option<String>,
-    /// The item's own target instead of the metric's default: from the first pattern in
-    /// `targets` that matches it, or else from its line.
+    /// The item's own target when it differs from the metric's default: from the baseline file,
+    /// or else from the first pattern that matches it, or else from its line.
     pub target: Option<Value>,
     /// The item's value. A timing item holds its median across rounds.
     pub value: Value,
@@ -372,12 +374,14 @@ pub(crate) fn metric(metric: &Metric, rounds: &[Vec<Line<'_>>]) -> Option<Metric
                 line.value
             };
 
-            // A pattern in `targets` has the final say, then the line's own target.
-            let own = line
-                .item
-                .as_deref()
-                .and_then(|item| metric.pattern(item))
-                .map(|pattern| pattern.target)
+            // The baseline file's own target has the final say, then a pattern, then the line's.
+            let own = baseline::target(metric, line.subject, line.item.as_deref())
+                .or_else(|| {
+                    line.item
+                        .as_deref()
+                        .and_then(|item| metric.pattern(item))
+                        .map(|pattern| pattern.target)
+                })
                 .or(line.target);
 
             Measure {
@@ -390,7 +394,8 @@ pub(crate) fn metric(metric: &Metric, rounds: &[Vec<Line<'_>>]) -> Option<Metric
         })
         .collect();
     let unlisted = lines.first().filter(|line| line.item.is_none());
-    let line_target = unlisted.and_then(|line| line.target);
+    let own_target =
+        unlisted.and_then(|line| baseline::target(metric, line.subject, None).or(line.target));
     let note = unlisted.and_then(|line| line.note.as_deref().map(str::to_owned));
 
     let evaluated = evaluate(metric, kind, &measures);
@@ -425,13 +430,13 @@ pub(crate) fn metric(metric: &Metric, rounds: &[Vec<Line<'_>>]) -> Option<Metric
                 Some(Item {
                     name: measure.name?,
                     note: measure.note,
-                    target: measure.own,
+                    target: measure.own.filter(|own| Some(*own) != metric.target),
                     value: measure.value,
                 })
             })
             .collect(),
         kind,
-        line_target,
+        own_target,
         metric: metric.clone(),
         note,
         score: evaluated.score,
@@ -523,8 +528,8 @@ fn measures(metric: &MetricScore) -> Vec<Measure> {
         return vec![Measure {
             name: None,
             note: None,
-            own: metric.line_target,
-            target: metric.line_target.and_then(Value::amount).or(default),
+            own: metric.own_target,
+            target: metric.own_target.and_then(Value::amount).or(default),
             value,
         }];
     }

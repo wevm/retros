@@ -22,13 +22,22 @@ This walkthrough times a `slugify` function in a Git repository. A branch adds a
 The script times 100,000 calls and writes the time per call. A second category writes the size of the source, and its baseline is committed on `main`.
 
 ```yaml title="uphill.yaml"
-# One category writes a size with a baseline, and one writes a time.
+# One category writes a size, and one writes a time.
 footprint:
   run: sh metrics/footprint.sh
-  source-size: { target: 1kB, baseline: 138B }
+  source-size: {}
 
 speed:
   run: bun metrics/speed.ts
+  slugify-time: {}
+```
+
+```yaml title="uphill.baseline.yaml"
+# The size has a baseline beside its target, and the time has only its target.
+footprint:
+  source-size: { baseline: 138B, target: 1kB }
+
+speed:
   slugify-time: { target: 500ns }
 ```
 
@@ -110,7 +119,7 @@ setup: bun install --frozen-lockfile
 
 speed:
   run: bun metrics/speed.ts
-  slugify-time: { target: 500ns }
+  slugify-time: {}
 ```
 
 ### Gate on Targets
@@ -130,7 +139,7 @@ Missed targets
 
 `<ref>` is any revision Git resolves, such as a branch, a tag, or a commit. Both revisions run the categories and commands of the current checkout.
 
-When `uphill.yaml`, apart from its baselines, or a file that a `run` command names differs in `<ref>`, Uphill prints a warning. Here, the current checkout has a tighter target:
+When `uphill.yaml`, a default target or pattern, or a file that a `run` command names differs in `<ref>`, Uphill prints a warning. Accepted values and each item's own target do not count. Here, the current checkout has a tighter default target:
 
 ```text
 $ uphill --compare v1.2.0

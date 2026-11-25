@@ -37,6 +37,7 @@ fn render(report: &Report, config: &str, metrics: &str) -> String {
 
     for (severity, finding) in findings {
         let (name, source) = match finding.source {
+            Source::Baselines => ("uphill.baseline.yaml", ""),
             Source::Config => ("uphill.yaml", config),
             Source::Metrics => ("footprint metrics", metrics),
         };
@@ -122,7 +123,7 @@ fn reports_values_that_do_not_match_their_target() {
 
     insta::assert_snapshot!(report, @"
     passed: false, metrics: 2
-    error [target-unit] footprint metrics:1:1: metric `export-size` is written as counts, but its configured `target` is a size
+    error [target-unit] footprint metrics:1:1: metric `export-size` is written as counts, but its default target is a size
       1 | export-size 412
         | ^
     ");
@@ -134,7 +135,7 @@ fn reports_targets_on_some_lines_only() {
 
     insta::assert_snapshot!(report, @"
     passed: false, metrics: 2
-    error [mixed-targets] footprint metrics:3:1: metric `modules` sets a target on some items but not this one. Set a target on every line, or a default `target` for the metric
+    error [mixed-targets] footprint metrics:3:1: metric `modules` sets a target on some items but not this one. Set a target on every line, or a default target for the metric in the baseline file
       3 | modules ox 120
         | ^
     ");
@@ -154,13 +155,13 @@ fn checks_target_patterns() {
 
     insta::assert_snapshot!(report, @r#"
     passed: false, metrics: 1
-    error [mixed-targets] footprint metrics:4:1: metric `modules` sets a target on some items but not this one. Set a target on every line, or a default `target` for the metric
+    error [mixed-targets] footprint metrics:4:1: metric `modules` sets a target on some items but not this one. Set a target on every line, or a default target for the metric in the baseline file
       4 | modules zod 9
         | ^
     error [target-unit] uphill.yaml:3:39: metric `modules` is written as counts, but its target for `ox` is a size
       3 |   modules: { targets: { "viem*": 500, "ox": "1kB", "abitype": 50 } }
         |                                       ^
-    warning [unmatched-pattern] uphill.yaml:3:52: pattern `abitype` in the `targets` of metric `modules` matches no item
+    warning [unmatched-pattern] uphill.yaml:3:52: pattern `abitype` in the targets of metric `modules` matches no item
       3 |   modules: { targets: { "viem*": 500, "ox": "1kB", "abitype": 50 } }
         |                                                    ^
     "#);

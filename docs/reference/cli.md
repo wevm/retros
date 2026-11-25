@@ -29,7 +29,7 @@ uphill speed
 
 ### `uphill`
 
-Runs each category's script, scores its metrics, lists the opportunities that raise the scores most, and compares sizes, counts, checks, and line targets with each metric's baseline. It writes `report.json`, `report.md`, and `report.html` to `.uphill/`.
+Runs each category's script, scores its metrics, lists the opportunities that raise the scores most, and compares sizes, counts, and checks with each metric's baseline. It writes `report.json`, `report.md`, and `report.html` to `.uphill/`.
 
 ```sh
 # Score every category and write the reports.
@@ -246,7 +246,7 @@ uphill --compare main
 
 ### `--update`
 
-Writes this run's sizes, counts, checks, and line targets to the baseline file beside the configuration, `uphill.baseline.yaml` or `uphill.baseline.toml`. It also moves the `baseline` keys of an older configuration into that file, and keeps the rest of the configuration as it was.
+Writes this run's sizes, counts, and checks to the baseline file beside the configuration, `uphill.baseline.yaml` or `uphill.baseline.toml`, each beside the target it scored against. It also moves the `target`, `targets`, and `baseline` keys of an older configuration into that file, and keeps the rest of the configuration as it was.
 
 ```sh
 # Accept this run as the baseline.

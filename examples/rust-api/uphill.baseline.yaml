@@ -1,0 +1,12 @@
+# Each metric's `target`. `uphill --update` adds each accepted size, count, or check as its
+# `baseline`, beside the target it scored against.
+
+footprint:
+  binary-size: { target: 1MB }
+  dependencies: { target: 10 }
+
+latency:
+  throughput: { target: 5000 }
+
+reliability:
+  error-rate: { target: 1 }

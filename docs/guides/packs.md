@@ -22,6 +22,7 @@ This walkthrough adds the `performance` category of the web-app example to a sit
 ```text
 $ uphill add wevm/uphill/examples/web-app performance
 Added performance to .agents/uphill.yaml
+Added their targets to .agents/uphill.baseline.yaml
 Added .agents/metrics/
 
 The pack prepares each checkout with `setup: bun install --frozen-lockfile`. Add it to .agents/uphill.yaml if the scripts need it
@@ -40,13 +41,24 @@ The category's `run` points at the copied scripts. A script in a directory, such
 # The project's own category stays as it was.
 footprint:
   run: sh .agents/metrics/footprint.sh
-  bundle-size: { target: 5kB }
+  bundle-size: {}
 
 # Added by `uphill add wevm/uphill/examples/web-app performance` at 03fa96e3deae.
 performance:
   run: bun .agents/metrics/lighthouse.ts performance
   # Lighthouse's five metrics on each page, with Lighthouse's weights.
-  first-contentful-paint: { target: 800ms, weight: 10 }
+  first-contentful-paint: { weight: 10 }
+```
+
+The default targets and patterns of the pack's baseline file go into the project's baseline file, for each metric that has none there. The pack's accepted values stay behind.
+
+```yaml title=".agents/uphill.baseline.yaml"
+# The project's own target, then the targets the pack sets.
+footprint:
+  bundle-size: { target: 5kB }
+
+performance:
+  first-contentful-paint: { target: 800ms }
 ```
 
 ### Fit It
@@ -86,7 +98,7 @@ uphill add wevm/uphill/examples/typescript-library@v0.0.3 quality
 
 ### Update a Pack
 
-`uphill add --update` fetches each added category's pack and compares three versions of each category and script: the pack at the recorded commit, the project, and the pack now. A version that only one side changed wins.
+`uphill add --update` fetches each added category's pack and compares three versions of each category and script: the pack at the recorded commit, the project, and the pack now. A version that only one side changed wins. The project owns its targets after `uphill add`, so an update leaves the baseline file as it is.
 
 ```text
 $ uphill add --update

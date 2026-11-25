@@ -2,6 +2,7 @@
 
 use std::collections::BTreeSet;
 
+use crate::baseline;
 use crate::config::Category;
 use crate::error::{Code, Error};
 use crate::lines::Line;
@@ -9,6 +10,8 @@ use crate::lines::Line;
 /// The text a finding points into.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Source {
+    /// The baseline file, `uphill.baseline.yaml`.
+    Baselines,
     /// `uphill.yaml`.
     Config,
     /// The metric lines the category's script wrote.
@@ -203,9 +206,10 @@ fn check_group(category: &Category, name: &str, group: &[&Line<'_>], report: &mu
             ),
         )),
         Some(metric) => {
-            // An item has its own target from a pattern in `targets` or from its line.
+            // An item has its own target from the baseline file, a pattern, or its line.
             let own = |line: &Line<'_>| {
                 line.target.is_some()
+                    || baseline::target(metric, line.subject, line.item.as_deref()).is_some()
                     || line
                         .item
                         .as_deref()
@@ -219,7 +223,7 @@ fn check_group(category: &Category, name: &str, group: &[&Line<'_>], report: &mu
                     Code::MixedTargets,
                     line,
                     format!(
-                        "metric `{name}` sets a target on some items but not this one. Set a target on every line, or a default `target` for the metric"
+                        "metric `{name}` sets a target on some items but not this one. Set a target on every line, or a default target for the metric in the baseline file"
                     ),
                 ));
             }
@@ -231,11 +235,35 @@ fn check_group(category: &Category, name: &str, group: &[&Line<'_>], report: &mu
                     Code::TargetUnit,
                     first,
                     format!(
-                        "metric `{name}` is written as {}, but its configured `target` is {}",
+                        "metric `{name}` is written as {}, but its default target is {}",
                         kind.plural(),
                         target.kind().singular()
                     ),
                 ));
+            }
+
+            if let Some((line, target)) = group.iter().find_map(|line| {
+                baseline::target(metric, line.subject, line.item.as_deref())
+                    .filter(|target| target.kind() != kind)
+                    .map(|target| (line, target))
+            }) {
+                let item = line
+                    .item
+                    .as_deref()
+                    .map(|item| format!(" for `{item}`"))
+                    .unwrap_or_default();
+                report.errors.push(Finding {
+                    error: Error {
+                        code: Code::TargetUnit,
+                        location: None,
+                        message: format!(
+                            "metric `{name}` is written as {}, but its target{item} is {}",
+                            kind.plural(),
+                            target.kind().singular()
+                        ),
+                    },
+                    source: Source::Baselines,
+                });
             }
 
             for pattern in &metric.targets {
@@ -245,7 +273,7 @@ fn check_group(category: &Category, name: &str, group: &[&Line<'_>], report: &mu
                         location: Some(pattern.location),
                         message,
                     },
-                    source: Source::Config,
+                    source: pattern.source,
                 };
 
                 if pattern.target.kind() != kind {
@@ -266,7 +294,7 @@ fn check_group(category: &Category, name: &str, group: &[&Line<'_>], report: &mu
                     report.warnings.push(finding(
                         Code::UnmatchedPattern,
                         format!(
-                            "pattern `{}` in the `targets` of metric `{name}` matches no item",
+                            "pattern `{}` in the targets of metric `{name}` matches no item",
                             pattern.pattern
                         ),
                     ));

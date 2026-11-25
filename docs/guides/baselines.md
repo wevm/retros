@@ -4,14 +4,14 @@ A baseline is the last accepted value of a metric. Uphill compares every run wit
 
 ## Overview
 
-`uphill --update` writes each metric's accepted value to `uphill.baseline.yaml`, beside the configuration. Both files are committed, so accepting a regression or loosening a script's target is a reviewed change, like any other line of code.
+`uphill --update` writes each metric's accepted value to `uphill.baseline.yaml`, beside the configuration, next to its target. Both files are committed, so accepting a regression or loosening a target is a reviewed change, like any other line of code.
 
-Baselines hold sizes, counts, checks, and the targets scripts write on their lines. These are the same on every machine. Timings differ between machines, so a baseline never holds them. The [Comparing Revisions](./comparing.md) guide compares timings instead.
+Baselines hold sizes, counts, and checks. These are the same on every machine. Timings differ between machines, so a baseline never holds them, and a timing keeps only its target. The [Comparing Revisions](./comparing.md) guide compares timings instead.
 
 ```yaml title="uphill.baseline.yaml"
-# uphill --update wrote this file. The configuration keeps only what people write.
+# The accepted value and the target, side by side.
 footprint:
-  bundle-size: 6.9kB
+  bundle-size: { baseline: 6.9kB, target: 5kB }
 ```
 
 ## Walkthrough
@@ -20,7 +20,7 @@ This walkthrough uses the `pages` category from [Writing Scripts](./scripts.md),
 
 ### Record the Values
 
-`uphill --update` runs every category and writes what it measured. A metric with items takes one line per item, so a later change to one item shows as one line in a diff. The configuration stays as it was.
+`uphill --update` runs every category and writes what it measured, beside each item's target. A metric with items takes one line per item, so a later change to one item shows as one line in a diff. The configuration stays as it was.
 
 ```text
 $ uphill --update
@@ -29,16 +29,17 @@ Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html, uphill.baseli
 ```
 
 ```yaml title="uphill.baseline.yaml"
-# The pages category writes two metrics per page.
+# The pages category writes two metrics per page. Each page size scores against 20 kB.
 pages:
   page-size:
-    about.html: 9015B
-    index.html: 14034B
-    pricing.html: 31037B
+    "*": { target: 20kB }
+    about.html: { baseline: 9015B, target: 20kB }
+    index.html: { baseline: 14034B, target: 20kB }
+    pricing.html: { baseline: 31037B, target: 20kB }
   has-title:
-    about.html: fail
-    index.html: pass
-    pricing.html: pass
+    about.html: { baseline: fail }
+    index.html: { baseline: pass }
+    pricing.html: { baseline: pass }
 ```
 
 ### Read the Changes
@@ -71,48 +72,49 @@ $ uphill --require-baseline
 
 ```diff title="uphill.baseline.yaml"
    page-size:
-     about.html: 9015B
-+    blog.html: 4034B
-     index.html: 14034B
--    pricing.html: 31037B
-+    pricing.html: 33037B
+     "*": { target: 20kB }
+     about.html: { baseline: 9015B, target: 20kB }
++    blog.html: { baseline: 4034B, target: 20kB }
+     index.html: { baseline: 14034B, target: 20kB }
+-    pricing.html: { baseline: 31037B, target: 20kB }
++    pricing.html: { baseline: 33037B, target: 20kB }
    has-title:
--    about.html: fail
-+    about.html: pass
-+    blog.html: pass
-     index.html: pass
-     pricing.html: pass
+-    about.html: { baseline: fail }
++    about.html: { baseline: pass }
++    blog.html: { baseline: pass }
+     index.html: { baseline: pass }
+     pricing.html: { baseline: pass }
 ```
 
 ## Recipes
 
 ### Record Line Targets
 
-A baseline records the target a script writes on a line, after the value. When a script changes its own target, the run reports it as looser or tighter, so a loosened target cannot pass review unseen.
+An item without its own target takes the target its script writes on the line, and `uphill --update` records it. Until then, the run reports it as looser or tighter than the pattern or default it replaces. Afterwards, the file's target has the final say.
 
 ```yaml title="uphill.baseline.yaml"
-# The chains entry point wrote a 15 kB target on its line.
+# The chains entry point wrote a 15 kB target on its line, and the update recorded it.
 footprint:
   entry-size:
-    chains: 12033B target 15kB
-    index: 6112B
-    utils: 1132B
+    "*": { target: 5kB }
+    chains: { baseline: 12033B, target: 15kB }
+    index: { baseline: 6112B, target: 5kB }
 ```
 
 ```text
 Since the baseline
-  looser  footprint  entry-size chains  target 15 kB → 20 kB
+  looser  footprint  entry-size chains  target 5 kB → 15 kB
 ```
 
 ### Varying Values
 
-A size or count that differs between runs, such as peak memory, sets `varies: true`. Uphill takes its median across rounds like a time, and its baseline records only its line targets.
+A size or count that differs between runs, such as peak memory, sets `varies: true`. Uphill takes its median across rounds like a time, and its baseline records only its target.
 
 ```yaml title="uphill.yaml"
 # Peak memory differs between runs, so it is scored on the median of 5 rounds.
 speed:
   run: sh metrics/speed.sh
-  peak-memory: { target: 64MB, varies: true }
+  peak-memory: { varies: true }
 ```
 
 ### Baselines in TOML
@@ -120,22 +122,28 @@ speed:
 A project with `uphill.toml` gets `uphill.baseline.toml`. A metric with items takes a table of its own, one line per item.
 
 ```toml title="uphill.baseline.toml"
-# uphill --update wrote this file beside uphill.toml.
+# The baseline file beside uphill.toml.
 [footprint.entry-size]
-chains = "12033B target 15kB"
-index = "6112B"
-utils = "1132B"
+"*" = { target = "5kB" }
+chains = { baseline = "12033B", target = "15kB" }
+index = { baseline = "6112B", target = "5kB" }
 ```
 
-### Move Older Baselines
+### Move Older Keys
 
-Older configurations set a `baseline` key on each metric. Uphill still reads it, and `uphill --update` moves every one into the baseline file and removes the key, keeping the rest of the configuration as it was.
+Older configurations set `target`, `targets`, and `baseline` keys on each metric. Uphill still reads them, and `uphill --update` moves every one into the baseline file and removes the key, keeping the rest of the configuration as it was.
 
 ```diff title="uphill.yaml"
  footprint:
    run: sh metrics/footprint.sh
 -  bundle-size: { target: 5kB, baseline: 6.9kB }
-+  bundle-size: { target: 5kB }
++  bundle-size: {}
+```
+
+```yaml title="uphill.baseline.yaml"
+# The update writes the moved target beside the new value.
+footprint:
+  bundle-size: { baseline: 7.1kB, target: 5kB }
 ```
 
 ### Trace a Metric
@@ -152,7 +160,7 @@ footprint source-size in the baselines of uphill.baseline.yaml
 
 ### Gate in CI
 
-A CI job that runs `uphill --require-baseline` fails each pull request that changes a size, count, check, or line target without running `uphill --update`. The [GitHub Actions](./github-actions.md) guide passes it through the `args` input.
+A CI job that runs `uphill --require-baseline` fails each pull request that changes a size, count, or check without running `uphill --update`. The [GitHub Actions](./github-actions.md) guide passes it through the `args` input.
 
 ```yaml title=".github/workflows/uphill.yml"
 # Fail the pull request when a value differs from its baseline.
@@ -165,5 +173,5 @@ A CI job that runs `uphill --require-baseline` fails each pull request that chan
 
 - [Comparing Revisions](./comparing.md): Compare timings with another revision.
 - [Targets](./targets.md): Set targets per item and by pattern.
-- [Configuration](../reference/configuration.md): The baseline key and its format.
+- [Configuration](../reference/configuration.md): The baseline file and its format.
 - [CLI](../reference/cli.md): --update, --require-baseline, and exit status.

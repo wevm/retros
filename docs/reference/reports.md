@@ -177,14 +177,14 @@ Each object in `metrics` describes one metric and its items.
 | `item`        | string or `null` | The item the roll-up selected                                                        |
 | `score`       | number or `null` | The metric score, or `null` without a target or for a check that skips               |
 | `target`      | number or `null` | The target of the selected item, or the total for a `sum`                            |
-| `default`     | number or `null` | The `target` key, which each item without its own target must meet                   |
+| `default`     | number or `null` | The default target, which each item without its own target must meet                 |
 | `note`        | string or `null` | The note of a metric written without items                                           |
 | `better`      | string           | `lower` or `higher`                                                                  |
 | `weight`      | number           | The `weight` key                                                                     |
 | `rollup`      | string or `null` | `p90`, `p10`, `median`, `max`, `min`, or `sum`, and `null` for checks                |
 | `items`       | array            | Each item's `name`, `value`, `target`, and `note`, worst first                       |
 
-An item's `target` is its own target, from its line or a `targets` pattern, and `null` when it uses the metric's `default`. A check item's `value` is `true` or `false`, or `null` when it skips.
+An item's `target` is its own target, from the baseline file, a pattern, or its line, and `null` when it equals the metric's `default`. A check item's `value` is `true` or `false`, or `null` when it skips.
 
 ```json
 {

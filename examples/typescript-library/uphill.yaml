@@ -9,17 +9,17 @@ setup: bun install --frozen-lockfile
 footprint:
   run: bun metrics/footprint.ts
   # Bytes of every file the package publishes.
-  install-size: { target: 20kB }
+  install-size: {}
   # Runtime dependencies in package.json.
-  dependencies: { target: 2 }
+  dependencies: {}
   # Gzipped bytes of each entry point, bundled and minified. The root re-exports every subpath, so
   # the script sets its target to their sum and 10% more.
-  entry-size: { target: 1kB }
+  entry-size: {}
   # Gzipped bytes when a consumer imports one export from the root entry point.
-  export-size: { target: 200B }
+  export-size: {}
   # Bytes an export costs when imported from the root instead of its own entry point. Anything above
   # zero is code that tree-shaking failed to drop.
-  unused-bytes: { target: 50B }
+  unused-bytes: {}
   # Every export of the root entry point. No target: its baseline records the count, so an added or
   # removed export shows in review.
   exports: {}
@@ -27,10 +27,10 @@ footprint:
 speed:
   run: bun metrics/speed.ts
   # Time to import each entry point in a fresh process. The root loads every module.
-  import-time: { target: 2ms, targets: { ".": 3ms } }
+  import-time: {}
   # Median time per call of each formatter, measured by mitata. Formatters that call `Intl` get
   # more room than arithmetic.
-  call-time: { target: 500ns, targets: { grouped: 2µs, weekday: 2µs } }
+  call-time: {}
 
 quality:
   run: bun metrics/quality.ts
@@ -38,7 +38,7 @@ quality:
   tests: {}
   # Percentage of lines tests cover in each source file. Higher is better, so the least covered file
   # is scored.
-  coverage: { target: 90, better: higher }
+  coverage: { better: higher }
   # Whether TypeScript reports no errors in each source file.
   types: {}
   # Whether oxlint reports nothing in each source file.

@@ -9,11 +9,11 @@ Uphill scores a project against its targets the way Lighthouse scores a page. Sc
 1. Find the project's surfaces: what its users import, open, call, or run, such as entry points, pages, endpoints, or commands.
 2. Pick two to four categories, such as `footprint`, `speed`, and `quality`. Each category has one script, kept in `.agents/metrics/` beside `.agents/uphill.yaml`. The examples keep both at their root, which works too.
 3. Write each script in the project's language, or in TypeScript run by Bun. Each script runs the tools the project already uses and turns what they report into metric lines. Such tools include its bundler, test runner, type checker, linter, formatter, benchmark harness, and Lighthouse. Measure a value by hand only when no tool reports it.
-4. Write `.agents/uphill.yaml` with each category's `run` command and its metrics. Give each size, time, and count a target the project must meet, unless every line sets its own, and give each metric a comment saying what it measures.
+4. Write `.agents/uphill.yaml` with each category's `run` command and its metrics, and give each metric a comment saying what it measures. Write `.agents/uphill.baseline.yaml` with a target the project must meet for each size, time, and count, unless every line sets its own.
 5. When one target does not fit every item, have the script write that item's own target on its line. A root entry point that bundles every subpath is one such item. Put the reason in a comment beside the code that sets the target.
 6. When a measurement misses, have the script write the tool's reason as its note. A failing test's message and the lint rule that fired are such reasons.
 7. Run `uphill check` and fix what it reports until it passes. Then run `uphill` and read the scores and opportunities.
-8. Add `.uphill/` to `.gitignore`. When the scores look right, run `uphill --update` to record each metric's baseline in `.agents/uphill.baseline.yaml`, and commit both files.
+8. Add `.uphill/` to `.gitignore`. When the scores look right, run `uphill --update` to record each value beside its target in `.agents/uphill.baseline.yaml`, and commit both files.
 
 ## Configuration
 
@@ -22,19 +22,31 @@ Uphill scores a project against its targets the way Lighthouse scores a page. Sc
 footprint:
   run: bun .agents/metrics/footprint.ts
   # Gzipped bytes of each entry point, bundled and minified.
-  entry-size: { target: 5kB }
+  entry-size: {}
 
 quality:
   run: bun .agents/metrics/quality.ts
   # Whether each test passes.
   tests: {}
   # Percentage of lines tests cover in each source file.
-  coverage: { target: 90, better: higher }
+  coverage: { better: higher }
 ```
 
-- Metric keys: `target`, `poor` (the value that scores 50, twice the target by default), `targets` (targets by item pattern, such as `{ "src/legacy/*": 60 }`), `better: higher` when more is better, `varies: true` for a size or count that differs between runs, `weight` (default 1), `score` (how a list collapses: `p90` by default, or `p10` when higher is better, `median`, `max`, `min`, `sum`), `title`, and `description`.
+```yaml
+# .agents/uphill.baseline.yaml. A record with only a target sets a metric's default target, and
+# a key with `*` sets targets by item pattern. `uphill --update` adds each value beside its target.
+footprint:
+  entry-size: { target: 5kB }
+
+quality:
+  coverage:
+    "*": { target: 90 }
+    "src/legacy/*": { target: 60 }
+```
+
+- Metric keys: `poor` (the value that scores 50, twice the target by default), `better: higher` when more is better, `varies: true` for a size or count that differs between runs, `weight` (default 1), `score` (how a list collapses: `p90` by default, or `p10` when higher is better, `median`, `max`, `min`, `sum`), `title`, and `description`.
 - Category keys: `run`, `timeout` (default `10m`), `title`, and `description`.
-- A check always scores the share of items that pass. A size, time, or count scores only when every item has a target, from the configuration or from its line, and a target is greater than zero.
+- A check always scores the share of items that pass. A size, time, or count scores only when every item has a target, from the baseline file or from its line, and a target is greater than zero.
 - A script whose first run writes a time, or a metric marked `varies`, runs 5 times for the median, and `timeout` applies to each run.
 - A top-level `setup` command, such as the project's install command, prepares each fresh checkout that `uphill --compare` and `uphill blame` create.
 

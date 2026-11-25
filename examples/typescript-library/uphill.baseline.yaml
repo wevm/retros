@@ -1,0 +1,21 @@
+# Each metric's `target`. `uphill --update` adds each accepted size, count, or check as its
+# `baseline`, beside the target it scored against.
+
+footprint:
+  install-size: { target: 20kB }
+  dependencies: { target: 2 }
+  entry-size: { target: 1kB }
+  export-size: { target: 200B }
+  unused-bytes: { target: 50B }
+
+speed:
+  import-time:
+    "*": { target: 2ms }
+    ".": { target: 3ms }
+  call-time:
+    "*": { target: 500ns }
+    grouped: { target: 2µs }
+    weekday: { target: 2µs }
+
+quality:
+  coverage: { target: 90 }

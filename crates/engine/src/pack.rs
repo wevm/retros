@@ -9,14 +9,17 @@
 //! Each category keeps its text, so the comments that say what each metric measures come with it.
 //! Its `run` command points at the copied scripts, and it takes the pack's top-level `run` and
 //! `timeout` when it sets none. A comment above it records the command that added it and the
-//! pack's commit, so `uphill add --update` fetches the pack again and merges its changes.
+//! pack's commit, so `uphill add --update` fetches the pack again and merges its changes. The
+//! default targets and patterns of the pack's baseline file go into the project's baseline file,
+//! once, for each metric that has none there. The project then owns its targets, so an update
+//! leaves them alone.
 //!
 //! ```yaml
 //! # Added by `uphill add wevm/uphill/examples/web-app performance` at 3e0053b4f1c2.
 //! performance:
 //!   run: bun .agents/metrics/lighthouse.ts performance
 //!   # Lighthouse's five metrics on each page, with Lighthouse's weights.
-//!   first-contentful-paint: { target: 800ms, weight: 10 }
+//!   first-contentful-paint: { weight: 10 }
 //! ```
 //!
 //! An update compares three versions of each category and each script: the pack at the recorded
@@ -26,7 +29,7 @@
 use std::fmt::Write as _;
 use std::time::Duration;
 
-use crate::baseline::{quoted, toml_key, yaml_key};
+use crate::baseline::{self, quoted, toml_key, yaml_key};
 use crate::config::{self, Category, Config, Format, without_locations};
 use crate::document::{self, Kind, Node};
 use crate::edit::{after_colon, line_end, line_start};
@@ -41,6 +44,9 @@ const ADDED: &str = "# Added by `uphill add ";
 /// The project's configuration after `uphill add`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Added {
+    /// The project's baseline file with the targets of the added categories' metrics, or `None`
+    /// when the pack's baseline file sets none that the project lacks.
+    pub baselines: Option<String>,
     /// The names of the added categories, in the order the pack declares them.
     pub categories: Vec<String>,
     /// The text of the project's `uphill.yaml` with the added categories at its end.
@@ -52,6 +58,8 @@ pub struct Added {
 
 /// What `add` copies from a pack, and where to.
 pub struct Options<'a> {
+    /// The text of the project's baseline file, or `None` when it has none.
+    pub baselines: Option<&'a str>,
     /// The pack's categories to add, or every category when it is empty.
     pub categories: &'a [String],
     /// The pack's commit, or `None` for a local directory.
@@ -62,6 +70,9 @@ pub struct Options<'a> {
     pub name: Option<&'a str>,
     /// The text of the pack's `uphill.yaml` or `uphill.toml`.
     pub pack: &'a str,
+    /// The text of the pack's baseline file, or `None` when it has none. Its targets come with
+    /// the categories, and its sizes, counts, and checks stay behind.
+    pub pack_baselines: Option<&'a str>,
     /// The format of the pack's configuration.
     pub pack_format: Format,
     /// The text of the project's configuration, or `None` when the project has none yet. A new
@@ -229,7 +240,9 @@ pub fn add(options: &mut Options<'_>) -> Result<Added, Error> {
     };
 
     verify(&config, options.format, expected)?;
+    let baselines = targets(options, &pack, &selected, &config)?;
     Ok(Added {
+        baselines,
         categories: selected
             .iter()
             .map(|category| options.name.unwrap_or(&category.name).to_owned())
@@ -237,6 +250,52 @@ pub fn add(options: &mut Options<'_>) -> Result<Added, Error> {
         config,
         setup,
     })
+}
+
+/// Returns the project's baseline file with the default targets and patterns that the pack's
+/// baseline file sets for the added categories' metrics, where the project sets none, or `None`
+/// when there are none to add. The pack's sizes, counts, checks, and item targets stay behind,
+/// since they belong to the pack's own code.
+fn targets(
+    options: &Options<'_>,
+    pack: &Config,
+    selected: &[&Category],
+    config: &str,
+) -> Result<Option<String>, Error> {
+    let Some(pack_baselines) = options.pack_baselines else {
+        return Ok(None);
+    };
+    let pack = baseline::read(pack.clone(), pack_baselines, options.pack_format)?;
+    let project = config::parse(config, options.format)?;
+    let mut project = match options.baselines {
+        Some(source) => baseline::read(project, source, options.format)?,
+        None => project,
+    };
+
+    let mut changed = false;
+    for category in selected {
+        let name = options.name.unwrap_or(&category.name);
+        let from = pack.categories.iter().find(|c| c.name == category.name);
+        let to = project.categories.iter_mut().find(|c| c.name == name);
+        let (Some(from), Some(to)) = (from, to) else {
+            continue;
+        };
+        for metric in &mut to.metrics {
+            let Some(source) = from.metrics.iter().find(|m| m.name == metric.name) else {
+                continue;
+            };
+            if metric.target.is_none() && source.target.is_some() {
+                metric.target = source.target;
+                changed = true;
+            }
+            if metric.targets.is_empty() && !source.targets.is_empty() {
+                metric.targets.clone_from(&source.targets);
+                changed = true;
+            }
+        }
+    }
+
+    Ok(changed.then(|| baseline::render(&project, options.format)))
 }
 
 /// Returns the category `name` of the pack, with its text and format, as `uphill add` writes it

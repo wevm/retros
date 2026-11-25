@@ -26,14 +26,20 @@ Most projects track their numbers in one-off scripts and CI checks that pass or 
 Uphill turns every metric into a score and every gap into a next step. Scripts measure with the tools the project already uses. Each run shows where the project stands, so a person or an agent can climb toward the targets one fix at a time.
 
 ```yaml
-# 1. .agents/uphill.yaml: the footprint category, its script, and its target.
+# 1. .agents/uphill.yaml: the footprint category, its script, and its metric.
 footprint:
   run: sh .agents/metrics/footprint.sh
+  bundle-size: {}
+```
+
+```yaml
+# 2. .agents/uphill.baseline.yaml: the metric's target, and later its accepted value.
+footprint:
   bundle-size: { target: 5kB }
 ```
 
 ```sh
-# 2. .agents/metrics/footprint.sh: measure the gzipped bundle and write one metric line.
+# 3. .agents/metrics/footprint.sh: measure the gzipped bundle and write one metric line.
 echo "bundle-size $(gzip -c dist/index.js | wc -c)B" >> "$UPHILL_METRICS"
 ```
 
@@ -72,7 +78,7 @@ uphill
 # Score one category.
 uphill speed
 
-# Accept this run: write its values and line targets to uphill.baseline.yaml.
+# Accept this run: write its values beside their targets in uphill.baseline.yaml.
 uphill --update
 
 # Fail when anything differs from the baselines.

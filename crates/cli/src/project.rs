@@ -99,6 +99,8 @@ pub(crate) fn find(cwd: &Path) -> Result<Project, String> {
                 .map_err(|error| crate::diagnostic("error", &error, &baselines_name, text))?,
             None => config,
         };
+        config::validate(&config)
+            .map_err(|error| crate::diagnostic("error", &error, &name, &source))?;
 
         return Ok(Project {
             baselines: root.join(&sidecar),
@@ -138,8 +140,9 @@ pub(crate) fn baselines(place: &str) -> String {
 /// `None` when either does not parse.
 pub(crate) fn load(source: &str, baselines: Option<&str>, format: Format) -> Option<Config> {
     let config = config::parse(source, format).ok()?;
-    match baselines {
-        Some(baselines) => baseline::read(config, baselines, format).ok(),
-        None => Some(config),
-    }
+    let config = match baselines {
+        Some(baselines) => baseline::read(config, baselines, format).ok()?,
+        None => config,
+    };
+    config::validate(&config).ok().map(|()| config)
 }

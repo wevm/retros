@@ -1,10 +1,9 @@
-//! Removes the `baseline` keys of older configurations in place, so `uphill --update` moves each
-//! baseline into the baseline file and keeps the configuration's comments, order, and style.
-//! Lines outside a metric's `baseline` stay as they were.
+//! Removes the `target`, `targets`, and `baseline` keys of older configurations in place, so
+//! `uphill --update` moves them into the baseline file and keeps the configuration's comments,
+//! order, and style. Lines outside the removed keys stay as they were.
 //!
 //! The editor reads only as much syntax as it needs: where a key's value starts and ends. It skips
-//! a form it cannot edit, such as a TOML baseline written as a table of its own, and the caller
-//! checks the result by parsing it again.
+//! a form it cannot edit, and the caller checks the result by parsing it again.
 
 use std::ops::Range;
 
@@ -14,8 +13,8 @@ use toml::de::{DeString, DeTable, DeValue};
 use crate::config::Format;
 use crate::document::{self, Kind, Node};
 
-/// Returns `source` without the `baseline` key of each metric, named by category and metric.
-pub(crate) fn remove(source: &str, format: Format, metrics: &[(&str, &str)]) -> String {
+/// Returns `source` without the key `name` of each metric, named by category and metric.
+pub(crate) fn remove(source: &str, format: Format, metrics: &[(&str, &str)], name: &str) -> String {
     let mut edits: Vec<(Range<usize>, &str)> = Vec::new();
 
     match format {
@@ -30,7 +29,7 @@ pub(crate) fn remove(source: &str, format: Format, metrics: &[(&str, &str)]) -> 
                     continue;
                 };
                 if let Some(value) = field(fields, metric) {
-                    edits.extend(toml(source, value));
+                    edits.extend(toml(source, value, name));
                 }
             }
         }
@@ -41,7 +40,7 @@ pub(crate) fn remove(source: &str, format: Format, metrics: &[(&str, &str)]) -> 
             for (category, metric) in metrics {
                 let found = find(&root, category).and_then(|(_, category)| find(category, metric));
                 if let Some((key, value)) = found {
-                    edits.extend(yaml(source, key, value));
+                    edits.extend(yaml(source, key, value, name));
                 }
             }
         }
@@ -58,14 +57,19 @@ pub(crate) fn remove(source: &str, format: Format, metrics: &[(&str, &str)]) -> 
     out
 }
 
-/// Returns the edit that removes the `baseline` key of the YAML metric at `key`.
-fn yaml(source: &str, key: &Node, value: &Node) -> Option<(Range<usize>, &'static str)> {
+/// Returns the edit that removes the key `name` of the YAML metric at `key`.
+fn yaml(
+    source: &str,
+    key: &Node,
+    value: &Node,
+    name: &str,
+) -> Option<(Range<usize>, &'static str)> {
     let Kind::Mapping(pairs) = &value.kind else {
         return None;
     };
     let existing = pairs
         .iter()
-        .find(|(key, _)| key.text() == Some("baseline"))
+        .find(|(key, _)| key.text() == Some(name))
         .map(|(key, _)| key.offset)?;
     let start = skip(source, after_colon(source, key.offset), b" \t");
 
@@ -93,21 +97,45 @@ fn yaml(source: &str, key: &Node, value: &Node) -> Option<(Range<usize>, &'stati
     Some((line_start(source, existing)..to, ""))
 }
 
-/// Returns the edit that removes the `baseline` key of a TOML metric: an inline table, or a table
-/// with its own header such as `[footprint.export-size]`.
-fn toml(source: &str, value: &Spanned<DeValue<'_>>) -> Option<(Range<usize>, &'static str)> {
+/// Returns the edit that removes the key `name` of a TOML metric: an inline table, a table with its
+/// own header such as `[footprint.export-size]`, or dotted keys such as `size.target = "5kB"`.
+fn toml(
+    source: &str,
+    value: &Spanned<DeValue<'_>>,
+    name: &str,
+) -> Option<(Range<usize>, &'static str)> {
     let DeValue::Table(fields) = value.get_ref() else {
         return None;
     };
     let span = value.span();
     let (key, value) = fields
         .iter()
-        .find(|(key, _)| key.get_ref() == "baseline")
+        .find(|(key, _)| key.get_ref() == name)
         .map(|(key, value)| (key.span(), value.span()))?;
 
-    // A baseline written as a table of its own, such as `[footprint.size.baseline]`, is skipped.
+    // A key written as a table of its own, such as `[footprint.size.targets]`, goes with its
+    // lines, up to the next header.
     if source.as_bytes().get(value.start) == Some(&b'[') {
-        return None;
+        let mut end = line_end(source, value.start);
+        while end < source.len() {
+            let next = end + 1;
+            if source
+                .get(next..)
+                .is_some_and(|rest| rest.trim_start().starts_with('['))
+            {
+                break;
+            }
+            end = line_end(source, next);
+        }
+        // The blank line above the header goes too.
+        let mut start = line_start(source, value.start);
+        if source
+            .get(..start)
+            .is_some_and(|before| before.ends_with("\n\n"))
+        {
+            start -= 1;
+        }
+        return Some((start..(end + 1).min(source.len()), ""));
     }
 
     match source.as_bytes().get(span.start) {
@@ -128,11 +156,18 @@ fn toml(source: &str, value: &Spanned<DeValue<'_>>) -> Option<(Range<usize>, &'s
                 (None, None) => (span, "{}"),
             })
         }
-        Some(b'[') => {
+        // The last dotted key of a metric leaves it empty, so `size.target = "5kB"` becomes
+        // `size = {}`.
+        Some(byte) if *byte != b'[' && fields.len() == 1 => {
+            let before = source.get(..key.start).unwrap_or_default().trim_end();
+            let dot = before.strip_suffix('.')?.trim_end().len();
+            Some((dot..value.end, " = {}"))
+        }
+        // A key in a table with a header, or a dotted key, takes its whole line.
+        _ => {
             let to = (line_end(source, value.end) + 1).min(source.len());
             Some((line_start(source, key.start)..to, ""))
         }
-        _ => None,
     }
 }
 

@@ -29,8 +29,9 @@ Like Lighthouse, Uphill adds up to half a point to scores above 90 and then roun
 With `poor` set, the curve takes Lighthouse's own control points, so the same value scores the same as in a Lighthouse report.
 
 ```yaml title="uphill.yaml"
-# Lighthouse's mobile Total Blocking Time: 90 at 200 ms and 50 at 600 ms.
-total-blocking-time: { target: 200ms, poor: 600ms }
+# Lighthouse's mobile Total Blocking Time: 50 at 600 ms, and 90 at the 200 ms target that
+# uphill.baseline.yaml sets.
+total-blocking-time: { poor: 600ms }
 ```
 
 ```text

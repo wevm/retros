@@ -150,12 +150,26 @@ pub(crate) fn run(
         pack: &pack,
         root: &root,
     };
+    let pack_baselines = std::fs::read_to_string(
+        pack.dir
+            .join(&pack.place)
+            .join(project::baselines(pack.file)),
+    )
+    .ok();
+    let baselines_path = match &existing {
+        Some(project) => project.baselines.clone(),
+        None => destination.join(project::baselines(pack.file)),
+    };
     let added = pack::add(&mut Options {
+        baselines: existing
+            .as_ref()
+            .and_then(|project| project.baselines_source.as_deref()),
         categories,
         commit: pack.commit.as_deref(),
         format,
         name,
         pack: &pack.source,
+        pack_baselines: pack_baselines.as_deref(),
         pack_format: pack.format,
         project: existing.as_ref().map(|project| project.source.as_str()),
         run: &mut |run| scripts.rewrite(run),
@@ -180,6 +194,14 @@ pub(crate) fn run(
     write(&config_path, added.config.as_bytes(), &root)?;
 
     let mut out = format!("Added {} to {config_name}\n", added.categories.join(", "));
+    if let Some(baselines) = &added.baselines {
+        write(&baselines_path, baselines.as_bytes(), &root)?;
+        let _ = writeln!(
+            out,
+            "Added their targets to {}",
+            relative(&baselines_path, &root)
+        );
+    }
     for to in scripts.copies.values() {
         let shown = relative(to, &root);
         let slash = if to.is_dir() { "/" } else { "" };

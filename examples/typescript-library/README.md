@@ -6,7 +6,7 @@ tiny-format, a small library of formatters measured with the tools it already us
 
 - **Entry points:** The scripts read `exports` in `package.json` and lint every file in `src/`. A project with built entry points measures its build output instead.
 - **Call times:** `metrics/speed.ts` imports the formatters from `../src/index.js` and benchmarks each one with arguments of its own. Point the import at the project's entry point from the script's new place, and write arguments for its functions.
-- **Targets:** The root entry point's target is the sum of its subpaths and 10% more. Formatters that call `Intl` get a larger call-time target by pattern.
+- **Targets:** The root entry point's target is the sum of its subpaths and 10% more. Formatters that call `Intl` get a larger call-time target of their own in `uphill.baseline.yaml`.
 - **Packages:** The scripts run with Bun and call mitata, TypeScript, oxlint, and oxfmt. Swap each tool for the one the project already uses.
 
 ```sh

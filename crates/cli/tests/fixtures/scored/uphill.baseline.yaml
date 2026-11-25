@@ -1,0 +1,11 @@
+# A target for each metric, and a default for each item of a list, before the first update.
+
+footprint:
+  bundle: { target: 5kB }
+  export-size:
+    "*": { target: 5kB }
+
+speed:
+  render:
+    "*": { target: 2ms }
+  throughput: { target: 2000 }

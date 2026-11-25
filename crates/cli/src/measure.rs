@@ -219,6 +219,12 @@ impl<'a> Run<'a> {
 
             let report = engine::check::category(category, lines);
             let render = |severity, finding: &engine::check::Finding| match finding.source {
+                engine::check::Source::Baselines => crate::diagnostic(
+                    severity,
+                    &finding.error,
+                    &project.baselines_name,
+                    project.baselines_source.as_deref().unwrap_or_default(),
+                ),
                 engine::check::Source::Config => {
                     crate::diagnostic(severity, &finding.error, &project.name, &project.source)
                 }

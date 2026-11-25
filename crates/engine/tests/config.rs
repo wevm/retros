@@ -35,8 +35,9 @@ fn without_locations(mut config: Config) -> Config {
 
 /// Parses `source` and renders the error it must produce, prefixed with its code.
 fn error(source: &str) -> String {
-    let error =
-        config::parse(source, Format::Yaml).expect_err("the configuration should be rejected");
+    let error = config::parse(source, Format::Yaml)
+        .and_then(|config| config::validate(&config))
+        .expect_err("the configuration should be rejected");
     format!(
         "[{}] {}",
         error.code.as_str(),
@@ -146,6 +147,7 @@ footprint:
                                     line: 10,
                                 },
                                 pattern: "viem",
+                                source: Config,
                                 target: Size(
                                     60000.0,
                                 ),
@@ -156,6 +158,7 @@ footprint:
                                     line: 10,
                                 },
                                 pattern: "viem/chains/*",
+                                source: Config,
                                 target: Size(
                                     1000.0,
                                 ),
@@ -383,9 +386,9 @@ fn rejects_targets_that_cannot_score() {
     ");
 
     insta::assert_snapshot!(error("speed:\n  run: \"true\"\n  paint: { poor: 3s }\n"), @"
-    [invalid-value] uphill.yaml:3:18: metric `paint` sets `poor` without a `target`. Set the `target` that scores 90 too
+    [invalid-value] uphill.yaml:3:3: metric `paint` sets `poor` without a `target`. Set the `target` that scores 90 in the baseline file
       3 |   paint: { poor: 3s }
-        |                  ^
+        |   ^
     ");
 
     insta::assert_snapshot!(error("speed:\n  run: \"true\"\n  paint: { target: 1.8s, poor: 3kB }\n"), @"

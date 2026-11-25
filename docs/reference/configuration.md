@@ -1,6 +1,6 @@
 # Configuration
 
-`uphill.yaml` or `uphill.toml` declares the categories, the command that measures each one, and the target of each metric. Both formats accept the same keys. `uphill --update` writes accepted values to a [baseline file](#baseline-file) beside it.
+`uphill.yaml` or `uphill.toml` declares the categories, the command that measures each one, and how each metric scores. Both formats accept the same keys. The [baseline file](#baseline-file) beside it holds each metric's targets and accepted values.
 
 ## Files
 
@@ -11,27 +11,27 @@ Scripts run from the project root, and reports go to `.uphill/` in it. Each top-
 #### YAML
 
 ```yaml title=".agents/uphill.yaml"
-# Two categories, each measured by its own script.
+# Two categories, each measured by its own script. The targets are in uphill.baseline.yaml.
 footprint:
   run: sh metrics/footprint.sh
-  entry-size: { target: 5kB, targets: { chains: 8kB } }
+  entry-size: {}
 
 speed:
   run: bun metrics/speed.ts
-  import-time: { target: 20ms }
+  import-time: {}
 ```
 
 #### TOML
 
 ```toml title=".agents/uphill.toml"
-# Two categories, each measured by its own script.
+# Two categories, each measured by its own script. The targets are in uphill.baseline.toml.
 [footprint]
 run = "sh metrics/footprint.sh"
-entry-size = { target = "5kB", targets = { "chains" = "8kB" } }
+entry-size = {}
 
 [speed]
 run = "bun metrics/speed.ts"
-import-time = { target = "20ms" }
+import-time = {}
 ```
 
 ## Names
@@ -42,7 +42,7 @@ A category or metric name starts with an ASCII letter or digit, and continues wi
 # Valid names: footprint, entry-size, p95_latency, and v2.startup.
 footprint:
   run: sh metrics/footprint.sh
-  entry-size: { target: 5kB }
+  entry-size: {}
 ```
 
 ## Top-Level Keys
@@ -59,10 +59,10 @@ The command for every category that sets no `run`. Categories with the same comm
 run: sh bench.sh
 
 footprint:
-  binary-size: { target: 2MB }
+  binary-size: {}
 
 speed:
-  startup: { target: 5ms }
+  startup: {}
 ```
 
 ### `setup`
@@ -102,7 +102,7 @@ The command that measures the category. Uphill runs it through `sh -c` from the 
 # Measure the footprint category with a shell script.
 footprint:
   run: sh metrics/footprint.sh
-  bundle-size: { target: 5kB }
+  bundle-size: {}
 ```
 
 ### `timeout`
@@ -132,7 +132,7 @@ The name that `report.md`, `report.html`, and `report.json` show. The terminal a
 footprint:
   run: sh metrics/footprint.sh
   title: Bundle footprint
-  bundle-size: { target: 5kB }
+  bundle-size: {}
 ```
 
 ### `description`
@@ -147,55 +147,31 @@ What the category measures, which `report.html` and `report.json` show.
 footprint:
   run: sh metrics/footprint.sh
   description: Gzipped size of the published entry points.
-  bundle-size: { target: 5kB }
+  bundle-size: {}
 ```
 
 ## Metric Keys
 
-Every other key of a category is a metric. A metric is a mapping of the keys below. A metric without keys, such as `modules: {}`, shows its value and changes but has no score. A category must declare at least one metric.
+Every other key of a category is a metric. A metric is a mapping of the keys below. A metric without keys, such as `modules: {}`, has a score only when the baseline file sets its target. A category must declare at least one metric.
 
 ```yaml title="uphill.yaml"
-# bundle-size is scored, and modules is shown without a score.
+# Two metrics. The baseline file decides which ones score.
 footprint:
   run: sh metrics/footprint.sh
-  bundle-size: { target: 5kB }
+  bundle-size: {}
   modules: {}
-```
-
-### `target`
-
-- **Type:** a size, a time, or a number
-- **Default:** none
-
-The value that scores 90, for every item that has no target of its own. It is greater than zero and in the same kind of unit as the metric's values. A list of checks scores the share of items that pass, so a check has no target.
-
-```yaml title="uphill.yaml"
-# Each page scores 90 at 20 kB and 50 at 40 kB.
-page-size: { target: 20kB }
 ```
 
 ### `poor`
 
 - **Type:** a size, a time, or a number
-- **Default:** twice the `target`, or half the `target` when higher is better
+- **Default:** twice the target, or half the target when higher is better
 
-The value that scores 50, Lighthouse's median control point. It needs a `target` in the same kind of unit, and it is worse than the target. An item with its own target scales `poor` by its target over the `target` key.
-
-```yaml title="uphill.yaml"
-# Lighthouse's mobile Largest Contentful Paint: 90 at 2.5 s and 50 at 4 s.
-largest-contentful-paint: { target: 2500ms, poor: 4000ms }
-```
-
-### `targets`
-
-- **Type:** a mapping of item patterns to targets
-- **Default:** none
-
-Targets by item, which replace the `target` key and the targets that scripts write on their lines. In a pattern, `*` matches any run of characters, and the first matching pattern applies. A pattern that matches no item gives a warning.
+The value that scores 50, Lighthouse's median control point. It needs a default target in the baseline file, in the same kind of unit, and it is worse than the target. An item with its own target scales `poor` by its target over the default.
 
 ```yaml title="uphill.yaml"
-# Each chain entry point scores against 1 kB, and the root entry point against 60 kB.
-export-size: { target: 5kB, targets: { "viem/chains/*": 1kB, viem: 60kB } }
+# Lighthouse's mobile Largest Contentful Paint: 50 at 4 s, with a 2.5 s target in the baseline file.
+largest-contentful-paint: { poor: 4000ms }
 ```
 
 ### `better`
@@ -207,7 +183,7 @@ The direction that improves the metric. With `higher`, half the target scores 50
 
 ```yaml title="uphill.yaml"
 # More coverage is better.
-coverage: { target: 80, better: higher }
+coverage: { better: higher }
 ```
 
 ### `score`
@@ -219,7 +195,7 @@ How a list collapses to one score. Items rank by value against their own target,
 
 ```yaml title="uphill.yaml"
 # Score the total size of every chunk.
-chunk-size: { target: 25kB, score: sum }
+chunk-size: { score: sum }
 ```
 
 ### `weight`
@@ -231,7 +207,7 @@ The metric's weight in the category score, which is the weighted mean of the met
 
 ```yaml title="uphill.yaml"
 # Count throughput twice.
-throughput: { target: 2000, better: higher, weight: 2 }
+throughput: { better: higher, weight: 2 }
 ```
 
 ### `varies`
@@ -239,11 +215,11 @@ throughput: { target: 2000, better: higher, weight: 2 }
 - **Type:** `true` or `false`
 - **Default:** `false`
 
-Marks a size or count that differs between runs, such as peak memory. Uphill repeats its script and takes the median like a time, and its baseline records only its line targets.
+Marks a size or count that differs between runs, such as peak memory. Uphill repeats its script and takes the median like a time, and its baseline records only its targets.
 
 ```yaml title="uphill.yaml"
 # Peak memory differs between runs.
-peak-memory: { target: 64MB, varies: true }
+peak-memory: { varies: true }
 ```
 
 ### `title`
@@ -255,7 +231,7 @@ The name that `report.md`, `report.html`, and `report.json` show.
 
 ```yaml title="uphill.yaml"
 # Show "Time to first request" instead of "Request out".
-request-out: { target: 20ms, title: Time to first request }
+request-out: { title: Time to first request }
 ```
 
 ### `description`
@@ -267,52 +243,101 @@ What the metric measures, which `report.html` and `report.json` show.
 
 ```yaml title="uphill.yaml"
 # Describe the metric for readers of the report.
-page-size: { target: 20kB, description: Bytes of HTML each page sends. }
-```
-
-### `baseline`
-
-- **Type:** a value, or a mapping of items to values
-- **Default:** none
-
-The last accepted value in older configurations. Uphill still reads it, so older revisions compare and keep their history. `uphill --update` moves it into the [baseline file](#baseline-file) and removes the key. When both record a metric, the baseline file applies.
-
-```yaml title="uphill.yaml"
-# An older configuration. The next uphill --update moves 6.9kB into uphill.baseline.yaml.
-bundle-size: { target: 5kB, baseline: 6.9kB }
+page-size: { description: Bytes of HTML each page sends. }
 ```
 
 ## Baseline File
 
-`uphill.baseline.yaml` or `uphill.baseline.toml` sits beside the configuration, in the same format, and holds the last accepted value of each metric. `uphill --update` writes the whole file, so edit the configuration instead. Commit both files.
+`uphill.baseline.yaml` or `uphill.baseline.toml` sits beside the configuration, in the same format. It holds each metric's targets and the values `uphill --update` accepted, side by side. Commit both files.
 
-Categories and metrics keep the order the configuration declares. A metric with items takes one line per item, and a line target follows its value. With subjects, each subject has its own entry. Timings record only their line targets.
+Categories and metrics keep the order the configuration declares. A metric with items takes one line per item, and a metric with subjects takes one entry per subject. `uphill --update` rewrites the whole file, so comments in it do not survive an update.
 
 #### YAML
 
 ```yaml title="uphill.baseline.yaml"
-# Written by uphill --update, beside uphill.yaml.
+# The targets, and the accepted values beside them, of the configuration in uphill.yaml.
 footprint:
-  bundle-size: 6.9kB
+  bundle-size: { baseline: 6.9kB, target: 5kB }
   entry-size:
-    chains: 12033B target 15kB
-    index: 6112B
+    "*": { target: 5kB }
+    chains: { baseline: 12033B, target: 15kB }
+    index: { baseline: 6112B, target: 5kB }
   export-size:
     node:
-      format: 900B
-      parse: 1.1kB
-    web:
-      parse: 1.3kB target 1kB
+      format: { baseline: 900B, target: 1kB }
+      parse: { baseline: 1.1kB, target: 1kB }
 ```
 
 #### TOML
 
 ```toml title="uphill.baseline.toml"
-# Written by uphill --update, beside uphill.toml. A metric with items takes a table of its own.
+# The same file beside uphill.toml. A metric with items takes a table of its own.
 [footprint]
-bundle-size = "6.9kB"
+bundle-size = { baseline = "6.9kB", target = "5kB" }
 
 [footprint.entry-size]
-chains = "12033B target 15kB"
-index = "6112B"
+"*" = { target = "5kB" }
+chains = { baseline = "12033B", target = "15kB" }
+index = { baseline = "6112B", target = "5kB" }
+```
+
+### Records
+
+- **Type:** a mapping with `baseline`, `target`, or both, such as `{ baseline: 6.9kB, target: 5kB }`
+
+A record holds one measurement. `baseline` is the size, count, or check `uphill --update` accepted, and `target` is the value that scores 90. A timing or a metric that `varies` records only its target. A record with only a target sets the target of a metric that has no accepted value yet. Uphill still reads the short form of older files, such as `6.9kB target 5kB`.
+
+```yaml title="uphill.baseline.yaml"
+# A size with its target, an unscored count, and a timing's target.
+footprint:
+  bundle-size: { baseline: 6.9kB, target: 5kB }
+  modules: { baseline: 412 }
+speed:
+  startup: { target: 20ms }
+```
+
+### Targets
+
+- **Type:** a size, a time, or a number, under `target`
+- **Default:** none
+
+The value that scores 90. It is greater than zero and in the same kind of unit as the metric's values. A list of checks scores the share of items that pass, so a check has no target.
+
+An item's own target has the final say, then the first matching pattern, then the target on the item's line, then the default. `uphill --update` writes the target each item scored against as its own, so an edited target scores at once.
+
+```yaml title="uphill.baseline.yaml"
+# Each page scores 90 at 20 kB and 50 at 40 kB, and the pricing page has its own target.
+pages:
+  page-size:
+    "*": { target: 20kB }
+    pricing.html: { baseline: 31037B, target: 40kB }
+```
+
+### Patterns
+
+- **Type:** a key with `*` and a record with only a `target`
+- **Default:** none
+
+Targets by item for each item without its own target. In a pattern, `*` matches any run of characters, and the first matching pattern applies. The pattern `*` alone is the default, which a line's target replaces. A record with only a target, such as `bundle-size: { target: 5kB }`, sets the default of a metric with items too.
+
+```yaml title="uphill.baseline.yaml"
+# Each chain entry point scores against 1 kB, and every other entry point against 5 kB.
+footprint:
+  export-size:
+    "*": { target: 5kB }
+    "viem/chains/*": { target: 1kB }
+```
+
+## Older Keys
+
+Older configurations set targets and baselines on each metric. Uphill still reads these keys, so older revisions compare and keep their history. `uphill --update` moves each one into the baseline file and removes it from the configuration, keeping its comments and formatting. When both set a metric, the baseline file applies.
+
+- **`target`:** The default target, which becomes the `*` pattern.
+- **`targets`:** Item patterns and their targets, which become patterns.
+- **`baseline`:** The last accepted value, or a mapping of items to values, which becomes the records.
+
+```diff title="uphill.yaml"
+ # uphill --update moves the target and the baseline into uphill.baseline.yaml.
+-bundle-size: { target: 5kB, baseline: 6.9kB }
++bundle-size: {}
 ```

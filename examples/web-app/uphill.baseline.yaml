@@ -1,0 +1,14 @@
+# Each metric's `target`. `uphill --update` adds each accepted size, count, or check as its
+# `baseline`, beside the target it scored against.
+
+performance:
+  first-contentful-paint: { target: 800ms }
+  largest-contentful-paint:
+    "*": { target: 1s }
+    index.html: { target: 1.5s }
+  total-blocking-time: { target: 50ms }
+  cumulative-layout-shift: { target: 0.05 }
+  speed-index: { target: 1s }
+  total-byte-weight:
+    "*": { target: 3kB }
+    index.html: { target: 8kB }

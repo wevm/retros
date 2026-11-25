@@ -14,7 +14,7 @@ Scripts can use any language. Uphill runs each `run` command through `sh -c` fro
 # Run the script with sh.
 pages:
   run: sh metrics/pages.sh
-  page-size: { target: 20kB }
+  page-size: {}
 ```
 
 ```sh title="metrics/pages.sh"
@@ -30,7 +30,7 @@ done
 # Run the script with Bun, which runs TypeScript without a build step.
 pages:
   run: bun metrics/pages.ts
-  page-size: { target: 20kB }
+  page-size: {}
 ```
 
 ```ts title="metrics/pages.ts"
@@ -49,7 +49,7 @@ for (const name of fs.readdirSync('dist')) {
 # Run the script as a Cargo example.
 pages:
   run: cargo run --quiet --example pages
-  page-size: { target: 20kB }
+  page-size: {}
 ```
 
 ```rust title="examples/pages.rs"
@@ -76,14 +76,20 @@ This walkthrough measures a static site in `dist/`. One script writes the size o
 
 ### Declare the Metrics
 
-The `pages` category lists both metrics. `page-size` has a target, so each page scores against 20 kB. `has-title` writes checks, which need no target: a list of checks scores the share of items that pass.
+The `pages` category lists both metrics. The baseline file gives `page-size` a target, so each page scores against 20 kB. `has-title` writes checks, which need no target: a list of checks scores the share of items that pass.
 
 ```yaml title="uphill.yaml"
 # The pages category runs one script, which writes two metrics per page.
 pages:
   run: sh metrics/pages.sh
-  page-size: { target: 20kB }
+  page-size: {}
   has-title: {}
+```
+
+```yaml title="uphill.baseline.yaml"
+# Each page scores against 20 kB.
+pages:
+  page-size: { target: 20kB }
 ```
 
 ### Write the Lines
@@ -207,10 +213,10 @@ A top-level `run` applies to each category that sets none, and categories with t
 run: sh bench.sh
 
 footprint:
-  binary-size: { target: 2MB }
+  binary-size: {}
 
 speed:
-  startup: { target: 5ms }
+  startup: {}
 ```
 
 ### Fail a Run

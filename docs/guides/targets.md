@@ -4,15 +4,16 @@ A target is a requirement the project must meet. Uphill scores each item against
 
 ## Overview
 
-A value at its target scores 90, twice the target scores 50, and four times the target scores 10. The `poor` key moves the value that scores 50. Smaller values approach 100. The `target` key in `uphill.yaml` is the default for every item of a metric.
+A value at its target scores 90, twice the target scores 50, and four times the target scores 10. The `poor` key moves the value that scores 50. Smaller values approach 100. Targets live in the baseline file beside the configuration, `uphill.baseline.yaml`.
 
-Items can need different targets. A script that knows an item needs a larger or smaller target writes it on the line. When the project disagrees with a script, the `targets` key sets targets by item pattern and has the final say.
+Items can need different targets. A script that knows an item needs a larger or smaller target writes it on the line. A pattern in the baseline file overrides the script, and an item's own target in the file has the final say.
 
-```yaml title="uphill.yaml"
+```yaml title="uphill.baseline.yaml"
 # Each entry point scores against 5 kB, except chains, which scores against 8 kB.
 footprint:
-  run: sh metrics/footprint.sh
-  entry-size: { target: 5kB, targets: { chains: 8kB } }
+  entry-size:
+    "*": { target: 5kB }
+    chains: { target: 8kB }
 ```
 
 ## Walkthrough
@@ -21,12 +22,18 @@ This walkthrough scores the gzipped size of three entry points: `index`, `utils`
 
 ### Set a Default
 
-The `target` key gives every item the same target. The list collapses to its p90 item, and `chains` is the worst item, so it decides the score.
+A record with only a target gives every item the same target. The list collapses to its p90 item, and `chains` is the worst item, so it decides the score.
 
 ```yaml title="uphill.yaml"
-# Every entry point scores against 5 kB.
+# The configuration names the metric and the script that writes it.
 footprint:
   run: sh metrics/footprint.sh
+  entry-size: {}
+```
+
+```yaml title="uphill.baseline.yaml"
+# Every entry point scores against 5 kB.
+footprint:
   entry-size: { target: 5kB }
 ```
 
@@ -73,15 +80,16 @@ Opportunities
   +9  footprint  entry-size index  6.1 kB → 5 kB
 ```
 
-### Override by Pattern
+### Override the Script
 
-The project decides that `chains` must stay under 8 kB. A pattern in `targets` replaces the line target, and `chains` is the worst item again. In a pattern, `*` matches any run of characters, and the first matching pattern applies.
+The project decides that `chains` must stay under 8 kB. Its own target in the baseline file replaces the line target, and `chains` is the worst item again. The `*` key holds the default once the metric lists items.
 
-```yaml title="uphill.yaml"
+```yaml title="uphill.baseline.yaml"
 # The project's target for chains replaces the script's.
 footprint:
-  run: sh metrics/footprint.sh
-  entry-size: { target: 5kB, targets: { chains: 8kB } }
+  entry-size:
+    "*": { target: 5kB }
+    chains: { target: 8kB }
 ```
 
 ```text
@@ -94,6 +102,20 @@ $ uphill
 
 Opportunities
   +11  footprint  entry-size chains  12 kB → 8 kB
+```
+
+### Accept the Targets
+
+`uphill --update` writes each item's value beside the target it scored against. Each item then holds its own target, so a target edited in the file scores at once, and a script that changes its line target changes nothing. To take a line's target again, delete the item's target and run `uphill --update`.
+
+```yaml title="uphill.baseline.yaml"
+# After uphill --update, each item holds its value and its target side by side.
+footprint:
+  entry-size:
+    "*": { target: 5kB }
+    chains: { baseline: 12033B, target: 8kB }
+    index: { baseline: 6112B, target: 5kB }
+    utils: { baseline: 1132B, target: 5kB }
 ```
 
 ### Read Opportunities
@@ -111,15 +133,27 @@ Opportunities
 
 ## Recipes
 
+### Target by Pattern
+
+A key with `*` and only a target is a pattern. It sets the target of each item without its own, such as a new entry point, and replaces the line target. In a pattern, `*` matches any run of characters, and the first matching pattern applies.
+
+```yaml title="uphill.baseline.yaml"
+# Each chain entry point scores against 1 kB, and every other entry point against 5 kB.
+footprint:
+  export-size:
+    "*": { target: 5kB }
+    "viem/chains/*": { target: 1kB }
+```
+
 ### Higher Is Better
 
 A metric where more is better, such as test coverage or throughput, sets `better: higher`. Half the target then scores 50, and a list collapses to its p10 item, the one furthest below its target.
 
 ```yaml title="uphill.yaml"
-# Each file needs at least 80% line coverage.
+# Each file needs at least 80% line coverage, with `coverage: { target: 80 }` in the baseline file.
 quality:
   run: sh metrics/coverage.sh
-  coverage: { target: 80, better: higher }
+  coverage: { better: higher }
 ```
 
 ```text
@@ -136,10 +170,10 @@ $ uphill
 The `score` key picks how a list collapses: `p90`, `p10`, `median`, `max`, `min`, or `sum`. A `sum` scores the total of the values against the total of the targets, so each item with the default target adds that target to the total.
 
 ```yaml title="uphill.yaml"
-# Score the total size of every chunk. Two chunks give a total target of 50 kB.
+# Score the total size of every chunk. Two chunks at `target 25kB` give a total of 50 kB.
 footprint:
   run: sh metrics/chunks.sh
-  chunk-size: { target: 25kB, score: sum }
+  chunk-size: { score: sum }
 ```
 
 ```text
@@ -158,16 +192,16 @@ A category score is the weighted mean of its metric scores. The `weight` key def
 # Throughput counts twice as much as render time.
 speed:
   run: sh metrics/speed.sh
-  render: { target: 2ms }
-  throughput: { target: 2000, better: higher, weight: 2 }
+  render: {}
+  throughput: { better: higher, weight: 2 }
 ```
 
 ### Unscored Metrics
 
-A metric without a target shows its value and its changes, but has no score. A check needs no target, because a list of checks scores the share of items that pass.
+A metric without a target in the baseline file shows its value and its changes, but has no score. A check needs no target, because a list of checks scores the share of items that pass.
 
 ```yaml title="uphill.yaml"
-# modules has no score, and links scores the share of pages whose links resolve.
+# Without targets, modules has no score, and links scores the share of pages whose links resolve.
 footprint:
   run: sh metrics/footprint.sh
   modules: {}
@@ -182,7 +216,7 @@ footprint:
 
 ## More
 
-- [Baselines](./baselines.md): Record accepted values and line targets.
+- [Baselines](./baselines.md): Record accepted values beside their targets.
 - [Scoring](../reference/scoring.md): The curve, the bands, and how lists collapse.
-- [Configuration](../reference/configuration.md): Every key a metric accepts.
+- [Configuration](../reference/configuration.md): Every key a metric accepts, and the baseline file.
 - [Metric Lines](../reference/metric-lines.md): Write a target on a line.

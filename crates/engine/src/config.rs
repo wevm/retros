@@ -4,22 +4,24 @@
 //! `timeout` and `description` are optional, and every other key is a metric. A top-level `run`
 //! and `timeout` apply to every category that sets none, and categories with the same command
 //! share one run of it. A top-level `setup` command prepares each checkout that
-//! `uphill --compare` creates. A metric is a mapping of optional keys: `target`, `poor`,
-//! `targets`, `weight`, `score`, `better`, `varies`, `title`, `description`, and `baseline`, which
-//! older configurations set and the baseline file now holds. `target` is the default for every item, a metric line can set its
-//! own, and `targets` sets targets by item pattern and has the final say. `poor` is the value that
-//! scores 50 against the default target, and twice the target without it.
+//! `uphill --compare` creates. A metric is a mapping of optional keys: `poor`, `weight`, `score`,
+//! `better`, `varies`, `title`, and `description`. `poor` is the value that scores 50 against the
+//! default target, and twice the target without it.
+//!
+//! The baseline file beside the configuration holds the targets (see [`crate::baseline`]). Older
+//! configurations set `target`, `targets`, and `baseline` on each metric instead. Uphill still
+//! reads them, and `uphill --update` moves them into the baseline file.
 //!
 //! ```yaml
 //! footprint:
 //!   run: bun metrics/footprint.ts
-//!   export-size: { target: 5kB, targets: { viem: 60kB, "viem/chains/*": 1kB } }
+//!   export-size: { score: max }
 //! ```
 //!
 //! ```toml
 //! [footprint]
 //! run = "bun metrics/footprint.ts"
-//! export-size = { target = "5kB", targets = { "viem" = "60kB", "viem/chains/*" = "1kB" } }
+//! export-size = { score = "max" }
 //! ```
 
 use std::time::Duration;
@@ -27,6 +29,7 @@ use std::time::Duration;
 use yaml_rust2::Yaml;
 
 use crate::baseline::Baseline;
+use crate::check::Source;
 use crate::document::{self, Kind, Node};
 use crate::error::{Code, Error, Location};
 use crate::lines::is_name;
@@ -87,8 +90,8 @@ pub struct Setup {
     pub timeout: Duration,
 }
 
-/// Returns whether two configurations measure alike: equal apart from baselines and positions in
-/// the file.
+/// Returns whether two configurations measure alike: equal apart from baselines, and from where the
+/// files set each target.
 pub fn alike(a: &Config, b: &Config) -> bool {
     let plain = |config: &Config| {
         let mut config = without_locations(config.clone());
@@ -100,8 +103,8 @@ pub fn alike(a: &Config, b: &Config) -> bool {
     plain(a) == plain(b)
 }
 
-/// Returns `config` with every location cleared, to compare it with the same configuration after
-/// lines moved.
+/// Returns `config` with every location cleared, and every pattern from the configuration, to
+/// compare it with the same configuration after lines or targets moved.
 pub(crate) fn without_locations(mut config: Config) -> Config {
     let nowhere = Location { column: 0, line: 0 };
     for category in &mut config.categories {
@@ -110,6 +113,7 @@ pub(crate) fn without_locations(mut config: Config) -> Config {
             metric.location = nowhere;
             for pattern in &mut metric.targets {
                 pattern.location = nowhere;
+                pattern.source = Source::Config;
             }
         }
     }
@@ -145,8 +149,9 @@ impl Category {
 /// A configured metric.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Metric {
-    /// The sizes, counts, checks, and line targets that `uphill --update` last accepted, from the
-    /// baseline file or an older configuration's `baseline` key, or `None` before the first update.
+    /// The sizes, counts, and checks that `uphill --update` last accepted, and each measurement's
+    /// own target, from the baseline file or an older configuration's `baseline` key, or `None`
+    /// before the first update.
     pub baseline: Option<Baseline>,
     /// Which direction is better. Defaults to lower.
     pub better: Better,
@@ -163,11 +168,13 @@ pub struct Metric {
     /// How a list of items collapses to one value. Defaults to `p90`, or `p10` when higher is
     /// better.
     pub score: Rollup,
-    /// The value each item must meet, which scores 90, unless its line or `targets` sets another.
-    /// A metric without any target is shown but not scored.
+    /// The default target, which scores 90: the target of a metric without items, or the `*`
+    /// pattern of a metric with items, which an item's own target, a pattern, or its line
+    /// replaces. A metric without any target is shown but not scored.
     pub target: Option<Value>,
     /// Targets by item pattern, in the order the file declares them. The first pattern that
-    /// matches an item sets its target, over the item's line and the default.
+    /// matches an item without its own target sets its target, over the item's line and the
+    /// default.
     pub targets: Vec<Pattern>,
     /// The name reports show, such as `Time to first token`.
     pub title: Option<String>,
@@ -219,13 +226,15 @@ pub(crate) fn words(name: &str) -> String {
     })
 }
 
-/// An item pattern and the target it sets, such as `"viem/chains/*": 1kB`.
+/// An item pattern and the target it sets, such as `"viem/chains/*": { target: 1kB }`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Pattern {
-    /// The position of the pattern.
+    /// The position of the pattern in the file that `source` names.
     pub location: Location,
     /// The pattern. `*` matches any run of characters, and every other character matches itself.
     pub pattern: String,
+    /// The file that sets the pattern: the baseline file, or an older configuration's `targets`.
+    pub source: Source,
     /// The target of every item the pattern matches.
     pub target: Value,
 }
@@ -551,6 +560,7 @@ fn metric(
                     targets.push(Pattern {
                         location: Location::of(source, pattern.offset),
                         pattern: self::key(source, pattern)?.to_owned(),
+                        source: Source::Config,
                         target: self::target(source, name, "target", value)?,
                     });
                 }
@@ -589,45 +599,11 @@ fn metric(
         }
     }
 
-    if let Some((value, offset)) = poor {
-        let problem = match target {
-            None => Some((
-                Code::InvalidValue,
-                format!(
-                    "metric `{name}` sets `poor` without a `target`. Set the `target` that scores 90 too"
-                ),
-            )),
-            Some(target) if target.kind() != value.kind() => Some((
-                Code::TargetUnit,
-                format!(
-                    "the `poor` of metric `{name}` is {}, but its `target` is {}",
-                    value.kind().singular(),
-                    target.kind().singular()
-                ),
-            )),
-            Some(target) => {
-                let (poor, target) = (
-                    value.amount().unwrap_or_default(),
-                    target.amount().unwrap_or_default(),
-                );
-                match better {
-                    Better::Lower if poor <= target => Some((
-                        Code::TargetRange,
-                        format!("the `poor` of metric `{name}` must be greater than its `target`"),
-                    )),
-                    Better::Higher if poor >= target => Some((
-                        Code::TargetRange,
-                        format!(
-                            "the `poor` of metric `{name}` must be less than its `target`, since higher is better"
-                        ),
-                    )),
-                    _ => None,
-                }
-            }
-        };
-        if let Some((code, message)) = problem {
-            return Err(Error::at(code, source, offset, message));
-        }
+    // A `poor` without a `target` waits for the baseline file, which holds the targets now.
+    if let Some((value, offset)) = poor
+        && let Some((code, message)) = poor_problem(name, better, value, target)
+    {
+        return Err(Error::at(code, source, offset, message));
     }
 
     Ok(Metric {
@@ -647,6 +623,79 @@ fn metric(
         varies,
         weight,
     })
+}
+
+/// Checks each metric's `poor` against its `target`, once the baseline file has set the targets.
+///
+/// # Errors
+///
+/// Returns an error at the metric for a `poor` without a `target`, of another unit, or on the wrong
+/// side of the target.
+pub fn validate(config: &Config) -> Result<(), Error> {
+    for metric in config
+        .categories
+        .iter()
+        .flat_map(|category| &category.metrics)
+    {
+        let Some(poor) = metric.poor else {
+            continue;
+        };
+        let problem = match metric.target {
+            None => Some((
+                Code::InvalidValue,
+                format!(
+                    "metric `{}` sets `poor` without a `target`. Set the `target` that scores 90 in the baseline file",
+                    metric.name
+                ),
+            )),
+            Some(target) => poor_problem(&metric.name, metric.better, poor, Some(target)),
+        };
+        if let Some((code, message)) = problem {
+            return Err(Error {
+                code,
+                location: Some(metric.location),
+                message,
+            });
+        }
+    }
+    Ok(())
+}
+
+/// Returns the problem with a `poor` of another unit than `target`, or on the wrong side of it.
+fn poor_problem(
+    name: &str,
+    better: Better,
+    poor: Value,
+    target: Option<Value>,
+) -> Option<(Code, String)> {
+    let target = target?;
+    if target.kind() != poor.kind() {
+        return Some((
+            Code::TargetUnit,
+            format!(
+                "the `poor` of metric `{name}` is {}, but its `target` is {}",
+                poor.kind().singular(),
+                target.kind().singular()
+            ),
+        ));
+    }
+    let (poor, target) = (
+        poor.amount().unwrap_or_default(),
+        target.amount().unwrap_or_default(),
+    );
+    match better {
+        Better::Lower if poor <= target => Some((
+            Code::TargetRange,
+            format!("the `poor` of metric `{name}` must be greater than its `target`"),
+        )),
+        Better::Higher if poor >= target => Some((
+            Code::TargetRange,
+            format!(
+                "the `poor` of metric `{name}` must be less than its `target`, since higher is better"
+            ),
+        )),
+        _ => None,
+    }
 }
 
 /// Parses a target or `poor`, named by `key`: a value such as `5kB` or `20ms`, or a number for a

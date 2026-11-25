@@ -1,14 +1,14 @@
 # Scores one value, a list, an unscored count, and a list of checks, then timings over 5 rounds
-# and a count where higher is better.
+# and a count where higher is better. The targets are in uphill.baseline.yaml.
 
 footprint:
   run: sh footprint.sh
-  bundle: { target: 5kB }
-  export-size: { target: 5kB }
+  bundle: {}
+  export-size: {}
   modules: {}
   links: {}
 
 speed:
   run: sh speed.sh
-  render: { target: 2ms }
-  throughput: { target: 2000, better: higher, weight: 2 }
+  render: {}
+  throughput: { better: higher, weight: 2 }

@@ -6,9 +6,9 @@
 footprint:
   run: bun metrics/footprint.ts
   # Bytes of the stripped release binary.
-  binary-size: { target: 1MB }
+  binary-size: {}
   # Third-party crates the binary compiles.
-  dependencies: { target: 10 }
+  dependencies: {}
 
 latency:
   run: bun metrics/latency.ts
@@ -19,7 +19,7 @@ latency:
   # 95th percentile time per request of each endpoint, against three times its median target.
   tail-latency: {}
   # Requests per second to `/harbors/12` from 16 concurrent clients. Higher is better.
-  throughput: { target: 5000, better: higher }
+  throughput: { better: higher }
 
 reliability:
   run: bun metrics/reliability.ts
@@ -30,7 +30,7 @@ reliability:
   # Whether the server still answers after a handler panics.
   survives-panic: {}
   # Percentage of 400 concurrent requests that fail or answer 5xx.
-  error-rate: { target: 1 }
+  error-rate: {}
 
 quality:
   run: bun metrics/quality.ts

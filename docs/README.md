@@ -18,7 +18,7 @@ Uphill scores a project against its own targets. Scripts measure the project, Up
 
 ## Reference
 
-- [Configuration](./reference/configuration.md): Every key in `uphill.yaml` and `uphill.toml`.
+- [Configuration](./reference/configuration.md): Every key in `uphill.yaml`, and the targets in the baseline file.
 - [Metric Lines](./reference/metric-lines.md): The line format that scripts write, and its errors.
 - [Units](./reference/units.md): Sizes, times, counts, and checks.
 - [Scoring](./reference/scoring.md): The curve, the bands, and how lists collapse.

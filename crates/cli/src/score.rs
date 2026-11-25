@@ -286,13 +286,15 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
         "{prefix}.uphill/report.json, {prefix}.uphill/report.md, {prefix}.uphill/report.html"
     );
     if options.update {
-        // An older configuration's `baseline` keys move into the baseline file.
+        // An older configuration's `target`, `targets`, and `baseline` keys move into the
+        // baseline file.
         let name = &project.name;
         let stripped = baseline::strip(&project.source, project.format)
             .map_err(|error| crate::diagnostic("error", &error, name, &project.source))?;
         let updated = baseline::write(&project.config, &report, project.format);
         let sidecar = &project.baselines_name;
-        if Some(&updated) != project.baselines_source.as_ref() {
+        // A run that records nothing, without a baseline file, has nothing to write or remove.
+        if updated != project.baselines_source.as_deref().unwrap_or_default() {
             let result = if updated.is_empty() {
                 std::fs::remove_file(&project.baselines)
             } else {
