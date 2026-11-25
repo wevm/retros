@@ -1702,6 +1702,42 @@ fn init_points_the_brief_at_the_closest_example() {
 }
 
 #[test]
+fn init_ends_the_brief_with_the_devising_metrics_skill() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let output = uphill_in(dir.path(), &["init"], &[]);
+    assert_eq!(output.status.code(), Some(0));
+
+    // Headings outside code blocks, where `#` starts a comment. The skill's frontmatter is left
+    // out, so the brief keeps one title per part.
+    let text = stdout(&output);
+    let mut fenced = false;
+    let headings: Vec<&str> = text
+        .lines()
+        .filter(|line| {
+            if line.starts_with("```") {
+                fenced = !fenced;
+            }
+            !fenced && line.starts_with('#')
+        })
+        .collect();
+    insta::assert_debug_snapshot!(headings, @r###"
+    [
+        "# Set up Uphill in this project",
+        "## Steps",
+        "## Configuration",
+        "## Metric lines",
+        "# Devising Metrics",
+        "## Process",
+        "## Ambitious Targets",
+        "## Depth and Detail",
+        "## Patterns",
+        "## Mistakes",
+    ]
+    "###);
+}
+
+#[test]
 fn add_copies_a_packs_categories_and_scripts_into_the_project() {
     let parent = tempfile::tempdir().unwrap();
     let pack = parent.path().join("pack");

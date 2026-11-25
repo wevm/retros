@@ -82,7 +82,7 @@ Wrote .uphill/dashboard.html
 
 ### `uphill init`
 
-Prints a brief that a person gives their agent to set up Uphill in the project. The brief lists the steps, the configuration keys, and the metric line format.
+Prints a brief that a person gives their agent to set up Uphill in the project. The brief lists the steps, the configuration keys, and the metric line format. It ends with the [`devising-metrics`](../../.agents/skills/devising-metrics/SKILL.md) skill, which sets out how to choose metrics and ambitious targets.
 
 The brief links the closest example: a Rust API for a Cargo project, a website for a package with pages or a web framework, and a TypeScript library for other packages.
 

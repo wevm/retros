@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="#overview">Overview</a> · <a href="#problem">Problem</a> · <a href="#solution">Solution</a> · <a href="#install">Install</a> · <a href="#usage">Usage</a> · <a href="#github-action">GitHub Action</a> · <a href="docs/README.md">Documentation</a>
+  <a href="#overview">Overview</a> · <a href="#problem">Problem</a> · <a href="#solution">Solution</a> · <a href="#install">Install</a> · <a href="#agents">Agents</a> · <a href="#usage">Usage</a> · <a href="#github-action">GitHub Action</a> · <a href="docs/README.md">Documentation</a>
 </p>
 
 <picture>
@@ -67,6 +67,14 @@ npx uphill
 cargo install --locked --git https://github.com/wevm/uphill uphill
 ```
 
+## Agents
+
+The [`devising-metrics`](.agents/skills/devising-metrics/SKILL.md) skill guides an agent to choose metrics: deep metrics for each surface, language and domain patterns such as TigerStyle and Lighthouse, and targets about 10 times better than the project is now. `uphill init` ends its brief with the skill.
+
+```text
+Run `npx uphill init` and set up Uphill as its brief describes. Use its devising-metrics skill to devise deep metrics with ambitious targets.
+```
+
 ## Usage
 
 Uphill reads `uphill.yaml` or `uphill.toml`, at the project root or in `.agents/`, from the current directory or the nearest parent. Scripts run from the project root. Add `.uphill/` to `.gitignore`.
@@ -93,7 +101,7 @@ uphill --compare main
 # Run each script once and check its lines, without scoring.
 uphill check
 
-# Print a brief for an agent to set up Uphill in this project.
+# Print a brief for an agent to set up Uphill in this project, with the devising-metrics skill.
 uphill init
 
 # Copy a pack's categories and scripts into this project, such as an example's.

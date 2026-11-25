@@ -1,7 +1,8 @@
 //! `uphill init`: prints a brief that a person gives their agent to set up Uphill in the project.
 //! The brief points at the example closest to the project in the current directory: a Rust API
 //! for a Cargo project, a website for a package with pages or a web framework, and a TypeScript
-//! library for any other package.
+//! library for any other package. The brief ends with the repository's `devising-metrics` skill,
+//! so the binary and `.agents/skills/` share one copy.
 
 use std::fmt::Write as _;
 use std::io::Write as _;
@@ -10,8 +11,11 @@ use std::process::ExitCode;
 
 use crate::project;
 
-/// The brief, with `{example}` where the closest example goes.
+/// The brief, with `{example}` where the closest example goes and `{skill}` where the skill goes.
 const BRIEF: &str = include_str!("init.md");
+
+/// The skill that guides the agent to devise metrics and targets, with its frontmatter.
+const SKILL: &str = include_str!("../../../.agents/skills/devising-metrics/SKILL.md");
 
 /// Where the examples live.
 const EXAMPLES: &str = "https://github.com/wevm/uphill/tree/main/examples";
@@ -46,7 +50,17 @@ pub(crate) fn run() -> ExitCode {
         );
     }
 
-    let _ = std::io::stdout().write_all(BRIEF.replace("{example}", &example).as_bytes());
+    // The frontmatter is only for agents that load skills, so the brief takes the skill from its title.
+    let skill = SKILL
+        .strip_prefix("---\n")
+        .and_then(|rest| rest.split_once("\n---\n"))
+        .map_or(SKILL, |(_, body)| body)
+        .trim_start();
+
+    let brief = BRIEF
+        .replace("{example}", &example)
+        .replace("{skill}", skill);
+    let _ = std::io::stdout().write_all(brief.as_bytes());
     ExitCode::SUCCESS
 }
 
