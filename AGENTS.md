@@ -288,7 +288,7 @@ Applies to documentation, comments, TSDoc, interface copy, commit messages, and 
 - `crates/engine/`: the pure engine. `crates/cli/`: the `uphill` package, which builds the `uphill` binary, and its integration tests.
 - `examples/`: small projects in different languages, each with an `uphill.yaml` and the scripts it runs. CLI tests run `uphill check` on each one.
 - `packs/`: packs that measure common conventions, each an `uphill.yaml`, its scripts, and a `README.md` that `uphill add` prints. A script runs the tools that already check a rule, and measures a rule itself only when no tool does.
-- `SKILL.md`: the `devising-metrics` skill, which `uphill init` embeds at the end of its brief.
+- `SKILL.md`: the `creating-metrics` skill, which `uphill init` embeds at the end of its brief.
 - `.agents/uphill.yaml` and `.agents/metrics/`: Uphill measuring itself.
 - `.agents/plan.md` tracks phases, decisions, and acceptance gates.
 - `npm/`: the `uphill` npm package, a pnpm workspace package built with zile from the zile template. `npm/src/bin.ts` runs the binary for the machine from `npm/binaries/<platform>-<arch>/`, which the Main workflow fills from the release archives. Its version is the release version, and `npm/version.ts` copies it into `Cargo.toml` and `Cargo.lock`. Changesets reads `.changeset/` at the repository root.

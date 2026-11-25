@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="#overview">Overview</a> · <a href="#problem">Problem</a> · <a href="#solution">Solution</a> · <a href="#install">Install</a> · <a href="#agents">Agents</a> · <a href="#usage">Usage</a> · <a href="#github-action">GitHub Action</a> · <a href="docs/README.md">Documentation</a>
+  <a href="#overview">Overview</a> · <a href="#quick-prompt">Quick Prompt</a> · <a href="#problem">Problem</a> · <a href="#solution">Solution</a> · <a href="#install">Install</a> · <a href="#packs">Packs</a> · <a href="#usage">Usage</a> · <a href="#github-action">GitHub Action</a> · <a href="docs/README.md">Documentation</a>
 </p>
 
 <picture>
@@ -16,6 +16,14 @@
 ## Overview
 
 Uphill scores a project against its own targets. A metric is anything a script can measure: bundle size, page load time, request latency, memory, test coverage, lint warnings, or an eval score. Uphill runs the scripts, scores each metric from 0 to 100, and names the fixes worth the most points.
+
+## Quick Prompt
+
+Paste this prompt into a coding agent:
+
+```txt
+Read the README at github.com/wevm/uphill, then set up Uphill in my project. Use its creating-metrics skill (SKILL.md) to create deep metrics with ambitious targets.
+```
 
 ## Problem
 
@@ -67,13 +75,34 @@ npx uphill
 cargo install --locked --git https://github.com/wevm/uphill uphill
 ```
 
-## Agents
+## Packs
 
-[`SKILL.md`](SKILL.md) is the `devising-metrics` skill. It guides an agent to choose metrics: deep metrics for each surface, existing tools before custom measurements, the [packs](packs) that fit, and targets about 10 times better than the project is now. `uphill init` ends its brief with the skill.
+A pack is a set of categories and scripts that measure common conventions. `uphill add` pins a pack to a commit and vendors it into `.agents/packs/`, after a review of its files. Runs read only the vendored files, so they need no network.
 
-```text
-Run `npx uphill init` and set up Uphill as its brief describes. Use its devising-metrics skill to devise deep metrics with ambitious targets.
+```sh
+# Pin the typescript pack to the newest commit of main, after a review of its code.
+uphill add wevm/uphill/packs/typescript@main
+
+# Add only some of a pack's categories.
+uphill add wevm/uphill/packs/rust@main rust
+
+# Review and take the newest commit of each pack.
+uphill update
 ```
+
+The [`packs/`](packs) directory of this repository has these packs:
+
+| Pack | Measures |
+| --- | --- |
+| [`deslop`](packs/deslop) | Module cycles, tangles, leaked fields, and shallow modules in Rust |
+| [`git`](packs/git) | Commit messages and repository hygiene |
+| [`rust`](packs/rust) | Lints, formatting, docs, panics, `unsafe`, tests, and manifests in Rust |
+| [`tigerstyle`](packs/tigerstyle) | TigerStyle limits: function length, line length, recursion, and assertions |
+| [`typescript`](packs/typescript) | Types, imports, modules, docs, and tests in TypeScript |
+| [`web`](packs/web) | Accessibility, best practices, focus and motion styles, and asset sizes |
+| [`writing-docs`](packs/writing-docs) | Prose in Markdown: sentence and paragraph length, voice, word choice, and heading case |
+
+See [Packs](docs/guides/packs.md) to override targets, pick categories, and write a pack.
 
 ## Usage
 
@@ -101,7 +130,7 @@ uphill --compare main
 # Run each script once and check its lines, without scoring.
 uphill check
 
-# Print a brief for an agent to set up Uphill in this project, with the devising-metrics skill.
+# Print a brief for an agent to set up Uphill in this project, with the creating-metrics skill.
 uphill init
 
 # Pin a pack to a commit and vendor it into .agents/packs, after a review of its code.

@@ -1,7 +1,7 @@
 //! `uphill init`: prints a brief that a person gives their agent to set up Uphill in the project.
 //! The brief points at the example closest to the project in the current directory: a Rust API
 //! for a Cargo project, a website for a package with pages or a web framework, and a TypeScript
-//! library for any other package, with the pack of conventions for its language. The brief ends with the `devising-metrics` skill in the
+//! library for any other package, with the pack of conventions for its language. The brief ends with the `creating-metrics` skill in the
 //! repository's `SKILL.md`, so the binary and the repository share one copy.
 
 use std::fmt::Write as _;
@@ -14,7 +14,7 @@ use crate::project;
 /// The brief, with `{example}` where the closest example goes and `{skill}` where the skill goes.
 const BRIEF: &str = include_str!("init.md");
 
-/// The skill that guides the agent to devise metrics and targets, with its frontmatter.
+/// The skill that guides the agent to create metrics and targets, with its frontmatter.
 const SKILL: &str = include_str!("../../../SKILL.md");
 
 /// Where the examples live.

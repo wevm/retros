@@ -1,9 +1,9 @@
 ---
-name: devising-metrics
-description: Devises Uphill metrics and targets for a project. It researches language patterns, such as TigerStyle, and domain patterns, such as Lighthouse. It measures every surface in depth, with targets about 10 times better than the project is now. Use to write or review `uphill.yaml`, `uphill.baseline.yaml`, or the scripts in `.agents/metrics/`.
+name: creating-metrics
+description: Creates Uphill metrics and targets for a project. It researches language patterns, such as TigerStyle, and domain patterns, such as Lighthouse. It measures every surface in depth, with targets about 10 times better than the project is now. Use to write or review `uphill.yaml`, `uphill.baseline.yaml`, or the scripts in `.agents/metrics/`.
 ---
 
-# Devising Metrics
+# Creating Metrics
 
 A good metric moves with work that users feel, and its value is exact or repeatable. Its target asks for a better project, not the current one. Uphill ranks opportunities by score, so the metrics and targets decide where an agent spends its effort.
 
