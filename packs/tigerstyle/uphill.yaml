@@ -1,5 +1,5 @@
-# TigerStyle (https://tigerstyle.dev), the TigerBeetle coding style, measured in each Rust, Zig,
-# Go, Swift, C, and TypeScript file that Git tracks. Tree-sitter reads source spans and calls.
+# TigerStyle, a coding style, measured in each Rust, Zig, Go, Swift, C, and TypeScript file that
+# Git tracks. Tree-sitter reads source spans and calls.
 # The project's optional Clippy and oxlint supply additional length diagnostics.
 
 # Every category reads the lines of this one script, which runs once.

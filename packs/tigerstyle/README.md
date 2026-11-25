@@ -1,6 +1,6 @@
 # TigerStyle
 
-Measures [TigerStyle](https://tigerstyle.dev) in Git-tracked Rust, Zig, Go, Swift, C, and TypeScript source. The pack uses each language's syntax tree to find function spans, calls, and assertions. Each source file is a check item. Generated directories, vendored packs, TypeScript declarations, and untracked files are excluded.
+Measures TigerStyle in Git-tracked Rust, Zig, Go, Swift, C, and TypeScript source. The pack uses each language's syntax tree to find function spans, calls, and assertions. Each source file is a check item. Generated directories, vendored packs, TypeScript declarations, and untracked files are excluded.
 
 The `correctness`, `style`, and `configuration` categories merge with the project's categories of the same name.
 

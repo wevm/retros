@@ -1,10 +1,9 @@
 /**
- * Measures the structure of source files with the four lints of deslop-please
- * (https://github.com/deterministic-machines/deslop-please): deep modules and narrow interfaces.
- * deslop-please reads Rust through rust-analyzer. The TypeScript checker resolves module, field,
- * and function references. A scanner reads the other source declarations and imports. A module
- * is a file, a Go package, or a C source with its header. Tests are not read. Each module is an
- * item, and a failing check carries the first finding.
+ * Measures the structure of source files with the four lints of deslop-please: deep modules and
+ * narrow interfaces. deslop-please reads Rust through rust-analyzer. The TypeScript checker
+ * resolves module, field, and function references. A scanner reads the other source declarations
+ * and imports. A module is a file, a Go package, or a C source with its header. Tests are not
+ * read. Each module is an item, and a failing check carries the first finding.
  *
  * @module
  */

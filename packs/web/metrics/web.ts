@@ -410,8 +410,7 @@ function list(patterns: readonly string[]): string[] {
  * Returns the command-line file of an installed package, such as `node_modules/oxlint/bin/oxlint`,
  * or `undefined`. It looks in `node_modules` beside the script and then in each directory above
  * it, so the pack's own dependencies come before the project's. It reads the package, not
- * `node_modules/.bin`, where another tool, such as Vite Plus, may install a wrapper under the same
- * name.
+ * `node_modules/.bin`, where another tool may install a wrapper under the same name.
  */
 function bin(name: string): string | undefined {
   const directory = (() => {

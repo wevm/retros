@@ -1,4 +1,4 @@
-# The four architecture lints of https://github.com/deterministic-machines/deslop-please.
+# The four architecture lints of deslop-please.
 # Each item is a file, Go package, or C source with its header. A skipped item does not score.
 # See README.md for the native Rust build configuration and the scanner's coverage.
 

@@ -1376,8 +1376,8 @@ function describe(diagnostic: Diagnostic): string {
 /**
  * Returns the file of the command `command` in the installed package `name`, such as
  * `node_modules/oxlint/bin/oxlint`, or `undefined`. It looks in `node_modules` in `from` and then
- * in each directory above it. It reads the package, not `node_modules/.bin`, where another tool,
- * such as Vite Plus, may install a wrapper under the same name.
+ * in each directory above it. It reads the package, not `node_modules/.bin`, where another tool
+ * may install a wrapper under the same name.
  */
 function bin(options: bin.Options): string | undefined {
   const { command, from, name } = options

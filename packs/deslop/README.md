@@ -6,7 +6,7 @@ Measures module cycles, type tangles, leaked fields, and shallow modules in the 
 
 At a Cargo workspace root, the pack runs `cargo check --workspace` with default features and Cargo's configured target. Only checked production targets and their compiler inputs are eligible. A failed build fails the measurement. An orphan or disabled module skips rather than increasing the score.
 
-With [deslop-please](https://github.com/deterministic-machines/deslop-please), a passing item also needs a document in rust-analyzer's SCIP index for the run. If the pack cannot identify that index, it reports native findings without assigning passes. A finding without a resolved owner belongs to `Cargo.toml`. The native tool honors `.deslop-please.allow`.
+With deslop-please, a passing item also needs a document in rust-analyzer's SCIP index for the run. If the pack cannot identify that index, it reports native findings without assigning passes. A finding without a resolved owner belongs to `Cargo.toml`. The native tool honors `.deslop-please.allow`.
 
 Without deslop-please, the scanner follows explicit Rust module paths and simple annotated receivers. It does not expand macros or resolve inline module cycles. Without a root Cargo manifest, it reads standalone sources, not a verified build. Each note identifies the backend.
 
