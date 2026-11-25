@@ -1,4 +1,4 @@
-# A pack that other projects add with `uphill add`. This header stays in the pack.
+# A pack that projects list in `packs`. This header stays in the pack.
 
 run: sh .agents/metrics/sizes.sh
 timeout: 30s

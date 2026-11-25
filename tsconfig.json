@@ -16,5 +16,5 @@
     "moduleDetection": "force",
     "skipLibCheck": true
   },
-  "exclude": ["**/dist", "**/node_modules", "crates", "examples", "target"]
+  "exclude": ["**/dist", "**/node_modules", "crates", "examples", "packs", "target"]
 }

@@ -1,4 +1,4 @@
-# A pack written in TOML, which `uphill add` copies into YAML and TOML projects alike.
+# A pack written in TOML, which YAML and TOML projects list alike.
 
 run = "sh metrics/sizes.sh"
 timeout = "30s"

@@ -68,6 +68,7 @@ footprint:
         categories: [
             Category {
                 description: None,
+                dropped: [],
                 location: Location {
                     column: 1,
                     line: 2,
@@ -119,6 +120,7 @@ footprint:
             },
             Category {
                 description: None,
+                dropped: [],
                 location: Location {
                     column: 1,
                     line: 8,

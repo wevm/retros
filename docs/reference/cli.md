@@ -1,6 +1,6 @@
 # CLI
 
-The `uphill` binary runs a project's scripts, scores the metrics, and writes reports. Its other commands check scripts, brief an agent, copy a pack's categories, read the noted runs of several repositories, and trace a metric through the Git history.
+The `uphill` binary runs a project's scripts, scores the metrics, and writes reports. Its other commands check scripts, brief an agent, add and update packs, read the noted runs of several repositories, and trace a metric through the Git history.
 
 ## Usage
 
@@ -8,8 +8,10 @@ The `uphill` binary runs a project's scripts, scores the metrics, and writes rep
 
 ```text
 uphill [category] [--compare <ref>] [--compact] [--note] [--update] [--require-baseline] [--require-targets]
-uphill add <pack> [category...] [--as <name>]
-uphill add --update [category...] [--force]
+uphill add <pack>[@ref] [category...] [--yes] [--allow-fresh]
+uphill update [pack...] [--yes] [--allow-fresh]
+uphill remove <pack>
+uphill audit
 uphill check
 uphill dashboard <repository>...
 uphill init
@@ -38,20 +40,42 @@ uphill
 
 ### `uphill add`
 
-Copies a pack's categories into the project's `uphill.yaml` or `uphill.toml`, or every category when none is named, and the scripts their `run` commands name into the project. A pack is a local directory, `owner/name/path` on GitHub, or a Git URL or repository path followed by `//path`, each with an optional `@ref`. A project without a configuration gets `.agents/uphill.yaml`, or `.agents/uphill.toml` from a TOML pack.
+Pins a pack to a full commit, vendors its files into `.agents/packs/<name>/`, and adds its entry to the configuration's `packs` key. A remote pack is `owner/repo/path` on GitHub or an `https` URL followed by `//path`, with an optional `@ref`. A local pack starts with `./` or `../`.
 
-`--as <name>` adds one category under another name. When the project already declares a category, or a copied file would replace a different one, `uphill add` writes nothing and exits with status 2. The [Packs](../guides/packs.md) guide shows a complete example.
+Names after the pack limit the entry to those categories. Before it writes, `uphill add` prints the pack's files and capabilities and asks for confirmation. `--yes` writes without asking, and a run without a terminal needs it. `--allow-fresh` takes a commit less than a day old.
+
+The [Packs](../guides/packs.md) guide lists each check.
 
 ```sh
-# Add the performance category of the web-app example.
-uphill add wevm/uphill/examples/web-app performance
+# Pin the typescript pack to the newest commit of main.
+uphill add wevm/uphill/packs/typescript@main
 ```
 
-`--update` fetches the pack of each added category, or of the categories it names, and merges the changes since the commit its comment records. When the project and the pack both changed a category or script, it writes nothing and exits with status 1. `--force` takes the pack's version instead.
+### `uphill update`
+
+Moves each remote pack, or each pack it names, to the newest commit of the ref that its entry's comment names, or of the default branch. It refuses a commit that does not descend from the pinned one, and asks for confirmation as `uphill add` does.
 
 ```sh
-# Merge the pack's changes into every added category.
-uphill add --update
+# Review and take the newest commit of each remote pack.
+uphill update
+```
+
+### `uphill remove`
+
+Removes a pack's entry from the configuration, and the vendored files of a remote pack. It takes the pack's directory name, such as `typescript`.
+
+```sh
+# Remove the entry and .agents/packs/typescript/.
+uphill remove typescript
+```
+
+### `uphill audit`
+
+Fetches each remote pack at its pinned commit and compares it with the vendored files. It exits with status 1 when a vendored file differs from the pinned commit, when either side lacks a file, or when no branch or tag contains the commit.
+
+```text
+$ uphill audit
+ok       wevm/uphill/packs/typescript at 94bd79a
 ```
 
 ### `uphill check`
@@ -82,7 +106,7 @@ Wrote .uphill/dashboard.html
 
 ### `uphill init`
 
-Prints a brief that a person gives their agent to set up Uphill in the project. The brief lists the steps, the configuration keys, and the metric line format. It ends with the [`devising-metrics`](../../.agents/skills/devising-metrics/SKILL.md) skill, which sets out how to choose metrics and ambitious targets.
+Prints a brief that a person gives their agent to set up Uphill in the project. The brief lists the steps, the configuration keys, and the metric line format. It ends with the [`devising-metrics`](../../SKILL.md) skill, which sets out how to choose metrics and ambitious targets.
 
 The brief links the closest example: a Rust API for a Cargo project, a website for a package with pages or a web framework, and a TypeScript library for other packages.
 

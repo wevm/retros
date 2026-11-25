@@ -1,6 +1,6 @@
 # Web App
 
-Tide, a small marketing site that Lighthouse measures in its default mobile mode. `uphill add wevm/uphill/examples/web-app` copies its four categories and `metrics/` into a project.
+Tide, a small marketing site that Lighthouse measures in its default mobile mode. Its four categories and `metrics/` show how to measure a site.
 
 ## Fit the Pack
 

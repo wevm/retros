@@ -1,74 +1,69 @@
 # Packs
 
-A pack is a directory with an `uphill.yaml` or `uphill.toml` and the scripts its `run` commands name. `uphill add` copies a pack's categories into a project and its scripts beside the project's configuration. The project then owns both.
+A pack is a directory with an `uphill.yaml` or `uphill.toml` and the scripts its `run` commands name. A project lists packs under `packs`, and Uphill runs their categories after the project's own. Uphill pins each remote pack to a commit and vendors it into the project.
 
 ## Overview
 
-Any project is a pack, so a category written once runs in every project that adds it. The copy keeps each comment, so each metric comes with a description of what it measures. A comment above each category records the command and commit, so `uphill add --update` merges later changes.
+`uphill add` fetches a pack at one commit, prints its files and what its code can do, and writes nothing until confirmed. The files go to `.agents/packs/<name>/`, and the entry takes the full commit. Runs read only these committed files, so they need no network.
 
 ```sh
-# Copy the Lighthouse categories of the web-app example into this project.
-uphill add wevm/uphill/examples/web-app
+# Add the Rust conventions pack from the main branch of this repository.
+uphill add wevm/uphill/packs/rust@main
 ```
 
 ## Walkthrough
 
-This walkthrough adds the `performance` category of the web-app example to a site that already measures its bundle.
+This walkthrough adds the `typescript` pack to a library that already measures its bundle.
 
-### Add the Category
+### Add the Pack
 
-`uphill add` takes the pack and, optionally, the categories to add. It prints the pack's `README.md`, which says what to fit. A project without a configuration gets `.agents/uphill.yaml`, or `.agents/uphill.toml` from a TOML pack.
+`uphill add` takes the pack and an optional `@ref`: a branch, a tag, or a full commit. It checks the commit, then prints a review. The review lists each file and each capability the scan finds, with the place it first appears.
 
 ```text
-$ uphill add wevm/uphill/examples/web-app performance
-Added performance to .agents/uphill.yaml
-Added their targets to .agents/uphill.baseline.yaml
-Added .agents/metrics/
+$ uphill add wevm/uphill/packs/typescript@main
+typescript  wevm/uphill/packs/typescript@94bd79a (main, 6 days old)
+files  5 (58 kB)
+  README.md
+  bun.lock
+  metrics/typescript.ts
+  package.json
+  uphill.yaml
+capabilities
+  info  dependency    @types/bun@1.4.5    package.json
+  info  dependency    oxc-parser@0.160.0  package.json
+  info  dependency    oxlint@1.95.0       package.json
+  info  environment   UPHILL_METRICS      metrics/typescript.ts:218
+  info  process       Bun.spawn           metrics/typescript.ts:226
+  info  process       git                 metrics/typescript.ts:1137
+  info  process       bun                 uphill.yaml:11
 
-The pack prepares each checkout with `setup: bun install --frozen-lockfile`. Add it to .agents/uphill.yaml if the scripts need it
+Its dependencies install from its lockfile, without install scripts, before its categories run
 
-# Web App
-...
-
-Fit the scripts and targets to this project, then run `uphill check`
+Add this pack? [y/N]
 ```
 
 ### Read the Result
 
-The category's `run` points at the copied scripts. A script in a directory, such as `metrics/lighthouse.ts`, brings the whole directory, so the files it imports come too.
+The entry pins the full commit, and the comment names the ref that `uphill update` follows. The pack has a `package.json`, so the entry approves its install with `install: true`.
 
-```yaml title=".agents/uphill.yaml"
+```yaml title="uphill.yaml"
 # The project's own category stays as it was.
 footprint:
-  run: sh .agents/metrics/footprint.sh
+  run: bun metrics/footprint.ts
   bundle-size: {}
 
-# Added by `uphill add wevm/uphill/examples/web-app performance` at 03fa96e3deae.
-performance:
-  run: bun .agents/metrics/lighthouse.ts performance
-  # Lighthouse's five metrics on each page, with Lighthouse's weights.
-  first-contentful-paint: { weight: 10 }
+packs:
+  - { pack: wevm/uphill/packs/typescript@94bd79a3bb8a413ff7080c08b2acec8b7c39e8ce, install: true } # main
 ```
 
-The default targets and patterns of the pack's baseline file go into the project's baseline file, for each metric that has none there. The pack's accepted values stay behind.
+### Run It
 
-```yaml title=".agents/uphill.baseline.yaml"
-# The project's own target, then the targets the pack sets.
-footprint:
-  bundle-size: { target: 5kB }
-
-performance:
-  first-contentful-paint: { target: 800ms }
-```
-
-### Fit It
-
-The targets and scripts are the pack's, so fit them to the project, such as its pages, its server command, and its packages. Then `uphill check` runs each script once, and `uphill --update` records the first baselines.
+The first run installs the pack's dependencies in `.agents/packs/typescript/` from its lockfile, with install scripts turned off. `.agents/packs/.gitignore` keeps each `node_modules` out of Git. Commit the configuration and `.agents/packs/` together, so a review reads the pack's code.
 
 ```sh
 # 1. Check that each script writes the metrics the configuration lists.
 uphill check
-# 2. Record the first baselines in .agents/uphill.baseline.yaml.
+# 2. Record the first baselines.
 uphill --update
 ```
 
@@ -76,83 +71,120 @@ uphill --update
 
 ### Pick a Source
 
-A pack is a local directory, `owner/name/path` on GitHub, or a Git URL or repository path followed by `//path`. Uphill fetches a remote pack with Git's own credentials, so private repositories work.
+A remote pack is `owner/repo/path` on GitHub or an `https` URL followed by `//path`. Git fetches it with its own credentials, so private repositories work. A local pack starts with `./` or `../`, and the project's own commit pins it.
 
 ```sh
-# A local directory.
-uphill add ../shared/uphill/rust-quality
-# A directory in a GitHub repository.
-uphill add wevm/uphill/examples/rust-api
-# A directory in any Git repository.
-uphill add https://gitlab.com/acme/metrics.git//packs/api
+# A directory in a GitHub repository, at a tag.
+uphill add wevm/uphill/packs/web@v0.1.0
+# A directory in any Git repository over https.
+uphill add https://gitlab.com/acme/metrics.git//packs/api@main
+# A directory in this repository.
+uphill add ./packs/api
 ```
 
-### Pin a Revision
+### Take Some Categories
 
-`@ref` fetches a branch, a tag, or a commit. Without it, Uphill fetches the default branch, and the comment above each category records the commit either way.
+Names after the pack limit the entry to those categories. A project category with a pack category's name overrides it key by key, and `metric: false` drops one metric.
 
-```sh
-# Add the quality category as it was at the v0.0.3 tag.
-uphill add wevm/uphill/examples/typescript-library@v0.0.3 quality
+```yaml title="uphill.yaml"
+packs:
+  # Run only the pack's `typescript` category.
+  - { pack: wevm/uphill/packs/typescript@94bd79a3bb8a413ff7080c08b2acec8b7c39e8ce, categories: [typescript], install: true } # main
+
+typescript:
+  # Weigh the lint check more, and drop the Prettier check.
+  lint: { weight: 3 }
+  prettier: false
 ```
 
 ### Update a Pack
 
-`uphill add --update` fetches each added category's pack and compares three versions of each category and script: the pack at the recorded commit, the project, and the pack now. A version that only one side changed wins. The project owns its targets after `uphill add`, so an update leaves the baseline file as it is.
+`uphill update` moves each remote pack, or the named ones, to the newest commit of the ref in its comment, or of the default branch. The review shows what changed: `+` for a new file or capability, `~` for a changed file, and `-` for a removed one.
 
 ```text
-$ uphill add --update
-updated   performance from 03fa96e to 1a2b3c4
-kept      seo from 03fa96e to 1a2b3c4, with this project's changes
-updated   .agents/metrics/lighthouse.ts
+$ uphill update typescript
+typescript  94bd79a → 47fd804 (main, 3 days old)
+files  +1 ~1 -0 (58.1 kB)
+  + metrics/upload.ts
+  ~ uphill.yaml
+capabilities
++ high  remote code   npx                 metrics/upload.ts:8
++ high  secret        GITHUB_TOKEN        metrics/upload.ts:7
+  info  dependency    @types/bun@1.4.5    package.json
+  info  dependency    oxc-parser@0.160.0  package.json
+  info  dependency    oxlint@1.95.0       package.json
+  info  environment   UPHILL_METRICS      metrics/typescript.ts:218
+  info  process       Bun.spawn           metrics/typescript.ts:226
+  info  process       git                 metrics/typescript.ts:1137
++ info  process       npx                 metrics/upload.ts:8
+  info  process       bun                 uphill.yaml:11
+
+Write this update? [y/N]
 ```
 
-### Resolve a Conflict
+### Check the Pins
 
-When the project and the pack both changed a category or script, the update writes nothing and exits with status 1. Merge it by hand, or pass `--force` to take the pack's version. A local directory records no commit, so each difference from it is a conflict.
+`uphill audit` fetches each remote pack at its pinned commit and compares it with the vendored files. It exits with status 1 when a vendored file differs from the pinned commit, or when either side lacks a file. Run it in CI.
 
 ```text
-$ uphill add --update
-conflict  performance  changed in both this project and the pack
-
-Nothing was written. Merge by hand, or run `uphill add --update --force` to take the pack's version
+$ uphill audit
+differs  wevm/uphill/packs/typescript at 47fd804
+  metrics/typescript.ts differs
+ok       wevm/uphill/packs/docs at 94bd79a
+ok       wevm/uphill/packs/git at 94bd79a
 ```
 
-### Mix Formats
+### Allow Sources
 
-A pack and a project can use different formats. A YAML pack goes into `uphill.toml` as tables, and a TOML pack goes into `uphill.yaml`. The comments above each category and each metric come too, and a comment at the end of a line stays behind.
+The top-level `allowed-packs` key lists patterns that every remote pack must match. A `*` matches any characters. `uphill add`, `uphill update`, and every run reject a pack that no pattern matches.
 
-```toml title="uphill.toml"
-# Added by `uphill add wevm/uphill/examples/web-app seo` at 03fa96e3deae.
-[seo]
-title = "SEO"
-run = "bun metrics/lighthouse.ts seo"
-audits = {}
+```yaml title="uphill.yaml"
+# Only packs from the wevm organization.
+allowed-packs: [wevm/*]
 ```
 
-### Rename a Category
+### Remove a Pack
 
-`--as` adds one category under another name, such as when the project already declares one with the same name. A name that the project already declares stops the command, and nothing is written.
+`uphill remove` takes the pack's directory name. It removes the entry, and the vendored files of a remote pack.
 
 ```sh
-# The project has its own quality category.
-uphill add wevm/uphill/examples/rust-api quality --as rust-quality
+# Remove the entry and .agents/packs/typescript/.
+uphill remove typescript
 ```
 
-### Share a Pack
+### Write a Pack
 
-A pack needs nothing beyond a project's own files. Keep its scripts in a directory beside the configuration, and write paths in `run` from the project root. `uphill add` prints the `README.md` beside the configuration, so it can tell an agent what to fit.
+A pack needs only its configuration and scripts. Write paths in `run` from the pack's directory, and Uphill rewrites them to start at the project root. Put tools in a `package.json` with a lockfile, and resolve them from the script's own directory first.
 
 ```text
 packs/lighthouse/
   uphill.yaml         # Categories and targets, with a comment on each metric.
   metrics/
     lighthouse.ts
-  README.md           # What to fit: pages, server command, and targets.
+  package.json        # The tools the scripts run.
+  bun.lock
+  README.md           # What the pack measures and what to fit.
 ```
+
+### Read the Checks
+
+Each check stops `uphill add` or `uphill update` before it writes anything.
+
+| Threat | Check |
+| --- | --- |
+| A moved branch or tag | Every remote entry holds a full commit. |
+| A commit that only a fork has | A branch or tag of the named repository must contain the commit. |
+| A ref that names a branch and a tag | `uphill add` rejects it. |
+| A force-push | `uphill update` takes only a commit that descends from the pinned one. |
+| A malicious commit not yet caught | A commit must be at least a day old, unless `--allow-fresh`. |
+| Code from other hosts | Sources are GitHub paths or `https` URLs. A pack's own `packs` key is an error. |
+| Commands run by Git | Git fetches into a bare repository, so no hooks, filters, LFS, or submodules run. |
+| Links and paths out of the pack | Only regular files, with plain names, under 1 MB each and 10 MB in all. |
+| Install scripts | Uphill runs no pack code during `add` or `update`, and installs with `--ignore-scripts`. |
+| Hidden text | Uphill removes control, bidirectional, and zero-width characters from pack text it prints. |
 
 ## More
 
 - [Writing Scripts](./scripts.md): Write metric lines for lists, subjects, timings, and checks.
 - [Baselines](./baselines.md): Record accepted values after the first run.
-- [CLI](../reference/cli.md#uphill-add): Every argument and flag of `uphill add`.
+- [CLI](../reference/cli.md#uphill-add): Every argument and flag of the pack commands.

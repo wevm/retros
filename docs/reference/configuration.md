@@ -47,6 +47,35 @@ footprint:
 
 ## Top-Level Keys
 
+### `allowed-packs`
+
+- **Type:** list of patterns
+- **Default:** none, which allows every source
+
+Patterns that each remote pack in `packs` must match, where `*` matches any characters. Every run, `uphill add`, and `uphill update` reject a pack that no pattern matches.
+
+```yaml title="uphill.yaml"
+# Only packs from the wevm organization.
+allowed-packs: [wevm/*]
+```
+
+### `packs`
+
+- **Type:** list of sources, or mappings with `pack`, `categories`, and `install`
+- **Default:** none
+
+The packs whose categories run after the project's own. A remote entry is pinned to a full commit, and its files live in `.agents/packs/<name>/`. A comment at the end of the line names the ref that `uphill update` follows. `install: true` approves installing the pack's dependencies from its lockfile, without install scripts.
+
+```yaml title="uphill.yaml"
+packs:
+  # A remote pack, pinned to a commit. `uphill update` follows main.
+  - wevm/uphill/packs/rust@94bd79a3bb8a413ff7080c08b2acec8b7c39e8ce # main
+  # Only one category, with its dependencies installed.
+  - { pack: wevm/uphill/packs/typescript@94bd79a3bb8a413ff7080c08b2acec8b7c39e8ce, categories: [typescript], install: true } # main
+  # A local pack, which the project's own commit pins.
+  - ./packs/api
+```
+
 ### `run`
 
 - **Type:** string

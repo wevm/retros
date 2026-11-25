@@ -74,6 +74,7 @@ pub(crate) struct Options {
 /// script at all, when it cannot check out or set up the revision to compare with, when it cannot
 /// move an older configuration's baselines into the baseline file, or when it cannot write a file.
 pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, String> {
+    crate::project::install(&project.root, &project.installs)?;
     let prefix = &project.prefix;
 
     let categories: Vec<&Category> = match options.category.as_deref() {
@@ -384,7 +385,14 @@ fn prepare(
     let baselines = std::fs::read_to_string(worktree.root.join(relative(&project.baselines))).ok();
     let config = std::fs::read_to_string(worktree.root.join(relative(&project.path)))
         .ok()
-        .and_then(|source| crate::project::load(&source, baselines.as_deref(), project.format));
+        .and_then(|source| {
+            crate::project::load(
+                &[&worktree.root, &project.root],
+                &source,
+                baselines.as_deref(),
+                project.format,
+            )
+        });
     if !config
         .as_ref()
         .is_some_and(|config| config::alike(config, &project.config))
@@ -429,12 +437,14 @@ fn prepare(
     Ok(config.filter(baseline::recorded))
 }
 
-/// Runs the configuration's `setup` in the checkout of another revision, if it has one.
+/// Runs the configuration's `setup` in the checkout of another revision, if it has one, and
+/// installs the dependencies of the packs the project approves.
 ///
 /// # Errors
 ///
-/// Returns a message for the terminal when `setup` cannot run or fails.
+/// Returns a message for the terminal when `setup` cannot run or fails, or an install fails.
 pub(crate) fn setup(project: &Project, worktree: &Worktree) -> Result<(), String> {
+    crate::project::install(&worktree.root, &project.installs)?;
     let Some(setup) = &project.config.setup else {
         return Ok(());
     };

@@ -280,7 +280,14 @@ fn points(project: &Project, selector: &Selector) -> Result<Vec<Point>, String> 
         };
         let baselines = show(&sidecar);
         let value = show(&place)
-            .and_then(|source| project::load(&source, baselines.as_deref(), project.format))
+            .and_then(|source| {
+                project::load(
+                    &[&project.root],
+                    &source,
+                    baselines.as_deref(),
+                    project.format,
+                )
+            })
             .and_then(|config| {
                 baseline::value(
                     &config,

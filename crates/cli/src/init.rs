@@ -1,8 +1,8 @@
 //! `uphill init`: prints a brief that a person gives their agent to set up Uphill in the project.
 //! The brief points at the example closest to the project in the current directory: a Rust API
 //! for a Cargo project, a website for a package with pages or a web framework, and a TypeScript
-//! library for any other package. The brief ends with the repository's `devising-metrics` skill,
-//! so the binary and `.agents/skills/` share one copy.
+//! library for any other package, with the pack of conventions for its language. The brief ends with the `devising-metrics` skill in the
+//! repository's `SKILL.md`, so the binary and the repository share one copy.
 
 use std::fmt::Write as _;
 use std::io::Write as _;
@@ -15,7 +15,7 @@ use crate::project;
 const BRIEF: &str = include_str!("init.md");
 
 /// The skill that guides the agent to devise metrics and targets, with its frontmatter.
-const SKILL: &str = include_str!("../../../.agents/skills/devising-metrics/SKILL.md");
+const SKILL: &str = include_str!("../../../SKILL.md");
 
 /// Where the examples live.
 const EXAMPLES: &str = "https://github.com/wevm/uphill/tree/main/examples";
@@ -35,8 +35,8 @@ pub(crate) fn run() -> ExitCode {
     let cwd = std::env::current_dir().unwrap_or_default();
 
     let mut example = match closest(&cwd) {
-        Some((name, kind)) => format!(
-            "The closest example is {kind}: {EXAMPLES}/{name}. Read its `uphill.yaml` and `metrics/` before writing anything. `uphill add wevm/uphill/examples/{name}` copies its categories and scripts to fit."
+        Some((name, kind, pack)) => format!(
+            "The closest example is {kind}: {EXAMPLES}/{name}. Read its `uphill.yaml` and `metrics/` before writing anything. `uphill add wevm/uphill/packs/{pack}@main` adds the `{pack}` pack of conventions, pinned to a commit."
         ),
         None => format!(
             "Read the closest example before writing anything: a TypeScript library ({EXAMPLES}/typescript-library), a website ({EXAMPLES}/web-app), or a Rust API ({EXAMPLES}/rust-api)."
@@ -64,19 +64,19 @@ pub(crate) fn run() -> ExitCode {
     ExitCode::SUCCESS
 }
 
-/// Returns the name and kind of the example closest to the project at `dir`, or `None` when it is
-/// neither a Cargo project nor a package.
-fn closest(dir: &Path) -> Option<(&'static str, &'static str)> {
+/// Returns the name and kind of the example closest to the project at `dir`, and the pack for its
+/// language, or `None` when it is neither a Cargo project nor a package.
+fn closest(dir: &Path) -> Option<(&'static str, &'static str, &'static str)> {
     if dir.join("Cargo.toml").is_file() {
-        return Some(("rust-api", "a Rust API"));
+        return Some(("rust-api", "a Rust API", "rust"));
     }
     let package = std::fs::read_to_string(dir.join("package.json")).ok()?;
     let web = WEB.iter().any(|name| package.contains(name))
         || dir.join("index.html").is_file()
         || dir.join("pages").is_dir();
     Some(if web {
-        ("web-app", "a website")
+        ("web-app", "a website", "web")
     } else {
-        ("typescript-library", "a TypeScript library")
+        ("typescript-library", "a TypeScript library", "typescript")
     })
 }

@@ -36,7 +36,7 @@ impl Location {
 pub enum Code {
     /// A metric line written twice in one run, or an item written twice for one metric.
     Duplicate,
-    /// A category that `uphill add` would add to a project that already declares it.
+    /// A category that two packs declare.
     DuplicateCategory,
     /// A metric in two categories that share one `run` command.
     DuplicateMetric,
@@ -60,6 +60,8 @@ pub enum Code {
     MixedTargets,
     /// A metric written with more than one kind of unit.
     MixedUnits,
+    /// A remote pack that no pattern of `allowed-packs` matches.
+    NotAllowed,
     /// A category without metrics, or a configuration without categories.
     NothingConfigured,
     /// A category without a `run` command.
@@ -76,6 +78,8 @@ pub enum Code {
     UnexpectedKey,
     /// A pattern in a metric's `targets` that matches no item the script wrote.
     UnmatchedPattern,
+    /// A remote pack without a full commit.
+    Unpinned,
     /// A unit that is not a size, time, or check unit.
     UnknownUnit,
     /// YAML in `uphill.yaml` that does not parse, or that Uphill does not accept, such as a
@@ -100,6 +104,7 @@ impl Code {
             Self::MixedSubjects => "mixed-subjects",
             Self::MixedTargets => "mixed-targets",
             Self::MixedUnits => "mixed-units",
+            Self::NotAllowed => "not-allowed",
             Self::NothingConfigured => "nothing-configured",
             Self::RunMissing => "run-missing",
             Self::Toml => "toml",
@@ -108,6 +113,7 @@ impl Code {
             Self::UnconfiguredMetric => "unconfigured-metric",
             Self::UnexpectedKey => "unexpected-key",
             Self::UnmatchedPattern => "unmatched-pattern",
+            Self::Unpinned => "unpinned",
             Self::UnknownUnit => "unknown-unit",
             Self::Yaml => "yaml",
         }

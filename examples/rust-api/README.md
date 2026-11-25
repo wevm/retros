@@ -1,6 +1,6 @@
 # Rust API
 
-Harbor, an HTTP API on Rust's standard library, measured with Cargo's own tools. `uphill add wevm/uphill/examples/rust-api` copies its footprint, latency, reliability, and quality categories and `metrics/` into a project.
+Harbor, an HTTP API on Rust's standard library, measured with Cargo's own tools. Its footprint, latency, reliability, and quality categories and `metrics/` show how to measure an API.
 
 ## Fit the Pack
 

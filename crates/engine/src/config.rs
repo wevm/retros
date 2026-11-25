@@ -8,6 +8,10 @@
 //! `better`, `varies`, `title`, and `description`. `poor` is the value that scores 50 against the
 //! default target, and twice the target without it.
 //!
+//! A top-level `packs` key lists packs whose categories the project runs too (see
+//! [`crate::pack`]). A category with the name of a pack's category overrides it key by key, and
+//! `metric: false` drops one of its metrics.
+//!
 //! The baseline file beside the configuration holds the targets (see [`crate::baseline`]). Older
 //! configurations set `target`, `targets`, and `baseline` on each metric instead. Uphill still
 //! reads them, and `uphill --update` moves them into the baseline file.
@@ -33,6 +37,7 @@ use crate::check::Source;
 use crate::document::{self, Kind, Node};
 use crate::error::{Code, Error, Location};
 use crate::lines::is_name;
+use crate::pack::Pack;
 use crate::value::{self, Value};
 
 /// Keys a metric accepts, in the order error messages list them.
@@ -125,6 +130,8 @@ pub(crate) fn without_locations(mut config: Config) -> Config {
 pub struct Category {
     /// What the category measures, for reports.
     pub description: Option<String>,
+    /// The pack's metrics that the project drops with `metric: false`. Their lines are ignored.
+    pub dropped: Vec<String>,
     /// The position of the category's name.
     pub location: Location,
     /// Metrics in the order the file declares them.
@@ -290,13 +297,27 @@ pub enum Rollup {
     Sum,
 }
 
-/// Parses the source text of a configuration in `format`.
+/// Parses the source text of a configuration in `format`, without its packs.
 ///
 /// # Errors
 ///
 /// Returns the first error: YAML or TOML syntax, an unknown key, a value of the wrong type, a missing
 /// `run` command, a target that cannot score, or a metric in two categories that share a run.
 pub fn parse(source: &str, format: Format) -> Result<Config, Error> {
+    compose(source, format, &[])
+}
+
+/// Parses the source text of a configuration in `format` and adds the categories of its packs,
+/// in the order `packs` lists them, after the project's own. A project category with a pack
+/// category's name overrides that category key by key, and `metric: false` drops a metric. A
+/// pack's sizes, counts, and checks stay behind, and each pack category and metric takes the
+/// location of its entry, so an error points into the project's configuration.
+///
+/// # Errors
+///
+/// Returns the errors of [`parse`], an entry's category that its pack does not declare, a
+/// category that two packs declare, and an override of a metric that the pack does not declare.
+pub fn compose(source: &str, format: Format, packs: &[Pack]) -> Result<Config, Error> {
     let Some(document) = document::parse(source, format)? else {
         return Err(nothing_configured(format));
     };
@@ -324,11 +345,15 @@ pub fn parse(source: &str, format: Format) -> Result<Config, Error> {
         }
     }
 
+    let mut packed = from_packs(packs)?;
     let mut categories: Vec<Category> = Vec::new();
 
     for (key, value) in pairs {
         let name = self::key(source, key)?;
-        if matches!(name, "run" | "setup" | "timeout") {
+        if matches!(
+            name,
+            "allowed-packs" | "packs" | "run" | "setup" | "timeout"
+        ) {
             continue;
         }
         check_name(source, key, name, "category")?;
@@ -347,11 +372,24 @@ pub fn parse(source: &str, format: Format) -> Result<Config, Error> {
             ));
         };
 
-        let category = category(source, format, key, name, fields, &defaults)?;
+        if let Some(base) = packed.iter_mut().find(|base| base.name == name) {
+            *base = self::category(source, format, key, name, fields, &defaults, Some(base))?;
+            continue;
+        }
+        categories.push(self::category(
+            source, format, key, name, fields, &defaults, None,
+        )?);
+    }
+    categories.append(&mut packed);
 
+    for (index, category) in categories.iter().enumerate() {
         // A shared run gives each line to the category that configures its metric, so a metric
         // name can belong to only one of the categories that share it.
-        for other in categories.iter().filter(|other| other.run == category.run) {
+        for other in categories
+            .iter()
+            .take(index)
+            .filter(|other| other.run == category.run)
+        {
             if let Some(metric) = category
                 .metrics
                 .iter()
@@ -367,8 +405,6 @@ pub fn parse(source: &str, format: Format) -> Result<Config, Error> {
                 });
             }
         }
-
-        categories.push(category);
     }
 
     if categories.is_empty() {
@@ -382,6 +418,58 @@ pub fn parse(source: &str, format: Format) -> Result<Config, Error> {
             timeout: defaults.timeout,
         }),
     })
+}
+
+/// Returns the categories of the packs, in the order of their entries, each with the location of its
+/// entry and without the pack's baselines.
+fn from_packs(packs: &[Pack]) -> Result<Vec<Category>, Error> {
+    let mut categories: Vec<Category> = Vec::new();
+    for pack in packs {
+        let entry = &pack.entry;
+        if let Some(names) = &entry.categories
+            && let Some(name) = names
+                .iter()
+                .find(|name| !pack.config.categories.iter().any(|c| &c.name == *name))
+        {
+            return Err(Error {
+                code: Code::InvalidValue,
+                location: Some(entry.location),
+                message: format!("pack `{}` has no category `{name}`", entry.name),
+            });
+        }
+
+        for category in &pack.config.categories {
+            if entry
+                .categories
+                .as_ref()
+                .is_some_and(|names| !names.contains(&category.name))
+            {
+                continue;
+            }
+            if let Some(other) = categories.iter().find(|c| c.name == category.name) {
+                return Err(Error {
+                    code: Code::DuplicateCategory,
+                    location: Some(entry.location),
+                    message: format!(
+                        "category `{}` is in pack `{}` and in an earlier pack. Take it from one with `categories`",
+                        other.name, entry.name
+                    ),
+                });
+            }
+
+            let mut category = category.clone();
+            category.location = entry.location;
+            for metric in &mut category.metrics {
+                metric.baseline = None;
+                metric.location = entry.location;
+                for pattern in &mut metric.targets {
+                    pattern.location = entry.location;
+                }
+            }
+            categories.push(category);
+        }
+    }
+    Ok(categories)
 }
 
 /// The top-level keys that apply to every category that does not set its own.
@@ -402,6 +490,7 @@ fn nothing_configured(format: Format) -> Error {
     }
 }
 
+/// Parses a category, or an override of `base`, a pack's category, when it is set.
 fn category(
     source: &str,
     format: Format,
@@ -409,12 +498,14 @@ fn category(
     name: &str,
     fields: &[(Node, Node)],
     defaults: &Defaults,
+    base: Option<&Category>,
 ) -> Result<Category, Error> {
-    let mut description = None;
-    let mut metrics = Vec::new();
+    let mut description = base.and_then(|base| base.description.clone());
+    let mut dropped = base.map(|base| base.dropped.clone()).unwrap_or_default();
+    let mut metrics = base.map(|base| base.metrics.clone()).unwrap_or_default();
     let mut run = None;
-    let mut timeout = defaults.timeout;
-    let mut title = None;
+    let mut timeout = base.map_or(defaults.timeout, |base| base.timeout);
+    let mut title = base.and_then(|base| base.title.clone());
 
     for (field, value) in fields {
         match self::key(source, field)? {
@@ -424,6 +515,35 @@ fn category(
             "title" => title = Some(string(source, value, "title")?.to_owned()),
             metric => {
                 check_name(source, field, metric, "metric")?;
+
+                let inherited = metrics.iter().position(|m| m.name == metric);
+                if let Some(base) = base
+                    && inherited.is_none()
+                {
+                    return Err(Error::at(
+                        Code::UnexpectedKey,
+                        source,
+                        field.offset,
+                        format!(
+                            "metric `{metric}` is not in the pack's category `{}`, so there is nothing to override",
+                            base.name
+                        ),
+                    ));
+                }
+                if is_false(value) {
+                    let Some(index) = inherited else {
+                        return Err(Error::at(
+                            Code::InvalidType,
+                            source,
+                            value.offset,
+                            format!(
+                                "`{metric}: false` drops a pack's metric, and `{name}` is not a pack's category"
+                            ),
+                        ));
+                    };
+                    dropped.push(metrics.remove(index).name);
+                    continue;
+                }
 
                 // A metric without keys, such as `modules:`, is shown but not scored.
                 let empty = Vec::new();
@@ -447,12 +567,22 @@ fn category(
                     }
                 };
 
-                metrics.push(self::metric(source, format, field, metric, keys)?);
+                match inherited {
+                    Some(index) => {
+                        let base = metrics.remove(index);
+                        let merged = self::metric(source, format, field, metric, keys, Some(base))?;
+                        metrics.insert(index, merged);
+                    }
+                    None => metrics.push(self::metric(source, format, field, metric, keys, None)?),
+                }
             }
         }
     }
 
-    let Some(run) = run.or_else(|| defaults.run.clone()) else {
+    let Some(run) = run
+        .or_else(|| base.map(|base| base.run.clone()))
+        .or_else(|| defaults.run.clone())
+    else {
         return Err(Error::at(
             Code::RunMissing,
             source,
@@ -474,7 +604,8 @@ fn category(
 
     Ok(Category {
         description,
-        location: Location::of(source, key.offset),
+        dropped,
+        location: base.map_or_else(|| Location::of(source, key.offset), |base| base.location),
         metrics,
         name: name.to_owned(),
         run,
@@ -483,28 +614,35 @@ fn category(
     })
 }
 
+/// Parses a metric, or the keys that override `base`, a pack's metric, when it is set.
 fn metric(
     source: &str,
     format: Format,
     key: &Node,
     name: &str,
     keys: &[(Node, Node)],
+    base: Option<Metric>,
 ) -> Result<Metric, Error> {
     let mut baseline = None;
-    let mut better = Better::Lower;
-    let mut description = None;
+    let mut better = base.as_ref().map_or(Better::Lower, |base| base.better);
+    let mut better_set = false;
+    let mut description = base.as_ref().and_then(|base| base.description.clone());
     let mut poor = None;
     let mut score = None;
-    let mut target = None;
-    let mut targets = Vec::new();
-    let mut title = None;
-    let mut varies = false;
-    let mut weight = 1.0;
+    let mut target = base.as_ref().and_then(|base| base.target);
+    let mut targets = base
+        .as_ref()
+        .map(|base| base.targets.clone())
+        .unwrap_or_default();
+    let mut title = base.as_ref().and_then(|base| base.title.clone());
+    let mut varies = base.as_ref().is_some_and(|base| base.varies);
+    let mut weight = base.as_ref().map_or(1.0, |base| base.weight);
 
     for (field, value) in keys {
         match self::key(source, field)? {
             "baseline" => baseline = Some(crate::baseline::parse(source, value)?),
             "better" => {
+                better_set = true;
                 better = match string(source, value, "better")? {
                     "higher" => Better::Higher,
                     "lower" => Better::Lower,
@@ -606,17 +744,27 @@ fn metric(
         return Err(Error::at(code, source, offset, message));
     }
 
+    // An override keeps the pack's rollup unless it sets `score`, or `better`, which picks one.
+    let rollup = match better {
+        Better::Higher => Rollup::P10,
+        Better::Lower => Rollup::P90,
+    };
+    let score = match (score, &base) {
+        (Some(score), _) => score,
+        (None, Some(base)) if !better_set => base.score,
+        (None, _) => rollup,
+    };
+
     Ok(Metric {
         baseline,
         better,
         description,
         location: Location::of(source, key.offset),
         name: name.to_owned(),
-        poor: poor.map(|(value, _)| value),
-        score: score.unwrap_or(match better {
-            Better::Higher => Rollup::P10,
-            Better::Lower => Rollup::P90,
-        }),
+        poor: poor
+            .map(|(value, _)| value)
+            .or(base.and_then(|base| base.poor)),
+        score,
         target,
         targets,
         title,
@@ -861,6 +1009,11 @@ fn number(source: &str, value: &Node, key: &str) -> Result<f64, Error> {
             format!("`{key}` must be a finite number"),
         )
     })
+}
+
+/// Returns whether a value is a plain `false`, which drops a pack's metric.
+fn is_false(value: &Node) -> bool {
+    matches!(&value.kind, Kind::Scalar { plain: true, text } if Yaml::from_str(text) == Yaml::Boolean(false))
 }
 
 fn string<'n>(source: &str, value: &'n Node, key: &str) -> Result<&'n str, Error> {

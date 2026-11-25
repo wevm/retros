@@ -69,7 +69,7 @@ cargo install --locked --git https://github.com/wevm/uphill uphill
 
 ## Agents
 
-The [`devising-metrics`](.agents/skills/devising-metrics/SKILL.md) skill guides an agent to choose metrics: deep metrics for each surface, language and domain patterns such as TigerStyle and Lighthouse, and targets about 10 times better than the project is now. `uphill init` ends its brief with the skill.
+[`SKILL.md`](SKILL.md) is the `devising-metrics` skill. It guides an agent to choose metrics: deep metrics for each surface, existing tools before custom measurements, the [packs](packs) that fit, and targets about 10 times better than the project is now. `uphill init` ends its brief with the skill.
 
 ```text
 Run `npx uphill init` and set up Uphill as its brief describes. Use its devising-metrics skill to devise deep metrics with ambitious targets.
@@ -104,8 +104,14 @@ uphill check
 # Print a brief for an agent to set up Uphill in this project, with the devising-metrics skill.
 uphill init
 
-# Copy a pack's categories and scripts into this project, such as an example's.
-uphill add wevm/uphill/examples/web-app
+# Pin a pack to a commit and vendor it into .agents/packs, after a review of its code.
+uphill add wevm/uphill/packs/typescript@main
+
+# Review and take the newest commit of each pack.
+uphill update
+
+# Check that each vendored pack matches its pinned commit.
+uphill audit
 
 # Print the scores, missed targets, and opportunities in a few lines, for agent loops.
 uphill --compact

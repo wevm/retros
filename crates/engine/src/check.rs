@@ -197,6 +197,7 @@ fn check_group(category: &Category, name: &str, group: &[&Line<'_>], report: &mu
     }
 
     match category.metrics.iter().find(|metric| metric.name == name) {
+        None if category.dropped.iter().any(|dropped| dropped == name) => {}
         None => report.warnings.push(error(
             Code::UnconfiguredMetric,
             first,

@@ -17,7 +17,7 @@ bun install
 uphill
 ```
 
-Each example is also a pack. `uphill add wevm/uphill/examples/web-app` copies its categories and scripts into another project, and prints the example's `README.md`, which says what to fit.
+Copy the categories and scripts that fit into another project, and read the example's `README.md`, which says what to fit. The packs in [`packs/`](../packs) measure common conventions without a copy.
 
 Each example keeps its targets in `uphill.baseline.yaml`. A record with only a target, such as `binary-size: { target: 1MB }`, is the default for every item. A script can write its own target on a line, such as `latency /health 0.29ms target 500µs`, when it knows the context. A pattern such as `"viem/chains/*": { target: 1kB }`, or an item's own target such as `index.html: { target: 8kB }`, overrides the line. `uphill --update` writes each item's accepted value as its `baseline`, beside the `target` it scored against.
 

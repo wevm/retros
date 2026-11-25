@@ -6,12 +6,13 @@
 //! writes the report files. It exits with status 0 on success, 1 when a category fails, and 2
 //! when it cannot run, such as for an unknown argument or an invalid configuration.
 
-mod add;
 mod check;
 mod dashboard;
+mod fetch;
 mod history;
 mod init;
 mod measure;
+mod packs;
 mod project;
 mod score;
 mod script;
@@ -28,21 +29,21 @@ use incur::{Io, Parser};
 #[derive(Parser)]
 #[incur(name = "uphill", version)]
 enum Command {
-    /// Copy a pack's categories into uphill.yaml or uphill.toml and its scripts into the project: a local directory, owner/name/path on GitHub, or a Git URL followed by //path, each with an optional @ref. With --update, merge the changes of each added category's pack
+    /// Pin a pack to a commit, vendor it into .agents/packs, and list it in the configuration: owner/repo/path on GitHub, an https URL followed by //path, or a local ./path, with an optional @ref
     Add {
-        /// The pack, such as wevm/uphill/examples/web-app. With --update, a category to update
+        /// The pack, such as wevm/uphill/packs/rust@main
         #[incur(arg)]
-        pack: Option<String>,
-        /// The pack's categories to add, or every category. With --update, the categories to update, or every added category
+        pack: String,
+        /// The pack's categories to run, or every category
         #[incur(arg)]
         categories: Option<Vec<String>>,
-        /// Add the one category under this name
-        r#as: Option<String>,
-        /// With --update, take the pack's version of each category and script that both sides changed
-        force: bool,
-        /// Fetch the pack of each added category again and merge its changes
-        update: bool,
+        /// Take a commit less than a day old
+        allow_fresh: bool,
+        /// Write without asking
+        yes: bool,
     },
+    /// Fetch each remote pack at its pinned commit and compare it with the vendored files
+    Audit,
     /// Name the commit that last moved a metric: from its baselines, or by measuring commits since <ref>, or every commit, in temporary checkouts and bisecting
     Blame {
         /// The category of the metric
@@ -83,6 +84,22 @@ enum Command {
         /// The subject of the metric, when a category's lines have subjects
         subject: Option<String>,
     },
+    /// Remove a pack from the configuration, and its vendored files
+    Remove {
+        /// The pack, by its directory name, such as rust
+        #[incur(arg)]
+        pack: String,
+    },
+    /// Move each remote pack, or the named ones, to the newest commit of the ref it follows
+    Update {
+        /// The packs to update, by their directory names, or every remote pack
+        #[incur(arg)]
+        packs: Option<Vec<String>>,
+        /// Take a commit less than a day old
+        allow_fresh: bool,
+        /// Write without asking
+        yes: bool,
+    },
 }
 
 fn main() -> ExitCode {
@@ -100,15 +117,14 @@ fn main() -> ExitCode {
             }
         });
 
-    // incur reads `--version` only, and `-V` stays the short form.
+    // incur reads `--version` only, and `-V` stays the short form. incur also reads a leading
+    // `--update` as the `update` command, so the flag takes its explicit value.
     let argv: Vec<String> = std::env::args()
         .skip(1)
-        .map(|arg| {
-            if arg == "-V" {
-                "--version".to_owned()
-            } else {
-                arg
-            }
+        .map(|arg| match arg.as_str() {
+            "--update" => "--update=true".to_owned(),
+            "-V" => "--version".to_owned(),
+            _ => arg,
         })
         .collect();
     let stdout = std::io::stdout();
@@ -158,28 +174,16 @@ fn score(options: &score::Options) -> ExitCode {
 fn run(command: Command) -> ExitCode {
     match command {
         Command::Add {
+            allow_fresh,
             categories,
-            force,
             pack,
-            r#as,
-            update,
-        } => {
-            let categories = categories.unwrap_or_default();
-            let result = match (update, pack) {
-                (true, pack) => {
-                    let names: Vec<String> = pack.into_iter().chain(categories).collect();
-                    add::update(&names, force)
-                }
-                (false, Some(pack)) => add::run(&pack, &categories, r#as.as_deref()),
-                (false, None) => {
-                    return usage("uphill add needs a pack, such as wevm/uphill/examples/web-app");
-                }
-            };
-            result.unwrap_or_else(|message| {
-                let _ = writeln!(std::io::stderr(), "{message}");
-                ExitCode::from(2)
-            })
-        }
+            yes,
+        } => report(packs::add(
+            &pack,
+            &categories.unwrap_or_default(),
+            packs::Flags { allow_fresh, yes },
+        )),
+        Command::Audit => report(packs::audit()),
         Command::Blame {
             category,
             item,
@@ -196,12 +200,7 @@ fn run(command: Command) -> ExitCode {
             with_project(|project| history::blame(project, &selector, since.as_deref()))
         }
         Command::Check => with_project(check::run),
-        Command::Dashboard { repositories } => {
-            dashboard::run(&repositories).unwrap_or_else(|message| {
-                let _ = writeln!(std::io::stderr(), "{message}");
-                ExitCode::from(2)
-            })
-        }
+        Command::Dashboard { repositories } => report(dashboard::run(&repositories)),
         Command::Init => init::run(),
         Command::Log {
             category,
@@ -217,7 +216,24 @@ fn run(command: Command) -> ExitCode {
             };
             with_project(|project| history::log(project, &selector))
         }
+        Command::Remove { pack } => report(packs::remove(&pack)),
+        Command::Update {
+            allow_fresh,
+            packs,
+            yes,
+        } => report(packs::update(
+            &packs.unwrap_or_default(),
+            packs::Flags { allow_fresh, yes },
+        )),
     }
+}
+
+/// Returns a command's exit code, or writes its message to standard error with exit status 2.
+fn report(result: Result<ExitCode, String>) -> ExitCode {
+    result.unwrap_or_else(|message| {
+        let _ = writeln!(std::io::stderr(), "{message}");
+        ExitCode::from(2)
+    })
 }
 
 /// Finds the project and runs `command` on it. A message from either goes to standard error with

@@ -1,6 +1,6 @@
 # TypeScript Library
 
-tiny-format, a small library of formatters measured with the tools it already uses. `uphill add wevm/uphill/examples/typescript-library` copies its footprint, speed, and quality categories and `metrics/` into a project.
+tiny-format, a small library of formatters measured with the tools it already uses. Its footprint, speed, and quality categories and `metrics/` show how to measure a library.
 
 ## Fit the Pack
 

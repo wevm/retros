@@ -20,6 +20,7 @@ use crate::project::Project;
 /// Returns a message for the terminal when Uphill cannot run a script at all, such as when `sh`
 /// is missing. A script that fails is reported in the output, not returned.
 pub(crate) fn run(project: &Project) -> Result<ExitCode, String> {
+    crate::project::install(&project.root, &project.installs)?;
     let width = project
         .config
         .categories

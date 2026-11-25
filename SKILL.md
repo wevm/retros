@@ -9,12 +9,14 @@ A good metric moves with work that users feel, and its value is exact or repeata
 
 Do not ask for small wins such as "optimize X". Ask for "make X 10 times faster", and design the metrics so that the climb is visible at each step.
 
+Uphill measures nothing itself. A script routes each metric to a tool that already measures it, and writes a custom measurement only when no tool does.
+
 ## Process
 
 1. **Map the surfaces:** List what users import, open, call, or run, such as entry points, exports, pages, endpoints, commands, and queries. Each surface becomes an item, not a part of a total.
-2. **Research the patterns:** Read the project's AGENTS.md, then the published patterns of its language and domain (see [Patterns](#patterns)). Use the domain's names for metrics, so a reader recognizes them.
+2. **Research the patterns:** Read the project's AGENTS.md, then the published patterns of its language and domain (see [Patterns](#patterns)). Use the domain's names for metrics, so a reader recognizes them. Start from a pack when one fits (see [Packs](#packs)).
 3. **Sketch the physics:** Estimate the floor for each surface from the four resources (network, storage, memory, compute) and their two properties (bandwidth, latency). For example, a 4 kB response on a local socket needs microseconds, not milliseconds. The gap from the floor to the current value is the room to climb.
-4. **Choose metrics in depth:** Measure each surface on several axes (see [Depth and Detail](#depth-and-detail)).
+4. **Choose metrics in depth:** Measure each surface on several axes (see [Depth and Detail](#depth-and-detail)). Route each metric to a tool first (see [Tools First](#tools-first)).
 5. **Set ambitious targets:** Derive each target from the floor, the best known implementation, or a domain threshold made stricter (see [Ambitious Targets](#ambitious-targets)).
 6. **Write the reasons:** Give each metric a comment in `uphill.yaml` that says what it measures and where its target comes from. Cite the source, such as a Lighthouse control point or a TigerStyle rule.
 7. **Prove each metric:** Run `uphill check`, then `uphill`. Break each new metric once, such as with an extra import or a sleep. Make sure that its score falls. A metric that cannot fail measures nothing.
@@ -66,6 +68,41 @@ parse-time "100MB" 2.1s target 400ms
 allocations "1MB" 18204
 decode-matches-spec "vector 31" fail note "expected 0x01ff, got 0x01fe"
 lint src/parse.rs fail note "line 88: index without a bounds check"
+```
+
+## Tools First
+
+A rule that a linter, type checker, formatter, auditor, or benchmark harness already checks belongs to that tool. The script runs the tool, reads its machine-readable output, and writes one line for each item. The tool then owns the rule, its edge cases, and its fixes.
+
+1. **A rule of the project's own tools:** Turn on the rule in the tool the project already runs, such as clippy, oxlint, tsc, stylelint, textlint, commitlint, or Lighthouse. Count its diagnostics for each file or page.
+2. **A rule of another tool:** Run that tool with only the rules the metric needs, from a configuration that the script writes. The project's own configuration then does not change what the metric reads.
+3. **A custom measurement:** Read the syntax tree with the language's parser, such as oxc-parser, and fall back to text patterns only when no parser is available. Name the rule that no tool covers in a comment.
+
+```text
+explicit-any src/index.ts fail note "line 12: Unexpected any. (typescript(no-explicit-any))"
+accessibility "index.html image-alt" fail note "Image elements do not have `[alt]` attributes"
+enums src/kind.ts fail note "line 3: an enum. Use a union or an `as const` object"
+```
+
+## Packs
+
+A pack is a set of categories and scripts that a project lists under `packs`. `uphill add` pins a pack to a commit and vendors it into `.agents/packs/`. The packs in [`packs/`](https://github.com/wevm/uphill/tree/main/packs) measure common conventions with the tools above. Add the packs that fit, then fit their targets and override their categories in the project.
+
+| Pack | Measures | Tools |
+| --- | --- | --- |
+| [`deslop`](https://github.com/wevm/uphill/tree/main/packs/deslop) | Module cycles, tangles, leaked fields, and shallow modules in Rust | deslop-please |
+| [`docs`](https://github.com/wevm/uphill/tree/main/packs/docs) | Prose in Markdown: sentence and paragraph length, voice, word choice, and heading case | textlint |
+| [`git`](https://github.com/wevm/uphill/tree/main/packs/git) | Commit messages and repository hygiene | commitlint, Git |
+| [`rust`](https://github.com/wevm/uphill/tree/main/packs/rust) | Lints, formatting, docs, panics, `unsafe`, tests, and manifests in Rust | clippy, rustfmt, rustdoc, Cargo |
+| [`tigerstyle`](https://github.com/wevm/uphill/tree/main/packs/tigerstyle) | TigerStyle limits: function length, line length, recursion, and assertions | clippy, oxlint |
+| [`typescript`](https://github.com/wevm/uphill/tree/main/packs/typescript) | Types, imports, modules, docs, and tests in TypeScript | oxlint, oxfmt, tsc, oxc-parser |
+| [`web`](https://github.com/wevm/uphill/tree/main/packs/web) | Accessibility, best practices, focus and motion styles, and asset sizes | Lighthouse, oxlint, stylelint |
+
+```sh
+# Pin the rust pack to the newest commit of main, after a review of its code.
+uphill add wevm/uphill/packs/rust@main
+# Review and take the pack's later commits.
+uphill update
 ```
 
 ## Patterns
