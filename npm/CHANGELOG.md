@@ -1,5 +1,15 @@
 # uphill
 
+## 0.0.5
+
+### Patch Changes
+
+- 282b69d: Measured the `deslop` pack in Rust, Zig, Go, Swift, C, and TypeScript. deslop-please read a Cargo workspace when it was installed, and a scanner read module cycles, tangles, leaked fields, and shallow modules in the other languages.
+- d969835: Replaced copied packs with pinned, vendored ones. A top-level `packs` key listed packs such as `wevm/uphill/packs/rust@<commit>`, and Uphill ran their categories after the project's own. `uphill add` pinned a pack to a full commit and vendored it into `.agents/packs/<name>/` after a review of its files and capabilities. `uphill update` moved packs to newer commits that descend from the pinned ones, `uphill remove` removed them, and `uphill audit` compared each vendored pack with its pinned commit. Each fetch refused commits less than a day old, commits that no branch or tag contained, symbolic links, and unsafe paths, and ran no pack code. `allowed-packs` limited the sources, and `install: true` installed a pack's dependencies from its lockfile without install scripts. The repository gained the `deslop`, `git`, `rust`, `tigerstyle`, `typescript`, `web`, and `writing-docs` packs.
+- 049ea92: Ran the project's own linter and formatter in the `typescript` pack. `lint` ran `bun lint`, ESLint, Biome, oxlint, or Vite Plus, and `formatted` ran `bun fmt`, Prettier, Biome, dprint, oxfmt, or Vite Plus, whichever the project used, with the project's configuration. The pack's oxlint and oxfmt ran only for a project with no linter or formatter. The `prettier` metric was removed.
+- 10e057f: Merged categories with the same name. The packs moved their metrics into shared categories, such as `correctness`, `style`, `documentation`, and `testing`, and each category scored once across the project and its packs. A metric that two packs declared took the items of both scripts, and a project category added its own metrics with its own script. The web pack ran the project's `build` script before it read `dist/`.
+- 513036e: Added the `uphill` skill to the end of the `uphill init` brief. It asked for deep metrics on each surface, research into language and domain patterns such as TigerStyle and Lighthouse, and targets about 10 times better than the project is now.
+
 ## 0.0.4
 
 ### Patch Changes
