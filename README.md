@@ -22,7 +22,7 @@ Uphill scores a project against its own targets. A metric is anything a script c
 Paste this prompt into a coding agent:
 
 ```txt
-Read the README at github.com/wevm/uphill, then set up Uphill in my project. Use its creating-metrics skill (SKILL.md) to create deep metrics with ambitious targets.
+Read github.com/wevm/uphill, then set up Uphill in my project. Use the SKILL.md to devise deep metrics with ambitious targets.
 ```
 
 ## Problem
@@ -130,7 +130,7 @@ uphill --compare main
 # Run each script once and check its lines, without scoring.
 uphill check
 
-# Print a brief for an agent to set up Uphill in this project, with the creating-metrics skill.
+# Print a brief for an agent to set up Uphill in this project, with the uphill skill.
 uphill init
 
 # Pin a pack to a commit and vendor it into .agents/packs, after a review of its code.

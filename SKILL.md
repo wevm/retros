@@ -1,9 +1,11 @@
 ---
-name: creating-metrics
-description: Creates Uphill metrics and targets for a project. It researches language patterns, such as TigerStyle, and domain patterns, such as Lighthouse. It measures every surface in depth, with targets about 10 times better than the project is now. Use to write or review `uphill.yaml`, `uphill.baseline.yaml`, or the scripts in `.agents/metrics/`.
+name: uphill
+description: Uphill is continuous metrics and hill climbing. It scores a project against its own targets and names the fixes worth the most points. Use when creating metrics and targets for a project, or when writing or reviewing `uphill.yaml`, `uphill.baseline.yaml`, or the scripts in `.agents/metrics/`.
 ---
 
-# Creating Metrics
+# Uphill
+
+Continuous metrics and hill climbing. Scripts measure a project, Uphill scores each metric against its target, and an agent climbs toward the targets one fix at a time.
 
 A good metric moves with work that users feel, and its value is exact or repeatable. Its target asks for a better project, not the current one. Uphill ranks opportunities by score, so the metrics and targets decide where an agent spends its effort.
 

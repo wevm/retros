@@ -1,12 +1,12 @@
 # Set up Uphill in this project
 
-Uphill scores a project against its targets the way Lighthouse scores a page. Scripts in the project measure it and append metric lines to the file at `$UPHILL_METRICS`. Uphill runs the scripts, scores each measurement against its target, and lists the changes that would raise each score most. Use the Creating Metrics skill at the end of this brief to create the metrics and their targets.
+Uphill scores a project against its targets the way Lighthouse scores a page. Scripts in the project measure it and append metric lines to the file at `$UPHILL_METRICS`. Uphill runs the scripts, scores each measurement against its target, and lists the changes that would raise each score most. Use the Uphill skill at the end of this brief to create the metrics and their targets.
 
 {example}
 
 ## Steps
 
-1. Find the project's surfaces: what its users import, open, call, or run, such as entry points, pages, endpoints, or commands. Then create their metrics and targets with Creating Metrics.
+1. Find the project's surfaces: what its users import, open, call, or run, such as entry points, pages, endpoints, or commands. Then create their metrics and targets with the Uphill skill.
 2. Pick two to four categories, such as `footprint`, `speed`, and `quality`. Each category has one script, kept in `.agents/metrics/` beside `.agents/uphill.yaml`. The examples keep both at their root, which works too.
 3. Write each script in the project's language, or in TypeScript run by Bun. Each script runs the tools the project already uses and turns what they report into metric lines. Such tools include its bundler, test runner, type checker, linter, formatter, benchmark harness, and Lighthouse. Measure a value by hand only when no tool reports it.
 4. Write `.agents/uphill.yaml` with each category's `run` command and its metrics, and give each metric a comment saying what it measures. Write `.agents/uphill.baseline.yaml` with a target the project must meet for each size, time, and count, unless every line sets its own.

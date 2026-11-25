@@ -1705,7 +1705,7 @@ fn init_points_the_brief_at_the_closest_example() {
 }
 
 #[test]
-fn init_ends_the_brief_with_the_creating_metrics_skill() {
+fn init_ends_the_brief_with_the_uphill_skill() {
     let dir = tempfile::tempdir().unwrap();
 
     let output = uphill_in(dir.path(), &["init"], &[]);
@@ -1730,7 +1730,7 @@ fn init_ends_the_brief_with_the_creating_metrics_skill() {
         "## Steps",
         "## Configuration",
         "## Metric lines",
-        "# Creating Metrics",
+        "# Uphill",
         "## Process",
         "## Ambitious Targets",
         "## Depth and Detail",

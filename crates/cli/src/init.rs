@@ -1,7 +1,7 @@
 //! `uphill init`: prints a brief that a person gives their agent to set up Uphill in the project.
 //! The brief points at the example closest to the project in the current directory: a Rust API
 //! for a Cargo project, a website for a package with pages or a web framework, and a TypeScript
-//! library for any other package, with the pack of conventions for its language. The brief ends with the `creating-metrics` skill in the
+//! library for any other package, with the pack of conventions for its language. The brief ends with the `uphill` skill in the
 //! repository's `SKILL.md`, so the binary and the repository share one copy.
 
 use std::fmt::Write as _;
