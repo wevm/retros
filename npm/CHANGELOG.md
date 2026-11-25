@@ -1,5 +1,18 @@
 # uphill
 
+## 0.0.4
+
+### Patch Changes
+
+- 2266bcd: `uphill --update` wrote baselines to `uphill.baseline.yaml` or `uphill.baseline.toml` beside the configuration, instead of each metric's `baseline` key, so the configuration kept only what people write. Uphill still read `baseline` keys, and the next `uphill --update` moved them into the baseline file.
+- e743bb2: Titled `report.md` and `report.html` "Hill climb report".
+- 03fa96e: Moved command line parsing to incur. `--help` listed each command's arguments and flags, `uphill <command> --help` described one command, `--version` printed only the version, `--llms` printed a manifest for agents, `uphill completions <shell>` printed a completion script, and `uphill skills add` installed agent skills generated from the commands.
+- 543a7fb: Moved targets into `uphill.baseline.yaml` or `uphill.baseline.toml` beside the configuration, where each item held its accepted value and its target side by side, such as `viem/chains: { baseline: 61kB, target: 80kB }`. A key with `*` and only a target became a pattern, `"*": { target: 5kB }` the default, and `bundle: { target: 5kB }` targeted a metric before its first update. An item's own target in the file took the final say over patterns and line targets. Uphill still read the short form `61kB target 80kB` of older baseline files, and the `target`, `targets`, and `baseline` keys of older configurations, which the next `uphill --update` moved into the baseline file. `uphill add` copied a pack's default targets and patterns into the project's baseline file.
+- 543a7fb: Fixed `uphill --update` failing with "could not write uphill.baseline.yaml" when a run recorded nothing and the project had no baseline file yet.
+- 0a44ea6: Added TOML to `uphill add`. A YAML pack went into a TOML project as tables and a TOML pack into a YAML project, with the comments above each category and metric. A project without a configuration took the pack's format, and `uphill add --update` merged TOML projects too.
+- cfbeb22: Added `uphill add --update [category...]`, which fetched the pack of each added category and merged its changes since the commit the category's comment recorded. A category or script that only one side changed took that side, and one that both changed was a conflict that wrote nothing unless `--force` took the pack's version. Each example gained a `README.md` that `uphill add` printed, saying what to fit.
+- 085bf7c: Added `uphill add <pack> [category...]`, which copied a pack's categories into `uphill.yaml` and the scripts their `run` commands named into the project. A pack was any directory with an `uphill.yaml`: a local directory, `owner/name/path` on GitHub such as `wevm/uphill/examples/web-app`, or a Git URL followed by `//path`, each with an optional `@ref`. `--as <name>` added one category under another name.
+
 ## 0.0.3
 
 ### Patch Changes
