@@ -92,7 +92,7 @@ A pack is a set of categories and scripts that a project lists under `packs`. `u
 
 | Pack | Measures | Tools |
 | --- | --- | --- |
-| [`deslop`](https://github.com/wevm/uphill/tree/main/packs/deslop) | Module cycles, tangles, leaked fields, and shallow modules in Rust | deslop-please |
+| [`deslop`](https://github.com/wevm/uphill/tree/main/packs/deslop) | Module cycles, tangles, leaked fields, and shallow modules in Rust, Zig, Go, Swift, C, and TypeScript | deslop-please |
 | [`git`](https://github.com/wevm/uphill/tree/main/packs/git) | Commit messages and repository hygiene | commitlint, Git |
 | [`rust`](https://github.com/wevm/uphill/tree/main/packs/rust) | Lints, formatting, docs, panics, `unsafe`, tests, and manifests in Rust | clippy, rustfmt, rustdoc, Cargo |
 | [`tigerstyle`](https://github.com/wevm/uphill/tree/main/packs/tigerstyle) | TigerStyle limits: function length, line length, recursion, and assertions | clippy, oxlint |
