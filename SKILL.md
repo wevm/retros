@@ -91,12 +91,12 @@ A pack is a set of categories and scripts that a project lists under `packs`. `u
 | Pack | Measures | Tools |
 | --- | --- | --- |
 | [`deslop`](https://github.com/wevm/uphill/tree/main/packs/deslop) | Module cycles, tangles, leaked fields, and shallow modules in Rust | deslop-please |
-| [`docs`](https://github.com/wevm/uphill/tree/main/packs/docs) | Prose in Markdown: sentence and paragraph length, voice, word choice, and heading case | textlint |
 | [`git`](https://github.com/wevm/uphill/tree/main/packs/git) | Commit messages and repository hygiene | commitlint, Git |
 | [`rust`](https://github.com/wevm/uphill/tree/main/packs/rust) | Lints, formatting, docs, panics, `unsafe`, tests, and manifests in Rust | clippy, rustfmt, rustdoc, Cargo |
 | [`tigerstyle`](https://github.com/wevm/uphill/tree/main/packs/tigerstyle) | TigerStyle limits: function length, line length, recursion, and assertions | clippy, oxlint |
 | [`typescript`](https://github.com/wevm/uphill/tree/main/packs/typescript) | Types, imports, modules, docs, and tests in TypeScript | oxlint, oxfmt, tsc, oxc-parser |
 | [`web`](https://github.com/wevm/uphill/tree/main/packs/web) | Accessibility, best practices, focus and motion styles, and asset sizes | Lighthouse, oxlint, stylelint |
+| [`writing-docs`](https://github.com/wevm/uphill/tree/main/packs/writing-docs) | Prose in Markdown: sentence and paragraph length, voice, word choice, and heading case | textlint |
 
 ```sh
 # Pin the rust pack to the newest commit of main, after a review of its code.

@@ -1,4 +1,4 @@
-# Docs
+# Writing Docs
 
 Measures the copy of each Markdown file that Git tracks: plain technical prose in short sentences and paragraphs. textlint reads each file with published rules where one exists, and local rules where none does. Code blocks, inline code, and URLs are not prose.
 
@@ -10,5 +10,5 @@ Measures the copy of each Markdown file that Git tracks: plain technical prose i
 
 ```sh
 # Pin the pack, and approve the install of its dependencies.
-uphill add wevm/uphill/packs/docs@main
+uphill add wevm/uphill/packs/writing-docs@main
 ```

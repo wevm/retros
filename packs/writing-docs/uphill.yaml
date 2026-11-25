@@ -5,8 +5,8 @@
 # textlint and its rules are the pack's dependencies. They install from its lockfile when the
 # project's entry sets `install: true`.
 
-docs:
-  run: bun metrics/docs.ts
+writing-docs:
+  run: bun metrics/writing-docs.ts
   # Whether each sentence has 25 words or fewer, by textlint's `en-max-word-count`.
   sentence-words: {}
   # Whether each paragraph has 50 words or fewer: "about 40 words, and never more than 50".

@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "uphill-docs-pack",
+      "name": "uphill-writing-docs-pack",
       "devDependencies": {
         "@textlint-rule/textlint-rule-pattern": "2.0.3",
         "@textlint/ast-node-types": "16.1.3",

@@ -130,7 +130,7 @@ Write this update? [y/N]
 $ uphill audit
 differs  wevm/uphill/packs/typescript at 47fd804
   metrics/typescript.ts differs
-ok       wevm/uphill/packs/docs at 94bd79a
+ok       wevm/uphill/packs/writing-docs at 94bd79a
 ok       wevm/uphill/packs/git at 94bd79a
 ```
 
