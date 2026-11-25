@@ -1,0 +1,29 @@
+# Website conventions, measured by the tools that cover them. Lighthouse audits each page of the
+# built site in `dist/`, oxlint's `jsx-a11y` rules read each `.tsx` and `.jsx` file, and stylelint
+# with `@double-great/stylelint-a11y` reads each `.css` file. A metric skips when the project has
+# none of the files it reads.
+
+# Lighthouse, oxlint, and stylelint are the pack's dependencies. They install from its lockfile
+# when the project's entry sets `install: true`.
+
+web:
+  # Build the site before the script, such as `pnpm build && bun metrics/web.ts`.
+  run: bun metrics/web.ts
+  # Whether each page passes each audit that counts toward Lighthouse's accessibility score.
+  accessibility: {}
+  # Whether each page passes each audit that counts toward Lighthouse's best-practices score.
+  best-practices: {}
+  # Whether each component uses native controls with accessible names and keyboard support, by
+  # oxlint's `jsx-a11y` rules.
+  controls: {}
+  # Whether each transition and animation has a `prefers-reduced-motion` override.
+  reduced-motion: {}
+  # Whether each color has a `prefers-color-scheme` override, so light and dark schemes both work.
+  color-schemes: {}
+  # Whether no `:focus` style removes the outline without a visible alternative.
+  focus-outlines: {}
+  # Whether each `:hover` style has a `:focus` or `:focus-visible` companion.
+  focus-styles: {}
+  # Gzip bytes of each script and stylesheet in the built site. No target: the baseline records
+  # each size, so growth shows in review.
+  asset-size: {}

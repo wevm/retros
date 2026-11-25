@@ -1,0 +1,95 @@
+# Rust conventions, measured with Cargo's own tools: clippy and rustc report what their lints
+# cover, and the script reads the manifests and the few rules no lint covers.
+# Each source file or manifest is an item, and a failing check carries its first warning. Files
+# under `tests/`, `benches/`, and `examples/` may panic and print.
+
+rust:
+  run: bun metrics/rust.ts
+  # Whether clippy's default and pedantic lints find nothing in each file, apart from the lints
+  # the conventions allow workspace-wide.
+  clippy: {}
+  # Whether rustfmt leaves each file unchanged.
+  formatted: {}
+  # Whether output goes through `std::io::Write`, not `println!`, `eprintln!`, or `dbg!`.
+  print-macros: {}
+  # Whether each file has no `todo!` or `unimplemented!`.
+  unfinished: {}
+  # Whether invariants live in types, not in `unwrap`, `expect`, slicing, or `panic!`.
+  panic-sites: {}
+  # Whether lints are suppressed with `#[expect(lint, reason = "...")]`, never `#[allow]`.
+  allow-attributes: {}
+  # Whether each file has no `unsafe` code. An exception documents each block with `// SAFETY:`.
+  unsafe-code: {}
+  # Whether `#[inline(always)]` comes with a measured reason in an `#[expect]`.
+  inline-always: {}
+  # Whether output never comes from iterating a hash map. Use a `Vec`, a `BTreeMap`, or the
+  # declared order.
+  hash-iteration: {}
+  # Whether each file avoids `Rc<RefCell<_>>` graphs and `Rc` around mutexes and buffers.
+  shared-mutability: {}
+  # Whether each file starts with a `//!` comment that describes the module's responsibility.
+  module-docs: {}
+  # Whether rustc's `missing_docs` finds every public item documented.
+  missing-docs: {}
+  # Whether items another crate cannot reach are `pub(crate)`, as rustc's `unreachable_pub` reads.
+  unreachable-pub: {}
+  # Whether `cargo doc` builds without warnings.
+  rustdoc: {}
+  # Whether `src/` holds no unit tests. Tests live in each crate's `tests/` directory.
+  unit-tests: {}
+  # Whether each test file asserts with inline `insta` snapshots, not `assert_eq!`.
+  inline-snapshots: {}
+  # Whether no manifest depends on a mocking crate, such as mockall or wiremock.
+  mock-crates: {}
+  # Whether each package uses edition 2024.
+  edition: {}
+  # Whether each member of a workspace inherits the workspace's lints.
+  inherited-lints: {}
+  # Whether each member of a workspace takes its dependency versions from
+  # `[workspace.dependencies]`.
+  shared-versions: {}
+  # Whether rust-toolchain.toml pins a version, not a channel such as `stable`.
+  toolchain: {}
+  # Whether the workspace declares `rust-version`.
+  rust-version: {}
+  # Whether `[workspace.lints]` sets clippy's `all` and `pedantic` groups and the restriction lints
+  # the conventions list.
+  workspace-lints: {}
+  # Whether the workspace allows only `module_name_repetitions`, `must_use_candidate`,
+  # `similar_names`, and `too_many_lines`.
+  allowed-lints: {}
+  # Whether the workspace denies `unsafe_code`.
+  unsafe-denied: {}
+  # Whether the release profile sets `opt-level = 3`, `lto = "fat"`, `codegen-units = 1`, and
+  # `strip = "symbols"`.
+  release-profile: {}
+  # Third-party crates the workspace compiles. No target: its baseline records the count, so a
+  # new dependency shows in review.
+  dependencies: {}
+  # The metrics below follow slapslop, a set of lints for mistakes common in generated Rust.
+  # Whether no `map_err(|_| ...)` discards the original error.
+  swallowed-errors: {}
+  # Whether clippy's `redundant_clone` finds no clone of a value that is not used again.
+  redundant-clones: {}
+  # Whether comments carry no decorative dividers, such as `// -----`.
+  comment-dividers: {}
+  # Whether each assertion checks one condition, not two joined with `&&` or `||`.
+  compound-asserts: {}
+  # Whether each `Duration::from_*` argument names its unit, such as `timeout_secs`.
+  duration-names: {}
+  # Whether `use` declarations keep the item's own name, not `as` another.
+  import-renames: {}
+  # Whether log macros record values as fields, not interpolated into the message.
+  log-interpolation: {}
+  # Whether errors are typed values, not `String`, `&str`, or `Box<dyn Error>`.
+  string-errors: {}
+  # Whether tests wait for a condition, not for a fixed `sleep`.
+  test-sleeps: {}
+  # Whether each channel has a capacity.
+  unbounded-channels: {}
+  # Whether test assertions on errors check which error, not only `is_err()`.
+  weak-error-assertions: {}
+  # Whether types use a struct, not a tuple of three or more types.
+  wide-tuples: {}
+  # Whether a `mod` declaration reaches each Rust file.
+  orphaned-files: {}

@@ -1,0 +1,5 @@
+# Each metric's `target`. `uphill --update` adds each accepted size, count, or check as its
+# `baseline`, beside the target it scored against.
+
+tigerstyle:
+  assertion-density: { target: 2 }

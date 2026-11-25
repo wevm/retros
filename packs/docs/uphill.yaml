@@ -1,0 +1,42 @@
+# Plain technical writing, measured in the copy of each Markdown file that Git tracks. textlint
+# reads each file, with published rules where one exists and a few local rules where none does.
+# Code blocks, inline code, and URLs are not prose.
+
+# textlint and its rules are the pack's dependencies. They install from its lockfile when the
+# project's entry sets `install: true`.
+
+docs:
+  run: bun metrics/docs.ts
+  # Whether each sentence has 25 words or fewer, by textlint's `en-max-word-count`.
+  sentence-words: {}
+  # Whether each paragraph has 50 words or fewer: "about 40 words, and never more than 50".
+  paragraph-words: {}
+  # Whether each paragraph has six sentences or fewer.
+  paragraph-sentences: {}
+  # Whether the prose is in the active voice, by write-good's passive check.
+  passive-voice: {}
+  # Whether the prose uses the short, common word, such as "use" for "utilize", by write-good's
+  # wordy check.
+  wordy-words: {}
+  # Whether the prose avoids weasel words, such as "very" and "several", by write-good.
+  weasel-words: {}
+  # Whether the prose writes about the code, not about the reader: no "you" or "your".
+  second-person: {}
+  # Whether the prose uses precise verbs, such as "returns", not "gives" or "gets".
+  conversational-verbs: {}
+  # Whether main verbs are simple tenses, not progressive ("is running") or perfect ("has run").
+  verb-tenses: {}
+  # Whether the prose writes words, not Latin abbreviations such as "e.g.".
+  latin-abbreviations: {}
+  # Whether the prose has no semicolons.
+  semicolons: {}
+  # Whether the prose has no em dashes.
+  em-dashes: {}
+  # Whether the prose has no emoji.
+  emoji: {}
+  # Whether every heading is in Title Case: articles, coordinating conjunctions, and prepositions of
+  # four or fewer letters stay lowercase unless they begin or end it. `headingCase` in the script
+  # switches to sentence case.
+  heading-case: {}
+  # Whether every heading has fewer than four words.
+  heading-words: {}

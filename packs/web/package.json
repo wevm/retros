@@ -1,0 +1,13 @@
+{
+  "name": "uphill-web-pack",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@double-great/stylelint-a11y": "3.8.3",
+    "@types/bun": "1.4.5",
+    "chrome-launcher": "1.2.3",
+    "lighthouse": "13.6.0",
+    "oxlint": "1.95.0",
+    "stylelint": "18.1.0"
+  }
+}

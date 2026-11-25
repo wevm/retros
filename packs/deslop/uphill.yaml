@@ -1,0 +1,16 @@
+# deslop-please (https://github.com/deterministic-machines/deslop-please), the architectural linter
+# for Cargo workspaces: deep modules, narrow interfaces. Each Rust file is an item, and a failing
+# check carries the tool's first diagnostic for that file. The pack leaves out `wide-directory` and
+# `long-file`, which measure size rather than structure. Install the tool with
+# `cargo install deslop-please`.
+
+deslop:
+  run: bun metrics/deslop.ts
+  # Whether no circle of modules that use each other starts at this file.
+  module-cycle: {}
+  # Whether no two types in modules that do not form a cycle still know each other.
+  tangle: {}
+  # Whether no other module reads or writes the fields of a type that this file declares.
+  field-leak: {}
+  # Whether callers use a narrow interface of this module, not most of its functions.
+  shallow-module: {}
