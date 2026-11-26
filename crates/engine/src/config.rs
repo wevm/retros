@@ -522,8 +522,19 @@ fn from_packs(packs: &[Pack]) -> Result<Vec<Category>, Error> {
                 }
             }
             for metric in category.metrics {
-                if !earlier.metrics.iter().any(|m| m.name == metric.name) {
+                let Some(first) = earlier.metrics.iter_mut().find(|m| m.name == metric.name) else {
                     earlier.metrics.push(metric);
+                    continue;
+                };
+                // The first pack's keys apply, but each pack's rule holds for the items its
+                // script writes, so a merged metric states every distinct rule.
+                if let Some(rule) = metric.description
+                    && first.description.as_ref() != Some(&rule)
+                {
+                    first.description = Some(match first.description.take() {
+                        Some(earlier) => format!("{earlier} {rule}"),
+                        None => rule,
+                    });
                 }
             }
             earlier.scripts.append(&mut category.scripts);

@@ -195,6 +195,7 @@ fn help() {
       init       Print a brief for an agent to set up Uphill in this project
       log        List the commits that changed a metric's baseline, or the runs noted for it
       remove     Remove a pack from the configuration
+      rules      Print each metric's rule and targets, for an agent to follow while it writes code
       update     Move each remote pack, or the named ones, to the newest commit of the ref it follows
 
     Integrations:
@@ -2080,8 +2081,9 @@ fn add_pins_a_pack_that_runs_from_the_cache() {
       info  process       sh              .agents/uphill.yaml:3
 
     Added acme/packs/sizes to uphill.yaml
+    Wrote .agents/uphill/rules.md, AGENTS.md
 
-    Commit uphill.yaml, then run `uphill check`
+    Commit these files, then run `uphill check`
     ");
 
     let config = fs::read_to_string(project.path().join("uphill.yaml")).unwrap();
@@ -2093,13 +2095,22 @@ fn add_pins_a_pack_that_runs_from_the_cache() {
     packs:
       - acme/packs/sizes@<first> # main
     "#);
-    // The project holds only its configuration, and the pack's files are in the cache.
-    let mut files: Vec<_> = fs::read_dir(project.path())
-        .unwrap()
-        .map(|item| item.unwrap().file_name())
-        .collect();
-    files.sort();
-    assert_eq!(files, ["uphill.yaml"]);
+    // The project holds its configuration and the rules that AGENTS.md mentions, and the pack's
+    // files are in the cache.
+    let names = |dir: &Path| {
+        let mut names: Vec<_> = fs::read_dir(dir)
+            .unwrap()
+            .map(|item| item.unwrap().file_name())
+            .collect();
+        names.sort();
+        names
+    };
+    assert_eq!(
+        names(project.path()),
+        [".agents", "AGENTS.md", "uphill.yaml"]
+    );
+    assert_eq!(names(&project.path().join(".agents/uphill")), ["rules.md"]);
+    assert_eq!(names(&project.path().join(".agents")), ["uphill"]);
     assert!(
         host.cached(first)
             .join(".agents/metrics/sizes.sh")
@@ -2141,7 +2152,10 @@ fn add_pins_a_pack_that_runs_from_the_cache() {
     // `remove` takes the entry away.
     let output = uphill_in(project.path(), &["remove", "sizes"], &[]);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
-    insta::assert_snapshot!(stdout(&output), @"Removed acme/packs/sizes from uphill.yaml");
+    insta::assert_snapshot!(stdout(&output), @"
+    Removed acme/packs/sizes from uphill.yaml
+    Wrote .agents/uphill/rules.md
+    ");
 
     // A TOML project takes the entry before its first table, apart from the table's comment.
     fs::remove_file(project.path().join("uphill.yaml")).unwrap();
@@ -2656,6 +2670,132 @@ fn unknown_category() {
 
     assert_eq!(output.status.code(), Some(2));
     insta::assert_snapshot!(stderr(&output), @"error: unknown category 'bench'. uphill.yaml declares footprint, speed");
+}
+
+#[test]
+fn rules_list_each_composed_metric_with_its_description_and_targets() {
+    let dir = tempfile::tempdir().unwrap();
+    let write = |path: &str, text: &str| {
+        let path = dir.path().join(path);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, text).unwrap();
+    };
+    // The pack's rules span two lines, and one of them is dropped by the project.
+    write(
+        "packs/a/uphill.yaml",
+        "run: sh a.sh\nstyle:\n  formatted:\n    description: Format each file\n      with the project's formatter.\n  enums:\n    description: Use unions, not enums.\n  long-lines: { description: Keep lines short. }\n",
+    );
+    // A second pack shares `formatted`, so both rules apply to the merged metric.
+    write(
+        "packs/b/uphill.yaml",
+        "run: sh b.sh\nstyle:\n  formatted: { description: Format each TypeScript file. }\n",
+    );
+    // The project adds a category before the packs', rewrites one pack rule, and drops another.
+    write(
+        "uphill.yaml",
+        "packs:\n  - ./packs/a\n  - ./packs/b\nspeed:\n  description: Time of each public call.\n  run: \"true\"\n  parse-time: { description: Parse in one pass. }\n  throughput: { better: higher }\n  startup: {}\nstyle:\n  enums: { description: \"Use `as const` objects, not enums.\" }\n  long-lines: false\n",
+    );
+    // The baseline sets a default target and an item pattern, which follow each rule.
+    write(
+        "uphill.baseline.yaml",
+        "speed:\n  parse-time:\n    \"*\": { target: 120µs }\n    \"large/*\": { target: 4ms }\n  throughput: { target: 2000 }\n",
+    );
+
+    let output = uphill_in(dir.path(), &["rules"], &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(stdout(&output), @"
+    # Rules
+
+    Uphill writes these rules from each metric's `description`. Write code that meets them. `uphill` scores each metric against its target, and `uphill --compare HEAD --compact` lists what a change made worse.
+
+    ## Speed
+
+    Time of each public call.
+
+    - `parse-time`: Parse in one pass. At most 120 µs. `large/*`: at most 4 ms.
+    - `throughput`: At least 2000.
+    - `startup`
+
+    ## Style
+
+    - `formatted`: Format each file with the project's formatter. Format each TypeScript file.
+    - `enums`: Use `as const` objects, not enums.
+    ");
+
+    let output = uphill_in(dir.path(), &["rules", "style"], &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(stdout(&output), @"
+    # Rules
+
+    Uphill writes these rules from each metric's `description`. Write code that meets them. `uphill` scores each metric against its target, and `uphill --compare HEAD --compact` lists what a change made worse.
+
+    ## Style
+
+    - `formatted`: Format each file with the project's formatter. Format each TypeScript file.
+    - `enums`: Use `as const` objects, not enums.
+    ");
+
+    let output = uphill_in(dir.path(), &["rules", "docs"], &[]);
+    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(stderr(&output), @"error: unknown category 'docs'. uphill.yaml declares speed, style");
+}
+
+#[test]
+fn rules_write_a_file_that_agents_md_mentions_and_check_fails_when_it_is_stale() {
+    let project = fixture("scored");
+    let dir = project.path();
+    let agents = dir.join("AGENTS.md");
+    fs::write(&agents, "# Project\n\nRun `make test`.\n").unwrap();
+
+    // The mention goes under the title, above the project's own guidance.
+    let output = uphill_in(dir, &["rules", "--write"], &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(stdout(&output), @"Wrote .agents/uphill/rules.md, AGENTS.md");
+    insta::assert_snapshot!(fs::read_to_string(&agents).unwrap(), @"
+    # Project
+
+    Follow the rules in @.agents/uphill/rules.md. `uphill rules --write` rewrites the file from each metric's description.
+
+    Run `make test`.
+    ");
+    assert_eq!(
+        fs::read_to_string(dir.join(".agents/uphill/rules.md")).unwrap(),
+        stdout(&uphill_in(dir, &["rules"], &[]))
+    );
+
+    // A second write changes nothing, and the mention stays single.
+    let output = uphill_in(dir, &["rules", "--write"], &[]);
+    insta::assert_snapshot!(stdout(&output), @".agents/uphill/rules.md is up to date");
+    assert_eq!(
+        fs::read_to_string(&agents)
+            .unwrap()
+            .matches("@.agents")
+            .count(),
+        1
+    );
+
+    // A new description makes the file stale, which fails `uphill check` until the next write.
+    let config = fs::read_to_string(dir.join("uphill.yaml")).unwrap();
+    fs::write(
+        dir.join("uphill.yaml"),
+        config.replace("render: {}", "render: { description: Render in one pass. }"),
+    )
+    .unwrap();
+    let output = check(dir, &[]);
+    assert_eq!(output.status.code(), Some(1));
+    insta::assert_snapshot!(stdout(&output), @"
+    ✓ footprint  4 metrics
+    ✓ speed      2 metrics
+    ✗ .agents/uphill/rules.md is out of date. Run `uphill rules --write`
+
+    2 passed, 1 failed
+    ");
+    uphill_in(dir, &["rules", "--write"], &[]);
+    assert_eq!(check(dir, &[]).status.code(), Some(0));
+
+    let output = uphill_in(dir, &["rules", "--write", "speed"], &[]);
+    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(stderr(&output), @"error: --write writes the rules of every category, so it takes no category");
 }
 
 #[test]

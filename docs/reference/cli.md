@@ -1,6 +1,6 @@
 # CLI
 
-The `uphill` binary runs a project's scripts, scores the metrics, and writes reports. Its other commands check scripts, brief an agent, add and update packs, read the noted runs of several repositories, and trace a metric through the Git history.
+The `uphill` binary runs a project's scripts, scores the metrics, and writes reports. Its other commands check scripts, brief an agent, print the rules agents follow, add and update packs, read the noted runs of several repositories, and trace a metric through the Git history.
 
 ## Usage
 
@@ -14,6 +14,7 @@ uphill remove <pack>
 uphill check
 uphill dashboard <repository>...
 uphill init
+uphill rules [category] [--write]
 uphill log <category> <metric> [item] [--subject <name>]
 uphill blame <category> <metric> [item] [--subject <name>] [--since <ref>]
 ```
@@ -41,7 +42,7 @@ uphill
 
 Pins a pack to a full commit, fetches its files into the cache of packs, and adds its entry to the configuration's `packs` key. A remote pack is `owner/repo/path` on GitHub or an `https` URL followed by `//path`, with an optional `@ref`. A local pack starts with `./` or `../`.
 
-Names after the pack limit the entry to those categories. Before it writes, `uphill add` prints the pack's files and capabilities and asks for confirmation. `--yes` writes without asking, and a run without a terminal needs it. `--allow-fresh` takes a commit less than a day old.
+Names after the pack limit the entry to those categories. After it writes, `uphill add` rewrites the [rules file](#uphill-rules), as `uphill update` and `uphill remove` do. Before it writes, `uphill add` prints the pack's files and capabilities and asks for confirmation. `--yes` writes without asking, and a run without a terminal needs it. `--allow-fresh` takes a commit less than a day old.
 
 The [Packs](../guides/packs.md) guide lists each check.
 
@@ -70,7 +71,7 @@ uphill remove typescript
 
 ### `uphill check`
 
-Runs each script once and checks the metric lines it writes, without scoring. It reports invalid lines, metrics that the configuration lists but the script does not write, and metrics written but not listed. It writes no reports.
+Runs each script once and checks the metric lines it writes, without scoring. It reports invalid lines, metrics that the configuration lists but the script does not write, and metrics written but not listed. It also fails when the [rules file](#uphill-rules) is out of date. It writes no reports.
 
 ```text
 $ uphill check
@@ -107,6 +108,40 @@ $ uphill init
 ## Steps
 
 1. Find the project's surfaces: what its users import, open, call, or run, such as entry points, pages, endpoints, or commands.
+```
+
+### `uphill rules`
+
+Prints each metric's rule as Markdown, for an agent to read before it writes code. Each entry is the metric's [`description`](configuration.md#description-1), then its default target and item patterns from the baseline file.
+
+Categories and metrics keep the composed order of the configuration and its packs, and dropped metrics do not show. A [`category`](#category) prints only that category.
+
+```text
+$ uphill rules style
+# Rules
+
+Uphill writes these rules from each metric's `description`. Write code that meets them. `uphill` scores each metric against its target, and `uphill --compare HEAD --compact` lists what a change made worse.
+
+## Style
+
+- `formatted`: Format each file with the project's formatter.
+- `enums`: Use unions or `as const` objects, not enums.
+```
+
+#### The Rules File
+
+`--write` writes every rule to `.agents/uphill/rules.md`. It also puts one line at the top of AGENTS.md, under its title, that @-mentions the file, so agents load the rules with the rest of their guidance. Without AGENTS.md, the line goes in CLAUDE.md, or else in a new AGENTS.md.
+
+`uphill add`, `uphill update`, and `uphill remove` rewrite the file. After an edit to a description or a target, run `uphill rules --write` again, because `uphill check` fails while the file is out of date.
+
+```text
+$ uphill rules --write
+Wrote .agents/uphill/rules.md, AGENTS.md
+
+$ head -3 AGENTS.md
+# Project
+
+Follow the rules in @.agents/uphill/rules.md. `uphill rules --write` rewrites the file from each metric's description.
 ```
 
 ### `uphill log`
@@ -164,7 +199,7 @@ fa8deea moved speed slugify-time from 476 ns to 1.1 µs
 - **Type:** a category name
 - **Default:** every category
 
-With `uphill`, runs only the named category. With `log` and `blame`, names the category of the metric. An unknown name exits with status 2 and lists the categories.
+With `uphill`, runs only the named category, and with `rules`, prints only its rules. With `log` and `blame`, names the category of the metric. An unknown name exits with status 2 and lists the categories.
 
 ```text
 $ uphill speeed
@@ -265,6 +300,15 @@ Writes this run's sizes, counts, and checks to the baseline file beside the conf
 ```sh
 # Accept this run as the baseline.
 uphill --update
+```
+
+### `--write`
+
+With `uphill rules`, writes every rule to `.agents/uphill/rules.md` and @-mentions the file at the top of AGENTS.md (see [The Rules File](#the-rules-file)). It takes no category.
+
+```sh
+# Rewrite the rules file after an edit to a description or a target.
+uphill rules --write
 ```
 
 ### `--require-baseline`

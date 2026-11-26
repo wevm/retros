@@ -14,6 +14,7 @@ mod init;
 mod measure;
 mod packs;
 mod project;
+mod rules;
 mod score;
 mod script;
 mod worktree;
@@ -87,6 +88,14 @@ enum Command {
         /// The pack, by its directory name, such as rust
         #[incur(arg)]
         pack: String,
+    },
+    /// Print each metric's rule and targets, for an agent to follow while it writes code
+    Rules {
+        /// Print only this category's rules
+        #[incur(arg)]
+        category: Option<String>,
+        /// Write the rules to .agents/uphill/rules.md, and @-mention that file from AGENTS.md
+        write: bool,
     },
     /// Move each remote pack, or the named ones, to the newest commit of the ref it follows
     Update {
@@ -214,6 +223,9 @@ fn run(command: Command) -> ExitCode {
             with_project(|project| history::log(project, &selector))
         }
         Command::Remove { pack } => report(packs::remove(&pack)),
+        Command::Rules { category, write } => {
+            with_project(|project| rules::run(project, category.as_deref(), write))
+        }
         Command::Update {
             allow_fresh,
             packs,

@@ -80,27 +80,7 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
 
     let categories: Vec<&Category> = match options.category.as_deref() {
         None => project.config.categories.iter().collect(),
-        Some(name) => {
-            let category = project
-                .config
-                .categories
-                .iter()
-                .find(|category| category.name == name)
-                .ok_or_else(|| {
-                    let names: Vec<&str> = project
-                        .config
-                        .categories
-                        .iter()
-                        .map(|category| category.name.as_str())
-                        .collect();
-                    format!(
-                        "error: unknown category '{name}'. {} declares {}",
-                        project.name,
-                        names.join(", ")
-                    )
-                })?;
-            vec![category]
-        }
+        Some(name) => vec![project.category(name)?],
     };
 
     if options.note {

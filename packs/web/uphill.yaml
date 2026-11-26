@@ -10,28 +10,34 @@
 run: bun metrics/web.ts
 
 performance:
-  # Gzip bytes of each script and stylesheet in the built site. No target: the baseline records
-  # each size, so growth shows in review.
-  asset-size: {}
+  # Gzip bytes of each script and stylesheet in the built site.
+  asset-size:
+    description: Keep scripts and stylesheets small. The baseline records each size without a
+      target, so growth shows in review.
 
 accessibility:
-  # Whether each page passes each audit that counts toward Lighthouse's accessibility score.
-  accessibility: {}
-  # Whether each component uses native controls with accessible names and keyboard support, by
-  # oxlint's `jsx-a11y` rules.
-  controls: {}
-  # Whether each selector that sets animation or transition declares a matching reduced-motion
-  # override of `none` or zero duration. This checks authored CSS, not the browser's cascade.
-  reduced-motion: {}
-  # Whether no `:focus` style removes the outline without a visible alternative.
-  focus-outlines: {}
-  # Whether each positive `:hover` selector has the corresponding `:focus` or `:focus-visible`
-  # selector in the same stylesheet and nesting context. Each hover selector is an item.
-  focus-styles: {}
+  # Counts each audit toward Lighthouse's accessibility score.
+  accessibility:
+    description: Make each page pass the Lighthouse accessibility audits.
+  controls:
+    description: Use native controls with accessible names and keyboard support in each component
+      (oxlint `jsx-a11y`).
+  # Checks authored CSS, not the browser's cascade.
+  reduced-motion:
+    description: Give each selector that sets an animation or a transition a reduced-motion
+      override of `none` or zero duration.
+  focus-outlines:
+    description: Do not remove the outline in a `:focus` style without a visible alternative.
+  # Each positive hover selector is an item.
+  focus-styles:
+    description: Match each `:hover` selector with a `:focus` or `:focus-visible` selector in the
+      same stylesheet and nesting context.
 
 best-practices:
   title: Best Practices
-  # Whether each page passes each audit that counts toward Lighthouse's best-practices score.
-  best-practices: {}
-  # Whether each color has a `prefers-color-scheme` override, so light and dark schemes both work.
-  color-schemes: {}
+  # Counts each audit toward Lighthouse's best-practices score.
+  best-practices:
+    description: Make each page pass the Lighthouse best-practices audits.
+  color-schemes:
+    description: Give each color a `prefers-color-scheme` override, so light and dark schemes both
+      work.

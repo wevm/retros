@@ -269,11 +269,11 @@ request-out: { title: Time to first request }
 - **Type:** string
 - **Default:** none
 
-What the metric measures, which `report.html` and `report.json` show.
+The metric's rule, written as an instruction. [`uphill rules`](cli.md#uphill-rules) prints it for agents, and `report.html` and `report.json` show it.
 
 ```yaml title="uphill.yaml"
-# Describe the metric for readers of the report.
-page-size: { description: Bytes of HTML each page sends. }
+# State the rule that keeps the metric on target.
+page-size: { description: Keep the HTML of each page small. Inline no images. }
 ```
 
 ## Baseline File

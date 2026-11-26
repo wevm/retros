@@ -6,14 +6,14 @@
 run: bun metrics/deslop.ts
 
 architecture:
-  # Whether no circle of sibling modules that use each other includes this module.
-  module-cycle: {}
-  # Whether no types of this module know types of another module in a circle, and no circle has
-  # more than seven types.
-  tangle: {}
-  # Whether code outside each type of this module leaves its fields alone: it may read a value, but
-  # not write, index, or call a method on a field.
-  field-leak: {}
-  # Whether callers use a narrow interface of this module: it shows seven functions or fewer, or
-  # hides more than it shows.
-  shallow-module: {}
+  module-cycle:
+    description: Do not let sibling modules use each other in a circle.
+  tangle:
+    description: Do not let the types of two modules know each other in a circle. Keep each circle
+      of types to seven types or fewer.
+  field-leak:
+    description: Keep a type's fields private to its module. Code outside may read a value, but not
+      write, index, or call a method on a field.
+  shallow-module:
+    description: Give each module a narrow interface. Show seven functions or fewer, or hide more
+      than the module shows.

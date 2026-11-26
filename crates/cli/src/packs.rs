@@ -5,6 +5,7 @@
 //! capabilities, and write nothing until the user confirms. The entry in the configuration takes
 //! the full commit, and the files go to the cache of fetched packs, which runs read. `update` also
 //! refuses a commit that does not descend from the pinned one. No command here runs a pack's code.
+//! After a change to the configuration, each command rewrites the rules file (see [`crate::rules`]).
 
 use std::fmt::Write as _;
 use std::io::{self, BufRead as _, IsTerminal as _, Write as _};
@@ -18,6 +19,7 @@ use engine::scan;
 
 use crate::fetch::{self, File};
 use crate::project::{self, Configuration};
+use crate::rules;
 
 /// The youngest commit that `add` and `update` take without `--allow-fresh`, in seconds.
 const MIN_AGE: i64 = 24 * 60 * 60;
@@ -63,6 +65,7 @@ pub(crate) fn add(source: &str, categories: &[String], flags: Flags) -> Result<E
         )?;
         write(&found.root.join(found.place), text.as_bytes())?;
         print(&format!("Added {source} to {}\n", found.name));
+        rules::refresh();
         return Ok(ExitCode::SUCCESS);
     };
 
@@ -136,7 +139,9 @@ pub(crate) fn add(source: &str, categories: &[String], flags: Flags) -> Result<E
     fetch::store(&remote, &commit, &files)?;
     write(&found.root.join(found.place), text.as_bytes())?;
 
-    let mut out = format!("\nAdded {name} to {}\n", found.name);
+    print(&format!("\nAdded {name} to {}\n", found.name));
+    rules::refresh();
+    let mut out = String::new();
     if let Some(readme) = files.iter().find(|file| file.path == "README.md") {
         let _ = write!(
             out,
@@ -144,7 +149,7 @@ pub(crate) fn add(source: &str, categories: &[String], flags: Flags) -> Result<E
             pack::printable(String::from_utf8_lossy(&readme.bytes).trim_end())
         );
     }
-    let _ = write!(out, "\nCommit {}, then run `uphill check`\n", found.name);
+    out.push_str("\nCommit these files, then run `uphill check`\n");
     print(&out);
     Ok(ExitCode::SUCCESS)
 }
@@ -160,6 +165,7 @@ pub(crate) fn update(names: &[String], flags: Flags) -> Result<ExitCode, String>
     let entries = select(&found, names)?;
     let mut text = found.source.clone();
     let mut declined = false;
+    let mut updated = false;
 
     for entry in entries {
         let Source::Remote(remote) = &entry.source else {
@@ -217,6 +223,10 @@ pub(crate) fn update(names: &[String], flags: Flags) -> Result<ExitCode, String>
         }
         write(&found.root.join(found.place), text.as_bytes())?;
         print(&format!("updated  {} to {}\n", entry.name, short(&commit)));
+        updated = true;
+    }
+    if updated {
+        rules::refresh();
     }
     Ok(if declined {
         ExitCode::FAILURE
@@ -240,6 +250,7 @@ pub(crate) fn remove(name: &str) -> Result<ExitCode, String> {
     let text = edit(pack::remove(&found.source, found.format, entry), &found)?;
     write(&found.root.join(found.place), text.as_bytes())?;
     print(&format!("Removed {} from {}\n", entry.name, found.name));
+    rules::refresh();
     Ok(ExitCode::SUCCESS)
 }
 

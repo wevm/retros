@@ -4,7 +4,7 @@
 //! Each category prints one line once all its scripts finish, followed by the end of standard error
 //! for a failed script, or by the errors and warnings its metric lines produced. A summary line
 //! ends the output. The command exits with status 0 when every category passes, even with
-//! warnings, and with status 1 when any category fails.
+//! warnings, and with status 1 when any category fails or the rules file is out of date.
 
 use std::fmt::Write as _;
 use std::io::{self, Write as _};
@@ -122,6 +122,17 @@ pub(crate) fn run(project: &Project) -> Result<ExitCode, String> {
         let mut stdout = io::stdout().lock();
         let _ = stdout.write_all(block.as_bytes());
         let _ = stdout.flush();
+    }
+
+    // An outdated rules file fails the check, so agents never read rules the metrics dropped.
+    if crate::rules::stale(project) {
+        failed += 1;
+        let _ = writeln!(
+            io::stdout(),
+            "✗ {}{} is out of date. Run `uphill rules --write`",
+            project.prefix,
+            engine::rules::FILE
+        );
     }
 
     let mut summary = format!("\n{passed} passed");

@@ -7,7 +7,7 @@ use std::io;
 use std::path::{Component, Path, PathBuf};
 
 use engine::baseline;
-use engine::config::{self, Config, Format};
+use engine::config::{self, Category, Config, Format};
 use engine::pack::{self, Entry, Pack, Source};
 
 /// Where a project keeps its configuration, relative to its root, and the format of each file.
@@ -48,6 +48,29 @@ pub(crate) struct Project {
     pub(crate) root: PathBuf,
     /// The text of the configuration, for errors that point into it.
     pub(crate) source: String,
+}
+
+impl Project {
+    /// Returns the category named `name`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a message for the terminal that lists the declared categories when none has the
+    /// name.
+    pub(crate) fn category(&self, name: &str) -> Result<&Category, String> {
+        let categories = &self.config.categories;
+        categories
+            .iter()
+            .find(|category| category.name == name)
+            .ok_or_else(|| {
+                let names: Vec<&str> = categories.iter().map(|c| c.name.as_str()).collect();
+                format!(
+                    "error: unknown category '{name}'. {} declares {}",
+                    self.name,
+                    names.join(", ")
+                )
+            })
+    }
 }
 
 /// Finds `uphill.yaml` or `uphill.toml`, at the root or in `.agents`, in `cwd` or the nearest

@@ -6,101 +6,110 @@
 run: bun metrics/rust.ts
 
 correctness:
-  # Whether clippy's default and pedantic lints find nothing in each file, apart from the lints
-  # the conventions allow workspace-wide.
-  clippy: {}
-  # Whether each file has no `todo!` or `unimplemented!`.
-  unfinished: {}
-  # Whether invariants live in types, not in `unwrap`, `expect`, slicing, or `panic!`.
-  panic-sites: {}
-  # Whether lints are suppressed with `#[expect(lint, reason = "...")]`, never `#[allow]`.
-  allow-attributes: {}
-  # Whether each file has no `unsafe` code. An exception documents each block with `// SAFETY:`.
-  unsafe-code: {}
-  # Whether `#[inline(always)]` comes with a measured reason in an `#[expect]`.
-  inline-always: {}
-  # Whether output never comes from iterating a hash map. Use a `Vec`, a `BTreeMap`, or the
-  # declared order.
-  hash-iteration: {}
-  # Whether each file avoids `Rc<RefCell<_>>` graphs and `Rc` around mutexes and buffers.
-  shared-mutability: {}
-  # Whether `[workspace.lints]` sets clippy's `all` and `pedantic` groups and the restriction lints
-  # the conventions list.
-  workspace-lints: {}
-  # Whether the workspace allows only `module_name_repetitions`, `must_use_candidate`,
-  # `similar_names`, and `too_many_lines`.
-  allowed-lints: {}
-  # Whether the workspace denies `unsafe_code`.
-  unsafe-denied: {}
+  # The lints the conventions allow workspace-wide do not count.
+  clippy:
+    description: Fix every finding of clippy's default and pedantic lints.
+  unfinished:
+    description: Finish each function. Leave no `todo!` or `unimplemented!` in the code.
+  # Tests, benches, and examples may panic.
+  panic-sites:
+    description: Encode invariants in types instead of `unwrap`, `expect`, slicing, or `panic!`.
+      Use `get`, pattern matching, and `let` chains.
+  allow-attributes:
+    description: Suppress a lint with `#[expect(lint, reason = "...")]`, never `#[allow]`.
+  unsafe-code:
+    description: Write no `unsafe` code. If an exception is necessary, document each block with
+      `// SAFETY:`.
+  inline-always:
+    description: Mark `#[inline(always)]` only with a measured reason in an
+      `#[expect(clippy::inline_always, reason = "...")]`.
+  hash-iteration:
+    description: Never iterate a hash map to produce output. Use a `Vec`, a `BTreeMap`, or the
+      declared order.
+  shared-mutability:
+    description: Do not build `Rc<RefCell<_>>` graphs or wrap mutexes and buffers in `Rc`.
+  workspace-lints:
+    description: Set clippy's `all` and `pedantic` groups and the restriction lints the conventions
+      list in `[workspace.lints]`.
+  allowed-lints:
+    description: Allow only `module_name_repetitions`, `must_use_candidate`, `similar_names`, and
+      `too_many_lines` workspace-wide.
+  unsafe-denied:
+    description: Deny `unsafe_code` in the workspace lints.
   # The metrics below follow slapslop, a set of lints for mistakes common in generated Rust.
-  # Whether no `map_err(|_| ...)` discards the original error.
-  swallowed-errors: {}
-  # Whether clippy's `redundant_clone` finds no clone of a value that is not used again.
-  redundant-clones: {}
-  # Whether errors are typed values, not `String`, `&str`, or `Box<dyn Error>`.
-  string-errors: {}
-  # Whether each channel has a capacity.
-  unbounded-channels: {}
+  swallowed-errors:
+    description: Keep the original error. Do not discard it with `map_err(|_| ...)`.
+  redundant-clones:
+    description: Do not clone a value that is not used again (clippy `redundant_clone`). Move it
+      instead.
+  string-errors:
+    description: Return errors as typed values, not `String`, `&str`, or `Box<dyn Error>`.
+  unbounded-channels:
+    description: Give each channel a capacity.
 
 style:
-  # Whether rustfmt leaves each file unchanged.
-  formatted: {}
-  # Whether output goes through `std::io::Write`, not `println!`, `eprintln!`, or `dbg!`.
-  print-macros: {}
-  # Whether comments carry no decorative dividers, such as `// -----`.
-  comment-dividers: {}
-  # Whether each `Duration::from_*` argument names its unit, such as `timeout_secs`.
-  duration-names: {}
-  # Whether `use` declarations keep the item's own name, not `as` another.
-  import-renames: {}
-  # Whether log macros record values as fields, not interpolated into the message.
-  log-interpolation: {}
-  # Whether types use a struct, not a tuple of three or more types.
-  wide-tuples: {}
+  formatted:
+    description: Format each Rust file with rustfmt (`cargo fmt`).
+  # Tests, benches, and examples may print.
+  print-macros:
+    description: Write output through `std::io::Write`, not `println!`, `eprintln!`, or `dbg!`.
+  comment-dividers:
+    description: Do not write decorative divider comments, such as `// -----`.
+  duration-names:
+    description: Name the unit in each `Duration::from_*` argument, such as `timeout_secs`.
+  import-renames:
+    description: Keep the item's own name in `use` declarations. Do not rename it with `as`.
+  log-interpolation:
+    description: Record values in log macros as fields, not interpolated into the message.
+  wide-tuples:
+    description: Use a struct instead of a tuple of three or more types.
 
 architecture:
-  # Whether items another crate cannot reach are `pub(crate)`, as rustc's `unreachable_pub` reads.
-  unreachable-pub: {}
-  # Whether a workspace target, compiler input, or rustfmt traversal reaches each Rust file.
-  orphaned-files: {}
+  unreachable-pub:
+    description: Mark items that another crate cannot reach `pub(crate)` (rustc
+      `unreachable_pub`).
+  orphaned-files:
+    description: Make sure a workspace target, compiler input, or rustfmt traversal reaches each
+      Rust file. Delete files that nothing reaches.
 
 documentation:
-  # Whether each file starts with a `//!` comment that describes the module's responsibility.
-  module-docs: {}
-  # Whether rustc's `missing_docs` finds every public item documented.
-  missing-docs: {}
-  # Whether `cargo doc` builds without warnings.
-  rustdoc: {}
+  module-docs:
+    description: Start each Rust file with a `//!` comment that describes the module's
+      responsibility.
+  missing-docs:
+    description: Document every public item (rustc `missing_docs`).
+  rustdoc:
+    description: Make sure `cargo doc` builds without warnings.
 
 testing:
-  # Whether `src/` holds no unit tests. Tests live in each crate's `tests/` directory.
-  unit-tests: {}
-  # Whether each test file asserts with inline `insta` snapshots, not `assert_eq!`.
-  inline-snapshots: {}
-  # Whether no manifest depends on a mocking crate, such as mockall or wiremock.
-  mock-crates: {}
-  # Whether each assertion checks one condition, not two joined with `&&` or `||`.
-  compound-asserts: {}
-  # Whether tests wait for a condition, not for a fixed `sleep`.
-  test-sleeps: {}
-  # Whether test assertions on errors check which error, not only `is_err()`.
-  weak-error-assertions: {}
+  unit-tests:
+    description: Put tests in each crate's `tests/` directory. Write no unit tests in `src/`.
+  inline-snapshots:
+    description: Assert with inline `insta` snapshots in each Rust test file, not `assert_eq!`.
+  mock-crates:
+    description: Do not depend on a mocking crate, such as mockall or wiremock.
+  compound-asserts:
+    description: Check one condition in each assertion. Do not join two with `&&` or `||`.
+  test-sleeps:
+    description: Make tests wait for a condition, not for a fixed `sleep`.
+  weak-error-assertions:
+    description: Check which error a test receives, not only `is_err()`.
 
 configuration:
-  # Whether each package uses edition 2024.
-  edition: {}
-  # Whether each member of a workspace inherits the workspace's lints.
-  inherited-lints: {}
-  # Whether each member of a workspace takes its dependency versions from
-  # `[workspace.dependencies]`.
-  shared-versions: {}
-  # Whether rust-toolchain.toml pins a version, not a channel such as `stable`.
-  toolchain: {}
-  # Whether the workspace declares `rust-version`.
-  rust-version: {}
-  # Whether the release profile sets `opt-level = 3`, `lto = "fat"`, `codegen-units = 1`, and
-  # `strip = "symbols"`.
-  release-profile: {}
+  edition:
+    description: Use edition 2024 in each package.
+  inherited-lints:
+    description: Inherit the workspace's lints in each workspace member (`lints.workspace = true`).
+  shared-versions:
+    description: Take dependency versions from `[workspace.dependencies]` in each workspace member.
+  toolchain:
+    description: Pin a version in rust-toolchain.toml, not a channel such as `stable`.
+  rust-version:
+    description: Declare `rust-version` in the workspace.
+  release-profile:
+    description: Set `opt-level = 3`, `lto = "fat"`, `codegen-units = 1`, and `strip = "symbols"`
+      in the release profile.
   # Distinct nonmember package IDs in a normal workspace build, including build dependencies.
-  # The baseline records the count without a target.
-  dependencies: {}
+  dependencies:
+    description: Add a dependency only with a stated reason. The baseline records the count without
+      a target, so each change shows in review.

@@ -78,19 +78,7 @@ impl Selector {
     /// Returns a message for the terminal when the configuration declares no such category, or
     /// when the category configures no such metric.
     fn category<'p>(&self, project: &'p Project) -> Result<&'p Category, String> {
-        let categories = &project.config.categories;
-        let category = categories
-            .iter()
-            .find(|category| category.name == self.category)
-            .ok_or_else(|| {
-                let names: Vec<&str> = categories.iter().map(|c| c.name.as_str()).collect();
-                format!(
-                    "error: unknown category '{}'. {} declares {}",
-                    self.category,
-                    project.name,
-                    names.join(", ")
-                )
-            })?;
+        let category = project.category(&self.category)?;
         if !category.metrics.iter().any(|m| m.name == self.metric) {
             let names: Vec<&str> = category.metrics.iter().map(|m| m.name.as_str()).collect();
             return Err(format!(

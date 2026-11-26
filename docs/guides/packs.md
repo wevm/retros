@@ -58,7 +58,7 @@ packs:
 
 ### Run It
 
-The first run installs the pack's dependencies from its lockfile in the cached pack, with install scripts turned off. Commit the configuration. A review of the commit reads the pin, and `uphill add` printed the pack's code for review.
+The first run installs the pack's dependencies from its lockfile in the cached pack, with install scripts turned off. Commit the configuration, and the [rules file](../reference/cli.md#the-rules-file) and AGENTS.md that `uphill add` wrote. A review of the commit reads the pin, and `uphill add` printed the pack's code for review.
 
 ```sh
 # 1. Check that each script writes the metrics the configuration lists.
@@ -93,7 +93,7 @@ packs:
   - { pack: wevm/uphill/packs/typescript@94bd79a3bb8a413ff7080c08b2acec8b7c39e8ce, install: true } # main
 ```
 
-A metric that two packs declare in one category, such as `formatted`, is one metric with the items of both scripts. The first pack's keys apply. Two scripts that write the same item fail the category.
+A metric that two packs declare in one category, such as `formatted`, is one metric with the items of both scripts. The first pack's keys apply, and the metric's description joins each pack's distinct rule. Two scripts that write the same item fail the category.
 
 ### Adjust Categories
 
@@ -190,11 +190,11 @@ uphill remove typescript
 
 ### Write a Pack
 
-A pack needs only its configuration and scripts. Write paths in `run` from the pack's directory, and Uphill rewrites them to start at the project root. Use the shared category names. Put tools in a `package.json` with a lockfile, and resolve them from the script's own directory first.
+A pack needs only its configuration and scripts. Give each metric a `description` that states its rule as an instruction, so [`uphill rules`](../reference/cli.md#uphill-rules) prints it for agents before they write code. Keep comments for how the script measures. Write paths in `run` from the pack's directory, and Uphill rewrites them to start at the project root. Use the shared category names. Put tools in a `package.json` with a lockfile, and resolve them from the script's own directory first.
 
 ```text
 packs/lighthouse/
-  uphill.yaml         # Categories and targets, with a comment on each metric.
+  uphill.yaml         # Categories and metrics, with a rule in each metric's description.
   metrics/
     lighthouse.ts
   package.json        # The tools the scripts run.

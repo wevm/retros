@@ -20,7 +20,7 @@ Uphill measures nothing itself. A script routes each metric to a tool that alrea
 3. **Sketch the physics:** Estimate the floor for each surface from the four resources (network, storage, memory, compute) and their two properties (bandwidth, latency). For example, a 4 kB response on a local socket needs microseconds, not milliseconds. The gap from the floor to the current value is the room to climb.
 4. **Choose metrics in depth:** Measure each surface on several axes (see [Depth and Detail](#depth-and-detail)). Route each metric to a tool first (see [Tools First](#tools-first)).
 5. **Set ambitious targets:** Derive each target from the floor, the best known implementation, or a domain threshold made stricter (see [Ambitious Targets](#ambitious-targets)).
-6. **Write the reasons:** Give each metric a comment in `uphill.yaml` that says what it measures and where its target comes from. Cite the source, such as a Lighthouse control point or a TigerStyle rule.
+6. **Write the rules and reasons:** Give each metric a `description` that states its rule as an instruction, such as "Keep each entry point small. Import only the modules it uses." `uphill rules` prints these for agents before they write code. Give each metric a comment in `uphill.yaml` that says what it measures and where its target comes from. Cite the source, such as a Lighthouse control point or a TigerStyle rule.
 7. **Prove each metric:** Run `uphill check`, then `uphill`. Break each new metric once, such as with an extra import or a sleep. Make sure that its score falls. A metric that cannot fail measures nothing.
 
 ## Ambitious Targets

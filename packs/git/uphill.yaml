@@ -9,37 +9,52 @@
 run: bun metrics/git.ts
 
 style:
-  # Whether each tracked text file passes `git diff --check`: no trailing whitespace, no blank lines
-  # at the end, and no conflict markers.
-  whitespace: {}
-  # Whether each GitHub workflow starts with `name` and `on`, then lists its other top-level keys in
-  # alphabetical order.
-  workflow-keys: {}
+  # Each tracked text file is an item.
+  whitespace:
+    description: Leave no trailing whitespace, blank lines at the end, or conflict markers in a
+      tracked text file (`git diff --check`).
+  workflow-keys:
+    description: Start each GitHub workflow with `name` and `on`, then list its other top-level
+      keys in alphabetical order.
 
 # Each new commit is a new item and the oldest leaves the window, so the commit checks set
 # `varies`. They score each run, and the baseline file records none of their items.
 commits:
-  # Whether each commit names a conventional type, such as `feat:` or `fix:`, and a subject, by
-  # commitlint's type and subject rules.
-  commit-type: { varies: true }
-  # Whether each subject starts lowercase, by commitlint's `subject-case`.
-  subject-case: { varies: true }
-  # Whether each subject ends without a period, by commitlint's `subject-full-stop`.
-  subject-full-stop: { varies: true }
-  # Whether each header has 100 characters or fewer, by commitlint's `header-max-length`.
-  header-length: { varies: true }
-  # Whether each body and footer follows a blank line and wraps at 100 characters, by commitlint.
-  message-body: { varies: true }
-  # Whether each subject states the change, not the reason: no "because", "so that", or
-  # "in order to".
-  subject-reasons: { varies: true }
-  # Whether the opening verb has a known base form, such as "add", not "adds" or "added".
+  commit-type:
+    description: Start each commit header with a conventional type, such as `feat:` or `fix:`,
+      and a subject (commitlint `type-enum`, `type-case`, `type-empty`, and
+      `subject-empty`).
+    varies: true
+  subject-case:
+    description: Start each subject in lowercase (commitlint `subject-case`).
+    varies: true
+  subject-full-stop:
+    description: End each subject without a period (commitlint `subject-full-stop`).
+    varies: true
+  header-length:
+    description: Keep each commit header to 100 characters or fewer (commitlint
+      `header-max-length`).
+    varies: true
+  message-body:
+    description: Put a blank line before the body and the footer, and wrap them at 100 characters
+      (commitlint `body-leading-blank`, `body-max-line-length`, and the matching footer rules).
+    varies: true
+  subject-reasons:
+    description: State the change in the subject, not the reason. Leave out "because", "so that",
+      and "in order to".
+    varies: true
   # Words without a verb entry in the English lexicon skip.
-  imperative-subjects: { varies: true }
-  # Whether each `fix:` commit adds or edits a test source path, excluding fixtures and snapshots.
-  # A changed path does not prove a test ran or covered the fix.
-  fix-tests: { varies: true }
-  # Whether each changeset is one sentence whose opening verb has a known past-tense form.
-  changeset-sentences: {}
-  # Whether Git tracks no build output, installed packages, or `.env` files.
-  tracked-output: {}
+  imperative-subjects:
+    description: Open each subject with a verb in its base form, such as "add", not "adds" or
+      "added".
+    varies: true
+  # Fixtures and snapshots do not count. A changed path does not prove a test ran or covered the
+  # fix.
+  fix-tests:
+    description: Add or edit a test source file in each `fix:` commit.
+    varies: true
+  changeset-sentences:
+    description: Write each changeset as one sentence that opens with a past-tense verb, such as
+      "Added".
+  tracked-output:
+    description: Do not commit build output, installed packages, or `.env` files.

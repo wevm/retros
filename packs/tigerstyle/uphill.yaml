@@ -6,32 +6,42 @@
 run: bun metrics/tigerstyle.ts
 
 correctness:
-  # Whether the grammar could measure the file without syntax recovery.
-  source-coverage: { weight: 0 }
-  # Whether no function calls itself. Recursion has no bound that a reader can check.
-  recursion: {}
-  # Whether Rust and Zig code uses explicitly sized integers, such as `u32`, not `usize`.
-  sized-integers: {}
-  # Assertions per function in each file outside tests: "a minimum of two assertions per function"
-  # on average. Higher is better.
-  assertion-density: { better: higher }
-  # Whether each assertion checks one condition: `assert(a); assert(b);`, not `assert(a and b)`.
-  compound-assertions: {}
+  # Reports whether the grammar measured each file without syntax recovery.
+  source-coverage:
+    description: Keep each file parseable without syntax recovery.
+    weight: 0
+  recursion:
+    description: Do not write a function that calls itself. Use a loop with a bound that a reader
+      can check.
+  sized-integers:
+    description: Use explicitly sized integers in Rust and Zig, such as `u32`, not `usize`.
+  # Counts files outside tests. TigerStyle asks for "a minimum of two assertions per function" on
+  # average.
+  assertion-density:
+    better: higher
+    description: Assert preconditions, postconditions, and invariants, with at least two assertions
+      per function on average.
+  compound-assertions:
+    description: "Check one condition in each assertion: `assert(a); assert(b);`, not
+      `assert(a and b)`."
 
 style:
-  # Whether every function fits the hard limit of 70 physical lines, including its signature.
-  function-length: {}
+  function-length:
+    description: Keep each function to 70 physical lines or fewer, including its signature.
   # Exact lines per function. Comparisons show improvements even when the file still fails.
-  function-lines: {}
-  # Whether every line fits the hard limit of 100 columns.
-  line-length: {}
-  # Whether each comment is a sentence, with a capital letter and a full stop or a colon.
-  comment-sentences: {}
-  # Whether code is indented with 4 spaces. Go keeps the tabs of gofmt.
-  indentation: {}
-  # Whether file names are `snake_case`.
-  file-names: {}
+  function-lines:
+    description: Split long functions. Each line removed from a function shows in comparisons.
+  line-length:
+    description: Keep each line to 100 columns or fewer.
+  comment-sentences:
+    description: Write each comment as a sentence that starts with a capital letter and ends with a
+      full stop or a colon.
+  # Go keeps the tabs of gofmt.
+  indentation:
+    description: Indent code with 4 spaces.
+  file-names:
+    description: Name files in `snake_case`.
 
 configuration:
-  # Whether each manifest declares no runtime dependencies.
-  zero-dependencies: {}
+  zero-dependencies:
+    description: Declare no runtime dependencies in a manifest.
