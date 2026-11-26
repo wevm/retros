@@ -59,6 +59,7 @@ runs:
       env:
         ARGS: ${{ inputs.args }}
         COMPARE: ${{ inputs.compare }}
+        WORKING_DIRECTORY: ${{ inputs.working-directory }}
       run: |
         command=(uphill)
 
@@ -79,17 +80,36 @@ runs:
         command+=("${args[@]}")
 
         log=$(mktemp)
-        rm -f .uphill/report.md .uphill/report.json
+        rm -f .uphill/report.md .uphill/report.json .uphill/report.html
         set +e
         "${command[@]}" 2>&1 | tee "$log"
         status=${PIPESTATUS[0]}
 
+        # An unzipped artifact takes its file's name, so each working directory gets its own.
+        html=
+        if [ -f .uphill/report.html ]; then
+          slug=$(printf '%s' "$WORKING_DIRECTORY" | tr -cs 'A-Za-z0-9' '-' | sed 's/^-*//; s/-*$//')
+          html=$RUNNER_TEMP/uphill-report${slug:+-$slug}.html
+          cp .uphill/report.html "$html"
+        fi
+
         {
           echo "command=${command[*]}"
           echo "exit-code=$status"
+          echo "html=$html"
           echo "log=$log"
           echo "report=$PWD/.uphill/report.md"
         } >> "$GITHUB_OUTPUT"
+
+    # An unzipped HTML artifact opens in the browser, so the comment links the full report.
+    - name: Upload report
+      id: upload
+      if: always() && steps.run.outputs.html != ''
+      continue-on-error: true
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        archive: false
+        path: ${{ steps.run.outputs.html }}
 
     - name: Post report
       if: always() && steps.run.outputs.exit-code != ''
@@ -107,56 +127,69 @@ runs:
         MARKER: '<!-- uphill: ${{ inputs.working-directory }} -->'
         NUMBER: ${{ github.event.pull_request.number }}
         REPORT: ${{ steps.run.outputs.report }}
+        REPORT_URL: ${{ steps.upload.outputs.artifact-url }}
       run: |
-        # GitHub shows only images it fetches by URL, so the gauges are files in the action's
-        # repository at the action's ref. A local `uses: ./` has neither, and links them on main.
-        gauges=
+        # One row per category, with its score in the compared revision and in this run. GitHub
+        # shows only images it fetches by URL, so the gauges are files in the action's repository
+        # at the action's ref. A local `uses: ./` has neither, and links them on main.
+        table=
         json=${REPORT%.md}.json
         if [ -f "$json" ]; then
           base=https://raw.githubusercontent.com/${ACTION_REPOSITORY:-wevm/uphill}/${ACTION_REF:-main}/assets/gauges
-          gauges=$(jq -r --arg base "$base" '
-            [.categories[]
-              | ((if .subject then "\(.subject) · " else "" end) + .title) as $label
-              | (if .score == null then "failed" else (.score | floor | tostring) end) as $score
-              | "<td align=\"center\"><img src=\"\($base)/\($score).svg\" width=\"80\" height=\"80\" alt=\"\($label | @html): \($score)\"><br><b>\($label | @html)</b></td>"]
+          head=$([ -n "$NUMBER" ] && echo 'This PR' || echo "${HEAD_SHA:0:7}")
+          table=$(jq -r --arg base "$base" --arg head "$head" '
+            def gauge($label; $score; $error):
+              if $score != null then "<img src=\"\($base)/\($score | floor).svg\" width=\"48\" height=\"48\" alt=\"\($label | @html): \($score | floor)\">"
+              elif $error != null then "<img src=\"\($base)/failed.svg\" width=\"48\" height=\"48\" alt=\"\($label | @html): failed\">"
+              else "–" end;
+            .comparison as $comparison
+            | ($comparison.reference // "" | split(" ")[0] | sub("^origin/"; "")) as $reference
+            | [.categories[]
+                | . as $category
+                | ((if .subject then "\(.subject) · " else "" end) + .title) as $label
+                | ($comparison.scores // [] | map(select(.category == $category.name and .subject == $category.subject)) | first) as $before
+                | "<tr><td><b>\($label | @html)</b></td>"
+                  + (if $comparison then "<td align=\"center\">\(if $before then gauge($label; $before.score; $before.error) else "–" end)</td>" else "" end)
+                  + "<td align=\"center\">\(gauge($label; .score; .error))</td></tr>"]
             | if length == 0 then empty
-              else [range(0; length; 6) as $i | "<tr>" + (.[$i:$i + 6] | join("")) + "</tr>"]
-                | "<table>" + join("") + "</table>"
-              end' "$json") || gauges=
+              else "<table><tr><th align=\"left\">Category</th>"
+                + (if $comparison then "<th>\($reference | @html)</th>" else "" end)
+                + "<th>\($head | @html)</th></tr>" + join("") + "</table>"
+              end' "$json") || table=
         fi
 
         body=$(mktemp)
         {
           echo "$MARKER"
-          if [ -f "$REPORT" ] && [ -n "$gauges" ]; then
-            # The report starts with its heading and a blank line, and the gauges follow them.
-            head -n 2 "$REPORT"
-            printf '%s\n\n' "$gauges"
-            tail -n +3 "$REPORT"
-          elif [ -f "$REPORT" ]; then
-            cat "$REPORT"
-          else
-            echo '# Hill climb report'
-          fi
+          printf '## Uphill\n\n'
+          if [ -n "$table" ]; then printf '%s\n\n' "$table"; fi
+          if [ -n "$REPORT_URL" ]; then printf '**[View the full report →](%s)**\n\n' "$REPORT_URL"; fi
 
+          # A run that wrote a report has its failures there, so only one without shows the output.
           if [ "$EXIT_CODE" != 0 ]; then
-            printf '\n> [!CAUTION]\n> `%s` exited with status %s.\n\n' "$COMMAND" "$EXIT_CODE"
-            printf '<details><summary>Output</summary>\n\n```text\n'
-            tail -n 60 "$LOG"
-            printf '```\n\n</details>\n'
+            printf '> [!CAUTION]\n> `%s` exited with status %s.\n\n' "$COMMAND" "$EXIT_CODE"
+            if [ -z "$table" ]; then
+              printf '<details><summary>Output</summary>\n\n```text\n'
+              tail -n 60 "$LOG"
+              printf '```\n\n</details>\n\n'
+            fi
           fi
 
-          printf '\n<sub>`%s` at %s in [run %s](%s/%s/actions/runs/%s)</sub>\n' \
+          printf '<sub>`%s` at %s in [run %s](%s/%s/actions/runs/%s)</sub>\n' \
             "$COMMAND" "${HEAD_SHA:0:7}" "$GITHUB_RUN_NUMBER" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
         } > "$body"
 
-        cat "$body" >> "$GITHUB_STEP_SUMMARY"
+        # The job summary also has the whole report, for runs without a comment.
+        {
+          cat "$body"
+          if [ -f "$REPORT" ]; then printf '\n'; cat "$REPORT"; fi
+        } >> "$GITHUB_STEP_SUMMARY"
         if [ "$COMMENT" != true ] || [ -z "$NUMBER" ]; then exit 0; fi
 
-        # GitHub rejects a comment over 65,536 characters, so a long report keeps its start.
+        # GitHub rejects a comment over 65,536 characters, so a long one keeps its start.
         if [ "$(wc -c < "$body")" -gt 65000 ]; then
           head -c 64000 "$body" > "$body.short"
-          printf '\n\nThe report is too long for a comment. The job summary has all of it.\n' >> "$body.short"
+          printf '\n\nThe comment is too long. The job summary has all of it.\n' >> "$body.short"
           mv "$body.short" "$body"
         fi
 

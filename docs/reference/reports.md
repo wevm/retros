@@ -247,11 +247,14 @@ The changes since the baselines, or `null` when no metric has a baseline. `chang
 
 - **Type:** object, or `null`
 
-The result of `--compare`, or `null` without it. `reference` names the revision and its commit. `changes` has the same objects as the top-level `changes`. Each timing has `before` and `after` medians, the number of `pairs`, and how many pairs `agree`, and its `change` can be `within noise`.
+The result of `--compare`, or `null` without it. `reference` names the revision and its commit. `scores` has each category's score in the revision, with the revision's `error` when its script failed there. `changes` has the same objects as the top-level `changes`. Each timing has `before` and `after` medians, the number of `pairs`, and how many pairs `agree`, and its `change` can be `within noise`.
 
 ```json
 {
   "reference": "main (ac66366)",
+  "scores": [
+    { "category": "speed", "subject": null, "score": 100, "error": null }
+  ],
   "changes": [],
   "timings": [
     {

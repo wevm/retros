@@ -127,6 +127,14 @@ fn compare_head(dir: &Path, args: &[&str]) -> (Output, String) {
     (output, text)
 }
 
+/// Returns the `scores` of the comparison in the `report.json` of the project at `dir`.
+fn scores(dir: &Path) -> String {
+    let json = fs::read_to_string(dir.join(".uphill/report.json")).unwrap();
+    let start = json.find("\"scores\"").unwrap();
+    let end = start + json[start..].find("\"changes\"").unwrap();
+    json[start..end].trim_end().to_owned()
+}
+
 /// Replaces the short hash of the commit at `HEAD` in `text` with `abc1234`.
 fn masked(dir: &Path, text: &str) -> String {
     let short = git(dir, &["rev-parse", "--short", "HEAD"]);
@@ -1156,6 +1164,20 @@ fn compare_reports_what_changed_since_a_revision_and_leaves_timing_noise_out() {
     insta::assert_snapshot!(json[start..], @r#"
     "comparison": {
         "reference": "HEAD (abc1234)",
+        "scores": [
+          {
+            "category": "footprint",
+            "subject": null,
+            "score": 92,
+            "error": null
+          },
+          {
+            "category": "speed",
+            "subject": null,
+            "score": 99,
+            "error": null
+          }
+        ],
         "changes": [
           {
             "category": "footprint",
@@ -1229,6 +1251,16 @@ fn compare_uses_the_revision_baselines_and_always_removes_its_checkout() {
     Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
     ");
     assert_eq!(git(dir, &["worktree", "list"]).lines().count(), 1);
+    insta::assert_snapshot!(scores(dir), @r#"
+    "scores": [
+          {
+            "category": "footprint",
+            "subject": null,
+            "score": null,
+            "error": "script exited with status 3"
+          }
+        ],
+    "#);
 
     // The revision's baseline wins over measuring it, which would find the same 27.5 kB.
     fs::write(
@@ -1292,6 +1324,23 @@ fn compare_uses_the_revision_baselines_and_always_removes_its_checkout() {
 
     Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
     ");
+
+    // The revision's scores come from running it, even when its baseline file records its values.
+    fs::write(dir.join("bundle.txt"), "20kB\n").unwrap();
+    commit(dir);
+    fs::write(dir.join("bundle.txt"), "27.5kB\n").unwrap();
+    let (output, text) = compare_head(dir, &["footprint"]);
+    assert_eq!(output.status.code(), Some(0), "{text}");
+    insta::assert_snapshot!(scores(dir), @r#"
+    "scores": [
+          {
+            "category": "footprint",
+            "subject": null,
+            "score": 98,
+            "error": null
+          }
+        ],
+    "#);
 
     // A failed setup stops the run before any script.
     fs::write(

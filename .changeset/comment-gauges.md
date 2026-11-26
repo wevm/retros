@@ -2,4 +2,4 @@
 'uphill': patch
 ---
 
-Added score gauges to the GitHub Action's pull request comment and job summary: one gauge per category after the report's heading, in the colors of the HTML report. The gauges were SVG files in `assets/gauges/`, linked at the action's ref.
+Replaced the GitHub Action's pull request comment with a table of score gauges, one row per category with its score on the base branch and on the pull request, and a link to `report.html`, uploaded as an unzipped artifact. The job summary kept the whole `report.md`. `uphill --compare` ran every script of the revision at least once, even with a baseline file, and `report.json` listed the revision's scores under `comparison.scores`.

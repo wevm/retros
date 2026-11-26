@@ -1,6 +1,6 @@
 # GitHub Action
 
-`wevm/uphill` is a composite action. It installs Uphill, runs it with `--compare` on pull requests, and writes the report to the job summary and to one comment on the pull request.
+`wevm/uphill` is a composite action. It installs Uphill, runs it with `--compare` on pull requests, and keeps one comment on the pull request with a score gauge per category and a link to the HTML report.
 
 ## Usage
 
@@ -30,9 +30,11 @@ The action runs these steps in order:
 
 1. Install the release that `version` selects with the install script, unless `version` is `none`.
 2. Fetch `compare` when the clone lacks it, and run `uphill --compare <ref>` with `args` in `working-directory`.
-3. Write `report.md` to the job summary, with a gauge per category after its heading. A failed run adds its exit status and the last 60 lines of its output.
-4. On a pull request, create or update the comment when `comment` is `true`.
-5. Exit with the status of `uphill`.
+3. Upload `report.html` as an unzipped artifact, which opens in the browser. A repository whose artifacts are off has no link, and the job continues.
+4. Write the comment: a table of score gauges for the base branch and this run, and a link to the artifact. A failed run adds its exit status, and the last 60 lines of its output when Uphill wrote no report.
+5. Write the comment and the whole `report.md` to the job summary.
+6. On a pull request, create or update the comment when `comment` is `true`.
+7. Exit with the status of `uphill`.
 
 ```yaml title=".github/workflows/uphill.yml"
 # A step after the action runs only when Uphill passed, unless it sets if: always().
