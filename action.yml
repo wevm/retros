@@ -79,7 +79,7 @@ runs:
         command+=("${args[@]}")
 
         log=$(mktemp)
-        rm -f .uphill/report.md
+        rm -f .uphill/report.md .uphill/report.json
         set +e
         "${command[@]}" 2>&1 | tee "$log"
         status=${PIPESTATUS[0]}
@@ -96,6 +96,8 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
+        ACTION_REF: ${{ github.action_ref }}
+        ACTION_REPOSITORY: ${{ github.action_repository }}
         COMMAND: ${{ steps.run.outputs.command }}
         COMMENT: ${{ inputs.comment }}
         EXIT_CODE: ${{ steps.run.outputs.exit-code }}
@@ -106,10 +108,36 @@ runs:
         NUMBER: ${{ github.event.pull_request.number }}
         REPORT: ${{ steps.run.outputs.report }}
       run: |
+        # GitHub shows only images it fetches by URL, so the gauges are files in the action's
+        # repository at the action's ref. A local `uses: ./` has neither, and links them on main.
+        gauges=
+        json=${REPORT%.md}.json
+        if [ -f "$json" ]; then
+          base=https://raw.githubusercontent.com/${ACTION_REPOSITORY:-wevm/uphill}/${ACTION_REF:-main}/assets/gauges
+          gauges=$(jq -r --arg base "$base" '
+            [.categories[]
+              | ((if .subject then "\(.subject) · " else "" end) + .title) as $label
+              | (if .score == null then "failed" else (.score | floor | tostring) end) as $score
+              | "<td align=\"center\"><img src=\"\($base)/\($score).svg\" width=\"80\" height=\"80\" alt=\"\($label | @html): \($score)\"><br><b>\($label | @html)</b></td>"]
+            | if length == 0 then empty
+              else [range(0; length; 6) as $i | "<tr>" + (.[$i:$i + 6] | join("")) + "</tr>"]
+                | "<table>" + join("") + "</table>"
+              end' "$json") || gauges=
+        fi
+
         body=$(mktemp)
         {
           echo "$MARKER"
-          if [ -f "$REPORT" ]; then cat "$REPORT"; else echo '# Hill climb report'; fi
+          if [ -f "$REPORT" ] && [ -n "$gauges" ]; then
+            # The report starts with its heading and a blank line, and the gauges follow them.
+            head -n 2 "$REPORT"
+            printf '%s\n\n' "$gauges"
+            tail -n +3 "$REPORT"
+          elif [ -f "$REPORT" ]; then
+            cat "$REPORT"
+          else
+            echo '# Hill climb report'
+          fi
 
           if [ "$EXIT_CODE" != 0 ]; then
             printf '\n> [!CAUTION]\n> `%s` exited with status %s.\n\n' "$COMMAND" "$EXIT_CODE"

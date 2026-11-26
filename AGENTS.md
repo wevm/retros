@@ -293,7 +293,7 @@ Applies to documentation, comments, TSDoc, interface copy, commit messages, and 
 - `.agents/plan.md` tracks phases, decisions, and acceptance gates.
 - `npm/`: the `uphill` npm package, a pnpm workspace package built with zile from the zile template. `npm/src/bin.ts` runs the binary for the machine from `npm/binaries/<platform>-<arch>/`, which the Main workflow fills from the release archives. Its version is the release version, and `npm/version.ts` copies it into `Cargo.toml` and `Cargo.lock`. Changesets reads `.changeset/` at the repository root.
 - `install.sh`, `.github/workflows/main.yml`, and `.github/workflows/binaries.yml`: the install script, and the release. A change that users see adds a changeset with `pnpm changeset`. On `main`, the Main workflow keeps a `chore: version packages` pull request open, and merging it builds the archives with `binaries.yml`, creates the `v<version>` GitHub Release, and publishes `uphill` to npm. The changesets bot owns that branch and pull request.
-- `action.yml`: the GitHub Action, which runs `uphill --compare` on a pull request and keeps one comment with the report.
+- `action.yml`: the GitHub Action, which runs `uphill --compare` on a pull request and keeps one comment with the report. `assets/gauges/` holds the score gauges the comment links, which `bun assets/gauges.ts` writes.
 - `docs/`: the documentation, one Markdown page per topic, which GitHub renders. `docs/README.md` lists the pages in reading order.
 
 ## Tooling

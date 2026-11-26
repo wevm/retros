@@ -84,12 +84,17 @@ The `args` input adds arguments to `uphill`. `--require-targets` fails the job w
 
 The comment holds `report.md`: scores, opportunities, changes since the baselines, and changes against the base branch. A failed run adds the exit status and the end of the output.
 
+A row of score gauges follows the heading, one per category, as in the HTML report. Each gauge is an SVG image in the action's repository at the action's ref, because GitHub shows only images that it fetches by URL.
+
 The last line names the command, the commit, and the workflow run. This excerpt leaves out the sections between the tables:
 
 ```md
 <!-- The next line is the marker that the action finds the comment by. -->
 <!-- uphill: . -->
 # Hill climb report
+
+<!-- One gauge per category, linked from the action's repository. -->
+<table><tr><td align="center"><img src="https://raw.githubusercontent.com/wevm/uphill/main/assets/gauges/100.svg" width="80" height="80" alt="Footprint: 100"><br><b>Footprint</b></td><td align="center"><img src="https://raw.githubusercontent.com/wevm/uphill/main/assets/gauges/51.svg" width="80" height="80" alt="Speed: 51"><br><b>Speed</b></td></tr></table>
 
 | Category | Score |
 | --- | --- |

@@ -30,7 +30,7 @@ The action runs these steps in order:
 
 1. Install the release that `version` selects with the install script, unless `version` is `none`.
 2. Fetch `compare` when the clone lacks it, and run `uphill --compare <ref>` with `args` in `working-directory`.
-3. Write `report.md` to the job summary. A failed run adds its exit status and the last 60 lines of its output.
+3. Write `report.md` to the job summary, with a gauge per category after its heading. A failed run adds its exit status and the last 60 lines of its output.
 4. On a pull request, create or update the comment when `comment` is `true`.
 5. Exit with the status of `uphill`.
 
