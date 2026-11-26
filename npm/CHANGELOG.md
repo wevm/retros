@@ -1,5 +1,14 @@
 # uphill
 
+## 0.0.6
+
+### Patch Changes
+
+- ed127fc: Moved vendored packs from `.agents/packs/` to `.agents/uphill/packs/`. `uphill add` and `uphill update` wrote packs there, runs read them there, and the convention packs skipped it. A project with packs in `.agents/packs/` moved that directory with `git mv .agents/packs .agents/uphill/packs`.
+- 7a2f0f1: Kept a vendored pack's `local/` directory for the project's own files. `uphill update` kept it, `uphill audit` skipped it, `uphill remove` left it in place, and a pack that shipped `local/` failed the fetch checks. The `typescript` pack read its project inputs from `local/config.ts`.
+- 9576917: Corrected measurements across all seven convention packs and added parser dependencies that require `install: true` on existing Rust, TigerStyle, and Deslop entries.
+- e914840: Added library categories to the `typescript` pack: `footprint`, `speed`, `coverage`, `types`, `call-types`, `type-coverage`, and `fuzz`. They measured each public export's bundle size and tree-shaking, the call and import cost of replaying the project's vitest calls, type instantiations per export and per test call, and fuzzing of each public function, with `hot-*` copies for the items its `local/config.ts` listed. A metric that wrote only `skip` lines no longer had its target's unit checked, so the library metrics skipped in projects without entry points.
+
 ## 0.0.5
 
 ### Patch Changes
