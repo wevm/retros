@@ -1,5 +1,7 @@
 # Adapted from wevm/ondine and wevm/zyzz
 
+Follow the rules in @.agents/uphill/rules.md. `uphill rules --write` rewrites the file from each metric's description.
+
 Sources: https://github.com/wevm/ondine/blob/main/AGENTS.md at `51ba8db369fd8b355ba30fe517ce9e345c427a21` and https://github.com/wevm/zyzz/blob/main/AGENTS.md at `a607022d672af725f1994b7dc37aa06749c218ea`. Retrieved 2026-11-22. General TypeScript, Rust, module, documentation, prose, testing, and Git conventions are retained. Project principles, Rust architecture, documentation voice, UI, layout, and commands are adapted for Uphill.
 
 # Agent Guidelines
@@ -61,32 +63,26 @@ These apply to scripts, examples, the npm package, and the GitHub Action as they
 
 ## Rust Conventions
 
-Uphill is written in Rust. These conventions draw on zyzz, Ondine, oxc, ruff, and biome. Project principles, TypeScript conventions, and testing rules still apply wherever they have a Rust equivalent.
+Uphill is written in Rust. These conventions draw on zyzz, Ondine, oxc, ruff, and biome. Project principles, TypeScript conventions, and testing rules still apply wherever they have a Rust equivalent. The rust pack's rules in `.agents/uphill/rules.md` hold the rest, such as lints, panics, output, formatting, documentation, tests, and manifests.
 
 ### Crates and Modules
 
 - Keep the `engine` crate pure. It reads no files, environment, clock, or process state, runs no processes, and spawns no threads. `crates/engine/clippy.toml` bans `std::fs`, `std::env`, `std::process`, `std::thread::spawn`, `std::time`, and the standard hash collections with `disallowed-methods` and `disallowed-types`.
 - Keep the `cli` crate a thin adapter. It parses arguments, runs scripts, reads and writes files, creates Git worktrees, and passes data to the engine. Logic in the adapter that does not touch the environment is a defect and belongs in the engine.
 - Give each concern one engine module: the configuration, metric lines, units, scoring, comparison, and one module per report format. Share number formatting from one module.
-- Keep items `pub(crate)` unless another crate has a real contract with them, and enable `unreachable_pub`.
-- Start every module with a `//!` comment describing its responsibility, and document every public item. Enable `missing_docs`.
 - Add no dependency without a stated reason in the commit message. Prefer hand-written code over a dependency for small parsers and formatters.
 
 ### Language and Lints
 
-- Use edition 2024 and pin the toolchain in `rust-toolchain.toml`. Declare `rust-version` in the workspace.
-- Configure `[workspace.lints]` with `clippy::all` and `clippy::pedantic` at `warn` (priority `-1`), plus `allow_attributes`, `dbg_macro`, `get_unwrap`, `iter_over_hash_type`, `print_stderr`, `print_stdout`, `todo`, `undocumented_unsafe_blocks`, and `unimplemented`. Allow only `module_name_repetitions`, `must_use_candidate`, `similar_names`, and `too_many_lines` workspace-wide. CI runs `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings`.
-- Suppress a lint locally with `#[expect(lint, reason = "...")]`, never `#[allow]`. An unneeded expectation then fails the build.
-- Deny `unsafe_code` in every crate. If a later measure needs `unsafe`, such as `wait4` for peak memory, it gets its own module, a `// SAFETY:` comment on each block, and a decision in the plan.
-- Write to standard output and standard error through `std::io::Write`, not `println!` or `eprintln!`.
-- Encode invariants in types instead of `unwrap`, `expect`, slicing, or `panic!`. Production paths use `get`, pattern matching, and `let` chains. Debug assertions document invariants but never replace release-mode checks.
-- Use plain data, functions, and enums. Traits exist for real polymorphism, not for namespacing. Do not use `Rc<RefCell<_>>` graphs.
+- Configure `[workspace.lints]` with `clippy::all` and `clippy::pedantic` at `warn` (priority `-1`), plus `allow_attributes`, `dbg_macro`, `get_unwrap`, `iter_over_hash_type`, `print_stderr`, `print_stdout`, `todo`, `undocumented_unsafe_blocks`, and `unimplemented`. CI runs `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings`.
+- If a later measure needs `unsafe`, such as `wait4` for peak memory, it gets its own module and a decision in the plan.
+- Debug assertions document invariants but never replace release-mode checks.
+- Use plain data, functions, and enums. Traits exist for real polymorphism, not for namespacing.
 - Order `use` declarations, struct fields, and enum variants alphabetically unless order is observable. Serialization order and derived `Ord` are observable, so mark those with a comment.
-- Mark `#[inline(always)]` only with a measured reason and `#[expect(clippy::inline_always, reason = "...")]`. Put error construction behind `#[cold]` functions.
+- Put error construction behind `#[cold]` functions.
 
 ### Data and Determinism
 
-- Never iterate a hash map to produce output. Use a `Vec`, a `BTreeMap`, or the declared order.
 - Keep categories and metrics in the order `uphill.yaml` declares them. Keep items in first-seen order, and sort them only where a report ranks them, with ties broken by first-seen order.
 - Borrow input text as `&str` until output. Move values with `std::mem::take` instead of cloning.
 
@@ -111,10 +107,9 @@ Uphill is written in Rust. These conventions draw on zyzz, Ondine, oxc, ruff, an
 
 ### Rust Testing
 
-- Rust tests live in each crate's `tests/` directory, exercise public crate functions or the built binary end to end, and assert with inline `insta` snapshots. Unit tests of private helpers and mocks are banned.
+- Rust tests exercise public crate functions or the built binary end to end.
 - Run CLI tests against the built binary (`env!("CARGO_BIN_EXE_uphill")`) with fixture projects in temporary directories, real shell scripts, and real Git repositories.
 - Derive expected scores independently of the implementation, from Lighthouse's published guarantees (a value at `target` scores 0.9 and a value at twice the target scores 0.5) and from values computed by Lighthouse's own JavaScript.
-- Release builds use `opt-level = 3`, `lto = "fat"`, `codegen-units = 1`, and `strip = "symbols"`.
 
 ## Alphabetical Ordering
 
@@ -298,7 +293,6 @@ Applies to documentation, comments, TSDoc, interface copy, commit messages, and 
 
 ## Tooling
 
-- Pin Rust in `rust-toolchain.toml`. Keep shared dependency versions in `[workspace.dependencies]`, and reference them with `workspace = true` in crate manifests.
 - Declare TypeScript dependencies with `catalog:` references in `pnpm-workspace.yaml`, format and lint with Vite Plus (oxfmt and oxlint), build packages with zile, and version them with Changesets. Prettier is banned.
 
 ## Commands
