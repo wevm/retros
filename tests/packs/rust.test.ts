@@ -111,7 +111,8 @@ test('workspace membership, compiler inputs, dependency identities, and Rust syn
         )
       assert.ok(
         !run.lines.some(
-          (line) => line.includes('vendor/') || line.includes('.agents/uphill/packs/'),
+          (line) =>
+            line.includes('vendor/') || line.includes('.agents/uphill/packs/'),
         ),
       )
     },

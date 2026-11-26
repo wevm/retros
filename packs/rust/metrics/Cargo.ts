@@ -240,7 +240,9 @@ export function sources(options: {
         path.isAbsolute(file) ||
         !fs.existsSync(file) ||
         file.startsWith(`${target}/`) ||
-        /(?:^|\/)(?:\.agents\/uphill\/packs|\.git|node_modules|target)\//.test(file)
+        /(?:^|\/)(?:\.agents\/uphill\/packs|\.git|node_modules|target)\//.test(
+          file,
+        )
       )
         return false
       if (options.reached.has(file)) return true
