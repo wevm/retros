@@ -1,5 +1,13 @@
 # uphill
 
+## 0.0.11
+
+### Patch Changes
+
+- 06ef3fd: Added `.agents/uphill/` as the default place for `uphill.yaml`, `uphill.toml`, the baseline file, and scripts, which run from the project root, while `.agents/` and the root still worked.
+- 3aa91f6: Added `uphill rules`, which printed each metric's `description` as a rule with its targets, and wrote them to `.agents/uphill/rules.md` with `--write`, `uphill add`, `uphill update`, and `uphill remove`, under an @-mention at the top of AGENTS.md that `uphill check` kept current.
+- c174eb3: Skipped `.agents/uphill/rules.md` in the writing-docs pack, since `uphill rules --write` generated it and its rules quoted the words they banned.
+
 ## 0.0.10
 
 ### Patch Changes
