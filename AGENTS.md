@@ -18,45 +18,29 @@ Follow the [Uphill rules](.agents/uphill/rules.md), which `uphill rules --write`
 
 ## TypeScript Conventions
 
-These apply to scripts, examples, the npm package, and the GitHub Action as they are added.
+These apply to scripts, examples, the npm package, and the GitHub Action as they are added. The typescript pack's rules in `.agents/uphill/rules.md` hold the rest, such as compiler options, `any`, enums, imports, exports, option bags, parameters, ternaries, and TSDoc.
 
-- Treat `exactOptionalPropertyTypes` and `noUncheckedIndexedAccess` as design constraints. Include `| undefined` when an optional property can explicitly receive `undefined`, and narrow indexed reads before use.
-- Use `readonly T[]` for array types. Preserve mutable arrays only when mutation is part of the contract.
-- Use `type` for project-owned shapes. Use `interface` only when declaration merging or an external ambient contract requires it.
-- Include `.js` extensions on relative imports and exports so source remains valid under NodeNext ESM.
-- Author every source file and script in TypeScript or shell. Python and `.js` files are banned. When a script needs an interpreter, write TypeScript and run it with Bun (`bun script.ts`), so scripts need no build step.
-- Import module-shaped internal files as namespaces (`import * as Store from './Store.js'`) and access members through the module name. Named imports are fine for types, leaf helpers, command handlers, and third-party APIs that are not module namespaces.
-- Import Node built-ins as namespaces unless the neighboring code or API is clearer with a named import.
-- Re-export public module files as namespaces (`export * as Store from './Store.js'`). Avoid flattening sibling-module symbols into a barrel.
-- Use static imports. Reserve dynamic imports for a real runtime or bundle boundary, not dependency-cycle workarounds.
-- Use `import type` and `export type` where an import or export is type-only.
-- Use functions and plain data for normal APIs. Classes are limited to errors and framework-required entrypoints.
-- Keep error classes in the module that throws them, ordered alphabetically with its public exports. Set custom error `name` values to the namespaced form, such as `Config.InvalidError`.
-- Use unions or `as const` objects instead of enums.
-- Prefer `camelCase` constants. Preserve uppercase names only when they mirror an external protocol or established neighboring code.
+- Include `| undefined` when an optional property can explicitly receive `undefined`, and narrow indexed reads before use.
+- Use `interface` only when declaration merging or an external ambient contract requires it.
+- Author every script in TypeScript or shell, never Python. When a script needs an interpreter, write TypeScript and run it with Bun (`bun script.ts`), so scripts need no build step.
+- Named imports are fine for leaf helpers, command handlers, and third-party APIs that are not module namespaces.
+- Keep error classes in the module that throws them, ordered alphabetically with its public exports.
+- Keep an uppercase constant only when it mirrors an external protocol or established neighboring code.
 - Use `const` generic parameters when callers should retain literal or tuple types.
-- Default optional option bags in the signature (`options: fn.Options = {}`), not with `options?: fn.Options` and downstream fallback logic.
-- Name typed option bags `options`. Use a domain noun only when the value is not an options bag.
-- Prefer one named object parameter over several positional parameters. An instance-like receiver such as `client`, `cache`, or `store` may be the first positional parameter, followed by an options bag.
-- Put a function's parameter, return, and error types in a matching `declare namespace` (`resolve.Options`, `resolve.ReturnType`, `resolve.ErrorType`). Keep a sibling exported type only when several functions share the domain type.
-- Avoid inline object types on local variables. When an explicit local object type improves clarity, name it directly above the use.
+- Keep a sibling exported type, beside a function's namespace types, only when several functions share the domain type.
 - Do not extract a named type until it is reused or makes a difficult shape materially easier to read.
 - Keep shared domain types beside the module that owns the concept.
 - Group a module's Zod schemas in a `schema` namespace, and derive their types beside them (`schema.Document`). Export the namespace only when another module validates against the same shape.
 - Let declared return types constrain intermediate expressions. Avoid redundant local annotations.
-- Return values directly unless a binding is reused or gives a complex expression a useful name.
-- Prefer immediately invoked function expressions (IIFEs) with explicit branches and early returns over nested or complex ternary expressions. Keep simple two-way ternaries when both branches are easy to scan. This applies to executable code, not TypeScript conditional types.
-- For a fallible local derivation, prefer an IIFE expression over a mutable variable assigned across `try` and `catch` blocks.
-- Never destructure parameters in function definitions, including arrow functions, callbacks, and methods. Accept a named parameter and destructure inside the body when reading several properties. When normalizing one field, read `options.field` directly instead of creating a second name.
+- Keep simple two-way ternaries when both branches are easy to scan. The IIFE rule for nested ternaries applies to executable code, not TypeScript conditional types.
+- When normalizing one field, read `options.field` directly instead of creating a second name.
 - Declare component props as `Component.Props` inside the component's matching namespace, including nested components such as `Card.Group.Props`. Do not use inline props types or standalone component props aliases.
 - Prefer short names whose meaning is clear from local context, such as `options`, `client`, `entry`, and `fn`.
 - Keep wire formats, ordered tuples, protocol fields, and other order-sensitive shapes explicit. Do not alphabetize data whose order has meaning.
-- Avoid new `any`. Use a precise boundary type, validation, narrowing, or the smallest justified assertion.
 - Separate distinct contexts and logical steps with one blank line in every maintained module, including source, adapters, scripts, benchmarks, and test fixtures. Group setup, guard clauses, derivation, mutation or emission, and final returns so each step is easy to scan.
 - Keep a lookup with its immediate guard, related local declarations, and consecutive assertions together. Separate independent branches, loops, local helper functions, and the work following a completed control-flow block. Avoid both dense uninterrupted logic and a blank line after every statement.
 - Separate test setup, execution, and assertions. Keep each assertion group beside the operation it verifies. Preserve spacing inside generated source strings, snapshots, and other whitespace-sensitive fixtures.
 - Audit logical spacing when adding or editing a module, since formatting tools do not infer context boundaries. Review the surrounding function as well as the changed lines, and keep spacing-only edits free of behavior changes.
-- Do not use section-divider comments. Use exports, TSDoc, and whitespace to express module structure.
 - Comment invariants and non-obvious reasons, not line-by-line mechanics. Keep comments independent of plans, task IDs, and prior versions.
 
 ## Rust Conventions
@@ -156,14 +140,14 @@ Uphill is written in Rust. These conventions draw on zyzz, Ondine, oxc, ruff, an
 
 ## Code Documentation
 
-- Start every Rust module with a `//!` comment and every maintained TypeScript module with a TSDoc `@module` comment describing its responsibility. Place the TSDoc comment before imports, or after a required shebang. Include entrypoints, internal modules, tooling, fixtures, integration tests, type fixtures, and benchmarks. Describe the module rather than repeating its filename.
-- Document every public item (`///` in Rust, TSDoc in TypeScript) and every public type property. Write or update the contract documentation alongside the implementation.
+- Place a TypeScript module's TSDoc `@module` comment before imports, or after a required shebang. Module comments cover entrypoints, internal modules, tooling, fixtures, integration tests, type fixtures, and benchmarks. Describe the module rather than repeating its filename.
+- Write or update the contract documentation alongside the implementation.
 - Document caller-visible purpose, inputs, output, defaults, errors, and side effects. Keep low-level wiring in nearby implementation comments.
 - Update the owning entrypoint documentation when adding or changing a public module.
 
 ## Writing Documentation
 
-Applies to `docs/`, the README, and other Markdown documentation. Prose Conventions also apply.
+Applies to `docs/`, the README, and other Markdown documentation. Prose Conventions also apply, and the writing-docs pack's rules in `.agents/uphill/rules.md` set the limits on sentences, paragraphs, and headings.
 
 ### Voice and Terms
 
@@ -176,7 +160,7 @@ Applies to `docs/`, the README, and other Markdown documentation. Prose Conventi
 
 ### Paragraphs and Sections
 
-- Keep each paragraph to one idea in about 40 words, and never more than 50. Tighten wording rather than mechanically splitting paragraphs.
+- Keep each paragraph to one idea. Tighten wording rather than mechanically splitting paragraphs.
 - Write at most three paragraphs per section. When a topic needs more, split it into sections with their own headings.
 - Prefer an example in every section, such as an `uphill.yaml` excerpt, the metric lines a script writes, or the report output. Show the behavior rather than only describing it or deferring to another page.
 - Use bullets for enumerable content and tables for comparisons.
@@ -185,7 +169,7 @@ Applies to `docs/`, the README, and other Markdown documentation. Prose Conventi
 
 ### Headings
 
-- Write page titles and every heading in Title Case with fewer than four words, so they fit the documentation index and the outline GitHub shows. Lowercase articles, coordinating conjunctions, and prepositions of four or fewer letters unless they begin or end the heading. Product names keep their own casing.
+- Keep headings short and in Title Case so they fit the documentation index and the outline GitHub shows. Product names keep their own casing.
 
 ### Guide Structure
 
@@ -214,25 +198,24 @@ Applies to `docs/`, the README, and other Markdown documentation. Prose Conventi
 
 ## Prose Conventions
 
-Applies to documentation, comments, TSDoc, interface copy, commit messages, and pull requests. Adapted from the Prose Conventions of `tempoxyz/id` through Ondine.
+Applies to documentation, comments, TSDoc, interface copy, commit messages, and pull requests. Adapted from the Prose Conventions of `tempoxyz/id` through Ondine. The writing-docs pack's rules hold the rest, such as voice, word choice, verb tenses, punctuation, and emoji.
 
-- Write about the code, not about the person using it. Avoid second person outside interface copy.
+- Second person is valid only in interface copy.
 - Describe behavior in technical terms rather than by the experience it produces. Prefer `scores the p90 of 1,912 items` over `gives a feel for typical size`.
-- Write formally, concisely, and technically. Use precise verbs such as "returns", "runs", "parses", "scores", "rejects", "writes", and "reports", not conversational ones such as "hands", "gets", "gives", "sees", "knows", "says", or "tells".
+- Write formally, concisely, and technically.
 - State an invariant or a reason the code cannot show on its own. Leave out justification the code already makes plain.
 - Write close to ASD-STE100 Simplified Technical English. Apply its writing rules below, but not its full dictionary.
 - Use the short, common word: "use", "start", "before", "about", "make sure", not "utilize", "commence", "prior to", "approximately", "ensure". Technical names and Uphill terms, such as "target", "item", and "round", are always valid.
 - Use one word for one thing, and give each word one meaning and one part of speech. Do not use a synonym for variety.
-- Keep an instruction to 20 words or fewer, and a descriptive sentence to 25 words or fewer. Give one instruction in each sentence, unless the actions occur at the same time.
-- Keep each paragraph to one topic and six sentences or fewer. Use a vertical list for sequential steps or several conditions.
+- Keep an instruction to 20 words or fewer. Give one instruction in each sentence, unless the actions occur at the same time.
+- Keep each paragraph to one topic. Use a vertical list for sequential steps or several conditions.
 - Put a condition before the instruction it controls: "If a script fails, read the end of its stderr in the report."
-- Use the active voice in instructions. Use the passive voice in descriptions only when the agent is unknown or not important.
-- Use the imperative, simple present, simple past, and simple future. Do not use a progressive (`-ing`) or perfect form as the main verb. An `-ing` word in a technical name is valid.
+- Use the passive voice in descriptions only when the agent is unknown or not important.
+- An `-ing` word in a technical name is valid, though the main verb is never a progressive form.
 - Do not stack more than three nouns, except in a technical name. Break a longer cluster with a preposition.
 - Do not leave out "the", "a", or "this" to make a sentence shorter.
 - Vary sentence construction. One shape repeated across a file, such as an assertion followed by a colon and its reason, reads as a writing style rather than as information.
 - Use a diagram, not prose, to show a flow or how components connect, and keep it to about 12 nodes. Use a table, not a paragraph, to compare options or map inputs to outputs.
-- Do not use semicolons or em dashes in prose. Split the sentence, or use a comma, colon, or parenthesis. Semicolons remain valid inside code.
 - Keep PR titles and bodies short and concrete. Explain the problem and resulting behavior in a few sentences, include one small example, and add one validation line. Use a usage snippet, before/after behavior, or relevant command. Link detailed reports.
 
 ## Testing Conventions
@@ -262,9 +245,8 @@ Applies to documentation, comments, TSDoc, interface copy, commit messages, and 
 
 ## Git Conventions
 
-- Conventional commits, lowercase, no trailing period: `feat:`, `fix:`, `perf:`, `refactor:`, `docs:`, `test:`, `chore:`. Scope optional.
+- Commit types: `feat:`, `fix:`, `perf:`, `refactor:`, `docs:`, `test:`, `chore:`. Scope optional. The git pack's rules hold the rest of the commit message format.
 - Name the thing that changed, in the identifiers the codebase already uses. Prefer `feat: collapse list metrics to p90 in engine::score` over `feat: make big lists easier to score`.
-- State the change, not the reason for it. Leave `because`, `so that`, and `in order to` out of the subject.
 - Write each message to stand alone for a reader who has not seen the pull request or the task that produced it.
 - Never force push and never amend a pushed commit. Correct a mistake with a follow-up commit.
 - Always commit and push directly to `main`. Never create or push to another branch, and never open a pull request.
