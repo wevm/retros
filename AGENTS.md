@@ -1,8 +1,6 @@
 # Adapted from wevm/ondine and wevm/zyzz
 
-Follow the rules in @.agents/uphill/rules.md. `uphill rules --write` rewrites the file from each metric's description.
-
-Sources: https://github.com/wevm/ondine/blob/main/AGENTS.md at `51ba8db369fd8b355ba30fe517ce9e345c427a21` and https://github.com/wevm/zyzz/blob/main/AGENTS.md at `a607022d672af725f1994b7dc37aa06749c218ea`. Retrieved 2026-11-22. General TypeScript, Rust, module, documentation, prose, testing, and Git conventions are retained. Project principles, Rust architecture, documentation voice, UI, layout, and commands are adapted for Uphill.
+Follow the [Uphill rules](.agents/uphill/rules.md), which `uphill rules --write` rewrites from each metric's description: @.agents/uphill/rules.md
 
 # Agent Guidelines
 
