@@ -15,10 +15,11 @@ import writeGood from 'write-good'
 import * as Prose from './prose.js'
 
 /**
- * Files that are not documentation, such as generated changelogs, agent guidance, and installed
- * packages.
+ * Files that are not documentation, such as generated changelogs, agent guidance, the rules that
+ * `uphill rules --write` generates, and installed packages.
  */
 const ignored = [
+  /(^|\/)\.agents\/uphill\/rules\.md$/,
   /(^|\/)\.changeset\//,
   /(^|\/)\.github\//,
   /(^|\/)(AGENTS|CHANGELOG|CLAUDE|LICENSE)(\.md)?$/i,

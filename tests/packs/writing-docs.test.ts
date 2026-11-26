@@ -17,8 +17,10 @@ function measure(files: Record<string, string>) {
 
   try {
     child.execFileSync('git', ['init', '--quiet'], { cwd })
-    for (const [file, source] of Object.entries(files))
+    for (const [file, source] of Object.entries(files)) {
+      fs.mkdirSync(path.dirname(path.join(cwd, file)), { recursive: true })
       fs.writeFileSync(path.join(cwd, `${file}.md`), source)
+    }
 
     child.execFileSync('bun', [script], {
       cwd,
@@ -33,6 +35,9 @@ function measure(files: Record<string, string>) {
 
 test('checks rendered prose across markup without checking destinations, code, or comments', () => {
   const lines = measure({
+    // Uphill generates the rules file, and its rules quote the words they ban.
+    '.agents/uphill/rules':
+      '## Call types\n\nAvoid weasel words such as "very". You get e.g. results.',
     clean: [
       '# npm Packages',
       'The record is missing. Both hands move. The tool has a record.',
@@ -60,6 +65,11 @@ test('checks rendered prose across markup without checking destinations, code, o
     wrapped:
       '## Checks\n\nThe parser reads the header.\nThen the parser **has** finished.',
   })
+
+  assert.deepEqual(
+    lines.filter((line) => line.includes('rules.md')),
+    [],
+  )
 
   const clean = lines.filter((line) => line.includes(' "clean.md" '))
   assert.equal(clean.length, 15)
