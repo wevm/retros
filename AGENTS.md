@@ -249,7 +249,7 @@ Applies to documentation, comments, TSDoc, interface copy, commit messages, and 
 
 ## Benchmark Conventions
 
-- Once the runner works, Uphill measures itself with its own `.agents/uphill.yaml`: binary size, and the time to run and report the fixture projects.
+- Once the runner works, Uphill measures itself with its own `.agents/uphill/uphill.yaml`: binary size, and the time to run and report the fixture projects.
 - Confirm timing regressions with repeated, interleaved samples on one machine, never with a single run.
 - Keep generated reports under the ignored `.uphill/` directory. Numbers committed to documentation name one run, commit, machine, and sample count, and keep every result including losses.
 
@@ -282,7 +282,7 @@ Applies to documentation, comments, TSDoc, interface copy, commit messages, and 
 - `examples/`: small projects in different languages, each with an `uphill.yaml` and the scripts it runs. CLI tests run `uphill check` on each one.
 - `packs/`: packs that measure common conventions, each an `uphill.yaml`, its scripts, and a `README.md` that `uphill add` prints. A script runs the tools that already check a rule, and measures a rule itself only when no tool does.
 - `SKILL.md`: the `uphill` skill, which `uphill init` embeds at the end of its brief.
-- `.agents/uphill.yaml` and `.agents/metrics/`: Uphill measuring itself.
+- `.agents/uphill/`: Uphill measuring itself, with `uphill.yaml`, its baseline file, the scripts in `metrics/`, and the generated `rules.md`.
 - `.agents/plan.md` tracks phases, decisions, and acceptance gates.
 - `npm/`: the `uphill` npm package, a pnpm workspace package built with zile from the zile template. `npm/src/bin.ts` runs the binary for the machine from `npm/binaries/<platform>-<arch>/`, which the Main workflow fills from the release archives. Its version is the release version, and `npm/version.ts` copies it into `Cargo.toml` and `Cargo.lock`. Changesets reads `.changeset/` at the repository root.
 - `install.sh`, `.github/workflows/main.yml`, and `.github/workflows/binaries.yml`: the install script, and the release. A change that users see adds a changeset with `pnpm changeset`. On `main`, the Main workflow keeps a `chore: version packages` pull request open, and merging it builds the archives with `binaries.yml`, creates the `v<version>` GitHub Release, and publishes `uphill` to npm. The changesets bot owns that branch and pull request.
@@ -299,6 +299,6 @@ Applies to documentation, comments, TSDoc, interface copy, commit messages, and 
 - `cargo test --workspace` runs every integration test.
 - `cargo fmt --all --check` and `cargo clippy --workspace --all-targets -- -D warnings` check formatting and lints.
 - `cargo build --release` builds the release binary at `target/release/uphill`.
-- `cargo run -p uphill -- check` runs Uphill on itself with `.agents/uphill.yaml`.
+- `cargo run -p uphill -- check` runs Uphill on itself with `.agents/uphill/uphill.yaml`.
 - `pnpm install` installs the TypeScript tooling. `pnpm check` formats and lints TypeScript with Vite Plus, and `pnpm check:types` checks types.
 - `pnpm --filter uphill build` builds the npm launcher with zile. `pnpm changeset` writes a changeset, a release note for the next version.

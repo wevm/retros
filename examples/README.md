@@ -23,4 +23,4 @@ Each example keeps its targets in `uphill.baseline.yaml`. A record with only a t
 
 The web app needs Chrome. Lighthouse finds an installed Chrome, or the one at `CHROME_PATH`. Its performance category writes times, so Uphill runs it 5 times, and a full run takes about 3 minutes.
 
-Uphill itself is measured the same way. Its [`.agents/uphill.yaml`](../.agents/uphill.yaml) tracks the release binary size, its dependencies, and its startup time.
+Uphill itself is measured the same way. Its [`.agents/uphill/uphill.yaml`](../.agents/uphill/uphill.yaml) tracks the release binary size, its dependencies, and its startup time.

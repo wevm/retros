@@ -185,7 +185,7 @@ fn help() {
       --require-targets   Exit with status 1 when a metric misses its target or a script fails
       --update            Write this run's sizes, counts, checks, and line targets to the baseline file
 
-    Runs each category's script, scores its metrics, lists the opportunities that would raise the scores most, and compares sizes, counts, checks, and line targets with each metric's baseline. Reads uphill.yaml or uphill.toml, at the root or in .agents, from this directory or the nearest parent. Writes .uphill/report.json, report.md, report.html, and comment.md.
+    Runs each category's script, scores its metrics, lists the opportunities that would raise the scores most, and compares sizes, counts, checks, and line targets with each metric's baseline. Reads uphill.yaml or uphill.toml, at the root, in .agents, or in .agents/uphill, from this directory or the nearest parent. Writes .uphill/report.json, report.md, report.html, and comment.md.
 
     Commands:
       add        Pin a pack to a commit and list it in the configuration: owner/repo/path on GitHub, an https URL followed by //path, or a local ./path, with an optional @ref
@@ -3009,7 +3009,7 @@ fn check_without_a_config() {
     let output = check(dir.path(), &[]);
 
     assert_eq!(output.status.code(), Some(2));
-    insta::assert_snapshot!(stderr(&output), @"error: no uphill.yaml or uphill.toml, at the root or in .agents, in this directory or any parent directory");
+    insta::assert_snapshot!(stderr(&output), @"error: no uphill.yaml or uphill.toml, at the root, in .agents, or in .agents/uphill, in this directory or any parent directory");
 }
 
 #[test]
@@ -3085,4 +3085,53 @@ fn agents_config_runs_from_the_project_root_and_moves_inline_targets_beside_it()
     let output = check(dir.path(), &[]);
     assert_eq!(output.status.code(), Some(2));
     insta::assert_snapshot!(stderr(&output), @"error: uphill.yaml and .agents/uphill.yaml both exist. Keep one");
+}
+
+#[test]
+fn agents_uphill_config_runs_from_the_project_root_with_its_baseline_beside_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let uphill = dir.path().join(".agents/uphill");
+    fs::create_dir_all(uphill.join("metrics")).unwrap();
+    fs::write(
+        uphill.join("uphill.yaml"),
+        "footprint:\n  run: sh .agents/uphill/metrics/manifests.sh\n  manifests: {}\n",
+    )
+    .unwrap();
+    // The script counts manifests in the directory it runs from, which is the project root.
+    fs::write(
+        uphill.join("metrics/manifests.sh"),
+        "echo \"manifests $(ls *.json | wc -l)\" >> \"$UPHILL_METRICS\"\n",
+    )
+    .unwrap();
+    fs::write(dir.path().join("package.json"), "{}").unwrap();
+
+    // Started two levels inside `.agents`, Uphill still runs from the directory above it.
+    let output = uphill_in(&uphill.join("metrics"), &["--update", "--compact"], &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(stdout(&output), @"
+    footprint –
+
+    No missed targets
+
+    Since the baseline
+      new  footprint  manifests
+
+    Wrote ../../../.uphill/report.json, ../../../.uphill/report.md, ../../../.uphill/report.html, ../../../.agents/uphill/uphill.baseline.yaml
+    ");
+    insta::assert_snapshot!(fs::read_to_string(uphill.join("uphill.baseline.yaml")).unwrap(), @"
+    # Each measurement's `baseline`, the size, count, or check `uphill --update` accepted, and its
+    # `target`. Edit a target here, and each run reports what changed since the baseline.
+
+    footprint:
+      manifests: { baseline: 1 }
+    ");
+
+    fs::write(
+        dir.path().join(".agents/uphill.yaml"),
+        "speed:\n  run: \"true\"\n  m: {}\n",
+    )
+    .unwrap();
+    let output = check(dir.path(), &[]);
+    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(stderr(&output), @"error: .agents/uphill.yaml and .agents/uphill/uphill.yaml both exist. Keep one");
 }

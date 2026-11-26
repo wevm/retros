@@ -4,7 +4,9 @@
 
 ## Files
 
-Uphill reads `uphill.yaml` or `uphill.toml`, at the project root or in `.agents/`, from the current directory or the nearest parent. One directory with more than one of these files is an error. The project root is the directory that holds the file or `.agents/`.
+Uphill reads `uphill.yaml` or `uphill.toml`, at the project root, in `.agents/`, or in `.agents/uphill/`, from the current directory or the nearest parent. One project with more than one of these files is an error. The project root is the directory that holds the file or `.agents/`.
+
+`.agents/uphill/` keeps Uphill's files in one directory: the configuration, its baseline file, the scripts, and the [rules file](cli.md#the-rules-file).
 
 Scripts run from the project root, and reports go to `.uphill/` in it. Each top-level key is a category, apart from `run`, `setup`, and `timeout`.
 

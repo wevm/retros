@@ -1,14 +1,14 @@
 # Uphill measures itself. Run `uphill check` from any directory in this repository.
 
 footprint:
-  run: sh .agents/metrics/footprint.sh
+  run: sh .agents/uphill/metrics/footprint.sh
   # Bytes of the stripped release binary that users download.
   binary-size: {}
   # Third-party crates compiled into the binary.
   dependencies: {}
 
 speed:
-  run: bun .agents/metrics/speed.ts
+  run: bun .agents/uphill/metrics/speed.ts
   # Time from launch to exit of `uphill --version`.
   startup: {}
   # Time `uphill check` takes for one category whose script writes one line.

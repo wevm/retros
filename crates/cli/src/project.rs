@@ -1,5 +1,5 @@
 //! Finds and reads the project's `uphill.yaml` or `uphill.toml`, at the project root or in its
-//! `.agents` directory, and the baseline file beside it, `uphill.baseline.yaml` or
+//! `.agents` or `.agents/uphill` directory, and the baseline file beside it, `uphill.baseline.yaml` or
 //! `uphill.baseline.toml`. Finds each pack that its `packs` key lists: a remote pack at its pinned
 //! commit in the cache of fetched packs (see [`crate::fetch`]), or a local directory.
 
@@ -10,12 +10,15 @@ use engine::baseline;
 use engine::config::{self, Category, Config, Format};
 use engine::pack::{self, Entry, Pack, Source};
 
-/// Where a project keeps its configuration, relative to its root, and the format of each file.
-const PLACES: [(&str, Format); 4] = [
+/// Where a project or a pack keeps its configuration, relative to its root, and the format of each
+/// file.
+pub(crate) const PLACES: [(&str, Format); 6] = [
     ("uphill.yaml", Format::Yaml),
     ("uphill.toml", Format::Toml),
     (".agents/uphill.yaml", Format::Yaml),
     (".agents/uphill.toml", Format::Toml),
+    (".agents/uphill/uphill.yaml", Format::Yaml),
+    (".agents/uphill/uphill.toml", Format::Toml),
 ];
 
 /// A project: its parsed configuration, its root, and the directory that holds the configuration.
@@ -154,16 +157,20 @@ pub(crate) struct Configuration {
 /// has more than one, or when a file cannot be read.
 pub(crate) fn configuration(cwd: &Path) -> Result<Configuration, String> {
     for (depth, root) in cwd.ancestors().enumerate() {
+        // A configuration in `.agents` or `.agents/uphill` belongs to the directory above
+        // `.agents`, so scripts run from the project root even when Uphill starts inside either.
+        let agents = |dir: &Path| dir.file_name().is_some_and(|name| name == ".agents");
+        if agents(root)
+            || (root.file_name().is_some_and(|name| name == "uphill")
+                && root.parent().is_some_and(agents))
+        {
+            continue;
+        }
+
         let prefix = "../".repeat(depth);
         let mut found: Option<(&str, Format, String)> = None;
 
         for (place, format) in PLACES {
-            // `.agents/uphill.yaml` belongs to the directory above `.agents`, so scripts run
-            // from the project root even when Uphill starts inside `.agents`.
-            if !place.contains('/') && root.file_name().is_some_and(|name| name == ".agents") {
-                continue;
-            }
-
             let source = match std::fs::read_to_string(root.join(place)) {
                 Ok(source) => source,
                 Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
@@ -193,7 +200,7 @@ pub(crate) fn configuration(cwd: &Path) -> Result<Configuration, String> {
     }
 
     Err(
-        "error: no uphill.yaml or uphill.toml, at the root or in .agents, in this directory or any parent directory"
+        "error: no uphill.yaml or uphill.toml, at the root, in .agents, or in .agents/uphill, in this directory or any parent directory"
             .to_owned(),
     )
 }
@@ -278,7 +285,7 @@ fn read(dir: &Path, shown: &str, entry: Entry) -> Result<Pack, String> {
             .map(|source| (*place, *format, source))
     }) else {
         return Err(format!(
-            "error: pack `{}` at {shown} has no uphill.yaml or uphill.toml, at its root or in .agents",
+            "error: pack `{}` at {shown} has no uphill.yaml or uphill.toml, at its root, in .agents, or in .agents/uphill",
             entry.name
         ));
     };

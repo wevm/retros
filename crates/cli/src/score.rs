@@ -43,7 +43,7 @@ pub(crate) const TRENDS: usize = 99;
 /// command, and each field's documentation is its help text.
 #[derive(Parser)]
 #[incur(
-    hint = "Runs each category's script, scores its metrics, lists the opportunities that would raise the scores most, and compares sizes, counts, checks, and line targets with each metric's baseline. Reads uphill.yaml or uphill.toml, at the root or in .agents, from this directory or the nearest parent. Writes .uphill/report.json, report.md, report.html, and comment.md."
+    hint = "Runs each category's script, scores its metrics, lists the opportunities that would raise the scores most, and compares sizes, counts, checks, and line targets with each metric's baseline. Reads uphill.yaml or uphill.toml, at the root, in .agents, or in .agents/uphill, from this directory or the nearest parent. Writes .uphill/report.json, report.md, report.html, and comment.md."
 )]
 #[expect(
     clippy::struct_excessive_bools,

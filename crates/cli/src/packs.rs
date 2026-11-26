@@ -13,24 +13,16 @@ use std::path::Path;
 use std::process::ExitCode;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use engine::config::{self, Format};
+use engine::config;
 use engine::pack::{self, Entry, Source};
 use engine::scan;
 
 use crate::fetch::{self, File};
-use crate::project::{self, Configuration};
+use crate::project::{self, Configuration, PLACES};
 use crate::rules;
 
 /// The youngest commit that `add` and `update` take without `--allow-fresh`, in seconds.
 const MIN_AGE: i64 = 24 * 60 * 60;
-
-/// Where a pack keeps its configuration, relative to its directory.
-const PLACES: [(&str, Format); 4] = [
-    ("uphill.yaml", Format::Yaml),
-    ("uphill.toml", Format::Toml),
-    (".agents/uphill.yaml", Format::Yaml),
-    (".agents/uphill.toml", Format::Toml),
-];
 
 /// The flags of `add` and `update`.
 #[derive(Clone, Copy)]
@@ -56,7 +48,7 @@ pub(crate) fn add(source: &str, categories: &[String], flags: Flags) -> Result<E
         let dir = found.root.join(source);
         if !PLACES.iter().any(|(place, _)| dir.join(place).is_file()) {
             return Err(format!(
-                "error: {source} has no uphill.yaml or uphill.toml, at its root or in .agents"
+                "error: {source} has no uphill.yaml or uphill.toml, at its root, in .agents, or in .agents/uphill"
             ));
         }
         let text = edit(
@@ -333,7 +325,7 @@ fn read_pack(files: &[File], name: &str) -> Result<Vec<String>, String> {
             .map(|file| (*place, *format, file))
     }) else {
         return Err(format!(
-            "error: pack `{name}` has no uphill.yaml or uphill.toml, at its root or in .agents"
+            "error: pack `{name}` has no uphill.yaml or uphill.toml, at its root, in .agents, or in .agents/uphill"
         ));
     };
     let source = String::from_utf8_lossy(&file.bytes);
