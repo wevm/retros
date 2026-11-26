@@ -6,7 +6,7 @@ timeout: 30s
 # Bytes the project ships.
 footprint:
   # Sum of every shipped file.
-  total: {}
+  total: { description: Ship only the files that users need. }
 
 # A comment between categories, which belongs to neither.
 

@@ -2070,7 +2070,7 @@ fn add_pins_a_pack_that_runs_from_the_cache() {
     let text = aged(&text);
     insta::assert_snapshot!(text, @"
     sizes  acme/packs/sizes@<first> (main, N days old)
-    files  5 (680 B)
+    files  5 (731 B)
       .agents/metrics/lib.sh
       .agents/metrics/lines.sh
       .agents/metrics/sizes.sh
@@ -2223,7 +2223,7 @@ fn update_reviews_new_capabilities_and_refuses_fresh_and_force_pushed_commits() 
     let text = aged(&text);
     insta::assert_snapshot!(text, @"
     sizes  <first> → <second> (N days old)
-    files  +2 ~0 -0 (841 B)
+    files  +2 ~0 -0 (892 B)
       + .agents/metrics/helper.wasm
       + .agents/metrics/upload.ts
     capabilities
