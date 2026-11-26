@@ -112,7 +112,7 @@ $ uphill init
 
 ### `uphill rules`
 
-Prints each metric's rule as Markdown, for an agent to read before it writes code. Each entry is the metric's [`description`](configuration.md#description-1), then its default target and item patterns from the baseline file.
+Prints each metric's rule as Markdown, for an agent to read before it writes code. Each entry is the metric's [`description`](configuration.md#description-1), then its default target and item patterns from the baseline file. A metric without a description has no entry.
 
 Categories and metrics keep the composed order of the configuration and its packs, and dropped metrics do not show. A [`category`](#category) prints only that category.
 
@@ -124,8 +124,8 @@ Uphill writes these rules from each metric's `description`. Write code that meet
 
 ## Style
 
-- `formatted`: Format each file with the project's formatter.
-- `enums`: Use unions or `as const` objects, not enums.
+- Format each file with the project's formatter.
+- Use unions or `as const` objects, not enums.
 ```
 
 #### The Rules File
@@ -141,7 +141,7 @@ Wrote .agents/uphill/rules.md, AGENTS.md
 $ head -3 AGENTS.md
 # Project
 
-Follow the rules in @.agents/uphill/rules.md. `uphill rules --write` rewrites the file from each metric's description.
+Follow the [Uphill rules](.agents/uphill/rules.md), which `uphill rules --write` rewrites from each metric's description: @.agents/uphill/rules.md
 ```
 
 ### `uphill log`

@@ -2693,7 +2693,7 @@ fn rules_list_each_composed_metric_with_its_description_and_targets() {
     // The project adds a category before the packs', rewrites one pack rule, and drops another.
     write(
         "uphill.yaml",
-        "packs:\n  - ./packs/a\n  - ./packs/b\nspeed:\n  description: Time of each public call.\n  run: \"true\"\n  parse-time: { description: Parse in one pass. }\n  throughput: { better: higher }\n  startup: {}\nstyle:\n  enums: { description: \"Use `as const` objects, not enums.\" }\n  long-lines: false\n",
+        "packs:\n  - ./packs/a\n  - ./packs/b\nspeed:\n  description: Time of each public call.\n  run: \"true\"\n  parse-time: { description: Parse in one pass. }\n  throughput: { better: higher, description: Serve each request in one pass. }\n  startup: {}\nstyle:\n  enums: { description: \"Use `as const` objects, not enums.\" }\n  long-lines: false\n",
     );
     // The baseline sets a default target and an item pattern, which follow each rule.
     write(
@@ -2712,14 +2712,13 @@ fn rules_list_each_composed_metric_with_its_description_and_targets() {
 
     Time of each public call.
 
-    - `parse-time`: Parse in one pass. At most 120 µs. `large/*`: at most 4 ms.
-    - `throughput`: At least 2000.
-    - `startup`
+    - Parse in one pass. At most 120 µs. `large/*`: at most 4 ms.
+    - Serve each request in one pass. At least 2000.
 
     ## Style
 
-    - `formatted`: Format each file with the project's formatter. Format each TypeScript file.
-    - `enums`: Use `as const` objects, not enums.
+    - Format each file with the project's formatter. Format each TypeScript file.
+    - Use `as const` objects, not enums.
     ");
 
     let output = uphill_in(dir.path(), &["rules", "style"], &[]);
@@ -2731,8 +2730,8 @@ fn rules_list_each_composed_metric_with_its_description_and_targets() {
 
     ## Style
 
-    - `formatted`: Format each file with the project's formatter. Format each TypeScript file.
-    - `enums`: Use `as const` objects, not enums.
+    - Format each file with the project's formatter. Format each TypeScript file.
+    - Use `as const` objects, not enums.
     ");
 
     let output = uphill_in(dir.path(), &["rules", "docs"], &[]);
@@ -2754,7 +2753,7 @@ fn rules_write_a_file_that_agents_md_mentions_and_check_fails_when_it_is_stale()
     insta::assert_snapshot!(fs::read_to_string(&agents).unwrap(), @"
     # Project
 
-    Follow the rules in @.agents/uphill/rules.md. `uphill rules --write` rewrites the file from each metric's description.
+    Follow the [Uphill rules](.agents/uphill/rules.md), which `uphill rules --write` rewrites from each metric's description: @.agents/uphill/rules.md
 
     Run `make test`.
     ");

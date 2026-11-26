@@ -1,6 +1,6 @@
 //! Renders `uphill rules`: the rules of a project's categories as Markdown, for an agent to follow
 //! while it writes code. Each metric's `description` is its rule, and its default target and
-//! patterns from the baseline file follow it. Categories and metrics keep the composed order of
+//! patterns from the baseline file follow it. A metric without a description has no entry. Categories and metrics keep the composed order of
 //! the configuration and its packs.
 //!
 //! The rules file, `.agents/uphill/rules.md`, holds the same Markdown, and the project's AGENTS.md
@@ -14,9 +14,10 @@ use crate::format;
 /// The rules file, relative to the project root.
 pub const FILE: &str = ".agents/uphill/rules.md";
 
-/// The line that AGENTS.md holds to load the rules file. Agents resolve the mention relative to
-/// AGENTS.md at the project root.
-const MENTION: &str = "Follow the rules in @.agents/uphill/rules.md. `uphill rules --write` rewrites the file from each metric's description.";
+/// The line that AGENTS.md holds to load the rules file: a link for readers, and an @-mention that
+/// agents resolve relative to AGENTS.md at the project root. The mention ends the line, so no
+/// punctuation follows the path.
+const MENTION: &str = "Follow the [Uphill rules](.agents/uphill/rules.md), which `uphill rules --write` rewrites from each metric's description: @.agents/uphill/rules.md";
 
 /// Returns the text of AGENTS.md with the line that mentions the rules file at its top, under the
 /// title when the file starts with one, or `None` when `agents` already mentions the file. An empty
@@ -48,37 +49,41 @@ pub fn mention(agents: &str) -> Option<String> {
     Some(text)
 }
 
-/// Renders the rules of `categories`: a heading for each category, its description, and one list
-/// entry per metric with its description and targets.
+/// Renders the rules of `categories`: a heading for each category with rules, its description, and
+/// one list entry per metric with a description. A metric without a description states no rule, so
+/// it has no entry.
 pub fn markdown(categories: &[&Category]) -> String {
     let mut out = String::from(
         "# Rules\n\nUphill writes these rules from each metric's `description`. Write code that meets them. `uphill` scores each metric against its target, and `uphill --compare HEAD --compact` lists what a change made worse.\n",
     );
 
     for category in categories {
+        let entries: Vec<String> = category.metrics.iter().filter_map(entry).collect();
+        if entries.is_empty() {
+            continue;
+        }
+
         let _ = write!(out, "\n## {}\n\n", category.title());
         if let Some(description) = &category.description {
             let _ = write!(out, "{}\n\n", description.trim());
         }
-        for metric in &category.metrics {
-            let _ = writeln!(out, "{}", entry(metric));
+        for entry in entries {
+            let _ = writeln!(out, "{entry}");
         }
     }
 
     out
 }
 
-/// Returns a metric's list entry: its name, then its description and targets, when it has any.
-fn entry(metric: &Metric) -> String {
+/// Returns a metric's list entry: its description, then its targets, or `None` without a
+/// description.
+fn entry(metric: &Metric) -> Option<String> {
     let bound = match metric.better {
         Better::Higher => "least",
         Better::Lower => "most",
     };
 
-    let mut parts = Vec::new();
-    if let Some(description) = &metric.description {
-        parts.push(description.trim().to_owned());
-    }
+    let mut parts = vec![metric.description.as_deref()?.trim().to_owned()];
     if let Some(target) = metric.target {
         parts.push(format!("At {bound} {}.", format::value(target)));
     }
@@ -90,9 +95,5 @@ fn entry(metric: &Metric) -> String {
         ));
     }
 
-    if parts.is_empty() {
-        format!("- `{}`", metric.name)
-    } else {
-        format!("- `{}`: {}", metric.name, parts.join(" "))
-    }
+    Some(format!("- {}", parts.join(" ")))
 }
