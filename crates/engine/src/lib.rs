@@ -11,6 +11,7 @@
 
 pub mod baseline;
 pub mod check;
+pub mod comment;
 pub mod compare;
 pub mod config;
 pub mod dashboard;

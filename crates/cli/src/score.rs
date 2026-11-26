@@ -1,7 +1,7 @@
 //! `uphill [category]`: runs each category's script, scores its metrics for each subject, prints
 //! each category as it finishes, then the opportunities and the changes since the baselines.
 //! Categories that share a `run` command share one run. It writes `.uphill/report.json`,
-//! `.uphill/report.md`, and `.uphill/report.html` in the project root. With `--update`, it writes
+//! `.uphill/report.md`, `.uphill/report.html`, and `.uphill/comment.md` in the project root. With `--update`, it writes
 //! this run's sizes, counts, checks, and line targets to the baseline file beside the
 //! configuration, and moves an older configuration's `baseline` keys there. With `--compare <ref>`,
 //! it also checks out `<ref>` in a temporary worktree, runs timings in interleaved pairs there and
@@ -43,7 +43,7 @@ pub(crate) const TRENDS: usize = 99;
 /// command, and each field's documentation is its help text.
 #[derive(Parser)]
 #[incur(
-    hint = "Runs each category's script, scores its metrics, lists the opportunities that would raise the scores most, and compares sizes, counts, checks, and line targets with each metric's baseline. Reads uphill.yaml or uphill.toml, at the root or in .agents, from this directory or the nearest parent. Writes .uphill/report.json, report.md, and report.html."
+    hint = "Runs each category's script, scores its metrics, lists the opportunities that would raise the scores most, and compares sizes, counts, checks, and line targets with each metric's baseline. Reads uphill.yaml or uphill.toml, at the root or in .agents, from this directory or the nearest parent. Writes .uphill/report.json, report.md, report.html, and comment.md."
 )]
 #[expect(
     clippy::struct_excessive_bools,
@@ -359,7 +359,10 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
     write("report.json", json.clone())?;
     write("report.md", engine::report::markdown(&report))?;
     write("report.html", engine::html::html(&report))?;
+    write("comment.md", engine::comment::markdown(&report))?;
 
+    // `comment.md` is the short form of `report.md` for a pull request comment, so the line names
+    // only the three reports.
     let mut written = format!(
         "{prefix}.uphill/report.json, {prefix}.uphill/report.md, {prefix}.uphill/report.html"
     );

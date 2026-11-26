@@ -84,7 +84,7 @@ The `args` input adds arguments to `uphill`. `--require-targets` fails the job w
 
 The comment has one row per category, with its score gauge on the base branch and on the pull request. The base branch's scores come from running its scripts once in the comparison. A category that fails shows ✗, and one that the base branch lacks shows –.
 
-The gauges are SVG images in the action's repository at the action's ref, because GitHub shows only images that it fetches by URL. "View the full report" opens `report.html`, which the action uploads as an unzipped artifact. A failed run adds its exit status, and the end of its output when Uphill wrote no report.
+The table is `comment.md`, which Uphill writes beside its reports (see [Reports](../reference/reports.md#commentmd)). "View the full report" opens `report.html`, which the action uploads as an unzipped artifact. A failed run adds its exit status, and the end of its output when Uphill wrote no report.
 
 The last line names the command, the commit, and the workflow run. The job summary holds the comment and the whole `report.md`:
 
@@ -93,8 +93,8 @@ The last line names the command, the commit, and the workflow run. The job summa
 <!-- uphill: . -->
 ## Uphill
 
-<!-- One row per category, with a gauge from the action's repository for each revision. -->
-<table><tr><th align="left">Category</th><th>main</th><th>This PR</th></tr><tr><td><b>Footprint</b></td><td align="center"><img src="https://raw.githubusercontent.com/wevm/uphill/main/assets/gauges/100.svg" width="48" height="48" alt="Footprint: 100"></td><td align="center"><img src="https://raw.githubusercontent.com/wevm/uphill/main/assets/gauges/100.svg" width="48" height="48" alt="Footprint: 100"></td></tr><tr><td><b>Speed</b></td><td align="center"><img src="https://raw.githubusercontent.com/wevm/uphill/main/assets/gauges/86.svg" width="48" height="48" alt="Speed: 86"></td><td align="center"><img src="https://raw.githubusercontent.com/wevm/uphill/main/assets/gauges/51.svg" width="48" height="48" alt="Speed: 51"></td></tr></table>
+<!-- comment.md: one row per category, with a gauge for each revision. -->
+<table><tr><th align="left">Category</th><th>main</th><th>This run</th></tr><tr><td><b>Footprint</b></td><td align="center"><img src="https://raw.githubusercontent.com/wevm/uphill/main/assets/gauges/100.svg" width="48" height="48" alt="Footprint: 100"></td><td align="center"><img src="https://raw.githubusercontent.com/wevm/uphill/main/assets/gauges/100.svg" width="48" height="48" alt="Footprint: 100"></td></tr><tr><td><b>Speed</b></td><td align="center"><img src="https://raw.githubusercontent.com/wevm/uphill/main/assets/gauges/86.svg" width="48" height="48" alt="Speed: 86"></td><td align="center"><img src="https://raw.githubusercontent.com/wevm/uphill/main/assets/gauges/51.svg" width="48" height="48" alt="Speed: 51"></td></tr></table>
 
 **[View the full report →](https://github.com/acme/slugify/actions/runs/1/artifacts/2)**
 

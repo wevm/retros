@@ -80,7 +80,7 @@ runs:
         command+=("${args[@]}")
 
         log=$(mktemp)
-        rm -f .uphill/report.md .uphill/report.json .uphill/report.html
+        rm -f .uphill/comment.md .uphill/report.md .uphill/report.json .uphill/report.html
         set +e
         "${command[@]}" 2>&1 | tee "$log"
         status=${PIPESTATUS[0]}
@@ -116,8 +116,6 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
-        ACTION_REF: ${{ github.action_ref }}
-        ACTION_REPOSITORY: ${{ github.action_repository }}
         COMMAND: ${{ steps.run.outputs.command }}
         COMMENT: ${{ inputs.comment }}
         EXIT_CODE: ${{ steps.run.outputs.exit-code }}
@@ -129,46 +127,20 @@ runs:
         REPORT: ${{ steps.run.outputs.report }}
         REPORT_URL: ${{ steps.upload.outputs.artifact-url }}
       run: |
-        # One row per category, with its score in the compared revision and in this run. GitHub
-        # shows only images it fetches by URL, so the gauges are files in the action's repository
-        # at the action's ref. A local `uses: ./` has neither, and links them on main.
-        table=
-        json=${REPORT%.md}.json
-        if [ -f "$json" ]; then
-          base=https://raw.githubusercontent.com/${ACTION_REPOSITORY:-wevm/uphill}/${ACTION_REF:-main}/assets/gauges
-          head=$([ -n "$NUMBER" ] && echo 'This PR' || echo "${HEAD_SHA:0:7}")
-          table=$(jq -r --arg base "$base" --arg head "$head" '
-            def gauge($label; $score; $error):
-              if $score != null then "<img src=\"\($base)/\($score | floor).svg\" width=\"48\" height=\"48\" alt=\"\($label | @html): \($score | floor)\">"
-              elif $error != null then "<img src=\"\($base)/failed.svg\" width=\"48\" height=\"48\" alt=\"\($label | @html): failed\">"
-              else "–" end;
-            .comparison as $comparison
-            | ($comparison.reference // "" | split(" ")[0] | sub("^origin/"; "")) as $reference
-            | [.categories[]
-                | . as $category
-                | ((if .subject then "\(.subject) · " else "" end) + .title) as $label
-                | ($comparison.scores // [] | map(select(.category == $category.name and .subject == $category.subject)) | first) as $before
-                | "<tr><td><b>\($label | @html)</b></td>"
-                  + (if $comparison then "<td align=\"center\">\(if $before then gauge($label; $before.score; $before.error) else "–" end)</td>" else "" end)
-                  + "<td align=\"center\">\(gauge($label; .score; .error))</td></tr>"]
-            | if length == 0 then empty
-              else "<table><tr><th align=\"left\">Category</th>"
-                + (if $comparison then "<th>\($reference | @html)</th>" else "" end)
-                + "<th>\($head | @html)</th></tr>" + join("") + "</table>"
-              end' "$json") || table=
-        fi
-
+        # Uphill writes `comment.md`: a heading and a table of score gauges for the compared revision
+        # and this run.
+        comment=${REPORT%report.md}comment.md
         body=$(mktemp)
         {
           echo "$MARKER"
-          printf '## Uphill\n\n'
-          if [ -n "$table" ]; then printf '%s\n\n' "$table"; fi
+          if [ -f "$comment" ]; then cat "$comment"; else printf '## Uphill\n'; fi
+          printf '\n'
           if [ -n "$REPORT_URL" ]; then printf '**[View the full report →](%s)**\n\n' "$REPORT_URL"; fi
 
           # A run that wrote a report has its failures there, so only one without shows the output.
           if [ "$EXIT_CODE" != 0 ]; then
             printf '> [!CAUTION]\n> `%s` exited with status %s.\n\n' "$COMMAND" "$EXIT_CODE"
-            if [ -z "$table" ]; then
+            if [ ! -f "$comment" ]; then
               printf '<details><summary>Output</summary>\n\n```text\n'
               tail -n 60 "$LOG"
               printf '```\n\n</details>\n\n'

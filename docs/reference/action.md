@@ -31,7 +31,7 @@ The action runs these steps in order:
 1. Install the release that `version` selects with the install script, unless `version` is `none`.
 2. Fetch `compare` when the clone lacks it, and run `uphill --compare <ref>` with `args` in `working-directory`.
 3. Upload `report.html` as an unzipped artifact, which opens in the browser. A repository whose artifacts are off has no link, and the job continues.
-4. Write the comment: a table of score gauges for the base branch and this run, and a link to the artifact. A failed run adds its exit status, and the last 60 lines of its output when Uphill wrote no report.
+4. Write the comment: Uphill's `comment.md`, with its table of score gauges for the base branch and this run, then a link to the artifact. A failed run adds its exit status, and the last 60 lines of its output when Uphill wrote no report.
 5. Write the comment and the whole `report.md` to the job summary.
 6. On a pull request, create or update the comment when `comment` is `true`.
 7. Exit with the status of `uphill`.

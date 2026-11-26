@@ -185,7 +185,7 @@ fn help() {
       --require-targets   Exit with status 1 when a metric misses its target or a script fails
       --update            Write this run's sizes, counts, checks, and line targets to the baseline file
 
-    Runs each category's script, scores its metrics, lists the opportunities that would raise the scores most, and compares sizes, counts, checks, and line targets with each metric's baseline. Reads uphill.yaml or uphill.toml, at the root or in .agents, from this directory or the nearest parent. Writes .uphill/report.json, report.md, and report.html.
+    Runs each category's script, scores its metrics, lists the opportunities that would raise the scores most, and compares sizes, counts, checks, and line targets with each metric's baseline. Reads uphill.yaml or uphill.toml, at the root or in .agents, from this directory or the nearest parent. Writes .uphill/report.json, report.md, report.html, and comment.md.
 
     Commands:
       add        Pin a pack to a commit and list it in the configuration: owner/repo/path on GitHub, an https URL followed by //path, or a local ./path, with an optional @ref
@@ -1260,6 +1260,11 @@ fn compare_uses_the_revision_baselines_and_always_removes_its_checkout() {
           }
         ],
     "#);
+    insta::assert_snapshot!(fs::read_to_string(dir.join(".uphill/comment.md")).unwrap(), @r#"
+    ## Uphill
+
+    <table><tr><th align="left">Category</th><th>HEAD</th><th>This run</th></tr><tr><td><b>Footprint</b></td><td align="center"><img src="https://raw.githubusercontent.com/wevm/uphill/main/assets/gauges/failed.svg" width="48" height="48" alt="Footprint: failed"></td><td align="center"><img src="https://raw.githubusercontent.com/wevm/uphill/main/assets/gauges/92.svg" width="48" height="48" alt="Footprint: 92"></td></tr></table>
+    "#);
 
     // The revision's baseline wins over measuring it, which would find the same 27.5 kB.
     fs::write(
@@ -1339,6 +1344,12 @@ fn compare_uses_the_revision_baselines_and_always_removes_its_checkout() {
             "error": null
           }
         ],
+    "#);
+    // `comment.md` shows both revisions' gauges, with the compared revision's name.
+    insta::assert_snapshot!(fs::read_to_string(dir.join(".uphill/comment.md")).unwrap(), @r#"
+    ## Uphill
+
+    <table><tr><th align="left">Category</th><th>HEAD</th><th>This run</th></tr><tr><td><b>Footprint</b></td><td align="center"><img src="https://raw.githubusercontent.com/wevm/uphill/main/assets/gauges/98.svg" width="48" height="48" alt="Footprint: 98"></td><td align="center"><img src="https://raw.githubusercontent.com/wevm/uphill/main/assets/gauges/92.svg" width="48" height="48" alt="Footprint: 92"></td></tr></table>
     "#);
 
     // A failed setup stops the run before any script.
@@ -2255,6 +2266,12 @@ fn packs_merge_categories_with_the_same_name() {
 
     Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
     ");
+    // Without `--compare`, `comment.md` has one gauge per category, in declared order.
+    insta::assert_snapshot!(fs::read_to_string(dir.path().join(".uphill/comment.md")).unwrap(), @r#"
+    ## Uphill
+
+    <table><tr><th align="left">Category</th><th>This run</th></tr><tr><td><b>Code Style</b></td><td align="center"><img src="https://raw.githubusercontent.com/wevm/uphill/main/assets/gauges/93.svg" width="48" height="48" alt="Code Style: 93"></td></tr><tr><td><b>Docs</b></td><td align="center"><img src="https://raw.githubusercontent.com/wevm/uphill/main/assets/gauges/100.svg" width="48" height="48" alt="Docs: 100"></td></tr></table>
+    "#);
 
     let output = check(dir.path(), &[]);
     insta::assert_snapshot!(stdout(&output), @"

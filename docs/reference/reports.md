@@ -1,6 +1,6 @@
 # Reports
 
-Each run prints a summary and writes three reports to `.uphill/` in the project root: `report.json`, `report.md`, and `report.html`. The reports make no network requests.
+Each run prints a summary and writes three reports to `.uphill/` in the project root: `report.json`, `report.md`, and `report.html`. The reports make no network requests. It also writes `comment.md`, a short form for a pull request comment.
 
 ## Terminal
 
@@ -40,7 +40,7 @@ Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
 
 ## `report.md`
 
-The Markdown report suits a pull request comment or a job summary. It lists category scores, the top 10 opportunities, and the changes since the baselines and against `--compare`. Each category then has a table of metrics and the 3 worst items of each list.
+The Markdown report suits a job summary. It lists category scores, the top 10 opportunities, and the changes since the baselines and against `--compare`. Each category then has a table of metrics and the 3 worst items of each list.
 
 ```md
 # Hill climb report
@@ -59,6 +59,19 @@ The Markdown report suits a pull request comment or a job summary. It lists cate
 ```
 
 With subjects, the first table has one row per subject and one column per category.
+
+## `comment.md`
+
+The comment holds a heading and one table row per category, with a score gauge for the `--compare` revision and for this run. Without `--compare`, it has only the run's column. A category that failed shows a failed gauge, and one without a score shows `–`.
+
+GitHub shows only images that it fetches by URL, so each gauge links an SVG file in [`assets/gauges/`](https://github.com/wevm/uphill/tree/main/assets/gauges). The comment is the only report that links files outside itself. A workflow posts it, and can add a link to `report.html` and a footer below it.
+
+```md
+<!-- One row per category: its name, the gauge on main, and the gauge in this run. -->
+## Uphill
+
+<table><tr><th align="left">Category</th><th>main</th><th>This run</th></tr><tr><td><b>Footprint</b></td><td align="center"><img src="https://raw.githubusercontent.com/wevm/uphill/main/assets/gauges/92.svg" width="48" height="48" alt="Footprint: 92"></td><td align="center"><img src="https://raw.githubusercontent.com/wevm/uphill/main/assets/gauges/90.svg" width="48" height="48" alt="Footprint: 90"></td></tr></table>
+```
 
 ## `report.html`
 
