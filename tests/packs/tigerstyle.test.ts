@@ -314,11 +314,11 @@ test('the installed assertion-density target gates a file with zero assertions, 
   const binary = path.resolve(pack, '../../target/debug/uphill')
   try {
     child.execFileSync('git', ['init', '-q'], { cwd })
-    fs.mkdirSync(path.join(cwd, '.agents/packs'), { recursive: true })
-    fs.symlinkSync(pack, path.join(cwd, '.agents/packs/tigerstyle'), 'dir')
+    fs.mkdirSync(path.join(cwd, '.agents/uphill/packs'), { recursive: true })
+    fs.symlinkSync(pack, path.join(cwd, '.agents/uphill/packs/tigerstyle'), 'dir')
     fs.writeFileSync(
       path.join(cwd, 'uphill.yaml'),
-      'packs: [./.agents/packs/tigerstyle]\n',
+      'packs: [./.agents/uphill/packs/tigerstyle]\n',
     )
     for (const n of [0, 2]) {
       fs.writeFileSync(

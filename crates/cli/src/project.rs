@@ -1,7 +1,7 @@
 //! Finds and reads the project's `uphill.yaml` or `uphill.toml`, at the project root or in its
 //! `.agents` directory, and the baseline file beside it, `uphill.baseline.yaml` or
 //! `uphill.baseline.toml`. Finds each pack that its `packs` key lists: a remote pack vendored in
-//! `.agents/packs/<name>/`, or a local directory. Runs read only these committed files.
+//! `.agents/uphill/packs/<name>/`, or a local directory. Runs read only these committed files.
 
 use std::io;
 use std::path::{Component, Path, PathBuf};
@@ -9,6 +9,9 @@ use std::path::{Component, Path, PathBuf};
 use engine::baseline;
 use engine::config::{self, Config, Format};
 use engine::pack::{self, Entry, Pack, Source};
+
+/// The directory, relative to the project root, that holds each vendored remote pack.
+pub(crate) const PACKS: &str = ".agents/uphill/packs";
 
 /// Where a project keeps its configuration, relative to its root, and the format of each file.
 const PLACES: [(&str, Format); 4] = [
@@ -228,12 +231,12 @@ fn packs(roots: &[&Path], source: &str, format: Format, name: &str) -> Result<Ve
     Ok(packs)
 }
 
-/// Returns the directory of a pack relative to the project root: `.agents/packs/<name>` for a
+/// Returns the directory of a pack relative to the project root: `.agents/uphill/packs/<name>` for a
 /// remote pack, or the local directory.
 pub(crate) fn directory(entry: &Entry) -> PathBuf {
     match &entry.source {
         Source::Local(path) => PathBuf::from(path),
-        Source::Remote(_) => Path::new(".agents/packs").join(entry.directory()),
+        Source::Remote(_) => Path::new(PACKS).join(entry.directory()),
     }
 }
 
@@ -292,7 +295,7 @@ fn read(root: &Path, dir: &Path, entry: Entry) -> Result<Pack, String> {
 
 /// Returns `run` with each path that names a file in the pack's directory `dir` replaced by its
 /// path from the project root, through the pack's place `shown`, such as
-/// `.agents/packs/rust/metrics/rust.ts`.
+/// `.agents/uphill/packs/rust/metrics/rust.ts`.
 fn rewrite(run: &str, dir: &Path, shown: &str) -> String {
     run.split(' ')
         .map(|token| {

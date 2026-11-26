@@ -40,7 +40,7 @@ uphill
 
 ### `uphill add`
 
-Pins a pack to a full commit, vendors its files into `.agents/packs/<name>/`, and adds its entry to the configuration's `packs` key. A remote pack is `owner/repo/path` on GitHub or an `https` URL followed by `//path`, with an optional `@ref`. A local pack starts with `./` or `../`.
+Pins a pack to a full commit, vendors its files into `.agents/uphill/packs/<name>/`, and adds its entry to the configuration's `packs` key. A remote pack is `owner/repo/path` on GitHub or an `https` URL followed by `//path`, with an optional `@ref`. A local pack starts with `./` or `../`.
 
 Names after the pack limit the entry to those categories. Before it writes, `uphill add` prints the pack's files and capabilities and asks for confirmation. `--yes` writes without asking, and a run without a terminal needs it. `--allow-fresh` takes a commit less than a day old.
 
@@ -65,7 +65,7 @@ uphill update
 Removes a pack's entry from the configuration, and the vendored files of a remote pack. It takes the pack's directory name, such as `typescript`.
 
 ```sh
-# Remove the entry and .agents/packs/typescript/.
+# Remove the entry and .agents/uphill/packs/typescript/.
 uphill remove typescript
 ```
 

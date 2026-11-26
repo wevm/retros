@@ -63,7 +63,7 @@ languages['.tsx'] = languages['.ts']!
 
 /** Paths that are not maintained source: generated code, installed packages, and vendored packs. */
 const ignored = [
-  /(^|\/)(\.agents\/packs|dist|build|node_modules|target|vendor|zig-cache|\.zig-cache|zig-out)\//,
+  /(^|\/)(\.agents\/uphill\/packs|dist|build|node_modules|target|vendor|zig-cache|\.zig-cache|zig-out)\//,
   /\.d\.ts$/,
 ]
 const tests =

@@ -29,7 +29,7 @@ use incur::{Io, Parser};
 #[derive(Parser)]
 #[incur(name = "uphill", version)]
 enum Command {
-    /// Pin a pack to a commit, vendor it into .agents/packs, and list it in the configuration: owner/repo/path on GitHub, an https URL followed by //path, or a local ./path, with an optional @ref
+    /// Pin a pack to a commit, vendor it into .agents/uphill/packs, and list it in the configuration: owner/repo/path on GitHub, an https URL followed by //path, or a local ./path, with an optional @ref
     Add {
         /// The pack, such as wevm/uphill/packs/rust@main
         #[incur(arg)]

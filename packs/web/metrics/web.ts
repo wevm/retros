@@ -71,7 +71,7 @@ const styleMetrics = [
 ]
 
 const ignored =
-  /(^|\/)(\.agents\/packs|dist|build|coverage|node_modules|out|vendor)\//
+  /(^|\/)(\.agents\/uphill\/packs|dist|build|coverage|node_modules|out|vendor)\//
 const lines: string[] = []
 
 build()

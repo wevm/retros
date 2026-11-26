@@ -4,7 +4,7 @@
 //! repository and the full commit that pins it: `owner/repo/path@<commit>` on GitHub, or an
 //! `https` URL followed by `//path@<commit>`. A comment at the end of the entry's line names the
 //! ref that `uphill update` follows. The command line vendors each remote pack into
-//! `.agents/packs/<name>/`, so runs read only committed files. A local entry starts with `./` or
+//! `.agents/uphill/packs/<name>/`, so runs read only committed files. A local entry starts with `./` or
 //! `../`, and the project's own commit pins it. `{ pack, categories, install }` takes only some of
 //! a pack's categories, or approves the install of its dependencies. An optional top-level
 //! `allowed-packs` key lists patterns, such as `wevm/*`, that every remote entry must match.
@@ -12,7 +12,7 @@
 //! ```yaml
 //! packs:
 //!   - wevm/uphill/packs/rust@3e0053b4f1c2a9e7d8b6c5a4f3e2d1c0b9a8f7e6 # main
-//!   - { pack: ./.agents/packs/api, categories: [latency] }
+//!   - { pack: ./.agents/uphill/packs/api, categories: [latency] }
 //! ```
 //!
 //! The module also edits the `packs` key in place, validates the tree of a fetched commit, and
