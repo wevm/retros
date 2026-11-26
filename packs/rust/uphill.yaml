@@ -13,26 +13,31 @@ correctness:
     description: Finish each function. Leave no `todo!` or `unimplemented!` in the code.
   # Tests, benches, and examples may panic.
   panic-sites:
-    description: Encode invariants in types instead of `unwrap`, `expect`, slicing, or `panic!`.
+    description:
+      Encode invariants in types instead of `unwrap`, `expect`, slicing, or `panic!`.
       Use `get`, pattern matching, and `let` chains.
   allow-attributes:
     description: Suppress a lint with `#[expect(lint, reason = "...")]`, never `#[allow]`.
   unsafe-code:
-    description: Write no `unsafe` code. If an exception is necessary, document each block with
+    description:
+      Write no `unsafe` code. If an exception is necessary, document each block with
       `// SAFETY:`.
   inline-always:
     description: Mark `#[inline(always)]` only with a measured reason in an
       `#[expect(clippy::inline_always, reason = "...")]`.
   hash-iteration:
-    description: Never iterate a hash map to produce output. Use a `Vec`, a `BTreeMap`, or the
+    description:
+      Never iterate a hash map to produce output. Use a `Vec`, a `BTreeMap`, or the
       declared order.
   shared-mutability:
     description: Do not build `Rc<RefCell<_>>` graphs or wrap mutexes and buffers in `Rc`.
   workspace-lints:
-    description: Set clippy's `all` and `pedantic` groups and the restriction lints the conventions
+    description:
+      Set clippy's `all` and `pedantic` groups and the restriction lints the conventions
       list in `[workspace.lints]`.
   allowed-lints:
-    description: Allow only `module_name_repetitions`, `must_use_candidate`, `similar_names`, and
+    description:
+      Allow only `module_name_repetitions`, `must_use_candidate`, `similar_names`, and
       `too_many_lines` workspace-wide.
   unsafe-denied:
     description: Deny `unsafe_code` in the workspace lints.
@@ -40,7 +45,8 @@ correctness:
   swallowed-errors:
     description: Keep the original error. Do not discard it with `map_err(|_| ...)`.
   redundant-clones:
-    description: Do not clone a value that is not used again (clippy `redundant_clone`). Move it
+    description:
+      Do not clone a value that is not used again (clippy `redundant_clone`). Move it
       instead.
   string-errors:
     description: Return errors as typed values, not `String`, `&str`, or `Box<dyn Error>`.
@@ -69,12 +75,14 @@ architecture:
     description: Mark items that another crate cannot reach `pub(crate)` (rustc
       `unreachable_pub`).
   orphaned-files:
-    description: Make sure a workspace target, compiler input, or rustfmt traversal reaches each
+    description:
+      Make sure a workspace target, compiler input, or rustfmt traversal reaches each
       Rust file. Delete files that nothing reaches.
 
 documentation:
   module-docs:
-    description: Start each Rust file with a `//!` comment that describes the module's
+    description:
+      Start each Rust file with a `//!` comment that describes the module's
       responsibility.
   missing-docs:
     description: Document every public item (rustc `missing_docs`).
@@ -107,9 +115,11 @@ configuration:
   rust-version:
     description: Declare `rust-version` in the workspace.
   release-profile:
-    description: Set `opt-level = 3`, `lto = "fat"`, `codegen-units = 1`, and `strip = "symbols"`
+    description:
+      Set `opt-level = 3`, `lto = "fat"`, `codegen-units = 1`, and `strip = "symbols"`
       in the release profile.
   # Distinct nonmember package IDs in a normal workspace build, including build dependencies.
   dependencies:
-    description: Add a dependency only with a stated reason. The baseline records the count without
+    description:
+      Add a dependency only with a stated reason. The baseline records the count without
       a target, so each change shows in review.

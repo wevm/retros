@@ -24,10 +24,12 @@ correctness:
   type-errors:
     description: Fix every type error. Run the project's `tsc` or `tsgo` to check.
   compiler-options:
-    description: Set `strict`, `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, and
+    description:
+      Set `strict`, `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, and
       `verbatimModuleSyntax` in tsconfig.json. Treat them as design constraints.
   explicit-any:
-    description: Avoid `any`. Use a precise type, validation, or narrowing (oxlint
+    description:
+      Avoid `any`. Use a precise type, validation, or narrowing (oxlint
       `typescript/no-explicit-any`).
   # The linter is `bun lint` when bunfig.toml has a `[lint]` section or a script runs it, or else
   # the first of ESLint, Biome, oxlint, and Vite Plus in package.json. Without one, the pack's
@@ -45,7 +47,8 @@ style:
   # the first of Prettier, Biome, dprint, oxfmt, and Vite Plus in package.json. Without one, the
   # pack's oxfmt runs.
   formatted:
-    description: Format each TypeScript file with the project's formatter and its own
+    description:
+      Format each TypeScript file with the project's formatter and its own
       configuration.
   enums:
     description: Avoid enums. Use unions or `as const` objects.
@@ -54,10 +57,12 @@ style:
       `typescript/consistent-type-definitions`).
   # Mutations in downstream packages are not visible, so only tracked code exempts an array.
   mutable-arrays:
-    description: Annotate arrays as `readonly T[]`. Keep an array mutable only where code mutates
+    description:
+      Annotate arrays as `readonly T[]`. Keep an array mutable only where code mutates
       the binding or a function's result.
   import-extensions:
-    description: Name the file extension in each import, so the source stays valid under NodeNext
+    description:
+      Name the file extension in each import, so the source stays valid under NodeNext
       (oxlint `import/extensions`).
   # oxlint checks imports. The TypeScript checker resolves named exports. An unresolved export
   # skips unless another violation is known.
@@ -66,49 +71,59 @@ style:
   uppercase-constants:
     description: Name module constants in camelCase, not UPPER_CASE.
   optional-options:
-    description: "Default option bags in the signature (`options: fn.Options = {}`), not with
-      `options?`."
+    description:
+      'Default option bags in the signature (`options: fn.Options = {}`), not with
+      `options?`.'
   option-names:
     description: Name option bags `options`, not `args`, `opts`, or `params`.
   positional-parameters:
-    description: Give each function at most two positional parameters, a receiver and then an
+    description:
+      Give each function at most two positional parameters, a receiver and then an
       options bag (oxlint `eslint/max-params`).
   destructured-parameters:
-    description: Do not destructure parameters in the signature. Take each parameter whole and
+    description:
+      Do not destructure parameters in the signature. Take each parameter whole and
       destructure it in the body.
   nested-ternaries:
     description: Avoid nested ternaries. Use an IIFE with early returns (oxlint
       `eslint/no-nested-ternary`).
   inline-object-types:
-    description: Do not annotate local variables with inline object types. Name the type above the
+    description:
+      Do not annotate local variables with inline object types. Name the type above the
       use.
   function-namespaces:
-    description: Put a function's types in its namespace (`create.Options`), not beside it
+    description:
+      Put a function's types in its namespace (`create.Options`), not beside it
       (`CreateOptions`).
   immediate-returns:
     description: Return values directly. Do not bind a value only to return it on the next line.
   let-across-try:
-    description: Derive a fallible value in an IIFE, not in a `let` assigned across `try` and
+    description:
+      Derive a fallible value in an IIFE, not in a `let` assigned across `try` and
       `catch`.
   section-dividers:
     description: Do not write section-divider comments, such as `// ----`.
 
 architecture:
   import-cycles:
-    description: Avoid import cycles. No module may import itself through other modules (oxlint
+    description:
+      Avoid import cycles. No module may import itself through other modules (oxlint
       `import/no-cycle`).
   namespace-imports:
-    description: Import module-shaped files, such as `./Store.js`, as namespaces (`import * as
+    description:
+      Import module-shaped files, such as `./Store.js`, as namespaces (`import * as
       Store`). Types and components may use named imports.
   node-imports:
     description: Import Node built-ins as namespaces (`import * as fs from 'node:fs'`).
   flat-reexports:
-    description: Re-export modules as namespaces (`export * as Store`). Do not flatten them into a
+    description:
+      Re-export modules as namespaces (`export * as Store`). Do not flatten them into a
       barrel with `export *` or `export { … } from`.
   dynamic-imports:
     description: Use static imports. Use a dynamic import only at a real runtime or bundle boundary.
   side-effect-imports:
-    description: Do not import modules for their side effects, such as `import './register.js'`
+    description:
+      Do not import modules for their side effects, such as `import './register.js'`
       (oxlint `import/no-unassigned-import`).
   classes:
     description: Use functions and plain data. Limit classes to errors and framework entrypoints.
@@ -117,42 +132,50 @@ architecture:
   this-outside-classes:
     description: Use `this` only in classes. Make factories close over their state.
   module-state:
-    description: Keep only constants at module scope. Do not use a module-scope `let` or an empty
+    description:
+      Keep only constants at module scope. Do not use a module-scope `let` or an empty
       `Map` or `Set` cache.
 
 documentation:
   module-docs:
-    description: Start each TypeScript file with a TSDoc `@module` comment that describes its
+    description:
+      Start each TypeScript file with a TSDoc `@module` comment that describes its
       responsibility.
   export-docs:
-    description: Document every export with TSDoc. Overloads share the comment on the first
+    description:
+      Document every export with TSDoc. Overloads share the comment on the first
       signature.
   property-docs:
     description: Document every property of an exported type with TSDoc.
 
 testing:
   mocks:
-    description: Test with real implementations. Do not use `vi.mock`, `vi.fn`, fake timers,
+    description:
+      Test with real implementations. Do not use `vi.mock`, `vi.fn`, fake timers,
       stubbed globals, or mocking packages (oxlint restricted-method and restricted-import rules).
   inline-snapshots:
     description: Assert with inline snapshots in TypeScript tests, not with `toBe` or `toEqual`.
   snapshot-files:
     description: Keep snapshots inline. Do not commit snapshot files.
   sleeps:
-    description: Wait for observable conditions in tests, not with `setTimeout` or `Bun.sleep`
+    description:
+      Wait for observable conditions in tests, not with `setTimeout` or `Bun.sleep`
       (oxlint restricted-global and restricted-property rules).
   split-test-files:
-    description: Write one test file per module. Do not split it into `Module.context.test.ts`
+    description:
+      Write one test file per module. Do not split it into `Module.context.test.ts`
       files.
 
 configuration:
   javascript-files:
     description: Write source files in TypeScript, not JavaScript. Configuration files are exempt.
   side-effects:
-    description: Declare `sideEffects` as a boolean or a file-pattern list in each named,
+    description:
+      Declare `sideEffects` as a boolean or a file-pattern list in each named,
       non-private package.
   catalog-versions:
-    description: Reference dependency versions with `catalog:` in each package.json of a pnpm
+    description:
+      Reference dependency versions with `catalog:` in each package.json of a pnpm
       workspace.
   script-runners:
     description: Run TypeScript scripts directly, not through `tsx` or `ts-node`.
@@ -166,13 +189,15 @@ footprint:
   # or a whole index entry. rolldown bundles and minifies each import for the browser. Above 3 kB,
   # the note names the three packages or modules that render the most bytes.
   entry-size:
-    description: Keep the gzipped bundle small for a consumer that imports one export. Do not pull
+    description:
+      Keep the gzipped bundle small for a consumer that imports one export. Do not pull
       unrelated modules or packages into an export.
   # The check bundles `import 'lib/Math'` with `"sideEffects": false` ignored, as a bundler does
   # once the library is inlined into another package's bundle.
   tree-shaking:
-    description: "Make each entry point bundle to nothing when unused. Annotate top-level calls with
-      `/*#__PURE__*/`, and avoid runtime TypeScript namespaces and static class fields."
+    description:
+      'Make each entry point bundle to nothing when unused. Annotate top-level calls with
+      `/*#__PURE__*/`, and avoid runtime TypeScript namespaces and static class fields.'
   # `entry-size` of the hot items that `hot` in `.agents/uphill/typescript/config.ts` lists.
   hot-entry-size:
     description: Keep the gzipped bundle of each hot item especially small.
@@ -215,7 +240,8 @@ coverage:
   # The bench replays a call that returned or resolved in the project's tests. The note says why a
   # function has none, such as when every test calls it with a closure.
   benched:
-    description: Call each public function in the tests with arguments that rebuild in another
+    description:
+      Call each public function in the tests with arguments that rebuild in another
       process, such as plain data. Make sure the call returns or resolves.
 
 # Type-checking cost of every public export, values and types, from the built declarations. Each
@@ -229,7 +255,8 @@ types:
   # Namespace members count as exports. A use is `typeof` the value, with `Parameters` and
   # `ReturnType` for a function, or the type at its defaults, plus one level of properties.
   instantiations:
-    description: Keep each public export cheap to type-check. Avoid types that need many
+    description:
+      Keep each public export cheap to type-check. Avoid types that need many
       instantiations to resolve.
   # CPU time to check the use that `instantiations` measures.
   check-time:
@@ -241,7 +268,8 @@ types:
   # test's function added back to the file without its tests. A test that pins a count gets that
   # count plus 20% as its target.
   bench-instantiations:
-    description: Keep the instantiations of each benchmarked type test low, within any count the
+    description:
+      Keep the instantiations of each benchmarked type test low, within any count the
       test pins.
   # Few items have a lower target, so this list scores its worst item.
   hot-instantiations:
@@ -256,7 +284,8 @@ call-types:
   run: bun metrics/types-calls.ts
   timeout: 20m
   instantiations:
-    description: Keep each public function cheap to type-check at the call sites that the tests
+    description:
+      Keep each public function cheap to type-check at the call sites that the tests
       write.
   # Scored by the worst item.
   hot-instantiations:
@@ -269,7 +298,8 @@ type-coverage:
   run: bun metrics/types-calls.ts
   timeout: 20m
   type-benched:
-    description: Call each public function in the runtime or type tests. Make sure the imports and
+    description:
+      Call each public function in the runtime or type tests. Make sure the imports and
       fixtures of that call resolve.
 
 # Fuzzing of every public function: boundary mutations of the arguments the project's tests pass it,
@@ -282,7 +312,8 @@ fuzz:
     description: Make sure each public function has a fuzz harness that runs.
   # The note gives the minimized input of a failure.
   fuzz-clean:
-    description: Handle every input that keeps the declared types. Throw no undocumented
+    description:
+      Handle every input that keeps the declared types. Throw no undocumented
       TypeError, RangeError, or SyntaxError, and avoid stack overflows, hangs, and runaway memory.
       Keep each property in `fuzz.properties` true.
   # Percent of the function's own source lines in the build that ran under fuzzing.

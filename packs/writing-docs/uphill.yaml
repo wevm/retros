@@ -17,10 +17,12 @@ documentation:
   paragraph-sentences:
     description: Keep each paragraph to six sentences or fewer.
   passive-voice:
-    description: Use the active voice. Avoid passive phrases such as "is processed" (write-good
+    description:
+      Use the active voice. Avoid passive phrases such as "is processed" (write-good
       `passive`).
   wordy-words:
-    description: Use the short word instead of a wordy phrase, such as "to" for "in order to"
+    description:
+      Use the short word instead of a wordy phrase, such as "to" for "in order to"
       (write-good `tooWordy`).
   weasel-words:
     description: Avoid weasel words such as "very" (write-good `weasel`).
@@ -28,27 +30,32 @@ documentation:
     description: Write about the code, not the reader. Avoid "you", "your", and "yourself".
   # A noun such as "hands" in "both hands move" does not count.
   conversational-verbs:
-    description: Use precise verbs such as "returns" or "reports", not get, give, hand, know, say,
+    description:
+      Use precise verbs such as "returns" or "reports", not get, give, hand, know, say,
       see, or tell.
   # Matches be with a gerund or have with a past form, including unchanged participles such as
   # "has run". These are English phrase matches, not a judgment about the main verb.
   verb-tenses:
-    description: Use the imperative, simple present, simple past, or simple future. Do not use a
+    description:
+      Use the imperative, simple present, simple past, or simple future. Do not use a
       progressive or perfect form.
   latin-abbreviations:
     description: Write "for example" and "that is" instead of "e.g.", "i.e.", and "etc.".
   semicolons:
-    description: Do not use semicolons in prose. Split the sentence, or use a comma, colon, or
+    description:
+      Do not use semicolons in prose. Split the sentence, or use a comma, colon, or
       parenthesis.
   em-dashes:
-    description: Do not use em dashes in prose. Split the sentence, or use a comma, colon, or
+    description:
+      Do not use em dashes in prose. Split the sentence, or use a comma, colon, or
       parenthesis.
   # Includes Unicode RGI emoji sequences, flag pairs, and keycaps.
   emoji:
     description: Do not use emoji in prose.
   # `productNames` keeps exact spellings such as "npm". `headingCase` switches to sentence case.
   heading-case:
-    description: Write headings in Title Case. Lowercase minor words unless they begin or end the
+    description:
+      Write headings in Title Case. Lowercase minor words unless they begin or end the
       heading.
   heading-words:
     description: Keep every heading to fewer than four words.

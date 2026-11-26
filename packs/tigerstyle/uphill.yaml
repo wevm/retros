@@ -11,7 +11,8 @@ correctness:
     description: Keep each file parseable without syntax recovery.
     weight: 0
   recursion:
-    description: Do not write a function that calls itself. Use a loop with a bound that a reader
+    description:
+      Do not write a function that calls itself. Use a loop with a bound that a reader
       can check.
   sized-integers:
     description: Use explicitly sized integers in Rust and Zig, such as `u32`, not `usize`.
@@ -19,11 +20,13 @@ correctness:
   # average.
   assertion-density:
     better: higher
-    description: Assert preconditions, postconditions, and invariants, with at least two assertions
+    description:
+      Assert preconditions, postconditions, and invariants, with at least two assertions
       per function on average.
   compound-assertions:
-    description: "Check one condition in each assertion: `assert(a); assert(b);`, not
-      `assert(a and b)`."
+    description:
+      'Check one condition in each assertion: `assert(a); assert(b);`, not
+      `assert(a and b)`.'
 
 style:
   function-length:
@@ -34,7 +37,8 @@ style:
   line-length:
     description: Keep each line to 100 columns or fewer.
   comment-sentences:
-    description: Write each comment as a sentence that starts with a capital letter and ends with a
+    description:
+      Write each comment as a sentence that starts with a capital letter and ends with a
       full stop or a colon.
   # Go keeps the tabs of gofmt.
   indentation:

@@ -9,11 +9,14 @@ architecture:
   module-cycle:
     description: Do not let sibling modules use each other in a circle.
   tangle:
-    description: Do not let the types of two modules know each other in a circle. Keep each circle
+    description:
+      Do not let the types of two modules know each other in a circle. Keep each circle
       of types to seven types or fewer.
   field-leak:
-    description: Keep a type's fields private to its module. Code outside may read a value, but not
+    description:
+      Keep a type's fields private to its module. Code outside may read a value, but not
       write, index, or call a method on a field.
   shallow-module:
-    description: Give each module a narrow interface. Show seven functions or fewer, or hide more
+    description:
+      Give each module a narrow interface. Show seven functions or fewer, or hide more
       than the module shows.
