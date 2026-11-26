@@ -6,7 +6,7 @@
 
 Timings differ between machines, so a comparison needs both revisions measured in one place. `--compare` checks out `<ref>` in a temporary Git worktree, runs both revisions in interleaved pairs, and reports a timing change only when the pairs agree on it.
 
-Sizes, counts, and checks are exact, so they compare with the baselines that `<ref>` committed. When `<ref>` has no baselines, Uphill measures it once. The changes appear in an "Against" section of every report.
+Sizes, counts, and checks are exact, so they compare with the baselines that `<ref>` committed. When `<ref>` has no baselines, they compare with its own run. Uphill runs each script of `<ref>` at least once, so `report.json` also scores `<ref>`. The changes appear in an "Against" section of every report.
 
 ```sh
 # Compare the current checkout with the main branch.
@@ -71,7 +71,7 @@ export function slugify(text: string): string {
 
 ### Compare with Main
 
-On the branch, `uphill --compare main` runs the `speed` category in 8 pairs, and alternates which revision runs first. The source size compares with the baseline on `main`, so Uphill does not measure it there.
+On the branch, `uphill --compare main` runs the `speed` category in 8 pairs, and alternates which revision runs first. The source size compares with the baseline on `main`, and the `footprint` script runs once on `main` for its score.
 
 ```text
 $ uphill --compare main

@@ -534,6 +534,23 @@ pub fn json(report: &Report) -> String {
         });
         Json::Object(vec![
             ("reference", Json::String(comparison.reference.clone())),
+            (
+                "scores",
+                Json::Array(
+                    comparison
+                        .scores
+                        .iter()
+                        .map(|score| {
+                            Json::Object(vec![
+                                ("category", Json::String(score.category.clone())),
+                                ("subject", optional(score.subject.as_deref())),
+                                ("score", score_json(score.score)),
+                                ("error", optional(score.error.as_deref())),
+                            ])
+                        })
+                        .collect(),
+                ),
+            ),
             ("changes", changes_json(&comparison.changes)),
             ("timings", Json::Array(timings.collect())),
         ])

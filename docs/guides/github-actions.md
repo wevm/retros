@@ -4,7 +4,7 @@ The Uphill action scores each pull request, compares it with its base branch, an
 
 ## Overview
 
-The action installs Uphill, runs `uphill --compare` against the base branch, and writes `report.md` to the job summary and to a comment. Each later run updates the same comment. The job fails when `uphill` fails.
+The action installs Uphill, runs `uphill --compare` against the base branch, and keeps one comment with a score gauge per category and a link to the HTML report. Each later run updates the same comment. The job fails when `uphill` fails.
 
 ```yaml title=".github/workflows/uphill.yml"
 # Score each pull request and compare it with its base branch.
@@ -82,38 +82,24 @@ The `args` input adds arguments to `uphill`. `--require-targets` fails the job w
 
 ### Read the Comment
 
-The comment holds `report.md`: scores, opportunities, changes since the baselines, and changes against the base branch. A failed run adds the exit status and the end of the output.
+The comment has one row per category, with its score gauge on the base branch and on the pull request. The base branch's scores come from running its scripts once in the comparison. A category that fails shows ✗, and one that the base branch lacks shows –.
 
-A row of score gauges follows the heading, one per category, as in the HTML report. Each gauge is an SVG image in the action's repository at the action's ref, because GitHub shows only images that it fetches by URL.
+The gauges are SVG images in the action's repository at the action's ref, because GitHub shows only images that it fetches by URL. "View the full report" opens `report.html`, which the action uploads as an unzipped artifact. A failed run adds its exit status, and the end of its output when Uphill wrote no report.
 
-The last line names the command, the commit, and the workflow run. This excerpt leaves out the sections between the tables:
+The last line names the command, the commit, and the workflow run. The job summary holds the comment and the whole `report.md`:
 
 ```md
 <!-- The next line is the marker that the action finds the comment by. -->
 <!-- uphill: . -->
-# Hill climb report
+## Uphill
 
-<!-- One gauge per category, linked from the action's repository. -->
-<table><tr><td align="center"><img src="https://raw.githubusercontent.com/wevm/uphill/main/assets/gauges/100.svg" width="80" height="80" alt="Footprint: 100"><br><b>Footprint</b></td><td align="center"><img src="https://raw.githubusercontent.com/wevm/uphill/main/assets/gauges/51.svg" width="80" height="80" alt="Speed: 51"><br><b>Speed</b></td></tr></table>
+<!-- One row per category, with a gauge from the action's repository for each revision. -->
+<table><tr><th align="left">Category</th><th>main</th><th>This PR</th></tr><tr><td><b>Footprint</b></td><td align="center"><img src="https://raw.githubusercontent.com/wevm/uphill/main/assets/gauges/100.svg" width="48" height="48" alt="Footprint: 100"></td><td align="center"><img src="https://raw.githubusercontent.com/wevm/uphill/main/assets/gauges/100.svg" width="48" height="48" alt="Footprint: 100"></td></tr><tr><td><b>Speed</b></td><td align="center"><img src="https://raw.githubusercontent.com/wevm/uphill/main/assets/gauges/86.svg" width="48" height="48" alt="Speed: 86"></td><td align="center"><img src="https://raw.githubusercontent.com/wevm/uphill/main/assets/gauges/51.svg" width="48" height="48" alt="Speed: 51"></td></tr></table>
 
-| Category | Score |
-| --- | --- |
-| Footprint | ● 100 |
-| Speed | ■ 51 |
-
-## Changes against origin/main (ac66366)
-
-| Change | Category | Metric | Before | After | Pairs |
-| --- | --- | --- | --- | --- | --- |
-| worse | Footprint | Source size | 138 B | 172 B |  |
-| worse | Speed | Slugify time | 550 ns | 984 ns (+79%) | 8 of 8 pairs |
+**[View the full report →](https://github.com/acme/slugify/actions/runs/1/artifacts/2)**
 
 > [!CAUTION]
 > `uphill --compare origin/main --require-targets` exited with status 1.
-
-<details><summary>Output</summary>
-...
-</details>
 
 <sub>`uphill --compare origin/main --require-targets` at fa8deea in [run 12](https://github.com/acme/slugify/actions/runs/1)</sub>
 ```

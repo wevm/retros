@@ -23,7 +23,7 @@ use std::io::{self, Write as _};
 use std::process::ExitCode;
 
 use engine::baseline;
-use engine::compare::Comparison;
+use engine::compare::{Comparison, Score};
 use engine::config::{self, Category, Config};
 use engine::lines::Line;
 use engine::report::{CategoryReport, Failure, Report};
@@ -147,14 +147,9 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
         }
 
         let (results, base) = match &worktree {
-            Some(worktree) => measure::pairs(
-                project,
-                &project.root,
-                &worktree.root,
-                group,
-                group,
-                baselines.is_none(),
-            )?,
+            Some(worktree) => {
+                measure::pairs(project, &project.root, &worktree.root, group, group, true)?
+            }
             None => (measure::group(project, &project.root, group, true)?, None),
         };
         let mut base = base.map(Vec::into_iter);
@@ -221,23 +216,37 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
                 Err(failure) => Err(failure.clone()),
                 Ok(head) => measure::merged(category, &head)?,
             };
+            // The revision's scores come from its own run, whether or not this run passed.
+            let base: Option<Vec<_>> = parts
+                .iter()
+                .map(|ran| match &ran.base {
+                    Some(Ok(measured)) => Some(unit(ran, measured)),
+                    _ => None,
+                })
+                .collect();
+            let base_rounds = match base {
+                Some(base) => Some(measure::merged(category, &base)?),
+                None => None,
+            };
+            match (&base_rounds, base_failure) {
+                (Some(Ok(base_rounds)), _) => {
+                    for (subject, scored) in engine::score::subjects(category, base_rounds) {
+                        base_report.categories.push(entry(subject, Ok(scored)));
+                    }
+                }
+                (Some(Err(failure)), _) | (None, Some(failure)) => {
+                    base_report
+                        .categories
+                        .push(entry(None, Err(failure.clone())));
+                }
+                (None, None) => {}
+            }
+
             match rounds {
                 Err(failure) => entries.push((entry(None, Err(failure)), warnings)),
                 Ok(rounds) => {
-                    let base: Option<Vec<_>> = parts
-                        .iter()
-                        .map(|ran| match &ran.base {
-                            Some(Ok(measured)) => Some(unit(ran, measured)),
-                            _ => None,
-                        })
-                        .collect();
-                    if let Some(base) = base
-                        && let Ok(base_rounds) = measure::merged(category, &base)?
-                    {
-                        timings.extend(engine::compare::timings(category, &base_rounds, &rounds));
-                        for (subject, scored) in engine::score::subjects(category, &base_rounds) {
-                            base_report.categories.push(entry(subject, Ok(scored)));
-                        }
+                    if let Some(Ok(base_rounds)) = &base_rounds {
+                        timings.extend(engine::compare::timings(category, base_rounds, &rounds));
                     }
 
                     let mut warnings: Vec<String> = parts
@@ -301,13 +310,28 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
                 base_report
                     .categories
                     .iter()
-                    .any(|ran| ran.name == change.category)
+                    .any(|ran| ran.name == change.category && ran.result.is_ok())
             });
             changes
         };
+        let scores = base_report
+            .categories
+            .iter()
+            .map(|ran| Score {
+                category: ran.name.clone(),
+                error: ran
+                    .result
+                    .as_ref()
+                    .err()
+                    .map(|failure| failure.message.clone()),
+                score: ran.result.as_ref().ok().and_then(|scored| scored.score),
+                subject: ran.subject.clone(),
+            })
+            .collect();
         report.comparison = Some(Comparison {
             changes,
             reference: worktree.label.clone(),
+            scores,
             timings,
         });
     }

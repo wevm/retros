@@ -31,8 +31,24 @@ pub struct Comparison {
     pub changes: Vec<Change>,
     /// The revision as reports name it, such as `main (3e0053b)`.
     pub reference: String,
+    /// Each category's score in the revision, in the order the revision measured them. A category
+    /// that the revision does not declare has none.
+    pub scores: Vec<Score>,
     /// Each time and value that varies, in report order, whether or not it changed.
     pub timings: Vec<Timing>,
+}
+
+/// One category's score in the revision of a comparison.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Score {
+    /// The category name.
+    pub category: String,
+    /// Why the category's script produced no scores in the revision, or `None` when it ran.
+    pub error: Option<String>,
+    /// The category's score, or `None` when it failed or no metric with weight has a score.
+    pub score: Option<u8>,
+    /// The subject the score belongs to, or `None` when the lines name no subject.
+    pub subject: Option<String>,
 }
 
 /// One time or value that varies, measured in both revisions.
