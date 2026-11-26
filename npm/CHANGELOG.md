@@ -1,5 +1,13 @@
 # uphill
 
+## 0.0.10
+
+### Patch Changes
+
+- 28f2a0c: Wrote each list of checks in the baseline file as a default record with its most common check, such as `"*": { baseline: pass }`, followed by only the items that differ from it, and left out each item target that equals the pattern or default that applies to it.
+- eaf2d01: Read runtime built-ins such as `node:fs`, and modules that only `declare module` types, as outside the project in the deslop pack, so one import of them no longer skips every TypeScript file.
+- 28f2a0c: Recorded no baseline for a check that sets `varies`, and set it on the git pack's commit checks, so a new commit no longer changes the baseline file.
+
 ## 0.0.9
 
 ### Patch Changes
