@@ -83,7 +83,7 @@ checksum = "34aa73646ffb006b8f5147f3dc182bd4bcb190227ce861fc4a4844bf8e3cb2c0"
 
 [[package]]
 name = "engine"
-version = "0.0.9"
+version = "0.0.10"
 dependencies = [
  "insta",
  "toml",
@@ -514,7 +514,7 @@ checksum = "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563"
 
 [[package]]
 name = "uphill"
-version = "0.0.9"
+version = "0.0.10"
 dependencies = [
  "engine",
  "futures-util",
