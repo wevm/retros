@@ -1,7 +1,7 @@
 /**
  * What the metric scripts read about the library they measure: where the checkout is, where its
  * build and declarations are, which entry points its package.json publishes, and the project's
- * own inputs from `local/config.ts`. Every other script in this directory reads the
+ * own inputs from `.agents/uphill/typescript/config.ts`. Every other script in this directory reads the
  * library only through this module.
  *
  * The scripts run from the project root, which Uphill makes the working directory. An entry point
@@ -18,7 +18,7 @@ import * as path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 /**
- * The project's inputs, the default export of `local/config.ts`. Every key is
+ * The project's inputs, the default export of `.agents/uphill/typescript/config.ts`. Every key is
  * optional, and a project without the file measures with the defaults.
  */
 export type Config = {
@@ -65,7 +65,7 @@ export type Config = {
         baseError?: string | undefined
         /**
          * The corpus file, relative to the root, which holds the recorded argument sets that the
-         * fuzzer mutates. Defaults to `local/fuzz-corpus.json`.
+         * fuzzer mutates. Defaults to `.agents/uphill/typescript/fuzz-corpus.json`.
          */
         corpus?: string | undefined
         /**
@@ -185,15 +185,15 @@ export type SpeedProject = {
 export const root = process.cwd()
 
 /**
- * The project's own directory in the vendored pack, `local/`, which `uphill update` keeps and
- * `uphill audit` skips. It holds the project's inputs and the files they name.
+ * The project's directory for this pack, `.agents/uphill/typescript/`. It holds the project's
+ * inputs and the files they name.
  */
-export const local = path.resolve(import.meta.dirname, '../local')
+export const local = path.join(root, '.agents/uphill/typescript')
 
 /** The file that holds the project's inputs. */
 export const configFile = path.join(local, 'config.ts')
 
-/** The project's inputs, or none when it has no `local/config.ts`. */
+/** The project's inputs, or none when it has no `.agents/uphill/typescript/config.ts`. */
 export const config: Config = fs.existsSync(configFile)
   ? ((await import(pathToFileURL(configFile).href)) as { default: Config })
       .default

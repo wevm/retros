@@ -7,7 +7,7 @@ import * as Syntax from './syntax.js'
 
 const functionLimit = 70
 const ignored =
-  /(^|\/)(\.agents\/uphill\/packs|dist|build|node_modules|target|vendor|\.?zig-cache|zig-out)\/|\.d\.[cm]?ts$/
+  /(^|\/)(dist|build|node_modules|target|vendor|\.?zig-cache|zig-out)\/|\.d\.[cm]?ts$/
 const tests =
   /(^|\/)(tests?|__tests__|benches)\/|[._](test|spec)\.\w+$|_test\.go$/i
 

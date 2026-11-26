@@ -3,16 +3,16 @@
 //! The configuration's top-level `packs` key lists them. A remote entry names a directory in a Git
 //! repository and the full commit that pins it: `owner/repo/path@<commit>` on GitHub, or an
 //! `https` URL followed by `//path@<commit>`. A comment at the end of the entry's line names the
-//! ref that `uphill update` follows. The command line vendors each remote pack into
-//! `.agents/uphill/packs/<name>/`, so runs read only committed files. A local entry starts with `./` or
-//! `../`, and the project's own commit pins it. `{ pack, categories, install }` takes only some of
+//! ref that `uphill update` follows. The command line fetches each remote pack at its commit
+//! into a cache outside the project. A local entry starts with `./` or `../`, and the project's
+//! own commit pins it. `{ pack, categories, install }` takes only some of
 //! a pack's categories, or approves the install of its dependencies. An optional top-level
 //! `allowed-packs` key lists patterns, such as `wevm/*`, that every remote entry must match.
 //!
 //! ```yaml
 //! packs:
 //!   - wevm/uphill/packs/rust@3e0053b4f1c2a9e7d8b6c5a4f3e2d1c0b9a8f7e6 # main
-//!   - { pack: ./.agents/uphill/packs/api, categories: [latency] }
+//!   - { pack: ./packs/api, categories: [latency] }
 //! ```
 //!
 //! The module also edits the `packs` key in place, validates the tree of a fetched commit, and
@@ -34,10 +34,6 @@ const MAX_DEPTH: usize = 32;
 
 /// The most bytes in all files of a pack.
 const MAX_TOTAL: u64 = 10_000_000;
-
-/// The directory of a vendored pack that holds the project's own files, such as the inputs its
-/// scripts read. `uphill update` keeps it and `uphill audit` skips it, so a pack cannot ship it.
-pub const LOCAL: &str = "local";
 
 /// One entry of the `packs` key.
 #[derive(Clone, Debug, PartialEq)]
@@ -309,7 +305,7 @@ pub fn entries(source: &str, format: Format) -> Result<Vec<Entry>, Error> {
                 source,
                 item.offset,
                 format!(
-                    "packs `{}` and `{}` both vendor to the directory `{}`. Keep one",
+                    "packs `{}` and `{}` share the name `{}`, which `uphill update` and `uphill remove` take. Keep one",
                     other.name,
                     entry.name,
                     entry.directory()
@@ -771,8 +767,7 @@ pub struct TreeEntry {
 ///
 /// Returns a message for a symbolic link, a submodule, a path with `..`, `.git`, or characters
 /// other than ASCII letters, digits, `.`, `_`, `@`, `+`, and `-`, two paths that differ only in
-/// case, a file in [`LOCAL`], more than 1,000 files or 32 levels, a file over 1 MB, and more than
-/// 10 MB in all.
+/// case, more than 1,000 files or 32 levels, a file over 1 MB, and more than 10 MB in all.
 pub fn validate(entries: &[TreeEntry]) -> Result<Vec<bool>, String> {
     if entries.len() > MAX_FILES {
         return Err(format!(
@@ -811,12 +806,6 @@ pub fn validate(entries: &[TreeEntry]) -> Result<Vec<bool>, String> {
         });
         if !safe {
             return Err(format!("the path {} is not allowed", printable(path)));
-        }
-        if parts.first() == Some(&LOCAL) {
-            return Err(format!(
-                "{} is in `{LOCAL}/`, which holds the project's own files",
-                printable(path)
-            ));
         }
         if parts.len() > MAX_DEPTH {
             return Err(format!(

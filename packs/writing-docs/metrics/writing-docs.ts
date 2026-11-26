@@ -15,14 +15,14 @@ import writeGood from 'write-good'
 import * as Prose from './prose.js'
 
 /**
- * Files that are not documentation, such as generated changelogs, agent guidance, and vendored
- * packs.
+ * Files that are not documentation, such as generated changelogs, agent guidance, and installed
+ * packages.
  */
 const ignored = [
   /(^|\/)\.changeset\//,
   /(^|\/)\.github\//,
   /(^|\/)(AGENTS|CHANGELOG|CLAUDE|LICENSE)(\.md)?$/i,
-  /(^|\/)(\.agents\/uphill\/packs|node_modules)\//,
+  /(^|\/)node_modules\//,
 ]
 
 /** `title` for Title Case headings, or `sentence` for sentence case. */

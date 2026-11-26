@@ -22,20 +22,18 @@ Each metric also has a `hot-*` copy for the items the project lists in `hot`, so
 
 ## Project Inputs
 
-`local/config.ts` in the vendored pack, `.agents/uphill/packs/typescript/local/config.ts`, holds the project's inputs. `uphill update` keeps `local/` and `uphill audit` skips it, so the files the inputs name live there too. Its default export has the type `Config` in [metrics/library.ts](metrics/library.ts), and every key is optional.
+`.agents/uphill/typescript/config.ts` in the project holds the project's inputs, and the files the inputs name live beside it. Its default export has the type `Config` in [metrics/library.ts](metrics/library.ts), and every key is optional.
 
 ```ts
-// .agents/uphill/packs/typescript/local/config.ts
-import type { Config } from '../metrics/library.ts'
-
+// .agents/uphill/typescript/config.ts
 export default {
   // Exports that only feed tooling.
   exclude: ['./index.docs'],
   // The parts of the library its users call most.
   hot: ['lib:Math.add', 'lib/Math'],
   // The structured fuzz properties, beside the boundary mutations of recorded arguments.
-  fuzz: { properties: '.agents/uphill/packs/typescript/local/fuzz-properties.ts' },
-} satisfies Config
+  fuzz: { properties: '.agents/uphill/typescript/fuzz-properties.ts' },
+}
 ```
 
 Other keys empty the library's caches before each measured call, pick the vitest projects to replay, prepare what the tests reach, and point the types metrics at other tsconfig files.

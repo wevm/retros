@@ -60,13 +60,13 @@ Scripts run the tools the project already uses, so the job installs them before 
 setup: bun install --frozen-lockfile
 ```
 
-### Audit the Packs
+### Trust the Packs
 
-`uphill audit` fetches each pack at its pinned commit and fails the job when a vendored file differs. Pack scripts run with the job's permissions, so run the workflow on `pull_request`. A `pull_request_target` workflow with secrets runs a fork's packs with those secrets.
+Pack scripts run with the job's permissions, so run the workflow on `pull_request`. A `pull_request_target` workflow with secrets runs the packs that a fork pins with those secrets.
 
 ```yaml title=".github/workflows/uphill.yml"
-      # Fail when a vendored pack differs from its pinned commit.
-      - run: npx uphill audit
+# Run with the permissions of the pull request, not of the base repository.
+on: pull_request
 ```
 
 ### Run Uphill

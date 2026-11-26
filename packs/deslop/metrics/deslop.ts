@@ -61,9 +61,9 @@ languages['.h'] = languages['.c']!
 languages['.mts'] = languages['.ts']!
 languages['.tsx'] = languages['.ts']!
 
-/** Paths that are not maintained source: generated code, installed packages, and vendored packs. */
+/** Paths that are not maintained source: generated code, installed packages, and vendored code. */
 const ignored = [
-  /(^|\/)(\.agents\/uphill\/packs|dist|build|node_modules|target|vendor|zig-cache|\.zig-cache|zig-out)\//,
+  /(^|\/)(dist|build|node_modules|target|vendor|zig-cache|\.zig-cache|zig-out)\//,
   /\.d\.ts$/,
 ]
 const tests =

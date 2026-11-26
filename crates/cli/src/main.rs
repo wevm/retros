@@ -29,7 +29,7 @@ use incur::{Io, Parser};
 #[derive(Parser)]
 #[incur(name = "uphill", version)]
 enum Command {
-    /// Pin a pack to a commit, vendor it into .agents/uphill/packs, and list it in the configuration: owner/repo/path on GitHub, an https URL followed by //path, or a local ./path, with an optional @ref
+    /// Pin a pack to a commit and list it in the configuration: owner/repo/path on GitHub, an https URL followed by //path, or a local ./path, with an optional @ref
     Add {
         /// The pack, such as wevm/uphill/packs/rust@main
         #[incur(arg)]
@@ -42,8 +42,6 @@ enum Command {
         /// Write without asking
         yes: bool,
     },
-    /// Fetch each remote pack at its pinned commit and compare it with the vendored files
-    Audit,
     /// Name the commit that last moved a metric: from its baselines, or by measuring commits since <ref>, or every commit, in temporary checkouts and bisecting
     Blame {
         /// The category of the metric
@@ -84,7 +82,7 @@ enum Command {
         /// The subject of the metric, when a category's lines have subjects
         subject: Option<String>,
     },
-    /// Remove a pack from the configuration, and its vendored files
+    /// Remove a pack from the configuration
     Remove {
         /// The pack, by its directory name, such as rust
         #[incur(arg)]
@@ -183,7 +181,6 @@ fn run(command: Command) -> ExitCode {
             &categories.unwrap_or_default(),
             packs::Flags { allow_fresh, yes },
         )),
-        Command::Audit => report(packs::audit()),
         Command::Blame {
             category,
             item,

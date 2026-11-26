@@ -70,8 +70,7 @@ const styleMetrics = [
   'reduced-motion',
 ]
 
-const ignored =
-  /(^|\/)(\.agents\/uphill\/packs|dist|build|coverage|node_modules|out|vendor)\//
+const ignored = /(^|\/)(dist|build|coverage|node_modules|out|vendor)\//
 const lines: string[] = []
 
 build()

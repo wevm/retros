@@ -77,7 +77,7 @@ cargo install --locked --git https://github.com/wevm/uphill uphill
 
 ## Packs
 
-A pack is a set of categories and scripts that measure common conventions. `uphill add` pins a pack to a commit and vendors it into `.agents/uphill/packs/`, after a review of its files. Runs read only the vendored files, so they need no network.
+A pack is a set of categories and scripts that measure common conventions. `uphill add` pins a pack to a commit after a review of its files. A run fetches each pinned commit once into a cache outside the project.
 
 ```sh
 # Pin the typescript pack to the newest commit of main, after a review of its code.
@@ -133,14 +133,11 @@ uphill check
 # Print a brief for an agent to set up Uphill in this project, with the uphill skill.
 uphill init
 
-# Pin a pack to a commit and vendor it into .agents/uphill/packs, after a review of its code.
+# Pin a pack to a commit, after a review of its code.
 uphill add wevm/uphill/packs/typescript@main
 
 # Review and take the newest commit of each pack.
 uphill update
-
-# Check that each vendored pack matches its pinned commit.
-uphill audit
 
 # Print the scores, missed targets, and opportunities in a few lines, for agent loops.
 uphill --compact

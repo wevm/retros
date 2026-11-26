@@ -88,7 +88,7 @@ enums src/kind.ts fail note "line 3: an enum. Use a union or an `as const` objec
 
 ## Packs
 
-A pack is a set of categories and scripts that a project lists under `packs`. `uphill add` pins a pack to a commit and vendors it into `.agents/uphill/packs/`. The packs in [`packs/`](https://github.com/wevm/uphill/tree/main/packs) measure common conventions with the tools above. They share categories, such as `correctness`, `style`, `architecture`, `documentation`, `testing`, and `configuration`, and categories with the same name merge into one score. Add the packs that fit, then fit their targets. Put the project's own metrics in the shared category they belong to.
+A pack is a set of categories and scripts that a project lists under `packs`. `uphill add` pins a pack to a commit. The packs in [`packs/`](https://github.com/wevm/uphill/tree/main/packs) measure common conventions with the tools above. They share categories, such as `correctness`, `style`, `architecture`, `documentation`, `testing`, and `configuration`, and categories with the same name merge into one score. Add the packs that fit, then fit their targets. Put the project's own metrics in the shared category they belong to.
 
 | Pack | Measures | Tools |
 | --- | --- | --- |

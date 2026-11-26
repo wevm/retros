@@ -1,10 +1,10 @@
 # Packs
 
-A pack is a directory with an `uphill.yaml` or `uphill.toml` and the scripts its `run` commands name. A project lists packs under `packs`, and Uphill runs their categories after the project's own, merged by name. Uphill pins each remote pack to a commit and vendors it into the project.
+A pack is a directory with an `uphill.yaml` or `uphill.toml` and the scripts its `run` commands name. A project lists packs under `packs`, and Uphill runs their categories after the project's own, merged by name. Uphill pins each remote pack to a commit and fetches it into a cache outside the project.
 
 ## Overview
 
-`uphill add` fetches a pack at one commit, prints its files and what its code can do, and writes nothing until confirmed. The files go to `.agents/uphill/packs/<name>/`, and the entry takes the full commit. Runs read only these committed files, so they need no network.
+`uphill add` fetches a pack at one commit, prints its files and what its code can do, and writes nothing until confirmed. The entry takes the full commit, and the project commits only that entry. A run fetches each pinned commit that the cache lacks.
 
 ```sh
 # Add the Rust conventions pack from the main branch of this repository.
@@ -58,7 +58,7 @@ packs:
 
 ### Run It
 
-The first run installs the pack's dependencies in `.agents/uphill/packs/typescript/` from its lockfile, with install scripts turned off. `.agents/uphill/packs/.gitignore` keeps each `node_modules` out of Git. Commit the configuration and `.agents/uphill/packs/` together, so a review reads the pack's code.
+The first run installs the pack's dependencies from its lockfile in the cached pack, with install scripts turned off. Commit the configuration. A review of the commit reads the pin, and `uphill add` printed the pack's code for review.
 
 ```sh
 # 1. Check that each script writes the metrics the configuration lists.
@@ -146,17 +146,20 @@ capabilities
 Write this update? [y/N]
 ```
 
-### Check the Pins
+### Cache Packs
 
-`uphill audit` fetches each remote pack at its pinned commit and compares it with the vendored files. It exits with status 1 when a vendored file differs from the pinned commit, or when either side lacks a file. Run it in CI.
+Each pinned commit lives in `$XDG_CACHE_HOME/uphill/packs/`, or `~/.cache/uphill/packs/` without `XDG_CACHE_HOME`. A commit names its files exactly, so every project and checkout on the machine shares one copy. A run fetches a missing commit with the checks of `uphill add`, apart from its age.
 
 ```text
-$ uphill audit
-differs  wevm/uphill/packs/typescript at 47fd804
-  metrics/typescript.ts differs
-ok       wevm/uphill/packs/writing-docs at 94bd79a
-ok       wevm/uphill/packs/git at 94bd79a
+~/.cache/uphill/packs/
+  94bd79a3bb8a413ff7080c08b2acec8b7c39e8ce/
+    packs@typescript/  # wevm/uphill/packs/typescript at this commit.
+      metrics/
+      node_modules/    # The install that `install: true` approves.
+      uphill.yaml
 ```
+
+`uphill --compare` runs the commands of the current checkout in both revisions, so both run the packs that the current checkout pins. A change to a pin then does not move the comparison.
 
 ### Allow Sources
 
@@ -169,22 +172,19 @@ allowed-packs: [wevm/*]
 
 ### Keep Project Files
 
-A vendored pack's `local/` directory holds the project's own files for that pack, such as the inputs its scripts read. `uphill update` keeps it, `uphill audit` skips it, and a pack cannot ship it.
+A pack that reads project inputs reads them from `.agents/uphill/<name>/` in the project, which the project commits. The pack's own files stay in the cache.
 
 ```text
-.agents/uphill/packs/typescript/
-  metrics/            # The pack's files, as the pinned commit holds them.
-  uphill.yaml
-  local/              # The project's files, which the pack's scripts read.
-    config.ts
+.agents/uphill/typescript/
+  config.ts           # The project's inputs, which the typescript pack's scripts read.
 ```
 
 ### Remove a Pack
 
-`uphill remove` takes the pack's directory name. It removes the entry, and the vendored files of a remote pack apart from `local/`.
+`uphill remove` takes the pack's directory name, and removes its entry.
 
 ```sh
-# Remove the entry and .agents/uphill/packs/typescript/.
+# Remove the typescript entry from the configuration.
 uphill remove typescript
 ```
 
@@ -204,7 +204,7 @@ packs/lighthouse/
 
 ### Read the Checks
 
-Each check stops `uphill add` or `uphill update` before it writes anything.
+Each check stops `uphill add` or `uphill update` before it writes anything. A run that fetches a pin applies the checks of the fetch itself.
 
 | Threat | Check |
 | --- | --- |
@@ -215,7 +215,6 @@ Each check stops `uphill add` or `uphill update` before it writes anything.
 | A malicious commit not yet caught | A commit must be at least a day old, unless `--allow-fresh`. |
 | Code from other hosts | Sources are GitHub paths or `https` URLs. A pack's own `packs` key is an error. |
 | Commands run by Git | Git fetches into a bare repository, so no hooks, filters, LFS, or submodules run. |
-| A pack that overwrites project files | A pack cannot ship `local/`, which holds the project's own files. |
 | Links and paths out of the pack | Only regular files, with plain names, under 1 MB each and 10 MB in all. |
 | Install scripts | Uphill runs no pack code during `add` or `update`, and installs with `--ignore-scripts`. |
 | Hidden text | Uphill removes control, bidirectional, and zero-width characters from pack text it prints. |

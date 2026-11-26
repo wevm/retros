@@ -5,9 +5,13 @@
 //! `git cat-file`, and checks the tree before it returns any file. Git never prompts, never fetches
 //! a missing object behind Uphill's back, and speaks only `https`, or `file` and `ssh` when the
 //! user's own configuration rewrites a URL to them.
+//!
+//! Fetched packs live in a cache outside the project, `$XDG_CACHE_HOME/uphill/packs/` or
+//! `~/.cache/uphill/packs/`, one directory per commit and path. A commit names its tree exactly, so
+//! a cached directory never changes, and every project and checkout on the machine shares it.
 
 use std::io::{Read, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use engine::pack::{self, Remote, TreeEntry};
@@ -30,6 +34,107 @@ pub(crate) struct Repository {
     refs: Vec<(String, String)>,
     /// The source as messages name it.
     source: String,
+}
+
+/// Returns the directory of the pack `remote` at its pinned commit, and fetches it into the cache
+/// when the cache does not hold it. The fetch checks that a branch or tag reaches the commit and
+/// checks the tree, as `uphill add` does, and runs none of the pack's code.
+///
+/// # Errors
+///
+/// Returns a message for the terminal when the entry has no commit, when the cache has no place,
+/// when Git cannot fetch the commit, or when a check fails.
+pub(crate) fn pack(remote: &Remote) -> Result<PathBuf, String> {
+    let Some(commit) = remote.reference.as_deref().filter(|r| pack::is_commit(r)) else {
+        return Err(format!(
+            "error: pack `{}` is not pinned to a full commit",
+            remote.name()
+        ));
+    };
+    let dir = cached(remote, commit)?;
+    if dir.is_dir() {
+        return Ok(dir);
+    }
+
+    let repository = open(remote)?;
+    repository.reachable(commit)?;
+    let files = repository.files(commit, &remote.path)?;
+    store(remote, commit, &files)
+}
+
+/// Returns the directory that holds `remote` at `commit` in the cache, whether or not it exists.
+///
+/// # Errors
+///
+/// Returns a message for the terminal when neither `XDG_CACHE_HOME` nor `HOME` is set.
+fn cached(remote: &Remote, commit: &str) -> Result<PathBuf, String> {
+    let root = std::env::var_os("XDG_CACHE_HOME")
+        .filter(|dir| !dir.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME")
+                .filter(|dir| !dir.is_empty())
+                .map(|home| Path::new(&home).join(".cache"))
+        })
+        .ok_or(
+            "error: neither XDG_CACHE_HOME nor HOME is set, so Uphill has no place to cache packs",
+        )?;
+    // `@` cannot occur in a pack's path, so each path has its own directory, and the commit's
+    // root is `@`.
+    let path = if remote.path.is_empty() {
+        "@".to_owned()
+    } else {
+        remote.path.replace('/', "@")
+    };
+    Ok(root.join("uphill/packs").join(commit).join(path))
+}
+
+/// Writes `files` of `remote` at `commit` to the cache and returns their directory. The files go
+/// to a temporary directory first, which takes its place only once every file is written.
+///
+/// # Errors
+///
+/// Returns a message for the terminal when a file cannot be written.
+pub(crate) fn store(remote: &Remote, commit: &str, files: &[File]) -> Result<PathBuf, String> {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let target = cached(remote, commit)?;
+    if target.is_dir() {
+        return Ok(target);
+    }
+    let parent = target.parent().unwrap_or(&target);
+    std::fs::create_dir_all(parent)
+        .map_err(|error| format!("error: could not create {}: {error}", parent.display()))?;
+    let temp = tempfile::Builder::new()
+        .prefix(".tmp-")
+        .tempdir_in(parent)
+        .map_err(|error| format!("error: could not create a temporary directory: {error}"))?;
+
+    for file in files {
+        let path = temp.path().join(&file.path);
+        path.parent()
+            .map(std::fs::create_dir_all)
+            .transpose()
+            .and_then(|_| std::fs::write(&path, &file.bytes))
+            .and_then(|()| {
+                let mode = if file.executable { 0o755 } else { 0o644 };
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode))
+            })
+            .map_err(|error| format!("error: could not write {}: {error}", path.display()))?;
+    }
+
+    // Another run that cached the same commit first wrote the same files.
+    let kept = temp.keep();
+    if let Err(error) = std::fs::rename(&kept, &target) {
+        let _ = std::fs::remove_dir_all(&kept);
+        if !target.is_dir() {
+            return Err(format!(
+                "error: could not write {}: {error}",
+                target.display()
+            ));
+        }
+    }
+    Ok(target)
 }
 
 /// Creates a temporary bare repository for `remote` and lists the remote's refs.

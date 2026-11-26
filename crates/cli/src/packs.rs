@@ -1,17 +1,14 @@
-//! `uphill add`, `uphill update`, `uphill remove`, and `uphill audit`: the commands that pin,
-//! vendor, and check a project's remote packs.
+//! `uphill add`, `uphill update`, and `uphill remove`: the commands that pin a project's packs.
 //!
 //! `add` and `update` fetch a pack at one commit (see [`crate::fetch`]), check that a branch or
 //! tag of the repository reaches it and that it is at least a day old, print its files and
-//! capabilities, and write nothing until the user confirms. The files go to
-//! `.agents/uphill/packs/<name>/`, which the project commits, and the entry in the configuration takes
-//! the full commit. `update` also refuses a commit that does not descend from the pinned one.
-//! `audit` fetches each pinned commit again and compares it with the vendored files. No command
-//! here runs a pack's code.
+//! capabilities, and write nothing until the user confirms. The entry in the configuration takes
+//! the full commit, and the files go to the cache of fetched packs, which runs read. `update` also
+//! refuses a commit that does not descend from the pinned one. No command here runs a pack's code.
 
 use std::fmt::Write as _;
 use std::io::{self, BufRead as _, IsTerminal as _, Write as _};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::ExitCode;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -78,7 +75,6 @@ pub(crate) fn add(source: &str, categories: &[String], flags: Flags) -> Result<E
             found.name
         ));
     }
-    let directory = Path::new(project::PACKS).join(remote.directory());
     if let Some(entry) = entries
         .iter()
         .find(|entry| entry.directory() == remote.directory())
@@ -88,12 +84,6 @@ pub(crate) fn add(source: &str, categories: &[String], flags: Flags) -> Result<E
             found.name,
             entry.name,
             entry.directory()
-        ));
-    }
-    if found.root.join(&directory).exists() {
-        return Err(format!(
-            "error: {} exists. Move it, then run `uphill add` again",
-            directory.display()
         ));
     }
 
@@ -143,14 +133,10 @@ pub(crate) fn add(source: &str, categories: &[String], flags: Flags) -> Result<E
         ),
         &found,
     )?;
-    vendor(&found.root, &directory, &files)?;
+    fetch::store(&remote, &commit, &files)?;
     write(&found.root.join(found.place), text.as_bytes())?;
 
-    let mut out = format!(
-        "\nAdded {name} to {} and {}/\n",
-        found.name,
-        directory.display()
-    );
+    let mut out = format!("\nAdded {name} to {}\n", found.name);
     if let Some(readme) = files.iter().find(|file| file.path == "README.md") {
         let _ = write!(
             out,
@@ -158,7 +144,7 @@ pub(crate) fn add(source: &str, categories: &[String], flags: Flags) -> Result<E
             pack::printable(String::from_utf8_lossy(&readme.bytes).trim_end())
         );
     }
-    out.push_str("\nCommit both, then run `uphill check`\n");
+    let _ = write!(out, "\nCommit {}, then run `uphill check`\n", found.name);
     print(&out);
     Ok(ExitCode::SUCCESS)
 }
@@ -180,12 +166,10 @@ pub(crate) fn update(names: &[String], flags: Flags) -> Result<ExitCode, String>
             continue;
         };
         let pinned = remote.reference.clone().unwrap_or_default();
-        let directory = project::directory(&entry);
-        let vendored = read_dir(&found.root.join(&directory))?;
 
         let repository = fetch::open(remote)?;
         let commit = repository.resolve(entry.follow.as_deref())?;
-        if commit == pinned && vendored.is_some() {
+        if commit == pinned {
             print(&format!("current  {} at {}\n", entry.name, short(&commit)));
             continue;
         }
@@ -203,8 +187,8 @@ pub(crate) fn update(names: &[String], flags: Flags) -> Result<ExitCode, String>
         let age = age(&repository, &commit, flags.allow_fresh)?;
         let files = repository.files(&commit, &remote.path)?;
         read_pack(&files, &entry.name)?;
+        let before = repository.files(&pinned, &remote.path)?;
 
-        let before = vendored.as_deref().map(views);
         let mut out = format!(
             "{}  {} → {}{}\n",
             entry.directory(),
@@ -212,7 +196,7 @@ pub(crate) fn update(names: &[String], flags: Flags) -> Result<ExitCode, String>
             short(&commit),
             detail(entry.follow.as_deref(), &age)
         );
-        out.push_str(&scan::review(before.as_deref(), &views(&files)));
+        out.push_str(&scan::review(Some(&views(&before)), &views(&files)));
         if files.iter().any(|file| file.path == "package.json") && !entry.install {
             out.push_str(
                 "\nIt has dependencies. Set `install: true` on its entry to install them\n",
@@ -225,7 +209,7 @@ pub(crate) fn update(names: &[String], flags: Flags) -> Result<ExitCode, String>
             continue;
         }
 
-        vendor(&found.root, &directory, &files)?;
+        fetch::store(remote, &commit, &files)?;
         let current = pack::entries(&text, found.format)
             .map_err(|error| crate::diagnostic("error", &error, &found.name, &text))?;
         if let Some(current) = current.iter().find(|other| other.name == entry.name) {
@@ -241,8 +225,7 @@ pub(crate) fn update(names: &[String], flags: Flags) -> Result<ExitCode, String>
     })
 }
 
-/// Removes the pack `name` from the configuration, and its vendored files for a remote pack. The
-/// project's own files in [`pack::LOCAL`] stay.
+/// Removes the pack `name` from the configuration.
 ///
 /// # Errors
 ///
@@ -256,103 +239,8 @@ pub(crate) fn remove(name: &str) -> Result<ExitCode, String> {
 
     let text = edit(pack::remove(&found.source, found.format, entry), &found)?;
     write(&found.root.join(found.place), text.as_bytes())?;
-    let mut out = format!("Removed {} from {}\n", entry.name, found.name);
-    if matches!(entry.source, Source::Remote(_)) {
-        let directory = project::directory(entry);
-        let dir = found.root.join(&directory);
-        let local = directory.join(pack::LOCAL);
-        if dir.join(pack::LOCAL).is_dir() {
-            let items = std::fs::read_dir(&dir).map_err(|error| {
-                format!("error: could not read {}: {error}", directory.display())
-            })?;
-            for item in items.filter_map(Result::ok) {
-                if item.file_name() == pack::LOCAL {
-                    continue;
-                }
-                let path = item.path();
-                let removed = if path.is_dir() {
-                    std::fs::remove_dir_all(&path)
-                } else {
-                    std::fs::remove_file(&path)
-                };
-                removed.map_err(|error| {
-                    format!("error: could not remove {}: {error}", path.display())
-                })?;
-            }
-            let _ = writeln!(
-                out,
-                "Removed {}/ and kept {}/",
-                directory.display(),
-                local.display()
-            );
-        } else if dir.exists() {
-            std::fs::remove_dir_all(&dir).map_err(|error| {
-                format!("error: could not remove {}: {error}", directory.display())
-            })?;
-            let _ = writeln!(out, "Removed {}/", directory.display());
-        }
-    }
-    print(&out);
+    print(&format!("Removed {} from {}\n", entry.name, found.name));
     Ok(ExitCode::SUCCESS)
-}
-
-/// Fetches each remote pack at its pinned commit and compares it with the vendored files.
-///
-/// # Errors
-///
-/// Returns a message for the terminal when the configuration is invalid. A pack that differs or
-/// fails a check is reported in the output, with exit status 1.
-pub(crate) fn audit() -> Result<ExitCode, String> {
-    let found = configuration()?;
-    let entries = entries(&found)?;
-    let mut failed = false;
-
-    for entry in &entries {
-        let Source::Remote(remote) = &entry.source else {
-            continue;
-        };
-        let pinned = remote.reference.as_deref().unwrap_or_default();
-        let directory = project::directory(entry);
-        let result = (|| {
-            let repository = fetch::open(remote)?;
-            repository.reachable(pinned)?;
-            let files = repository.files(pinned, &remote.path)?;
-            let vendored = read_dir(&found.root.join(&directory))?
-                .ok_or_else(|| format!("{} is missing", directory.display()))?;
-            Ok::<_, String>(differences(&files, &vendored))
-        })();
-
-        let line = match result {
-            Ok(differences) if differences.is_empty() => {
-                format!("ok       {} at {}\n", entry.name, short(pinned))
-            }
-            Ok(differences) => {
-                failed = true;
-                let mut line = format!("differs  {} at {}\n", entry.name, short(pinned));
-                for difference in differences {
-                    let _ = writeln!(line, "  {}", pack::printable(&difference));
-                }
-                line
-            }
-            Err(message) => {
-                failed = true;
-                let message = message.strip_prefix("error: ").unwrap_or(&message);
-                format!("failed   {}: {message}\n", entry.name)
-            }
-        };
-        print(&line);
-    }
-    if entries
-        .iter()
-        .all(|entry| matches!(entry.source, Source::Local(_)))
-    {
-        print(&format!("{} lists no remote packs\n", found.name));
-    }
-    Ok(if failed {
-        ExitCode::FAILURE
-    } else {
-        ExitCode::SUCCESS
-    })
 }
 
 /// Finds the project's configuration from the current directory.
@@ -465,130 +353,6 @@ fn views(files: &[File]) -> Vec<scan::File<'_>> {
             path: &file.path,
         })
         .collect()
-}
-
-/// Returns each difference between the fetched `files` and the `vendored` ones.
-fn differences(files: &[File], vendored: &[File]) -> Vec<String> {
-    let mut out = Vec::new();
-    for file in files {
-        match vendored.iter().find(|other| other.path == file.path) {
-            None => out.push(format!("{} is missing", file.path)),
-            Some(other) if other.bytes != file.bytes => out.push(format!("{} differs", file.path)),
-            Some(other) if other.executable != file.executable => {
-                out.push(format!("{} differs in its executable bit", file.path));
-            }
-            Some(_) => {}
-        }
-    }
-    for other in vendored {
-        if !files.iter().any(|file| file.path == other.path) {
-            out.push(format!("{} is not in the pack", other.path));
-        }
-    }
-    out
-}
-
-/// Reads the files of a vendored pack, apart from `node_modules` and the project's own files in
-/// [`pack::LOCAL`], or returns `None` when the directory does not exist. A symbolic link reads as a file that holds its target, so it differs.
-fn read_dir(dir: &Path) -> Result<Option<Vec<File>>, String> {
-    if !dir.is_dir() {
-        return Ok(None);
-    }
-    let mut files = Vec::new();
-    let mut pending = vec![PathBuf::new()];
-    while let Some(relative) = pending.pop() {
-        let read = std::fs::read_dir(dir.join(&relative))
-            .map_err(|error| format!("error: could not read {}: {error}", dir.display()))?;
-        for item in read.filter_map(Result::ok) {
-            let name = item.file_name();
-            let path = relative.join(&name);
-            let kind = item
-                .file_type()
-                .map_err(|error| format!("error: could not read {}: {error}", path.display()))?;
-            if kind.is_dir() {
-                let local = relative.as_os_str().is_empty() && name == pack::LOCAL;
-                if name != "node_modules" && !local {
-                    pending.push(path);
-                }
-                continue;
-            }
-            let full = dir.join(&path);
-            let (bytes, executable) = if kind.is_symlink() {
-                let target = std::fs::read_link(&full).unwrap_or_default();
-                (target.to_string_lossy().into_owned().into_bytes(), false)
-            } else {
-                let bytes = std::fs::read(&full).map_err(|error| {
-                    format!("error: could not read {}: {error}", full.display())
-                })?;
-                (bytes, executable(&full))
-            };
-            files.push(File {
-                bytes,
-                executable,
-                path: path.to_string_lossy().into_owned(),
-            });
-        }
-    }
-    files.sort_by(|a, b| a.path.cmp(&b.path));
-    Ok(Some(files))
-}
-
-/// Returns whether the file at `path` is executable by its owner.
-fn executable(path: &Path) -> bool {
-    use std::os::unix::fs::PermissionsExt as _;
-    std::fs::metadata(path).is_ok_and(|metadata| metadata.permissions().mode() & 0o100 != 0)
-}
-
-/// Writes `files` to `directory` under `root`, replacing what it held apart from the project's own
-/// files in [`pack::LOCAL`]. The files go to a temporary directory first, which takes the place of
-/// the old one only once every file is written.
-fn vendor(root: &Path, directory: &Path, files: &[File]) -> Result<(), String> {
-    use std::os::unix::fs::PermissionsExt as _;
-
-    let packs = root.join(project::PACKS);
-    std::fs::create_dir_all(&packs)
-        .map_err(|error| format!("error: could not create {}: {error}", project::PACKS))?;
-    let ignore = packs.join(".gitignore");
-    if !ignore.exists() {
-        write(&ignore, b"*/node_modules/\n")?;
-    }
-
-    let temp = tempfile::Builder::new()
-        .prefix(".uphill-")
-        .tempdir_in(&packs)
-        .map_err(|error| format!("error: could not create a temporary directory: {error}"))?;
-    for file in files {
-        let path = temp.path().join(&file.path);
-        write(&path, &file.bytes)?;
-        let mode = if file.executable { 0o755 } else { 0o644 };
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode))
-            .map_err(|error| format!("error: could not write {}: {error}", file.path))?;
-    }
-
-    let target = root.join(directory);
-    let local = target.join(pack::LOCAL);
-    if local.is_dir() {
-        std::fs::rename(&local, temp.path().join(pack::LOCAL)).map_err(|error| {
-            format!(
-                "error: could not keep {}: {error}",
-                directory.join(pack::LOCAL).display()
-            )
-        })?;
-    }
-    if target.exists() {
-        std::fs::remove_dir_all(&target)
-            .map_err(|error| format!("error: could not remove {}: {error}", directory.display()))?;
-    }
-    let kept = temp.keep();
-    std::fs::rename(&kept, &target).map_err(|error| {
-        // The project's own files go back where they were before the rest is removed.
-        if kept.join(pack::LOCAL).is_dir() {
-            let _ = std::fs::create_dir_all(&target);
-            let _ = std::fs::rename(kept.join(pack::LOCAL), &local);
-        }
-        let _ = std::fs::remove_dir_all(&kept);
-        format!("error: could not write {}: {error}", directory.display())
-    })
 }
 
 /// Asks the user to confirm, unless `yes`. Without a terminal on standard input, it requires `yes`.

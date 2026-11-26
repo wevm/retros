@@ -11,7 +11,6 @@ uphill [category] [--compare <ref>] [--compact] [--note] [--update] [--require-b
 uphill add <pack>[@ref] [category...] [--yes] [--allow-fresh]
 uphill update [pack...] [--yes] [--allow-fresh]
 uphill remove <pack>
-uphill audit
 uphill check
 uphill dashboard <repository>...
 uphill init
@@ -40,7 +39,7 @@ uphill
 
 ### `uphill add`
 
-Pins a pack to a full commit, vendors its files into `.agents/uphill/packs/<name>/`, and adds its entry to the configuration's `packs` key. A remote pack is `owner/repo/path` on GitHub or an `https` URL followed by `//path`, with an optional `@ref`. A local pack starts with `./` or `../`.
+Pins a pack to a full commit, fetches its files into the cache of packs, and adds its entry to the configuration's `packs` key. A remote pack is `owner/repo/path` on GitHub or an `https` URL followed by `//path`, with an optional `@ref`. A local pack starts with `./` or `../`.
 
 Names after the pack limit the entry to those categories. Before it writes, `uphill add` prints the pack's files and capabilities and asks for confirmation. `--yes` writes without asking, and a run without a terminal needs it. `--allow-fresh` takes a commit less than a day old.
 
@@ -62,20 +61,11 @@ uphill update
 
 ### `uphill remove`
 
-Removes a pack's entry from the configuration, and the vendored files of a remote pack. It takes the pack's directory name, such as `typescript`.
+Removes a pack's entry from the configuration. It takes the pack's directory name, such as `typescript`.
 
 ```sh
-# Remove the entry and .agents/uphill/packs/typescript/.
+# Remove the typescript entry from the configuration.
 uphill remove typescript
-```
-
-### `uphill audit`
-
-Fetches each remote pack at its pinned commit and compares it with the vendored files. It exits with status 1 when a vendored file differs from the pinned commit, when either side lacks a file, or when no branch or tag contains the commit.
-
-```text
-$ uphill audit
-ok       wevm/uphill/packs/typescript at 94bd79a
 ```
 
 ### `uphill check`

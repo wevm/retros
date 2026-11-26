@@ -1,7 +1,7 @@
 //! Finds and reads the project's `uphill.yaml` or `uphill.toml`, at the project root or in its
 //! `.agents` directory, and the baseline file beside it, `uphill.baseline.yaml` or
-//! `uphill.baseline.toml`. Finds each pack that its `packs` key lists: a remote pack vendored in
-//! `.agents/uphill/packs/<name>/`, or a local directory. Runs read only these committed files.
+//! `uphill.baseline.toml`. Finds each pack that its `packs` key lists: a remote pack at its pinned
+//! commit in the cache of fetched packs (see [`crate::fetch`]), or a local directory.
 
 use std::io;
 use std::path::{Component, Path, PathBuf};
@@ -9,9 +9,6 @@ use std::path::{Component, Path, PathBuf};
 use engine::baseline;
 use engine::config::{self, Config, Format};
 use engine::pack::{self, Entry, Pack, Source};
-
-/// The directory, relative to the project root, that holds each vendored remote pack.
-pub(crate) const PACKS: &str = ".agents/uphill/packs";
 
 /// Where a project keeps its configuration, relative to its root, and the format of each file.
 const PLACES: [(&str, Format); 4] = [
@@ -32,8 +29,8 @@ pub(crate) struct Project {
     pub(crate) baselines_source: Option<String>,
     /// The parsed configuration, with the baselines of the baseline file.
     pub(crate) config: Config,
-    /// The directory of each pack whose dependencies the project approves installing, relative
-    /// to the root.
+    /// The directory of each pack whose dependencies the project approves installing: relative
+    /// to the root for a local pack, and absolute for a remote pack in the cache.
     pub(crate) installs: Vec<PathBuf>,
     /// The format of the configuration.
     pub(crate) format: Format,
@@ -72,12 +69,7 @@ pub(crate) fn find(cwd: &Path) -> Result<Project, String> {
     } = configuration(cwd)?;
     let root = root.as_path();
 
-    let packs = packs(&[root], &source, format, &name)?;
-    let installs = packs
-        .iter()
-        .filter(|pack| pack.entry.install)
-        .map(|pack| directory(&pack.entry))
-        .collect();
+    let (packs, installs) = packs(&[root], &source, format, &name)?;
     let config = config::compose(&source, format, &packs)
         .map_err(|error| crate::diagnostic("error", &error, &name, &source))?;
 
@@ -192,15 +184,16 @@ pub(crate) fn baselines(place: &str) -> String {
 }
 
 /// Parses a configuration and its baseline file, as another revision holds them, or returns
-/// `None` when either does not parse. Its packs come from the first of `roots` that has each one,
-/// such as the revision's checkout and then the current project.
+/// `None` when either does not parse. Its local packs come from the first of `roots` that has each
+/// one, such as the revision's checkout and then the current project, and its remote packs from
+/// the cache.
 pub(crate) fn load(
     roots: &[&Path],
     source: &str,
     baselines: Option<&str>,
     format: Format,
 ) -> Option<Config> {
-    let packs = packs(roots, source, format, "").ok()?;
+    let (packs, _) = packs(roots, source, format, "").ok()?;
     let config = config::compose(source, format, &packs).ok()?;
     let config = match baselines {
         Some(baselines) => baseline::read(config, baselines, format).ok()?,
@@ -209,49 +202,53 @@ pub(crate) fn load(
     config::validate(&config).ok().map(|()| config)
 }
 
-/// Finds and parses each pack that the configuration `source` lists, from the first of `roots`
-/// that has it. Each pack's `run` commands are rewritten to start at the project root, and the
-/// default targets of its baseline file come with it.
+/// Finds and parses each pack that the configuration `source` lists: a local pack from the first
+/// of `roots` that has it, and a remote pack from the cache, which fetches it when it is missing.
+/// Each pack's `run` commands are rewritten to start at the project root, and the default targets
+/// of its baseline file come with it. Also returns the directory of each pack whose install the
+/// project approves, as [`Project::installs`] holds it.
 ///
 /// # Errors
 ///
-/// Returns a message for the terminal when the `packs` key is invalid, when a pack is not
-/// installed or has no configuration, when its configuration is invalid, or when it lists packs.
-fn packs(roots: &[&Path], source: &str, format: Format, name: &str) -> Result<Vec<Pack>, String> {
+/// Returns a message for the terminal when the `packs` key is invalid, when a local pack is not a
+/// directory, when a remote pack cannot be fetched, when a pack has no configuration, when its
+/// configuration is invalid, or when it lists packs.
+fn packs(
+    roots: &[&Path],
+    source: &str,
+    format: Format,
+    name: &str,
+) -> Result<(Vec<Pack>, Vec<PathBuf>), String> {
     let entries = pack::entries(source, format)
         .map_err(|error| crate::diagnostic("error", &error, name, source))?;
 
     let mut packs = Vec::new();
+    let mut installs = Vec::new();
     for entry in entries {
-        let Some((root, dir)) = roots
-            .iter()
-            .find_map(|root| locate(root, &entry).map(|dir| (*root, dir)))
-        else {
-            return Err(missing(&entry, name));
+        let (shown, dir, install) = match &entry.source {
+            Source::Local(path) => {
+                let Some(root) = roots.iter().find(|root| root.join(path).is_dir()) else {
+                    return Err(missing(&entry, name));
+                };
+                let dir = root.join(path);
+                (relative(&dir, root), dir, PathBuf::from(path))
+            }
+            Source::Remote(remote) => {
+                let dir = crate::fetch::pack(remote)?;
+                (dir.display().to_string(), dir.clone(), dir)
+            }
         };
-        packs.push(read(root, &dir, entry)?);
+        if entry.install {
+            installs.push(install);
+        }
+        packs.push(read(&dir, &shown, entry)?);
     }
-    Ok(packs)
+    Ok((packs, installs))
 }
 
-/// Returns the directory of a pack relative to the project root: `.agents/uphill/packs/<name>` for a
-/// remote pack, or the local directory.
-pub(crate) fn directory(entry: &Entry) -> PathBuf {
-    match &entry.source {
-        Source::Local(path) => PathBuf::from(path),
-        Source::Remote(_) => Path::new(PACKS).join(entry.directory()),
-    }
-}
-
-/// Returns the directory of a pack under `root`, when it exists.
-fn locate(root: &Path, entry: &Entry) -> Option<PathBuf> {
-    let dir = root.join(directory(entry));
-    dir.is_dir().then_some(dir)
-}
-
-/// Reads and parses the pack in `dir`, which `entry` names, for a project at `root`.
-fn read(root: &Path, dir: &Path, entry: Entry) -> Result<Pack, String> {
-    let shown = relative(dir, root);
+/// Reads and parses the pack in `dir`, which `entry` names. `shown` is the directory as `run`
+/// commands and messages name it: relative to the project root for a local pack, or absolute.
+fn read(dir: &Path, shown: &str, entry: Entry) -> Result<Pack, String> {
     let Some((place, format, source)) = PLACES.iter().find_map(|(place, format)| {
         std::fs::read_to_string(dir.join(place))
             .ok()
@@ -291,14 +288,15 @@ fn read(root: &Path, dir: &Path, entry: Entry) -> Result<Pack, String> {
         .iter_mut()
         .flat_map(|category| &mut category.scripts)
     {
-        script.run = rewrite(&script.run, dir, &shown);
+        script.run = rewrite(&script.run, dir, shown);
     }
     Ok(Pack { config, entry })
 }
 
 /// Returns `run` with each path that names a file in the pack's directory `dir` replaced by its
-/// path from the project root, through the pack's place `shown`, such as
-/// `.agents/uphill/packs/rust/metrics/rust.ts`.
+/// path through the pack's place `shown`, such as `packs/rust/metrics/rust.ts` for a local pack.
+/// An unquoted path with characters that the shell reads, such as a space in the cache's path,
+/// is quoted.
 fn rewrite(run: &str, dir: &Path, shown: &str) -> String {
     run.split(' ')
         .map(|token| {
@@ -308,7 +306,14 @@ fn rewrite(run: &str, dir: &Path, shown: &str) -> String {
             if word.is_empty() || !local || !dir.join(path).is_file() {
                 return token.to_owned();
             }
-            token.replace(word, &format!("{shown}/{word}"))
+            let full = format!("{shown}/{word}");
+            let plain = full
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || b"/._@+-".contains(&byte));
+            if token == word && !plain {
+                return format!("'{}'", full.replace('\'', r"'\''"));
+            }
+            token.replace(word, &full)
         })
         .collect::<Vec<_>>()
         .join(" ")
@@ -333,18 +338,10 @@ fn relative(path: &Path, root: &Path) -> String {
 #[cold]
 fn missing(entry: &Entry, name: &str) -> String {
     let at = format!("{name}:{}:{}", entry.location.line, entry.location.column);
-    if matches!(entry.source, Source::Local(_)) {
-        return format!("error: {at}: pack `{}` is not a directory", entry.name);
-    }
-    format!(
-        "error: {at}: pack `{}` is not vendored in {}. Run `uphill update {}` to fetch it",
-        entry.name,
-        directory(entry).display(),
-        entry.directory()
-    )
+    format!("error: {at}: pack `{}` is not a directory", entry.name)
 }
 
-/// Installs the dependencies of each pack in `installs`, relative to `root`, that has no
+/// Installs the dependencies of each pack in `installs`, relative to `root` or absolute, that has no
 /// `node_modules` yet. The install follows the pack's lockfile exactly and runs no scripts.
 ///
 /// # Errors

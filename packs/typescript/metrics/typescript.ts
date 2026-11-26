@@ -16,12 +16,9 @@ import * as Bindings from './bindings.js'
 import * as Compiler from './compiler.js'
 
 /**
- * Paths that are not maintained source, such as build output, installed packages, and vendored
- * packs.
+ * Paths that are not maintained source, such as build output and installed packages.
  */
-const ignored = [
-  /(^|\/)(\.agents\/uphill\/packs|dist|build|coverage|node_modules|target)\//,
-]
+const ignored = [/(^|\/)(dist|build|coverage|node_modules|target)\//]
 
 /** Compiler options the conventions treat as design constraints. */
 const compilerOptions = [
