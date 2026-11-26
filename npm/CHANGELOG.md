@@ -1,5 +1,12 @@
 # uphill
 
+## 0.0.7
+
+### Patch Changes
+
+- 7b1efe1: Replaced the GitHub Action's pull request comment with a table of score gauges, one row per category with its score on the base branch and on the pull request, and a link to `report.html`, uploaded as an unzipped artifact. The job summary kept the whole `report.md`. `uphill --compare` ran every script of the revision at least once, even with a baseline file, and `report.json` listed the revision's scores under `comparison.scores`.
+- caab031: Fixed `uphill --update` in a project that overrode a pack's category. It read the configuration without its packs, so `metric: false` failed with "is not a pack's category" while a run without `--update` passed.
+
 ## 0.0.6
 
 ### Patch Changes
