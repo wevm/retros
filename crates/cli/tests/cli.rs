@@ -1988,9 +1988,17 @@ fn update_reviews_new_capabilities_and_refuses_fresh_and_force_pushed_commits() 
     )
     .unwrap();
     let second = host.commit("2026-02-01T00:00:00Z");
+    // The project's own files in `local/` survive the update.
+    let local = project.path().join(".agents/packs/sizes/local");
+    fs::create_dir_all(&local).unwrap();
+    fs::write(local.join("config.ts"), "export default {}\n").unwrap();
 
     let output = uphill_in(project.path(), &["update", "--yes"], &host.envs());
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    assert_eq!(
+        fs::read_to_string(local.join("config.ts")).unwrap(),
+        "export default {}\n"
+    );
     let text = commits(
         &stdout(&output),
         &[(&first, "<first>"), (&second, "<second>")],
@@ -2039,6 +2047,19 @@ fn update_reviews_new_capabilities_and_refuses_fresh_and_force_pushed_commits() 
         commits(&stderr(&output), &[(&second, "<second>"), (&forced, "<forced>")]),
         @"error: acme/packs/sizes at <forced> does not descend from the pinned commit <second>. The ref may have been force-pushed, or the repository replaced. Review it, then run `uphill remove sizes` and `uphill add`"
     );
+
+    // `remove` keeps the project's own files.
+    let output = uphill_in(project.path(), &["remove", "sizes"], &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(stdout(&output), @"
+    Removed acme/packs/sizes from uphill.yaml
+    Removed .agents/packs/sizes/ and kept .agents/packs/sizes/local/
+    ");
+    let kept: Vec<_> = fs::read_dir(project.path().join(".agents/packs/sizes"))
+        .unwrap()
+        .map(|item| item.unwrap().file_name())
+        .collect();
+    assert_eq!(kept, ["local"]);
 }
 
 #[test]
@@ -2053,6 +2074,10 @@ fn audit_fetches_each_pin_again_and_reports_edited_files() {
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     let first = git(&host.repository(), &["rev-parse", "HEAD"]);
     let first = first.trim();
+    // The project's own files in `local/` are not the pack's.
+    let local = project.path().join(".agents/packs/sizes/local");
+    fs::create_dir_all(&local).unwrap();
+    fs::write(local.join("config.ts"), "export default {}\n").unwrap();
 
     let output = uphill_in(project.path(), &["audit"], &host.envs());
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
@@ -2125,6 +2150,18 @@ fn add_rejects_links_escaping_paths_fork_commits_and_ambiguous_refs() {
     );
     git(&repository, &["update-ref", "refs/heads/escape", &commit]);
     insta::assert_snapshot!(commits(&add("acme/packs/sizes@escape"), &[(&commit, "<escape>")]), @"error: acme/packs/sizes at <escape> is unsafe: the path ../escape.sh is not allowed");
+
+    // A pack that ships the project's own directory.
+    git(&repository, &["checkout", "-q", "-b", "local"]);
+    fs::create_dir_all(repository.join("sizes/local")).unwrap();
+    fs::write(
+        repository.join("sizes/local/config.ts"),
+        "export default {}\n",
+    )
+    .unwrap();
+    let local = host.commit("2026-02-01T00:00:00Z");
+    git(&repository, &["checkout", "-q", "main"]);
+    insta::assert_snapshot!(commits(&add("acme/packs/sizes@local"), &[(&local, "<local>")]), @"error: acme/packs/sizes at <local> is unsafe: local/config.ts is in `local/`, which holds the project's own files");
 
     // A commit that no branch or tag reaches, as a fork's commit is through its parent.
     git(&repository, &["checkout", "-q", "-b", "fork"]);

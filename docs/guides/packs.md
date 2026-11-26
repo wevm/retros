@@ -167,9 +167,21 @@ The top-level `allowed-packs` key lists patterns that every remote pack must mat
 allowed-packs: [wevm/*]
 ```
 
+### Keep Project Files
+
+A vendored pack's `local/` directory holds the project's own files for that pack, such as the inputs its scripts read. `uphill update` keeps it, `uphill audit` skips it, and a pack cannot ship it.
+
+```text
+.agents/packs/typescript/
+  metrics/            # The pack's files, as the pinned commit holds them.
+  uphill.yaml
+  local/              # The project's files, which the pack's scripts read.
+    config.ts
+```
+
 ### Remove a Pack
 
-`uphill remove` takes the pack's directory name. It removes the entry, and the vendored files of a remote pack.
+`uphill remove` takes the pack's directory name. It removes the entry, and the vendored files of a remote pack apart from `local/`.
 
 ```sh
 # Remove the entry and .agents/packs/typescript/.
@@ -203,6 +215,7 @@ Each check stops `uphill add` or `uphill update` before it writes anything.
 | A malicious commit not yet caught | A commit must be at least a day old, unless `--allow-fresh`. |
 | Code from other hosts | Sources are GitHub paths or `https` URLs. A pack's own `packs` key is an error. |
 | Commands run by Git | Git fetches into a bare repository, so no hooks, filters, LFS, or submodules run. |
+| A pack that overwrites project files | A pack cannot ship `local/`, which holds the project's own files. |
 | Links and paths out of the pack | Only regular files, with plain names, under 1 MB each and 10 MB in all. |
 | Install scripts | Uphill runs no pack code during `add` or `update`, and installs with `--ignore-scripts`. |
 | Hidden text | Uphill removes control, bidirectional, and zero-width characters from pack text it prints. |

@@ -241,7 +241,8 @@ pub(crate) fn update(names: &[String], flags: Flags) -> Result<ExitCode, String>
     })
 }
 
-/// Removes the pack `name` from the configuration, and its vendored files for a remote pack.
+/// Removes the pack `name` from the configuration, and its vendored files for a remote pack. The
+/// project's own files in [`pack::LOCAL`] stay.
 ///
 /// # Errors
 ///
@@ -259,7 +260,32 @@ pub(crate) fn remove(name: &str) -> Result<ExitCode, String> {
     if matches!(entry.source, Source::Remote(_)) {
         let directory = project::directory(entry);
         let dir = found.root.join(&directory);
-        if dir.exists() {
+        let local = directory.join(pack::LOCAL);
+        if dir.join(pack::LOCAL).is_dir() {
+            let items = std::fs::read_dir(&dir).map_err(|error| {
+                format!("error: could not read {}: {error}", directory.display())
+            })?;
+            for item in items.filter_map(Result::ok) {
+                if item.file_name() == pack::LOCAL {
+                    continue;
+                }
+                let path = item.path();
+                let removed = if path.is_dir() {
+                    std::fs::remove_dir_all(&path)
+                } else {
+                    std::fs::remove_file(&path)
+                };
+                removed.map_err(|error| {
+                    format!("error: could not remove {}: {error}", path.display())
+                })?;
+            }
+            let _ = writeln!(
+                out,
+                "Removed {}/ and kept {}/",
+                directory.display(),
+                local.display()
+            );
+        } else if dir.exists() {
             std::fs::remove_dir_all(&dir).map_err(|error| {
                 format!("error: could not remove {}: {error}", directory.display())
             })?;
@@ -462,8 +488,8 @@ fn differences(files: &[File], vendored: &[File]) -> Vec<String> {
     out
 }
 
-/// Reads the files of a vendored pack, apart from `node_modules`, or returns `None` when the
-/// directory does not exist. A symbolic link reads as a file that holds its target, so it differs.
+/// Reads the files of a vendored pack, apart from `node_modules` and the project's own files in
+/// [`pack::LOCAL`], or returns `None` when the directory does not exist. A symbolic link reads as a file that holds its target, so it differs.
 fn read_dir(dir: &Path) -> Result<Option<Vec<File>>, String> {
     if !dir.is_dir() {
         return Ok(None);
@@ -480,7 +506,8 @@ fn read_dir(dir: &Path) -> Result<Option<Vec<File>>, String> {
                 .file_type()
                 .map_err(|error| format!("error: could not read {}: {error}", path.display()))?;
             if kind.is_dir() {
-                if name != "node_modules" {
+                let local = relative.as_os_str().is_empty() && name == pack::LOCAL;
+                if name != "node_modules" && !local {
                     pending.push(path);
                 }
                 continue;
@@ -512,9 +539,9 @@ fn executable(path: &Path) -> bool {
     std::fs::metadata(path).is_ok_and(|metadata| metadata.permissions().mode() & 0o100 != 0)
 }
 
-/// Writes `files` to `directory` under `root`, replacing what it held. The files go to a
-/// temporary directory first, which takes the place of the old one only once every file is
-/// written.
+/// Writes `files` to `directory` under `root`, replacing what it held apart from the project's own
+/// files in [`pack::LOCAL`]. The files go to a temporary directory first, which takes the place of
+/// the old one only once every file is written.
 fn vendor(root: &Path, directory: &Path, files: &[File]) -> Result<(), String> {
     use std::os::unix::fs::PermissionsExt as _;
 
@@ -539,12 +566,26 @@ fn vendor(root: &Path, directory: &Path, files: &[File]) -> Result<(), String> {
     }
 
     let target = root.join(directory);
+    let local = target.join(pack::LOCAL);
+    if local.is_dir() {
+        std::fs::rename(&local, temp.path().join(pack::LOCAL)).map_err(|error| {
+            format!(
+                "error: could not keep {}: {error}",
+                directory.join(pack::LOCAL).display()
+            )
+        })?;
+    }
     if target.exists() {
         std::fs::remove_dir_all(&target)
             .map_err(|error| format!("error: could not remove {}: {error}", directory.display()))?;
     }
     let kept = temp.keep();
     std::fs::rename(&kept, &target).map_err(|error| {
+        // The project's own files go back where they were before the rest is removed.
+        if kept.join(pack::LOCAL).is_dir() {
+            let _ = std::fs::create_dir_all(&target);
+            let _ = std::fs::rename(kept.join(pack::LOCAL), &local);
+        }
         let _ = std::fs::remove_dir_all(&kept);
         format!("error: could not write {}: {error}", directory.display())
     })

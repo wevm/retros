@@ -35,6 +35,10 @@ const MAX_DEPTH: usize = 32;
 /// The most bytes in all files of a pack.
 const MAX_TOTAL: u64 = 10_000_000;
 
+/// The directory of a vendored pack that holds the project's own files, such as the inputs its
+/// scripts read. `uphill update` keeps it and `uphill audit` skips it, so a pack cannot ship it.
+pub const LOCAL: &str = "local";
+
 /// One entry of the `packs` key.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Entry {
@@ -767,7 +771,8 @@ pub struct TreeEntry {
 ///
 /// Returns a message for a symbolic link, a submodule, a path with `..`, `.git`, or characters
 /// other than ASCII letters, digits, `.`, `_`, `@`, `+`, and `-`, two paths that differ only in
-/// case, more than 1,000 files or 32 levels, a file over 1 MB, and more than 10 MB in all.
+/// case, a file in [`LOCAL`], more than 1,000 files or 32 levels, a file over 1 MB, and more than
+/// 10 MB in all.
 pub fn validate(entries: &[TreeEntry]) -> Result<Vec<bool>, String> {
     if entries.len() > MAX_FILES {
         return Err(format!(
@@ -806,6 +811,12 @@ pub fn validate(entries: &[TreeEntry]) -> Result<Vec<bool>, String> {
         });
         if !safe {
             return Err(format!("the path {} is not allowed", printable(path)));
+        }
+        if parts.first() == Some(&LOCAL) {
+            return Err(format!(
+                "{} is in `{LOCAL}/`, which holds the project's own files",
+                printable(path)
+            ));
         }
         if parts.len() > MAX_DEPTH {
             return Err(format!(
