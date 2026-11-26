@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "bun metrics/build.ts"
+    "build": "bun .agents/uphill/metrics/build.ts"
   },
   "devDependencies": {
     "chrome-launcher": "1.2.3",

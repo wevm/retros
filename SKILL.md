@@ -1,6 +1,6 @@
 ---
 name: uphill
-description: Uphill is continuous metrics and hill climbing. It scores a project against its own targets and names the fixes worth the most points. Use when creating metrics and targets for a project, or when writing or reviewing `uphill.yaml`, `uphill.baseline.yaml`, or the scripts in `.agents/metrics/`.
+description: Uphill is continuous metrics and hill climbing. It scores a project against its own targets and names the fixes worth the most points. Use when creating metrics and targets for a project, or when writing or reviewing `uphill.yaml`, `uphill.baseline.yaml`, or the scripts in `.agents/uphill/metrics/`.
 ---
 
 # Uphill
@@ -37,7 +37,7 @@ A target is a requirement that the project must meet, not a record of where the 
 # uphill.yaml: the parser takes 1.2 ms now, so `poor` keeps each improvement visible on the way to
 # the target in the baseline file.
 speed:
-  run: bun .agents/metrics/speed.ts
+  run: bun .agents/uphill/metrics/speed.ts
   # Median time to parse each fixture, measured by the benchmark harness. The target is a tenth
   # of the time the parser took on 2026-11-25, near the time to read the bytes once.
   parse-time: { poor: 1ms }

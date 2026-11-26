@@ -10,14 +10,14 @@ Scripts can use any language. Uphill runs each `run` command through `sh -c` fro
 
 #### Shell
 
-```yaml title="uphill.yaml"
+```yaml title=".agents/uphill/uphill.yaml"
 # Run the script with sh.
 pages:
-  run: sh metrics/pages.sh
+  run: sh .agents/uphill/metrics/pages.sh
   page-size: {}
 ```
 
-```sh title="metrics/pages.sh"
+```sh title=".agents/uphill/metrics/pages.sh"
 # Write the size of each built page as one item of page-size.
 for page in dist/*; do
   echo "page-size ${page#dist/} $(wc -c < "$page")B" >> "$UPHILL_METRICS"
@@ -26,14 +26,14 @@ done
 
 #### TypeScript
 
-```yaml title="uphill.yaml"
+```yaml title=".agents/uphill/uphill.yaml"
 # Run the script with Bun, which runs TypeScript without a build step.
 pages:
-  run: bun metrics/pages.ts
+  run: bun .agents/uphill/metrics/pages.ts
   page-size: {}
 ```
 
-```ts title="metrics/pages.ts"
+```ts title=".agents/uphill/metrics/pages.ts"
 // Write the size of each built page as one item of page-size.
 import * as fs from 'node:fs'
 
@@ -45,7 +45,7 @@ for (const name of fs.readdirSync('dist')) {
 
 #### Rust
 
-```yaml title="uphill.yaml"
+```yaml title=".agents/uphill/uphill.yaml"
 # Run the script as a Cargo example.
 pages:
   run: cargo run --quiet --example pages
@@ -78,15 +78,15 @@ This walkthrough measures a static site in `dist/`. One script writes the size o
 
 The `pages` category lists both metrics. The baseline file gives `page-size` a target, so each page scores against 20 kB. `has-title` writes checks, which need no target: a list of checks scores the share of items that pass.
 
-```yaml title="uphill.yaml"
+```yaml title=".agents/uphill/uphill.yaml"
 # The pages category runs one script, which writes two metrics per page.
 pages:
-  run: sh metrics/pages.sh
+  run: sh .agents/uphill/metrics/pages.sh
   page-size: {}
   has-title: {}
 ```
 
-```yaml title="uphill.baseline.yaml"
+```yaml title=".agents/uphill/uphill.baseline.yaml"
 # Each page scores against 20 kB.
 pages:
   page-size: { target: 20kB }
@@ -96,7 +96,7 @@ pages:
 
 Each line names the metric, then the item, then the value. A size takes a unit, and a check is `pass` or `fail`. A line can end with a note that says why the value is what it is.
 
-```sh title="metrics/pages.sh"
+```sh title=".agents/uphill/metrics/pages.sh"
 # Write each page's size, and whether it has a <title>.
 for page in dist/*.html; do
   name=${page#dist/}
@@ -167,7 +167,7 @@ links "blog/first post.html" pass
 
 When a script's first run writes a time, Uphill runs it 5 times and scores the median of each timing. Sizes, counts, and checks come from the first run, unless the metric sets `varies: true`. A script needs no repeat loop of its own.
 
-```ts title="metrics/speed.ts"
+```ts title=".agents/uphill/metrics/speed.ts"
 // Time one import of the built entry point. Uphill repeats the script and takes the median.
 import * as fs from 'node:fs'
 
@@ -208,7 +208,7 @@ $ uphill
 
 A top-level `run` applies to each category that sets none, and categories with the same `run` share one execution. Each line goes to the category that lists its metric.
 
-```yaml title="uphill.yaml"
+```yaml title=".agents/uphill/uphill.yaml"
 # Both categories read the lines of one run of bench.sh.
 run: sh bench.sh
 
@@ -233,10 +233,10 @@ $ uphill
 
 A script may run for 10 minutes by default. The `timeout` key changes the limit for one category, or for every category at the top level. When the limit passes, Uphill stops the script and every process it started.
 
-```yaml title="uphill.yaml"
+```yaml title=".agents/uphill/uphill.yaml"
 # Give the end-to-end suite 30 minutes.
 e2e:
-  run: sh metrics/e2e.sh
+  run: sh .agents/uphill/metrics/e2e.sh
   timeout: 30m
   passed: {}
 ```

@@ -4,14 +4,14 @@
 # answering 400.
 
 footprint:
-  run: bun metrics/footprint.ts
+  run: bun .agents/uphill/metrics/footprint.ts
   # Bytes of the stripped release binary.
   binary-size: {}
   # Third-party crates the binary compiles.
   dependencies: {}
 
 latency:
-  run: bun metrics/latency.ts
+  run: bun .agents/uphill/metrics/latency.ts
   timeout: 2m
   # Median time per request of each endpoint. The script sets each endpoint's target from the work
   # it does, from 500 µs for `/health` to 2 ms for the forecast.
@@ -22,7 +22,7 @@ latency:
   throughput: { better: higher }
 
 reliability:
-  run: bun metrics/reliability.ts
+  run: bun .agents/uphill/metrics/reliability.ts
   # Whether each request gets the status it should.
   status: {}
   # Whether a request that is not HTTP gets 400.
@@ -34,7 +34,7 @@ reliability:
 
 # The rust pack's `testing` merges with this one.
 testing:
-  run: bun metrics/tests.ts
+  run: bun .agents/uphill/metrics/tests.ts
   # Whether each test passes in `cargo test`.
   passing: {}
 

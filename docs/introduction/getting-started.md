@@ -15,10 +15,10 @@ curl -fsSL https://raw.githubusercontent.com/wevm/uphill/main/install.sh | sh
 
 A category groups metrics that one script measures. `uphill.yaml` declares each category, its `run` command, and its metrics. Uphill reads it from the project root or from `.agents/`.
 
-```yaml title=".agents/uphill.yaml"
+```yaml title=".agents/uphill/uphill.yaml"
 # The footprint category runs one script, which writes the bundle-size metric.
 footprint:
-  run: sh .agents/metrics/footprint.sh
+  run: sh .agents/uphill/metrics/footprint.sh
   bundle-size: {}
 ```
 
@@ -26,7 +26,7 @@ footprint:
 
 A target is the value that scores 90. Targets live in the baseline file beside the configuration, `uphill.baseline.yaml`, so the configuration stays short.
 
-```yaml title=".agents/uphill.baseline.yaml"
+```yaml title=".agents/uphill/uphill.baseline.yaml"
 # The bundle scores 90 at 5 kB.
 footprint:
   bundle-size: { target: 5kB }
@@ -36,7 +36,7 @@ footprint:
 
 A script measures with the tools the project already uses. It appends one metric line per measurement to the file at `$UPHILL_METRICS`. Standard output and standard error are logs.
 
-```sh title=".agents/metrics/footprint.sh"
+```sh title=".agents/uphill/metrics/footprint.sh"
 # Measure the gzipped bundle and write one metric line.
 echo "bundle-size $(gzip -c dist/index.js | wc -c)B" >> "$UPHILL_METRICS"
 ```
@@ -75,7 +75,7 @@ Each run writes three reports to `.uphill/` in the project root. `report.html` i
 
 `uphill --update` writes each metric's accepted value to `uphill.baseline.yaml`, beside its target. Commit both files, and every later run reports what changed since then.
 
-```yaml title=".agents/uphill.baseline.yaml"
+```yaml title=".agents/uphill/uphill.baseline.yaml"
 # uphill --update wrote the accepted value beside the target.
 footprint:
   bundle-size: { baseline: 6.9kB, target: 5kB }

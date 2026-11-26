@@ -55,7 +55,7 @@ Scripts run the tools the project already uses, so the job installs them before 
       - run: bun install --frozen-lockfile
 ```
 
-```yaml title="uphill.yaml"
+```yaml title=".agents/uphill/uphill.yaml"
 # Install packages in the base branch's worktree too.
 setup: bun install --frozen-lockfile
 ```

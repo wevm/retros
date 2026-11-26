@@ -10,7 +10,7 @@ import * as path from 'node:path'
 
 import * as mitata from 'mitata'
 
-import * as formatters from '../src/index.js'
+import * as formatters from '../../../src/index.js'
 
 const now = new Date('2026-11-22T12:00:00Z')
 

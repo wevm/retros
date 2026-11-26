@@ -8,7 +8,7 @@
 setup: bun install --frozen-lockfile
 
 performance:
-  run: bun metrics/lighthouse.ts performance
+  run: bun .agents/uphill/metrics/lighthouse.ts performance
   # Lighthouse's five metrics on each page, with Lighthouse's weights. The pages weigh a few
   # kilobytes, so the targets are stricter than Lighthouse's. The landing page loads a hero image.
   first-contentful-paint: { weight: 10 }
@@ -21,7 +21,7 @@ performance:
 
 seo:
   title: SEO
-  run: bun metrics/lighthouse.ts seo
+  run: bun .agents/uphill/metrics/lighthouse.ts seo
   audits: {}
 
 # Accessibility, best practices, focus and motion styles, and asset sizes, from the site that

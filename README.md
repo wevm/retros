@@ -34,20 +34,20 @@ Most projects track their numbers in one-off scripts and CI checks that pass or 
 Uphill turns every metric into a score and every gap into a next step. Scripts measure with the tools the project already uses. Each run shows where the project stands, so a person or an agent can climb toward the targets one fix at a time.
 
 ```yaml
-# 1. .agents/uphill.yaml: the footprint category, its script, and its metric.
+# 1. .agents/uphill/uphill.yaml: the footprint category, its script, and its metric.
 footprint:
-  run: sh .agents/metrics/footprint.sh
+  run: sh .agents/uphill/metrics/footprint.sh
   bundle-size: {}
 ```
 
 ```yaml
-# 2. .agents/uphill.baseline.yaml: the metric's target, and later its accepted value.
+# 2. .agents/uphill/uphill.baseline.yaml: the metric's target, and later its accepted value.
 footprint:
   bundle-size: { target: 5kB }
 ```
 
 ```sh
-# 3. .agents/metrics/footprint.sh: measure the gzipped bundle and write one metric line.
+# 3. .agents/uphill/metrics/footprint.sh: measure the gzipped bundle and write one metric line.
 echo "bundle-size $(gzip -c dist/index.js | wc -c)B" >> "$UPHILL_METRICS"
 ```
 
@@ -106,7 +106,7 @@ See [Packs](docs/guides/packs.md) to override targets, pick categories, and writ
 
 ## Usage
 
-Uphill reads `uphill.yaml` or `uphill.toml`, at the project root or in `.agents/`, from the current directory or the nearest parent. Scripts run from the project root. Add `.uphill/` to `.gitignore`.
+Uphill reads `uphill.yaml` or `uphill.toml` in `.agents/uphill/`, in `.agents/`, or at the project root, from the current directory or the nearest parent. Scripts run from the project root. Add `.uphill/` to `.gitignore`.
 
 ```sh
 # Score every category, list opportunities, and compare with each metric's baseline.

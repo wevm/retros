@@ -36,7 +36,7 @@ pub(crate) fn run() -> ExitCode {
 
     let mut example = match closest(&cwd) {
         Some((name, kind, pack)) => format!(
-            "The closest example is {kind}: {EXAMPLES}/{name}. Read its `uphill.yaml` and `metrics/` before writing anything. `uphill add wevm/uphill/packs/{pack}@main` adds the `{pack}` pack of conventions, pinned to a commit."
+            "The closest example is {kind}: {EXAMPLES}/{name}. Read its `.agents/uphill/uphill.yaml` and `.agents/uphill/metrics/` before writing anything. `uphill add wevm/uphill/packs/{pack}@main` adds the `{pack}` pack of conventions, pinned to a commit."
         ),
         None => format!(
             "Read the closest example before writing anything: a TypeScript library ({EXAMPLES}/typescript-library), a website ({EXAMPLES}/web-app), or a Rust API ({EXAMPLES}/rust-api)."

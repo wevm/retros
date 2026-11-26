@@ -8,7 +8,7 @@
 setup: bun install --frozen-lockfile
 
 footprint:
-  run: bun metrics/footprint.ts
+  run: bun .agents/uphill/metrics/footprint.ts
   # Bytes of every file the package publishes.
   install-size: {}
   # Runtime dependencies in package.json.
@@ -26,7 +26,7 @@ footprint:
   exports: {}
 
 speed:
-  run: bun metrics/speed.ts
+  run: bun .agents/uphill/metrics/speed.ts
   # Time to import each entry point in a fresh process. The root loads every module.
   import-time: {}
   # Median time per call of each formatter, measured by mitata. Formatters that call `Intl` get
@@ -35,7 +35,7 @@ speed:
 
 # The pack's `testing` and `correctness` merge with these. Both categories read one run of the script.
 testing:
-  run: bun metrics/quality.ts
+  run: bun .agents/uphill/metrics/quality.ts
   # Whether each test passes in `bun test`.
   tests: {}
   # Percentage of lines tests cover in each source file. Higher is better, so the least covered file
@@ -43,7 +43,7 @@ testing:
   coverage: { better: higher }
 
 correctness:
-  run: bun metrics/quality.ts
+  run: bun .agents/uphill/metrics/quality.ts
   # Whether each entry point in package.json imports.
   exports-resolve: {}
 

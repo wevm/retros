@@ -21,18 +21,18 @@ This walkthrough times a `slugify` function in a Git repository. A branch adds a
 
 The script times 100,000 calls and writes the time per call. A second category writes the size of the source, and its baseline is committed on `main`.
 
-```yaml title="uphill.yaml"
+```yaml title=".agents/uphill/uphill.yaml"
 # One category writes a size, and one writes a time.
 footprint:
-  run: sh metrics/footprint.sh
+  run: sh .agents/uphill/metrics/footprint.sh
   source-size: {}
 
 speed:
-  run: bun metrics/speed.ts
+  run: bun .agents/uphill/metrics/speed.ts
   slugify-time: {}
 ```
 
-```yaml title="uphill.baseline.yaml"
+```yaml title=".agents/uphill/uphill.baseline.yaml"
 # The size has a baseline beside its target, and the time has only its target.
 footprint:
   source-size: { baseline: 138B, target: 1kB }
@@ -41,7 +41,7 @@ speed:
   slugify-time: { target: 500ns }
 ```
 
-```ts title="metrics/speed.ts"
+```ts title=".agents/uphill/metrics/speed.ts"
 // Time 100,000 calls to slugify, and write the time per call.
 import * as fs from 'node:fs'
 import { slugify } from '../src/slugify.ts'
@@ -113,12 +113,12 @@ No changes against normalize (fd268f9)
 
 A new worktree has only the files Git tracks. A top-level `setup` command, such as a package install, runs once in each worktree that `--compare` or `uphill blame` creates, before any script. The current checkout is assumed ready. A failed setup stops the run with status 2.
 
-```yaml title="uphill.yaml"
+```yaml title=".agents/uphill/uphill.yaml"
 # Install packages in each worktree that Uphill creates.
 setup: bun install --frozen-lockfile
 
 speed:
-  run: bun metrics/speed.ts
+  run: bun .agents/uphill/metrics/speed.ts
   slugify-time: {}
 ```
 

@@ -8,7 +8,7 @@ A baseline is the last accepted value of a metric. Uphill compares every run wit
 
 Baselines hold sizes, counts, and checks. These are the same on every machine. Timings differ between machines, so a baseline never holds them, and a timing keeps only its target. The [Comparing Revisions](./comparing.md) guide compares timings instead.
 
-```yaml title="uphill.baseline.yaml"
+```yaml title=".agents/uphill/uphill.baseline.yaml"
 # The accepted value and the target, side by side.
 footprint:
   bundle-size: { baseline: 6.9kB, target: 5kB }
@@ -28,7 +28,7 @@ $ uphill --update
 Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html, uphill.baseline.yaml
 ```
 
-```yaml title="uphill.baseline.yaml"
+```yaml title=".agents/uphill/uphill.baseline.yaml"
 # The pages category writes two metrics per page. Each page size scores against 20 kB, and
 # every page but one has a title.
 pages:
@@ -71,7 +71,7 @@ $ uphill --require-baseline
 
 `uphill --update` accepts the run. The diff of the baseline file shows each accepted change on its own line, and the next run with `--require-baseline` passes.
 
-```diff title="uphill.baseline.yaml"
+```diff title=".agents/uphill/uphill.baseline.yaml"
    page-size:
      "*": { target: 20kB }
      about.html: { baseline: 9015B }
@@ -90,7 +90,7 @@ $ uphill --require-baseline
 
 An item without its own target takes the target its script writes on the line, and `uphill --update` records it. Until then, the run reports it as looser or tighter than the pattern or default it replaces. Afterwards, the file's target has the final say.
 
-```yaml title="uphill.baseline.yaml"
+```yaml title=".agents/uphill/uphill.baseline.yaml"
 # The chains entry point wrote a 15 kB target on its line, and the update recorded it.
 footprint:
   entry-size:
@@ -110,14 +110,14 @@ A size or count that differs between runs, such as peak memory, sets `varies: tr
 
 A check that varies records nothing. A check of each recent commit is one: each new commit adds an item, so a baseline of its items would differ after every commit.
 
-```yaml title="uphill.yaml"
+```yaml title=".agents/uphill/uphill.yaml"
 # Peak memory is scored on the median of 5 rounds. The commit checks score each run, and the
 # baseline file records none of their items.
 speed:
-  run: sh metrics/speed.sh
+  run: sh .agents/uphill/metrics/speed.sh
   peak-memory: { varies: true }
 commits:
-  run: sh metrics/commits.sh
+  run: sh .agents/uphill/metrics/commits.sh
   commit-type: { varies: true }
 ```
 
@@ -127,7 +127,7 @@ A list of checks records its most common check as the default record, `*`, and o
 
 Files from earlier versions list the check of every item. Uphill still reads them, and the next `uphill --update` rewrites each list with its default record.
 
-```diff title="uphill.baseline.yaml"
+```diff title=".agents/uphill/uphill.baseline.yaml"
  # The update replaces the passing items with the default record.
  style:
    lint:
@@ -141,7 +141,7 @@ Files from earlier versions list the check of every item. Uphill still reads the
 
 A project with `uphill.toml` gets `uphill.baseline.toml`. A metric with items takes a table of its own, one line per item.
 
-```toml title="uphill.baseline.toml"
+```toml title=".agents/uphill/uphill.baseline.toml"
 # The baseline file beside uphill.toml.
 [footprint.entry-size]
 "*" = { target = "5kB" }
@@ -153,14 +153,14 @@ index = { baseline = "6112B" }
 
 Older configurations set `target`, `targets`, and `baseline` keys on each metric. Uphill still reads them, and `uphill --update` moves every one into the baseline file and removes the key, keeping the rest of the configuration as it was.
 
-```diff title="uphill.yaml"
+```diff title=".agents/uphill/uphill.yaml"
  footprint:
-   run: sh metrics/footprint.sh
+   run: sh .agents/uphill/metrics/footprint.sh
 -  bundle-size: { target: 5kB, baseline: 6.9kB }
 +  bundle-size: {}
 ```
 
-```yaml title="uphill.baseline.yaml"
+```yaml title=".agents/uphill/uphill.baseline.yaml"
 # The update writes the moved target beside the new value.
 footprint:
   bundle-size: { baseline: 7.1kB, target: 5kB }

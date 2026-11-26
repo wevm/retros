@@ -46,10 +46,10 @@ Add this pack? [y/N]
 
 The entry pins the full commit, and the comment names the ref that `uphill update` follows. The pack has a `package.json`, so the entry approves its install with `install: true`.
 
-```yaml title="uphill.yaml"
+```yaml title=".agents/uphill/uphill.yaml"
 # The project's own category stays as it was.
 footprint:
-  run: bun metrics/footprint.ts
+  run: bun .agents/uphill/metrics/footprint.ts
   bundle-size: {}
 
 packs:
@@ -86,7 +86,7 @@ uphill add ./packs/api
 
 Packs share categories in the manner of Lighthouse, such as `correctness`, `style`, `documentation`, and `testing`. Categories with the same name merge into one score, the weighted mean of every metric. Each pack's script runs once.
 
-```yaml title="uphill.yaml"
+```yaml title=".agents/uphill/uphill.yaml"
 # The rust and typescript packs both write `style`, so the report shows one Style score.
 packs:
   - wevm/uphill/packs/rust@94bd79a3bb8a413ff7080c08b2acec8b7c39e8ce # main
@@ -99,10 +99,10 @@ A metric that two packs declare in one category, such as `formatted`, is one met
 
 A project category with a pack category's name merges with it, in the project's place. Its new metrics run with its own `run` command. A key on a pack metric overrides that key, and `metric: false` drops the metric.
 
-```yaml title="uphill.yaml"
+```yaml title=".agents/uphill/uphill.yaml"
 # The project's test script joins the packs' `testing` category.
 testing:
-  run: bun metrics/tests.ts
+  run: bun .agents/uphill/metrics/tests.ts
   passing: {}
   # Weigh the packs' inline snapshot check more, and drop their snapshot file check.
   inline-snapshots: { weight: 3 }
@@ -113,7 +113,7 @@ testing:
 
 Names after the pack limit the entry to those categories.
 
-```yaml title="uphill.yaml"
+```yaml title=".agents/uphill/uphill.yaml"
 packs:
   # Run only the pack's `style` and `documentation` categories.
   - { pack: wevm/uphill/packs/typescript@94bd79a3bb8a413ff7080c08b2acec8b7c39e8ce, categories: [style, documentation], install: true } # main
@@ -165,7 +165,7 @@ Each pinned commit lives in `$XDG_CACHE_HOME/uphill/packs/`, or `~/.cache/uphill
 
 The top-level `allowed-packs` key lists patterns that every remote pack must match. A `*` matches any characters. `uphill add`, `uphill update`, and every run reject a pack that no pattern matches.
 
-```yaml title="uphill.yaml"
+```yaml title=".agents/uphill/uphill.yaml"
 # Only packs from the wevm organization.
 allowed-packs: [wevm/*]
 ```

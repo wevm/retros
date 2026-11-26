@@ -1,6 +1,6 @@
 # Examples
 
-Each example is a small project with an `uphill.yaml` and the scripts it runs. Uphill reads `uphill.toml` the same way. The scripts are TypeScript run by [Bun](https://bun.sh). They run the tools each project already uses and turn what those tools report into metric lines.
+Each example is a small project with `.agents/uphill/uphill.yaml` and the scripts it runs in `.agents/uphill/metrics/`. Uphill reads `uphill.toml` the same way. The scripts are TypeScript run by [Bun](https://bun.sh). They run the tools each project already uses and turn what those tools report into metric lines.
 
 Every example misses a few targets on purpose, so its report shows how misses, opportunities, and contextual targets read.
 
@@ -19,7 +19,7 @@ uphill
 
 Copy the categories and scripts that fit into another project, and read the example's `README.md`, which says what to fit. The packs in [`packs/`](../packs) measure common conventions without a copy.
 
-Each example keeps its targets in `uphill.baseline.yaml`. A record with only a target, such as `binary-size: { target: 1MB }`, is the default for every item. A script can write its own target on a line, such as `latency /health 0.29ms target 500µs`, when it knows the context. A pattern such as `"viem/chains/*": { target: 1kB }`, or an item's own target such as `index.html: { target: 8kB }`, overrides the line. `uphill --update` writes each item's accepted value as its `baseline`, beside the `target` it scored against.
+Each example keeps its targets in `.agents/uphill/uphill.baseline.yaml`. A record with only a target, such as `binary-size: { target: 1MB }`, is the default for every item. A script can write its own target on a line, such as `latency /health 0.29ms target 500µs`, when it knows the context. A pattern such as `"viem/chains/*": { target: 1kB }`, or an item's own target such as `index.html: { target: 8kB }`, overrides the line. `uphill --update` writes each item's accepted value as its `baseline`, beside the `target` it scored against.
 
 The web app needs Chrome. Lighthouse finds an installed Chrome, or the one at `CHROME_PATH`. Its performance category writes times, so Uphill runs it 5 times, and a full run takes about 3 minutes.
 
