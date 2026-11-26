@@ -343,7 +343,7 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
         // An older configuration's `target`, `targets`, and `baseline` keys move into the
         // baseline file.
         let name = &project.name;
-        let stripped = baseline::strip(&project.source, project.format)
+        let stripped = baseline::strip(&project.source, project.format, &project.packs)
             .map_err(|error| crate::diagnostic("error", &error, name, &project.source))?;
         let updated = baseline::write(&project.config, &report, project.format);
         let sidecar = &project.baselines_name;

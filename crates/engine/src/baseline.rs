@@ -47,6 +47,7 @@ use crate::document::{self, Kind as NodeKind, Node};
 use crate::edit;
 use crate::error::{Code, Error, Location};
 use crate::format::{SIZES, TIMES};
+use crate::pack::Pack;
 use crate::report::{CategoryReport, Report};
 use crate::score::MetricScore;
 use crate::value::{self, Kind, Value};
@@ -576,14 +577,35 @@ pub(crate) fn quoted(text: &str) -> String {
 }
 
 /// Returns the configuration `source` without the `target`, `targets`, and `baseline` keys that
-/// older configurations set, or `source` itself when it sets none.
+/// older configurations set, or `source` itself when it sets none. `source` composes with
+/// `packs`, so a project category that overrides a pack's category, such as with `metric: false`,
+/// parses as it does in a run.
 ///
 /// # Errors
 ///
 /// Returns an error when `source` does not parse, or when one of those keys has a form that Uphill
 /// cannot remove, such as a TOML baseline in a table of its own.
-pub fn strip(source: &str, format: Format) -> Result<String, Error> {
-    let config = config::parse(source, format)?;
+pub fn strip(source: &str, format: Format, packs: &[Pack]) -> Result<String, Error> {
+    // A pack's targets come from its own baseline file, so the packs compose without them and
+    // only the keys that `source` sets move.
+    let packs: Vec<Pack> = packs
+        .iter()
+        .cloned()
+        .map(|mut pack| {
+            for metric in pack
+                .config
+                .categories
+                .iter_mut()
+                .flat_map(|c| &mut c.metrics)
+            {
+                metric.baseline = None;
+                metric.target = None;
+                metric.targets.clear();
+            }
+            pack
+        })
+        .collect();
+    let config = config::compose(source, format, &packs)?;
     let inline: Vec<(&str, &str)> = config
         .categories
         .iter()
@@ -613,7 +635,9 @@ pub fn strip(source: &str, format: Format) -> Result<String, Error> {
         metric.target = None;
         metric.targets.clear();
     }
-    let written = config::parse(&stripped, format).ok().map(without_locations);
+    let written = config::compose(&stripped, format, &packs)
+        .ok()
+        .map(without_locations);
     if written.as_ref() == Some(&expected) {
         return Ok(stripped);
     }

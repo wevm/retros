@@ -2251,6 +2251,29 @@ fn packs_merge_categories_with_the_same_name() {
     1 passed, 1 failed
     ");
 
+    // `--update` reads the packs, so a project category that drops a pack's metric still parses.
+    write(
+        "uphill.yaml",
+        "packs:\n  - ./packs/a\nstyle:\n  long-lines: false\n",
+    );
+    let output = uphill_in(dir.path(), &["--update", "--compact"], &[]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(stdout(&output), @"
+    style 50, docs 100
+
+    Missed targets
+      style  formatted b.rs  fail
+
+    Opportunities
+      +50  style  formatted b.rs  fail → pass
+
+    Since the baseline
+      new  style  formatted
+      new  docs   module-docs
+
+    Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html, uphill.baseline.yaml
+    ");
+
     // A project category that only adjusts a pack's metrics cannot replace its script.
     write(
         "uphill.yaml",

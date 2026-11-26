@@ -40,6 +40,8 @@ pub(crate) struct Project {
     /// The path of the configuration relative to the current directory, such as
     /// `../.agents/uphill.yaml`.
     pub(crate) name: String,
+    /// The packs that the configuration lists, in its order.
+    pub(crate) packs: Vec<Pack>,
     /// The path of the configuration.
     pub(crate) path: PathBuf,
     /// The path of the root relative to the current directory, such as `../`, or empty.
@@ -104,6 +106,7 @@ pub(crate) fn find(cwd: &Path) -> Result<Project, String> {
         format,
         installs,
         name,
+        packs,
         path: root.join(place),
         prefix,
         root: root.to_owned(),
