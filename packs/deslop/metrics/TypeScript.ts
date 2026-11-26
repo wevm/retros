@@ -1,4 +1,5 @@
 /** @module Resolves TypeScript imports, calls and field receivers to their declarations. */
+import * as module from 'node:module'
 import * as path from 'node:path'
 import * as ts from 'typescript'
 
@@ -68,9 +69,15 @@ export function analyze(files: readonly string[]) {
         else {
           const symbol = checker.getSymbolAtLocation(specifier)
           const target = symbol?.declarations?.find(ts.isSourceFile)
-          if (!target)
+          // A runtime built-in, or a module that only an ambient `declare module` types, is
+          // outside the project, so it adds no edge whether or not its types are installed.
+          const external =
+            module.isBuiltin(specifier.text) ||
+            /^(bun|deno):/.test(specifier.text) ||
+            symbol?.declarations?.some(ts.isModuleDeclaration)
+          if (!external && !target)
             incomplete ??= `unresolved module ${specifier.text} at ${location}`
-          else {
+          else if (target) {
             const to = path.relative('.', target.fileName)
             if (edges.has(to) && file !== to) edges.get(file)!.add(to)
           }

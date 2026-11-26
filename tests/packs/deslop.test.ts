@@ -77,6 +77,8 @@ test('source graphs include real edges but exclude inert source text', () =>
       'b.h': '#include "a.h"',
       'a.ts': `import './b.js'; export {}`,
       'b.ts': `export const text = "import './a.js'"`,
+      // A runtime built-in is outside the project, so the program stays complete without its types.
+      'c.ts': `import * as fs from 'node:fs'; export const read = fs.readFileSync`,
       'a.zig': 'const b = @import( // local module\n "b.zig");',
       'b.zig': '// @import("a.zig")',
       'A.swift': 'func first() -> Int { second() }',
@@ -95,7 +97,7 @@ test('source graphs include real edges but exclude inert source text', () =>
       'B.swift',
     ]
     const clean = measure(cwd, 0)
-    for (const file of items)
+    for (const file of [...items, 'c.ts'])
       assert.equal(clean.item('module-cycle', file).value, true, file)
 
     write(cwd, {
