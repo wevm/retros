@@ -738,26 +738,24 @@ fn baselines_record_targets_and_gate_every_change() {
       export-size:
         "*": { target: 5kB }
         viem: { baseline: 1kB, target: 2kB }
-        viem/accounts: { baseline: 2kB, target: 5kB }
-        viem/actions: { baseline: 3kB, target: 5kB }
-        viem/chains: { baseline: 10kB, target: 5kB }
-        viem/ens: { baseline: 4kB, target: 5kB }
-        viem/op-stack: { baseline: 9kB, target: 5kB }
-        viem/siwe: { baseline: 5kB, target: 5kB }
-        viem/utils: { baseline: 8kB, target: 5kB }
-        viem/window: { baseline: 6kB, target: 5kB }
-        viem/zksync: { baseline: 7kB, target: 5kB }
+        viem/accounts: { baseline: 2kB }
+        viem/actions: { baseline: 3kB }
+        viem/chains: { baseline: 10kB }
+        viem/ens: { baseline: 4kB }
+        viem/op-stack: { baseline: 9kB }
+        viem/siwe: { baseline: 5kB }
+        viem/utils: { baseline: 8kB }
+        viem/window: { baseline: 6kB }
+        viem/zksync: { baseline: 7kB }
       modules: { baseline: 412 }
       links:
+        "*": { baseline: pass }
         about.html: { baseline: fail }
-        "blog/first post.html": { baseline: pass }
-        index.html: { baseline: pass }
 
     speed:
       render:
         "*": { target: 2ms }
         encode: { target: 3ms }
-        parse: { target: 2ms }
       throughput: { baseline: 2588, target: 2000 }
     "#);
 
@@ -811,15 +809,22 @@ Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
     );
     edit(
         "uphill.baseline.yaml",
-        "    viem/chains: { baseline: 10kB, target: 5kB }\n",
+        "    viem/chains: { baseline: 10kB }\n",
         "    viem/chains: { baseline: 10kB, target: 15kB }\n",
+    );
+    // A new link that passes matches the default record, so only the new failing link changes.
+    // A passing link that is gone leaves no record to compare with.
+    edit(
+        "footprint.sh",
+        "links index.html pass\n",
+        "links contact.html pass\nlinks team.html fail\n",
     );
     let baselines = fs::read_to_string(project.path().join("uphill.baseline.yaml")).unwrap();
     let gated = uphill_in(project.path(), &["footprint", "--require-baseline"], &[]);
 
     assert_eq!(gated.status.code(), Some(1));
     insta::assert_snapshot!(stdout(&gated), @"
-    ■  56  footprint
+    ▲  48  footprint
       ▲   3  bundle       27.5 kB                target 5 kB
                           includes all of lodash
       ■  66  export-size  p90 8 kB (viem/utils)  target 5 kB
@@ -827,21 +832,24 @@ Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
                           8 kB  viem/utils
                           7 kB  viem/zksync
           –  modules      412
-      ● 100  links        3 of 3 pass
+      ■  75  links        3 of 4 pass
+                          fail  team.html
 
     Opportunities
       +29  footprint  bundle                     27.5 kB → 5 kB
+      +8   footprint  links team.html            fail → pass
       +3   footprint  export-size viem/op-stack  9 kB → 5 kB
       +3   footprint  export-size viem/utils     8 kB → 5 kB
 
     Since the baseline
       worse  footprint  export-size viem/chains  10 kB → 12 kB
+      worse  footprint  links team.html          pass → fail
       new    footprint  export-size viem/tempo   4 kB
       gone   footprint  export-size viem/window  6 kB
 
     Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
 
-    3 changes since the baseline. Run `uphill --update` to accept them
+    4 changes since the baseline. Run `uphill --update` to accept them
     ");
 
     // Accepting the changes rewrites only the lines of the items that changed.
@@ -853,14 +861,126 @@ Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
             "    viem/chains: { baseline: 12kB, target: 15kB }\n",
         )
         .replace(
-            "    viem/siwe: { baseline: 5kB, target: 5kB }\n",
-            "    viem/siwe: { baseline: 5kB, target: 5kB }\n    viem/tempo: { baseline: 4kB, target: 5kB }\n",
+            "    viem/siwe: { baseline: 5kB }\n",
+            "    viem/siwe: { baseline: 5kB }\n    viem/tempo: { baseline: 4kB }\n",
         )
-        .replace("    viem/window: { baseline: 6kB, target: 5kB }\n", "");
+        .replace("    viem/window: { baseline: 6kB }\n", "")
+        .replace(
+            "    \"*\": { baseline: pass }\n",
+            "    \"*\": { baseline: pass }\n    team.html: { baseline: fail }\n",
+        );
     assert_eq!(
         fs::read_to_string(project.path().join("uphill.baseline.yaml")).unwrap(),
         expected
     );
+}
+
+#[test]
+fn checks_record_a_default_and_read_the_older_format() {
+    let project = repository("checks");
+    let dir = project.path();
+    let commit_on = |date: &str, title: &str| {
+        git(dir, &["add", "-A"]);
+        git(dir, &["commit", "-q", "-m", title, "--date", date]);
+    };
+    git(
+        dir,
+        &[
+            "commit",
+            "-q",
+            "--amend",
+            "-m",
+            "chore: list every check",
+            "--date",
+            "2026-01-01T12:00:00",
+        ],
+    );
+    let lines = |from: &str, to: &str| {
+        let text = fs::read_to_string(dir.join("lines.txt")).unwrap();
+        assert!(text.contains(from), "lines.txt writes `{from}`");
+        fs::write(dir.join("lines.txt"), text.replace(from, to)).unwrap();
+    };
+
+    // The older format, with one record per item, gates the same checks.
+    let older = uphill_in(dir, &["--require-baseline"], &[]);
+    assert_eq!(older.status.code(), Some(0), "{}", stdout(&older));
+    // Checks that vary still run once, since a check has no median.
+    assert_eq!(fs::read_to_string(dir.join(".runs")).unwrap(), "run\n");
+    fs::remove_file(dir.join(".runs")).unwrap();
+
+    // A tie between `pass` and `skip` goes to `pass`, and the commits that vary record nothing.
+    let updated = uphill_in(dir, &["--update"], &[]);
+    assert_eq!(updated.status.code(), Some(0));
+    let baselines = fs::read_to_string(dir.join("uphill.baseline.yaml")).unwrap();
+    insta::assert_snapshot!(baselines, @r#"
+    # Each measurement's `baseline`, the size, count, or check `uphill --update` accepted, and its
+    # `target`. Edit a target here, and each run reports what changed since the baseline.
+
+    style:
+      lint:
+        "*": { baseline: pass }
+        c.ts: { baseline: fail }
+        d.ts: { baseline: skip }
+        e.ts: { baseline: skip }
+    "#);
+    commit_on("2026-01-02T12:00:00", "chore: record a default");
+
+    // A new item that passes matches the default, and a new commit records nothing. The older
+    // format at the previous commit has no default, so the new item is new there.
+    lines("lint b.ts pass\n", "lint b.ts pass\nlint f.ts pass\n");
+    lines(
+        "commits abc1234 pass",
+        "commits abc1234 pass\ncommits def5678 fail",
+    );
+    let gated = uphill_in(dir, &["--require-baseline"], &[]);
+    assert_eq!(gated.status.code(), Some(0), "{}", stdout(&gated));
+    for (revision, expected) in [
+        ("HEAD", "\nNo changes against "),
+        ("HEAD~1", "\n  new  style  lint f.ts  pass\n\n"),
+    ] {
+        let compared = uphill_in(dir, &["--compare", revision], &[]);
+        assert_eq!(compared.status.code(), Some(0));
+        assert!(
+            stdout(&compared).contains(expected),
+            "{}",
+            stdout(&compared)
+        );
+    }
+
+    // A new item that skips differs from the default, and so does a listed item that is gone.
+    lines("lint c.ts fail note \"uses any\"\n", "lint g.ts skip\n");
+    let changed = uphill_in(dir, &["--require-baseline"], &[]);
+    assert_eq!(changed.status.code(), Some(1));
+    let start = stdout(&changed).find("Since the baseline").unwrap();
+    insta::assert_snapshot!(stdout(&changed)[start..], @"
+    Since the baseline
+      gone  style  lint g.ts  pass → skip
+      gone  style  lint c.ts  fail
+
+    Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
+
+    2 changes since the baseline. Run `uphill --update` to accept them
+    ");
+
+    // The history of an item reads both formats, so the move to a default moves nothing.
+    lines("lint a.ts pass", "lint a.ts fail");
+    uphill_in(dir, &["--update"], &[]);
+    commit_on("2026-01-03T12:00:00", "feat: break a.ts");
+    let log = uphill_in(dir, &["log", "style", "lint", "a.ts"], &[]);
+    assert_eq!(log.status.code(), Some(0), "{}", stderr(&log));
+    let hashes = git(dir, &["log", "--reverse", "--format=%h"]);
+    let named = hashes
+        .lines()
+        .enumerate()
+        .fold(stdout(&log), |text, (index, hash)| {
+            text.replace(hash, &format!("commit{}", index + 1))
+        });
+    insta::assert_snapshot!(named, @"
+    style lint a.ts in the baselines of uphill.baseline.yaml
+
+      commit3  2026-01-03  fail  from pass  feat: break a.ts
+      commit1  2026-01-01  pass             chore: list every check
+    ");
 }
 
 #[test]
@@ -909,23 +1029,19 @@ fn subjects_share_one_run_and_score_on_their_own() {
     # `target`. Edit a target here, and each run reports what changed since the baseline.
 
     speed:
-      startup:
-        "*": { target: 30ms }
-        zc: { target: 30ms }
-        ts: { target: 30ms }
+      startup: { target: 30ms }
 
     footprint:
       turn-rss:
         "*": { target: 16MB }
-        zc: { target: 16MB }
         ts: { target: 57MB }
       install-size:
         "*": { target: 10MB }
-        zc: { baseline: 2MB, target: 10MB }
-        ts: { baseline: 4MB, target: 10MB }
+        zc: { baseline: 2MB }
+        ts: { baseline: 4MB }
       wasm-size:
         "*": { target: 350kB }
-        ts: { baseline: 250kB, target: 350kB }
+        ts: { baseline: 250kB }
     "#);
 
     let markdown = fs::read_to_string(project.path().join(".uphill/report.md")).unwrap();
@@ -2496,13 +2612,12 @@ fn update_writes_a_toml_baseline_file_and_moves_inline_baselines_into_it() {
 
     [footprint.export-size]
     "*" = { target = "5kB" }
-    viem = { baseline = "4.2kB", target = "5kB" }
-    "viem/chains" = { baseline = "61kB", target = "5kB" }
+    viem = { baseline = "4.2kB" }
+    "viem/chains" = { baseline = "61kB" }
 
     [speed.render]
     "*" = { target = "2ms" }
     "ABI*" = { target = "3ms" }
-    "ABI Decode (500 results)" = { target = "3ms" }
     encode = { target = "300µs" }
     "#);
 

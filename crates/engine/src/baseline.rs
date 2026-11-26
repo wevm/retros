@@ -7,13 +7,18 @@
 //! A metric without items records one baseline and its target. A metric with items records each
 //! item, sorted by name, with its baseline and its own target side by side. A category whose lines name
 //! subjects records each subject first, in the order the run wrote them. Timings and metrics that
-//! vary record only their targets, because their values differ between machines and runs.
+//! vary record only their targets, because their values differ between machines and runs, so a
+//! check that varies records nothing.
 //!
 //! A key with `*` and only a target is a pattern, which sets the target of each item without its
 //! own, and `*` alone is the default. An item's own target has the final say, then the first
 //! pattern that matches, then the target on its line, then the default. `uphill --update` writes
-//! the target each item scored against as its own, so a pattern or a line target applies to an
-//! item until the file holds one for it. Updating twice from the same code writes the same file.
+//! the target each item scored against as its own, unless it equals the pattern or default that
+//! applies without it. Updating twice from the same code writes the same file.
+//!
+//! The items of a check start with a default record, `*` with a `baseline`, which holds the check
+//! of each item without its own record. `uphill --update` writes the most common check there and
+//! lists only the items that differ from it.
 //!
 //! ```yaml
 //! footprint:
@@ -22,15 +27,19 @@
 //!   export-size:
 //!     "*": { target: 5kB }
 //!     "viem/chains/*": { target: 80kB }
-//!     viem: { baseline: 1kB, target: 5kB }
-//!     viem/chains: { baseline: 61kB, target: 80kB }
+//!     viem: { baseline: 1kB }
+//!     viem/chains: { baseline: 61kB, target: 70kB }
+//!   links:
+//!     "*": { baseline: pass }
+//!     about.html: { baseline: fail }
 //!
 //! speed:
 //!   import-time:
 //!     viem: { target: 20ms }
 //! ```
 //!
-//! Uphill still reads the short form of older files, such as `61kB target 80kB`.
+//! Uphill still reads the short form of older files, such as `61kB target 80kB`, and older files
+//! that list every check.
 //!
 //! Older configurations set each metric's `target`, `targets`, and `baseline` keys instead. Uphill
 //! still reads them, so older revisions compare and keep their history, and `uphill --update`
@@ -137,17 +146,49 @@ enum Entry {
 }
 
 impl Entry {
-    /// Returns the entry as the configuration writes it.
-    fn baseline(self) -> Baseline {
-        match self {
-            Self::Items(items) => Baseline::Map(
-                items
-                    .into_iter()
-                    .map(|(item, record)| (item, Baseline::Record(record)))
-                    .collect(),
-            ),
-            Self::Single(record) => Baseline::Record(record),
+    /// Returns the entry as the configuration writes it. With `compact`, the items of a check
+    /// start with a default record, `*`, that holds the most common check, and only the items
+    /// that differ from it follow. A tie goes to `pass`, then `skip`, then `fail`.
+    fn baseline(self, compact: bool) -> Baseline {
+        let mut items = match self {
+            Self::Items(items) => items,
+            Self::Single(record) => return Baseline::Record(record),
+        };
+
+        let checks = [Value::Check(true), Value::Skip, Value::Check(false)];
+        let count = |check: Value| {
+            items
+                .iter()
+                .filter(|(_, record)| *record == untargeted(check))
+                .count()
+        };
+        let common = checks
+            .into_iter()
+            .map(|check| (check, count(check)))
+            .filter(|(_, count)| *count > 0)
+            .reduce(|best, next| if next.1 > best.1 { next } else { best });
+        if compact && let Some((check, _)) = common {
+            items.retain(|(_, record)| *record != untargeted(check));
+            items.insert(0, (DEFAULT.to_owned(), untargeted(check)));
         }
+
+        Baseline::Map(
+            items
+                .into_iter()
+                .map(|(item, record)| (item, Baseline::Record(record)))
+                .collect(),
+        )
+    }
+}
+
+/// The key of the default record, which holds the check of each item without its own record.
+const DEFAULT: &str = "*";
+
+/// Returns the record of a value without a target.
+fn untargeted(value: Value) -> Record {
+    Record {
+        target: None,
+        value: Some(value),
     }
 }
 
@@ -385,14 +426,21 @@ fn targets(source: &str, node: &Node) -> Result<Targets, Error> {
             _ => None,
         };
         match pattern {
-            Some(target) if name == "*" => default = Some(target),
+            Some(target) if name == DEFAULT => default = Some(target),
             Some(target) => patterns.push(Pattern {
                 location: Location::of(source, key.offset),
                 pattern: name.to_owned(),
                 source: Source::Baselines,
                 target,
             }),
-            None => entries.push((name.to_owned(), parse_at(source, value, 1)?)),
+            None => {
+                let baseline = parse_at(source, value, 1)?;
+                // The default record of a check can hold the default target too.
+                if let (DEFAULT, Baseline::Record(record)) = (name, &baseline) {
+                    default = default.or(record.target);
+                }
+                entries.push((name.to_owned(), baseline));
+            }
         }
     }
 
@@ -408,7 +456,7 @@ fn targets(source: &str, node: &Node) -> Result<Targets, Error> {
 /// category that did not run or failed keeps its baselines, so updating twice from the same code
 /// writes the same file.
 pub fn write(config: &Config, report: &Report, format: Format) -> String {
-    render(&apply(config, &updates(config, report)), format)
+    render(&apply(config, &updates(config, report, true)), format)
 }
 
 /// Returns the baseline file that holds the targets and baselines of `config`, or an empty string
@@ -485,9 +533,19 @@ fn file_entry(metric: &Metric) -> Option<Baseline> {
                 .map(|p| (p.pattern.clone(), only(p.target))),
         )
         .filter(|(key, _)| !entries.iter().any(|(entry, _)| entry == key));
-    Some(Baseline::Map(
-        patterns.chain(entries.iter().cloned()).collect(),
-    ))
+
+    // The default record holds the default target, since one key cannot appear twice.
+    let entries = entries
+        .iter()
+        .cloned()
+        .map(|(key, baseline)| match baseline {
+            Baseline::Record(record) if key == DEFAULT => {
+                let target = record.target.or(metric.target);
+                (key, Baseline::Record(Record { target, ..record }))
+            }
+            baseline => (key, baseline),
+        });
+    Some(Baseline::Map(patterns.chain(entries).collect()))
 }
 
 /// Writes YAML entries, one per line at `indent` spaces: a record after its key, or a mapping on
@@ -663,13 +721,14 @@ fn moves(metric: &Metric) -> bool {
 }
 
 /// Returns `config` with the baselines a run records and no others, as a first `uphill --update`
-/// would write them.
+/// would write them, but with every item of a check listed, so an item that the other run no
+/// longer writes reports as gone.
 pub fn accepted(config: &Config, report: &Report) -> Config {
     let mut cleared = config.clone();
     for metric in cleared.categories.iter_mut().flat_map(|c| &mut c.metrics) {
         metric.baseline = None;
     }
-    let changes = updates(&cleared, report);
+    let changes = updates(&cleared, report, false);
     apply(&cleared, &changes)
 }
 
@@ -677,8 +736,9 @@ pub fn accepted(config: &Config, report: &Report) -> Config {
 type Update<'c> = (&'c str, &'c str, Option<Baseline>);
 
 /// Returns each metric whose baseline differs from what the run records, with its new baseline.
-/// A category that did not run or failed keeps its baselines.
-fn updates<'c>(config: &'c Config, report: &Report) -> Vec<Update<'c>> {
+/// A category that did not run or failed keeps its baselines. With `compact`, the items of a
+/// check record a default and only the items that differ from it.
+fn updates<'c>(config: &'c Config, report: &Report, compact: bool) -> Vec<Update<'c>> {
     let mut changes = Vec::new();
 
     for category in &config.categories {
@@ -705,11 +765,11 @@ fn updates<'c>(config: &'c Config, report: &Report) -> Vec<Update<'c>> {
             });
             let baseline = if first.subject.is_some() {
                 let subjects: Vec<(String, Baseline)> = entries
-                    .map(|(subject, entry)| (subject, entry.baseline()))
+                    .map(|(subject, entry)| (subject, entry.baseline(compact)))
                     .collect();
                 (!subjects.is_empty()).then_some(Baseline::Map(subjects))
             } else {
-                entries.next().map(|(_, entry)| entry.baseline())
+                entries.next().map(|(_, entry)| entry.baseline(compact))
             };
 
             if baseline != metric.baseline {
@@ -746,23 +806,31 @@ pub fn value(
     subject: Option<&str>,
     item: Option<&str>,
 ) -> Option<Value> {
-    lookup(find(config, category, metric)?, subject, item)?.value
+    lookup(find(config, category, metric)?, subject, item, true)?.value
 }
 
 /// Returns the own target the baseline file sets for one measurement of a metric: of a subject,
 /// and of one of its items.
 pub(crate) fn target(metric: &Metric, subject: Option<&str>, item: Option<&str>) -> Option<Value> {
-    lookup(metric, subject, item)?.target
+    lookup(metric, subject, item, false)?.target
 }
 
-/// Returns a metric's record of one measurement: of a subject, and of one of its items.
-fn lookup<'m>(metric: &'m Metric, subject: Option<&str>, item: Option<&str>) -> Option<&'m Record> {
+/// Returns a metric's record of one measurement: of a subject, and of one of its items. With
+/// `default`, an item without a record takes the default record of its items.
+fn lookup<'m>(
+    metric: &'m Metric,
+    subject: Option<&str>,
+    item: Option<&str>,
+    default: bool,
+) -> Option<&'m Record> {
     let mut baseline = metric.baseline.as_ref()?;
-    for key in [subject, item].into_iter().flatten() {
+    let keys = [(subject, false), (item, default)];
+    for (key, default) in keys.into_iter().filter_map(|(key, d)| Some((key?, d))) {
         let Baseline::Map(entries) = baseline else {
             return None;
         };
-        baseline = &entries.iter().find(|(name, _)| name == key)?.1;
+        let find = |key: &str| entries.iter().find(|(name, _)| name == key);
+        baseline = &find(key).or_else(|| find(DEFAULT).filter(|_| default))?.1;
     }
     match baseline {
         Baseline::Record(record) => Some(record),
@@ -843,10 +911,11 @@ pub(crate) fn exact(value: Value) -> String {
         .unwrap_or_else(|| format!("{amount}{}", units.first().map_or("", |(unit, _)| *unit)))
 }
 
-/// Returns whether a metric's values differ between runs: a time, or a size or count that the
-/// configuration marks with `varies`. Its baseline records only line targets.
+/// Returns whether a metric's values differ between runs: a time, or a metric that the
+/// configuration marks with `varies`. Its baseline records only targets, so a check that varies
+/// records nothing.
 fn varies(metric: &MetricScore) -> bool {
-    metric.kind == Kind::Time || (metric.metric.varies && metric.kind != Kind::Check)
+    metric.kind == Kind::Time || metric.metric.varies
 }
 
 /// Returns a metric's recorded entry for a category's subject, or `None` when it has none.
@@ -873,7 +942,8 @@ fn recorded_entry(metric: &Metric, subject: Option<&str>) -> Option<Entry> {
 }
 
 /// Pairs the records of two entries by item: each item in either, with its record on each side.
-/// Two entries without items pair as one record with no item.
+/// An item without a record before takes the default record, if `before` has one. Two entries
+/// without items pair as one record with no item.
 fn pair<'a>(
     before: &'a Entry,
     after: &'a Entry,
@@ -884,14 +954,18 @@ fn pair<'a>(
             let find = |items: &[(String, Record)], name: &str| {
                 items.iter().find(|(item, _)| item == name).map(|(_, r)| *r)
             };
+            let default = find(before, DEFAULT).filter(|record| record.value.is_some());
             let mut pairs: Vec<_> = after
                 .iter()
-                .map(|(item, record)| (Some(item.as_str()), find(before, item), Some(*record)))
+                .map(|(item, record)| {
+                    let recorded = find(before, item).or(default);
+                    (Some(item.as_str()), recorded, Some(*record))
+                })
                 .collect();
             pairs.extend(
                 before
                     .iter()
-                    .filter(|(item, _)| find(after, item).is_none())
+                    .filter(|(item, _)| item != DEFAULT && find(after, item).is_none())
                     .map(|(item, record)| (Some(item.as_str()), Some(*record), None)),
             );
             pairs
@@ -907,9 +981,20 @@ fn entry(metric: &MetricScore) -> Option<Entry> {
     let timing = varies(metric);
     let default = metric.metric.target;
 
+    // A target that equals the pattern or default it falls back to records nothing. A line
+    // target that differs from the default still records, so the file holds it for editing.
+    let own = |target: Option<Value>, pattern: Option<Value>, line: Option<Value>| {
+        let target = target.or(default);
+        let inherited = match pattern {
+            Some(pattern) => target == Some(pattern),
+            None => target == default && line.is_none_or(|line| Some(line) == default),
+        };
+        target.filter(|_| !inherited)
+    };
+
     if metric.items.is_empty() {
         let value = (!timing).then(|| metric.single());
-        let target = metric.own_target.or(default);
+        let target = own(metric.own_target, None, metric.line_target);
         if value.is_none() && target.is_none() {
             return None;
         }
@@ -920,8 +1005,9 @@ fn entry(metric: &MetricScore) -> Option<Entry> {
         .items
         .iter()
         .map(|item| {
+            let pattern = metric.metric.pattern(&item.name).map(|p| p.target);
             let record = Record {
-                target: item.target.or(default),
+                target: own(item.target, pattern, item.line_target),
                 value: (!timing).then_some(item.value),
             };
             (item.name.clone(), record)

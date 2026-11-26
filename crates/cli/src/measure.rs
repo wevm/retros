@@ -317,9 +317,12 @@ impl<'a> Run<'a> {
                     .flat_map(|category| &category.metrics)
                     .any(|metric| metric.name == name && metric.varies)
             };
-            self.timed = lines
-                .iter()
-                .any(|line| line.value.kind() == Kind::Time || varies(line.metric));
+            // A check that varies records no baseline, but it has no median to repeat for.
+            self.timed = lines.iter().any(|line| match line.value.kind() {
+                Kind::Check => false,
+                Kind::Time => true,
+                _ => varies(line.metric),
+            });
         }
 
         drop(lines);

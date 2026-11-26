@@ -106,16 +106,16 @@ Opportunities
 
 ### Accept the Targets
 
-`uphill --update` writes each item's value beside the target it scored against. Each item then holds its own target, so a target edited in the file scores at once, and a script that changes its line target changes nothing. To take a line's target again, delete the item's target and run `uphill --update`.
+`uphill --update` writes each item's value beside the target it scored against, unless a pattern or the default already sets that target. An item with its own target keeps it, so a script that changes its line target changes nothing. To take a line's target again, delete the item's target and run `uphill --update`.
 
 ```yaml title="uphill.baseline.yaml"
-# After uphill --update, each item holds its value and its target side by side.
+# After uphill --update, chains holds its own target, and the default sets the others.
 footprint:
   entry-size:
     "*": { target: 5kB }
     chains: { baseline: 12033B, target: 8kB }
-    index: { baseline: 6112B, target: 5kB }
-    utils: { baseline: 1132B, target: 5kB }
+    index: { baseline: 6112B }
+    utils: { baseline: 1132B }
 ```
 
 ### Read Opportunities

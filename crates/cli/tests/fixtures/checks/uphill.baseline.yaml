@@ -1,0 +1,10 @@
+# The older format, which lists the check of every item.
+style:
+  lint:
+    a.ts: { baseline: pass }
+    b.ts: { baseline: pass }
+    c.ts: { baseline: fail }
+    d.ts: { baseline: skip }
+    e.ts: { baseline: skip }
+  commits:
+    abc1234: { baseline: pass }

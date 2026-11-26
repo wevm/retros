@@ -16,27 +16,29 @@ style:
   # alphabetical order.
   workflow-keys: {}
 
+# Each new commit is a new item and the oldest leaves the window, so the commit checks set
+# `varies`. They score each run, and the baseline file records none of their items.
 commits:
   # Whether each commit names a conventional type, such as `feat:` or `fix:`, and a subject, by
   # commitlint's type and subject rules.
-  commit-type: {}
+  commit-type: { varies: true }
   # Whether each subject starts lowercase, by commitlint's `subject-case`.
-  subject-case: {}
+  subject-case: { varies: true }
   # Whether each subject ends without a period, by commitlint's `subject-full-stop`.
-  subject-full-stop: {}
+  subject-full-stop: { varies: true }
   # Whether each header has 100 characters or fewer, by commitlint's `header-max-length`.
-  header-length: {}
+  header-length: { varies: true }
   # Whether each body and footer follows a blank line and wraps at 100 characters, by commitlint.
-  message-body: {}
+  message-body: { varies: true }
   # Whether each subject states the change, not the reason: no "because", "so that", or
   # "in order to".
-  subject-reasons: {}
+  subject-reasons: { varies: true }
   # Whether the opening verb has a known base form, such as "add", not "adds" or "added".
   # Words without a verb entry in the English lexicon skip.
-  imperative-subjects: {}
+  imperative-subjects: { varies: true }
   # Whether each `fix:` commit adds or edits a test source path, excluding fixtures and snapshots.
   # A changed path does not prove a test ran or covered the fix.
-  fix-tests: {}
+  fix-tests: { varies: true }
   # Whether each changeset is one sentence whose opening verb has a known past-tense form.
   changeset-sentences: {}
   # Whether Git tracks no build output, installed packages, or `.env` files.

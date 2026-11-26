@@ -244,11 +244,12 @@ throughput: { better: higher, weight: 2 }
 - **Type:** `true` or `false`
 - **Default:** `false`
 
-Marks a size or count that differs between runs, such as peak memory. Uphill repeats its script and takes the median like a time, and its baseline records only its targets.
+Marks a size, count, or check that differs between runs, such as peak memory. Uphill repeats the script of a size or count and takes the median like a time. The baseline records only targets, so a check that varies records nothing.
 
 ```yaml title="uphill.yaml"
-# Peak memory differs between runs.
+# Peak memory differs between runs, and each new commit adds a commit check.
 peak-memory: { varies: true }
+commit-type: { varies: true }
 ```
 
 ### `title`
@@ -279,7 +280,7 @@ page-size: { description: Bytes of HTML each page sends. }
 
 `uphill.baseline.yaml` or `uphill.baseline.toml` sits beside the configuration, in the same format. It holds each metric's targets and the values `uphill --update` accepted, side by side. Commit both files.
 
-Categories and metrics keep the order the configuration declares. A metric with items takes one line per item, and a metric with subjects takes one entry per subject. `uphill --update` rewrites the whole file, so comments in it do not survive an update.
+Categories and metrics keep the order the configuration declares. A metric with items takes one line per item, and a list of checks lists only the items that differ from its [default record](#default-record). A metric with subjects takes one entry per subject. `uphill --update` rewrites the whole file, so comments do not survive.
 
 #### YAML
 
@@ -290,11 +291,14 @@ footprint:
   entry-size:
     "*": { target: 5kB }
     chains: { baseline: 12033B, target: 15kB }
-    index: { baseline: 6112B, target: 5kB }
+    index: { baseline: 6112B }
   export-size:
     node:
       format: { baseline: 900B, target: 1kB }
       parse: { baseline: 1.1kB, target: 1kB }
+  links:
+    "*": { baseline: pass }
+    about.html: { baseline: fail }
 ```
 
 #### TOML
@@ -307,7 +311,7 @@ bundle-size = { baseline = "6.9kB", target = "5kB" }
 [footprint.entry-size]
 "*" = { target = "5kB" }
 chains = { baseline = "12033B", target = "15kB" }
-index = { baseline = "6112B", target = "5kB" }
+index = { baseline = "6112B" }
 ```
 
 ### Records
@@ -332,7 +336,7 @@ speed:
 
 The value that scores 90. It is greater than zero and in the same kind of unit as the metric's values. A list of checks scores the share of items that pass, so a check has no target.
 
-An item's own target has the final say, then the first matching pattern, then the target on the item's line, then the default. `uphill --update` writes the target each item scored against as its own, so an edited target scores at once.
+An item's own target has the final say, then the first matching pattern, then the target on the item's line, then the default. `uphill --update` writes the target each item scored against as its own, unless a pattern or the default already sets it.
 
 ```yaml title="uphill.baseline.yaml"
 # Each page scores 90 at 20 kB and 50 at 40 kB, and the pricing page has its own target.
@@ -355,6 +359,24 @@ footprint:
   export-size:
     "*": { target: 5kB }
     "viem/chains/*": { target: 1kB }
+```
+
+### Default Record
+
+- **Type:** the key `*` and a record with a `baseline`, such as `"*": { baseline: pass }`
+- **Default:** the most common check of the list
+
+The check of each item without its own record, in a list of checks. `uphill --update` writes the most common check, with a tie going to `pass`, then `skip`, then `fail`. It then lists only the items that differ.
+
+A new item that matches the default is not new. A new item that differs compares with the default, so a new failing item is worse. An item that the default covers and that is gone reports nothing. Files that list every item still read.
+
+```yaml title="uphill.baseline.yaml"
+# Every file passes the lint, except one that fails and one that skips.
+style:
+  lint:
+    "*": { baseline: pass }
+    src/legacy.ts: { baseline: fail }
+    src/generated.ts: { baseline: skip }
 ```
 
 ## Older Keys

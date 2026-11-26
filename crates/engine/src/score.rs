@@ -45,6 +45,8 @@ pub struct MetricScore {
     pub items: Vec<Item>,
     /// The kind of value the script wrote.
     pub kind: Kind,
+    /// The target on the line of a metric written without items.
+    pub line_target: Option<Value>,
     /// The metric's configuration.
     pub metric: Metric,
     /// The note the line sets, for a metric written without items.
@@ -83,6 +85,8 @@ impl MetricScore {
 /// One item of a list metric.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Item {
+    /// The target on the item's line.
+    pub line_target: Option<Value>,
     /// The item name, such as `viem/chains`.
     pub name: String,
     /// Why the item is what it is, from its line in the first round.
@@ -115,6 +119,7 @@ pub struct Opportunity {
 /// One measurement as scoring sees it: its value and the target it is scored against.
 #[derive(Clone, Debug)]
 struct Measure {
+    line: Option<Value>,
     name: Option<String>,
     note: Option<String>,
     own: Option<Value>,
@@ -385,6 +390,7 @@ pub(crate) fn metric(metric: &Metric, rounds: &[Vec<Line<'_>>]) -> Option<Metric
                 .or(line.target);
 
             Measure {
+                line: line.target,
                 name: line.item.as_deref().map(str::to_owned),
                 note: line.note.as_deref().map(str::to_owned),
                 own,
@@ -428,6 +434,7 @@ pub(crate) fn metric(metric: &Metric, rounds: &[Vec<Line<'_>>]) -> Option<Metric
             .into_iter()
             .filter_map(|measure| {
                 Some(Item {
+                    line_target: measure.line,
                     name: measure.name?,
                     note: measure.note,
                     target: measure.own.filter(|own| Some(*own) != metric.target),
@@ -436,8 +443,9 @@ pub(crate) fn metric(metric: &Metric, rounds: &[Vec<Line<'_>>]) -> Option<Metric
             })
             .collect(),
         kind,
-        own_target,
+        line_target: unlisted.and_then(|line| line.target),
         metric: metric.clone(),
+        own_target,
         note,
         score: evaluated.score,
         target: evaluated.target.map(|target| Value::of(kind, target)),
@@ -526,6 +534,7 @@ fn measures(metric: &MetricScore) -> Vec<Measure> {
     if metric.items.is_empty() {
         let value = metric.single();
         return vec![Measure {
+            line: metric.line_target,
             name: None,
             note: None,
             own: metric.own_target,
@@ -538,6 +547,7 @@ fn measures(metric: &MetricScore) -> Vec<Measure> {
         .items
         .iter()
         .map(|item| Measure {
+            line: item.line_target,
             name: Some(item.name.clone()),
             note: None,
             own: item.target,

@@ -4,7 +4,7 @@ Measures commit messages and repository hygiene. commitlint reads each of the la
 
 Whitespace reflects tracked files in the working tree. Commit checks reflect the named commit. `fix-tests` looks for a changed test source path, not proof of regression coverage. The English lexicon checks the form of the opening verb and skips words it cannot classify.
 
-Its metrics go into the shared categories `style` and `commits`. Each merges with the category of its name in the project and its other packs.
+Its metrics go into the shared categories `style` and `commits`. Each merges with the category of its name in the project and its other packs. The commit checks set `varies`, so the baseline file records none of their items.
 
 ## Requirements
 

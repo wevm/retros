@@ -20,7 +20,7 @@ This walkthrough uses the `pages` category from [Writing Scripts](./scripts.md),
 
 ### Record the Values
 
-`uphill --update` runs every category and writes what it measured, beside each item's target. A metric with items takes one line per item, so a later change to one item shows as one line in a diff. The configuration stays as it was.
+`uphill --update` runs every category and writes what it measured, beside each item's own target. A metric with items takes one line per item, so a later change to one item shows as one line in a diff. The configuration stays as it was.
 
 ```text
 $ uphill --update
@@ -29,22 +29,24 @@ Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html, uphill.baseli
 ```
 
 ```yaml title="uphill.baseline.yaml"
-# The pages category writes two metrics per page. Each page size scores against 20 kB.
+# The pages category writes two metrics per page. Each page size scores against 20 kB, and
+# every page but one has a title.
 pages:
   page-size:
     "*": { target: 20kB }
-    about.html: { baseline: 9015B, target: 20kB }
-    index.html: { baseline: 14034B, target: 20kB }
-    pricing.html: { baseline: 31037B, target: 20kB }
+    about.html: { baseline: 9015B }
+    index.html: { baseline: 14034B }
+    pricing.html: { baseline: 31037B }
   has-title:
+    "*": { baseline: pass }
     about.html: { baseline: fail }
-    index.html: { baseline: pass }
-    pricing.html: { baseline: pass }
 ```
+
+An item's target is left out when the pattern or default already sets it. A list of checks starts with a default record, `*`, that holds its most common check, and lists only the pages that differ.
 
 ### Read the Changes
 
-After a change adds a blog page, grows the pricing page, and gives the about page a title, `uphill` lists each item that differs from its baseline. Each change is worse, better, new, or gone.
+After a change adds a blog page, grows the pricing page, and gives the about page a title, `uphill` lists each item that differs from its baseline. Each change is worse, better, new, or gone. The blog page has a title, which matches the default record, so only its size is new.
 
 ```text
 $ uphill
@@ -52,7 +54,6 @@ $ uphill
 Since the baseline
   worse   pages  page-size pricing.html  31 kB → 33 kB
   new     pages  page-size blog.html     4 kB
-  new     pages  has-title blog.html     pass
   better  pages  has-title about.html    fail → pass
 ```
 
@@ -63,7 +64,7 @@ Since the baseline
 ```text
 $ uphill --require-baseline
 ...
-4 changes since the baseline. Run `uphill --update` to accept them
+3 changes since the baseline. Run `uphill --update` to accept them
 ```
 
 ### Accept the Change
@@ -73,17 +74,14 @@ $ uphill --require-baseline
 ```diff title="uphill.baseline.yaml"
    page-size:
      "*": { target: 20kB }
-     about.html: { baseline: 9015B, target: 20kB }
-+    blog.html: { baseline: 4034B, target: 20kB }
-     index.html: { baseline: 14034B, target: 20kB }
--    pricing.html: { baseline: 31037B, target: 20kB }
-+    pricing.html: { baseline: 33037B, target: 20kB }
+     about.html: { baseline: 9015B }
++    blog.html: { baseline: 4034B }
+     index.html: { baseline: 14034B }
+-    pricing.html: { baseline: 31037B }
++    pricing.html: { baseline: 33037B }
    has-title:
+     "*": { baseline: pass }
 -    about.html: { baseline: fail }
-+    about.html: { baseline: pass }
-+    blog.html: { baseline: pass }
-     index.html: { baseline: pass }
-     pricing.html: { baseline: pass }
 ```
 
 ## Recipes
@@ -98,7 +96,7 @@ footprint:
   entry-size:
     "*": { target: 5kB }
     chains: { baseline: 12033B, target: 15kB }
-    index: { baseline: 6112B, target: 5kB }
+    index: { baseline: 6112B }
 ```
 
 ```text
@@ -110,11 +108,33 @@ Since the baseline
 
 A size or count that differs between runs, such as peak memory, sets `varies: true`. Uphill takes its median across rounds like a time, and its baseline records only its target.
 
+A check that varies records nothing. A check of each recent commit is one: each new commit adds an item, so a baseline of its items would differ after every commit.
+
 ```yaml title="uphill.yaml"
-# Peak memory differs between runs, so it is scored on the median of 5 rounds.
+# Peak memory is scored on the median of 5 rounds. The commit checks score each run, and the
+# baseline file records none of their items.
 speed:
   run: sh metrics/speed.sh
   peak-memory: { varies: true }
+commits:
+  run: sh metrics/commits.sh
+  commit-type: { varies: true }
+```
+
+### Lists of Checks
+
+A list of checks records its most common check as the default record, `*`, and only the items that differ from it. A tie goes to `pass`, then `skip`, then `fail`. A list where most items skip lists its passes and failures.
+
+Files from earlier versions list the check of every item. Uphill still reads them, and the next `uphill --update` rewrites each list with its default record.
+
+```diff title="uphill.baseline.yaml"
+ # The update replaces the passing items with the default record.
+ style:
+   lint:
++    "*": { baseline: pass }
+-    src/index.ts: { baseline: pass }
+     src/legacy.ts: { baseline: fail }
+-    src/util.ts: { baseline: pass }
 ```
 
 ### Baselines in TOML
@@ -126,7 +146,7 @@ A project with `uphill.toml` gets `uphill.baseline.toml`. A metric with items ta
 [footprint.entry-size]
 "*" = { target = "5kB" }
 chains = { baseline = "12033B", target = "15kB" }
-index = { baseline = "6112B", target = "5kB" }
+index = { baseline = "6112B" }
 ```
 
 ### Move Older Keys

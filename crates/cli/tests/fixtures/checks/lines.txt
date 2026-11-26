@@ -1,0 +1,6 @@
+lint a.ts pass
+lint b.ts pass
+lint c.ts fail note "uses any"
+lint d.ts skip
+lint e.ts skip
+commits abc1234 pass

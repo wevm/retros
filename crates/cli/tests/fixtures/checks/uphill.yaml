@@ -1,0 +1,6 @@
+# A list of checks, and checks of commits that vary, since each new commit is a new item. The
+# baselines in uphill.baseline.yaml have the older format, with one record for each item.
+style:
+  run: sh style.sh
+  lint: {}
+  commits: { varies: true }
