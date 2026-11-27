@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "score": 86,
+  "score": 96,
   "categories": [
     {
       "name": "footprint",
       "title": "Footprint",
       "subject": null,
       "description": null,
-      "score": 13,
+      "score": 94,
       "rounds": 1,
       "metrics": [
         {
@@ -16,11 +16,11 @@
           "description": null,
           "kind": "size",
           "unit": "B",
-          "value": 3003216,
+          "value": 3003024,
           "item": null,
-          "score": 22,
-          "target": 1000000,
-          "default": 1000000,
+          "score": 94,
+          "target": 3500000,
+          "default": 3500000,
           "note": null,
           "better": "lower",
           "weight": 1,
@@ -35,64 +35,13 @@
           "unit": null,
           "value": 54,
           "item": null,
-          "score": 3,
-          "target": 10,
-          "default": 10,
+          "score": 93,
+          "target": 60,
+          "default": 60,
           "note": null,
           "better": "lower",
           "weight": 1,
           "rollup": "p90",
-          "items": []
-        },
-        {
-          "name": "entry-size",
-          "title": "Entry size",
-          "description": "Keep the gzipped bundle small for a consumer that imports one export. Do not pull unrelated modules or packages into an export.",
-          "kind": "check",
-          "unit": null,
-          "value": null,
-          "item": null,
-          "score": null,
-          "target": null,
-          "default": 10000,
-          "note": "package.json exports no ES module",
-          "better": "lower",
-          "weight": 1,
-          "rollup": null,
-          "items": []
-        },
-        {
-          "name": "tree-shaking",
-          "title": "Tree shaking",
-          "description": "Make each entry point bundle to nothing when unused. Annotate top-level calls with `/*#__PURE__*/`, and avoid runtime TypeScript namespaces and static class fields.",
-          "kind": "check",
-          "unit": null,
-          "value": null,
-          "item": null,
-          "score": null,
-          "target": null,
-          "default": null,
-          "note": "package.json exports no ES module",
-          "better": "lower",
-          "weight": 1,
-          "rollup": null,
-          "items": []
-        },
-        {
-          "name": "hot-entry-size",
-          "title": "Hot entry size",
-          "description": "Keep the gzipped bundle of each hot item especially small.",
-          "kind": "check",
-          "unit": null,
-          "value": null,
-          "item": null,
-          "score": null,
-          "target": null,
-          "default": 10000,
-          "note": "package.json exports no ES module",
-          "better": "lower",
-          "weight": 1,
-          "rollup": null,
           "items": []
         }
       ]
@@ -102,7 +51,7 @@
       "title": "Speed",
       "subject": null,
       "description": null,
-      "score": 100,
+      "score": 94,
       "rounds": 5,
       "metrics": [
         {
@@ -111,9 +60,9 @@
           "description": null,
           "kind": "time",
           "unit": "ns",
-          "value": 606000,
+          "value": 1068000,
           "item": null,
-          "score": 99,
+          "score": 87,
           "target": 1000000,
           "default": 1000000,
           "note": null,
@@ -128,7 +77,7 @@
           "description": null,
           "kind": "time",
           "unit": "ns",
-          "value": 1587000,
+          "value": 2176000,
           "item": null,
           "score": 100,
           "target": 5000000,
@@ -137,142 +86,6 @@
           "better": "lower",
           "weight": 1,
           "rollup": "p90",
-          "items": []
-        },
-        {
-          "name": "call-time",
-          "title": "Call time",
-          "description": "Keep each public function fast per call, with cold and warm caches.",
-          "kind": "check",
-          "unit": null,
-          "value": null,
-          "item": null,
-          "score": null,
-          "target": null,
-          "default": 20000,
-          "note": "package.json exports no ES module",
-          "better": "lower",
-          "weight": 1,
-          "rollup": null,
-          "items": []
-        },
-        {
-          "name": "call-memory",
-          "title": "Call memory",
-          "description": "Keep the heap bytes that each call of a public function allocates small.",
-          "kind": "check",
-          "unit": null,
-          "value": null,
-          "item": null,
-          "score": null,
-          "target": null,
-          "default": 20000,
-          "note": "package.json exports no ES module",
-          "better": "lower",
-          "weight": 1,
-          "rollup": null,
-          "items": []
-        },
-        {
-          "name": "import-time",
-          "title": "Import time",
-          "description": "Keep each entry point fast to import. Avoid work at module scope.",
-          "kind": "check",
-          "unit": null,
-          "value": null,
-          "item": null,
-          "score": null,
-          "target": null,
-          "default": 60000000,
-          "note": "package.json exports no ES module",
-          "better": "lower",
-          "weight": 1,
-          "rollup": null,
-          "items": []
-        },
-        {
-          "name": "import-memory",
-          "title": "Import memory",
-          "description": "Keep the heap that each entry point holds once imported small.",
-          "kind": "check",
-          "unit": null,
-          "value": null,
-          "item": null,
-          "score": null,
-          "target": null,
-          "default": 3500000,
-          "note": "package.json exports no ES module",
-          "better": "lower",
-          "weight": 1,
-          "rollup": null,
-          "items": []
-        },
-        {
-          "name": "hot-call-time",
-          "title": "Hot call time",
-          "description": "Keep each hot function especially fast per call.",
-          "kind": "check",
-          "unit": null,
-          "value": null,
-          "item": null,
-          "score": null,
-          "target": null,
-          "default": 20000,
-          "note": "package.json exports no ES module",
-          "better": "lower",
-          "weight": 1,
-          "rollup": null,
-          "items": []
-        },
-        {
-          "name": "hot-call-memory",
-          "title": "Hot call memory",
-          "description": "Keep the heap bytes that each call of a hot function allocates especially small.",
-          "kind": "check",
-          "unit": null,
-          "value": null,
-          "item": null,
-          "score": null,
-          "target": null,
-          "default": 20000,
-          "note": "package.json exports no ES module",
-          "better": "lower",
-          "weight": 1,
-          "rollup": null,
-          "items": []
-        },
-        {
-          "name": "hot-import-time",
-          "title": "Hot import time",
-          "description": "Keep each hot entry point especially fast to import.",
-          "kind": "check",
-          "unit": null,
-          "value": null,
-          "item": null,
-          "score": null,
-          "target": null,
-          "default": 60000000,
-          "note": "package.json exports no ES module",
-          "better": "lower",
-          "weight": 1,
-          "rollup": null,
-          "items": []
-        },
-        {
-          "name": "hot-import-memory",
-          "title": "Hot import memory",
-          "description": "Keep the heap that each hot entry point holds once imported especially small.",
-          "kind": "check",
-          "unit": null,
-          "value": null,
-          "item": null,
-          "score": null,
-          "target": null,
-          "default": 3500000,
-          "note": "package.json exports no ES module",
-          "better": "lower",
-          "weight": 1,
-          "rollup": null,
           "items": []
         }
       ]
@@ -8572,7 +8385,7 @@
               "name": "packs/typescript/metrics/speed-codec.ts",
               "value": false,
               "target": null,
-              "note": "line 123: unknown[] (and 17 more)"
+              "note": "line 126: unknown[] (and 17 more)"
             },
             {
               "name": "packs/typescript/metrics/speed-record-setup.ts",
@@ -8602,7 +8415,7 @@
               "name": "packs/typescript/metrics/types-calls-worker.ts",
               "value": false,
               "target": null,
-              "note": "line 52: PublicFunction[] (and 13 more)"
+              "note": "line 59: PublicFunction[] (and 13 more)"
             },
             {
               "name": "packs/typescript/metrics/types-calls.ts",
@@ -8614,13 +8427,13 @@
               "name": "packs/typescript/metrics/types-enumerate.ts",
               "value": false,
               "target": null,
-              "note": "line 260: string[]"
+              "note": "line 264: string[]"
             },
             {
               "name": "packs/typescript/metrics/types-worker.ts",
               "value": false,
               "target": null,
-              "note": "line 46: { code: number; message: string }[] (and 1 more)"
+              "note": "line 57: { code: number; message: string }[] (and 1 more)"
             },
             {
               "name": "packs/typescript/metrics/types.ts",
@@ -10960,7 +10773,7 @@
               "name": "packs/typescript/metrics/fuzz-worker.ts",
               "value": false,
               "target": null,
-              "note": "line 154: Arrow function has too many parameters (4). Maximum allowed is 2. (eslint(max-params)) (and 8 more)"
+              "note": "line 173: Arrow function has too many parameters (4). Maximum allowed is 2. (eslint(max-params)) (and 8 more)"
             },
             {
               "name": "packs/typescript/metrics/fuzz.ts",
@@ -10972,7 +10785,7 @@
               "name": "packs/typescript/metrics/speed-codec.ts",
               "value": false,
               "target": null,
-              "note": "line 184: Function 'decode' has too many parameters (3). Maximum allowed is 2. (eslint(max-params))"
+              "note": "line 187: Function 'decode' has too many parameters (3). Maximum allowed is 2. (eslint(max-params))"
             },
             {
               "name": "packs/typescript/metrics/speed-record-setup.ts",
@@ -10990,19 +10803,19 @@
               "name": "packs/typescript/metrics/types-calls-worker.ts",
               "value": false,
               "target": null,
-              "note": "line 210: Arrow function has too many parameters (4). Maximum allowed is 2. (eslint(max-params)) (and 5 more)"
+              "note": "line 252: Arrow function has too many parameters (4). Maximum allowed is 2. (eslint(max-params)) (and 5 more)"
             },
             {
               "name": "packs/typescript/metrics/types-enumerate.ts",
               "value": false,
               "target": null,
-              "note": "line 179: Function 'consumerText' has too many parameters (5). Maximum allowed is 2. (eslint(max-params))"
+              "note": "line 183: Function 'consumerText' has too many parameters (5). Maximum allowed is 2. (eslint(max-params))"
             },
             {
               "name": "packs/typescript/metrics/types-host.ts",
               "value": false,
               "target": null,
-              "note": "line 151: Function has too many parameters (3). Maximum allowed is 2. (eslint(max-params)) (and 1 more)"
+              "note": "line 152: Function has too many parameters (3). Maximum allowed is 2. (eslint(max-params)) (and 1 more)"
             },
             {
               "name": "packs/typescript/metrics/typescript.ts",
@@ -11344,7 +11157,7 @@
               "name": "packs/typescript/metrics/speed-codec.ts",
               "value": false,
               "target": null,
-              "note": "line 309: function destructures a parameter (and 1 more)"
+              "note": "line 312: function destructures a parameter (and 1 more)"
             },
             {
               "name": "packs/typescript/metrics/speed-record-setup.ts",
@@ -11356,7 +11169,7 @@
               "name": "packs/typescript/metrics/speed-vitest.config.ts",
               "value": false,
               "target": null,
-              "note": "line 133: function destructures a parameter"
+              "note": "line 134: function destructures a parameter"
             },
             {
               "name": "packs/typescript/metrics/speed-worker.ts",
@@ -11374,7 +11187,7 @@
               "name": "packs/typescript/metrics/types-calls-worker.ts",
               "value": false,
               "target": null,
-              "note": "line 243: function destructures a parameter (and 2 more)"
+              "note": "line 285: function destructures a parameter (and 2 more)"
             },
             {
               "name": "packs/typescript/metrics/types-calls.ts",
@@ -11386,7 +11199,7 @@
               "name": "packs/typescript/metrics/types-enumerate.ts",
               "value": false,
               "target": null,
-              "note": "line 238: function destructures a parameter"
+              "note": "line 242: function destructures a parameter"
             },
             {
               "name": ".agents/uphill/metrics/speed.ts",
@@ -11746,7 +11559,7 @@
               "name": "packs/typescript/metrics/fuzz-lib.ts",
               "value": false,
               "target": null,
-              "note": "line 319: Do not nest ternary expressions. (eslint(no-nested-ternary)) (and 2 more)"
+              "note": "line 336: Do not nest ternary expressions. (eslint(no-nested-ternary)) (and 2 more)"
             },
             {
               "name": "packs/typescript/metrics/fuzz.ts",
@@ -11764,7 +11577,7 @@
               "name": "packs/typescript/metrics/speed-codec.ts",
               "value": false,
               "target": null,
-              "note": "line 370: Do not nest ternary expressions. (eslint(no-nested-ternary))"
+              "note": "line 373: Do not nest ternary expressions. (eslint(no-nested-ternary))"
             },
             {
               "name": "packs/typescript/metrics/speed.ts",
@@ -11776,7 +11589,7 @@
               "name": "packs/typescript/metrics/types-calls-worker.ts",
               "value": false,
               "target": null,
-              "note": "line 177: Do not nest ternary expressions. (eslint(no-nested-ternary)) (and 1 more)"
+              "note": "line 219: Do not nest ternary expressions. (eslint(no-nested-ternary)) (and 1 more)"
             },
             {
               "name": "packs/typescript/metrics/types-calls.ts",
@@ -15884,7 +15697,7 @@
               "name": "examples/typescript-library/src/index.ts",
               "value": false,
               "target": null,
-              "note": "line 7: export * from './date.js' (and 1 more)"
+              "note": "line 8: export * from './date.js' (and 1 more)"
             },
             {
               "name": ".agents/uphill/metrics/speed.ts",
@@ -16334,7 +16147,7 @@
               "name": "packs/typescript/metrics/types-calls-worker.ts",
               "value": false,
               "target": null,
-              "note": "line 199: import(…)"
+              "note": "line 241: import(…)"
             },
             {
               "name": ".agents/uphill/metrics/speed.ts",
@@ -17108,7 +16921,7 @@
               "name": "packs/typescript/metrics/fuzz-worker.ts",
               "value": false,
               "target": null,
-              "note": "line 1180: class anonymous class is not an error"
+              "note": "line 1199: class anonymous class is not an error"
             },
             {
               "name": "packs/typescript/metrics/speed-worker.ts",
@@ -17522,7 +17335,7 @@
               "name": "packs/typescript/metrics/fuzz-worker.ts",
               "value": false,
               "target": null,
-              "note": "line 1197: TimeoutError has name unset, not 'Module.TimeoutError'"
+              "note": "line 1216: TimeoutError has name unset, not 'Module.TimeoutError'"
             },
             {
               "name": "packs/typescript/metrics/speed-codec.ts",
@@ -17924,7 +17737,7 @@
               "name": "packs/typescript/metrics/speed-vitest.config.ts",
               "value": false,
               "target": null,
-              "note": "line 178: `this` outside a class"
+              "note": "line 179: `this` outside a class"
             },
             {
               "name": ".agents/uphill/metrics/speed.ts",
@@ -18356,19 +18169,19 @@
               "name": "packs/typescript/metrics/fuzz-lib.ts",
               "value": false,
               "target": null,
-              "note": "line 225: new Map() at module scope (and 2 more)"
+              "note": "line 242: new Map() at module scope (and 2 more)"
             },
             {
               "name": "packs/typescript/metrics/fuzz-worker.ts",
               "value": false,
               "target": null,
-              "note": "line 1029: new Map() at module scope"
+              "note": "line 1048: new Map() at module scope"
             },
             {
               "name": "packs/typescript/metrics/types-calls-worker.ts",
               "value": false,
               "target": null,
-              "note": "line 171: new Map() at module scope"
+              "note": "line 213: new Map() at module scope"
             },
             {
               "name": "packs/typescript/metrics/types-calls.ts",
@@ -18380,7 +18193,7 @@
               "name": "packs/typescript/metrics/types-enumerate.ts",
               "value": false,
               "target": null,
-              "note": "line 57: new Set() at module scope (and 4 more)"
+              "note": "line 61: new Set() at module scope (and 4 more)"
             },
             {
               "name": "packs/typescript/metrics/types-host.ts",
@@ -18392,7 +18205,7 @@
               "name": "packs/typescript/metrics/types-worker.ts",
               "value": false,
               "target": null,
-              "note": "line 64: new Map() at module scope (and 1 more)"
+              "note": "line 75: new Map() at module scope (and 1 more)"
             },
             {
               "name": "packs/typescript/metrics/types.ts",
@@ -18727,7 +18540,7 @@
       "title": "Documentation",
       "subject": null,
       "description": null,
-      "score": 80,
+      "score": 100,
       "rounds": 1,
       "metrics": [
         {
@@ -19606,12 +19419,12 @@
           "description": "Make sure `cargo doc` builds without warnings.",
           "kind": "check",
           "unit": null,
-          "value": 0,
+          "value": 1,
           "item": null,
-          "score": 0,
+          "score": 100,
           "target": null,
           "default": null,
-          "note": "unclosed HTML tag `ref`",
+          "note": null,
           "better": "lower",
           "weight": 1,
           "rollup": null,
@@ -19623,9 +19436,9 @@
           "description": "Keep each sentence in a paragraph to 25 words or fewer.",
           "kind": "check",
           "unit": null,
-          "value": 0.625,
+          "value": 1,
           "item": null,
-          "score": 63,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -19635,78 +19448,24 @@
           "items": [
             {
               "name": ".agents/plan.md",
-              "value": false,
+              "value": true,
               "target": null,
-              "note": "line 3: 30 words (limit 25): \"A project's scripts measure it, and Uphill scores each measurement against the …\" (and 89 more)"
-            },
-            {
-              "name": "SKILL.md",
-              "value": false,
-              "target": null,
-              "note": "line 23: 37 words (limit 25): \"Write the rules and reasons: Give each metric a  …  that states its rule as an …\" (and 4 more)"
-            },
-            {
-              "name": "crates/cli/src/init.md",
-              "value": false,
-              "target": null,
-              "note": "line 47: 39 words (limit 25): \"Metric keys:  …  (the value that scores 50, twice the target by default),  …  w…\" (and 1 more)"
-            },
-            {
-              "name": "docs/guides/baselines.md",
-              "value": false,
-              "target": null,
-              "note": "line 49: 26 words (limit 25): \"After a change adds a blog page, grows the pricing page, and gives the about pa…\""
-            },
-            {
-              "name": "docs/guides/github-actions.md",
-              "value": false,
-              "target": null,
-              "note": "line 7: 26 words (limit 25): \"The action installs Uphill, runs  …  against the base branch, and keeps one com…\""
-            },
-            {
-              "name": "docs/guides/scripts.md",
-              "value": false,
-              "target": null,
-              "note": "line 126: 30 words (limit 25): \"It fails on a line it cannot read, a metric the configuration lists but the scr…\" (and 1 more)"
-            },
-            {
-              "name": "docs/guides/targets.md",
-              "value": false,
-              "target": null,
-              "note": "line 7: 40 words (limit 25): \"A value at its target scores 90, twice the target scores 50, and four times the…\" (and 2 more)"
-            },
-            {
-              "name": "docs/reference/action.md",
-              "value": false,
-              "target": null,
-              "note": "line 3: 30 words (limit 25): \"It installs Uphill, runs it with  …  on pull requests, and keeps one comment on…\" (and 1 more)"
-            },
-            {
-              "name": "docs/reference/cli.md",
-              "value": false,
-              "target": null,
-              "note": "line 3: 32 words (limit 25): \"Its other commands check scripts, brief an agent, print the rules agents follow…\" (and 4 more)"
-            },
-            {
-              "name": "docs/reference/metric-lines.md",
-              "value": false,
-              "target": null,
-              "note": "line 111: 29 words (limit 25): \"A metric the configuration lists but the script does not write is an error, and…\""
-            },
-            {
-              "name": "docs/reference/scoring.md",
-              "value": false,
-              "target": null,
-              "note": "line 3: 32 words (limit 25): \"Uphill scores each value from 0 to 100 against its target, collapses each list …\" (and 4 more)"
-            },
-            {
-              "name": "packs/typescript/README.md",
-              "value": false,
-              "target": null,
-              "note": "line 39: 30 words (limit 25): \"Other keys empty the library's caches before each measured call, pick the vites…\""
+              "note": null
             },
             {
               "name": "README.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "SKILL.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/init.md",
               "value": true,
               "target": null,
               "note": null
@@ -19718,13 +19477,37 @@
               "note": null
             },
             {
+              "name": "docs/guides/baselines.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "docs/guides/comparing.md",
               "value": true,
               "target": null,
               "note": null
             },
             {
+              "name": "docs/guides/github-actions.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "docs/guides/packs.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/guides/scripts.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/guides/targets.md",
               "value": true,
               "target": null,
               "note": null
@@ -19742,13 +19525,37 @@
               "note": null
             },
             {
+              "name": "docs/reference/action.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/reference/cli.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "docs/reference/configuration.md",
               "value": true,
               "target": null,
               "note": null
             },
             {
+              "name": "docs/reference/metric-lines.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "docs/reference/reports.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/reference/scoring.md",
               "value": true,
               "target": null,
               "note": null
@@ -19814,6 +19621,12 @@
               "note": null
             },
             {
+              "name": "packs/typescript/README.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/web/README.md",
               "value": true,
               "target": null,
@@ -19833,9 +19646,9 @@
           "description": "Keep each paragraph to about 40 words, and never more than 50.",
           "kind": "check",
           "unit": null,
-          "value": 0.625,
+          "value": 1,
           "item": null,
-          "score": 63,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -19845,78 +19658,36 @@
           "items": [
             {
               "name": ".agents/plan.md",
-              "value": false,
+              "value": true,
               "target": null,
-              "note": "line 3: 62 words (limit 50): \"Uphill is continuous metrics and hill climbing. A project's scripts measure it,…\" (and 54 more)"
+              "note": null
             },
             {
               "name": "README.md",
-              "value": false,
+              "value": true,
               "target": null,
-              "note": "line 23: 51 words (limit 50): \"Uphill scores a project against its own targets. A metric is anything a script …\""
+              "note": null
             },
             {
               "name": "SKILL.md",
-              "value": false,
+              "value": true,
               "target": null,
-              "note": "line 20: 51 words (limit 50): \"Sketch the physics: Estimate the floor for each surface from the four resources…\" (and 2 more)"
+              "note": null
             },
             {
               "name": "crates/cli/src/init.md",
-              "value": false,
+              "value": true,
               "target": null,
-              "note": "line 3: 64 words (limit 50): \"Uphill scores a project against its targets the way Lighthouse scores a page. S…\" (and 2 more)"
-            },
-            {
-              "name": "docs/guides/baselines.md",
-              "value": false,
-              "target": null,
-              "note": "line 49: 51 words (limit 50): \"After a change adds a blog page, grows the pricing page, and gives the about pa…\""
-            },
-            {
-              "name": "docs/guides/packs.md",
-              "value": false,
-              "target": null,
-              "note": "line 193: 73 words (limit 50): \"A pack needs only its configuration and scripts. Give each metric a  …  that st…\""
-            },
-            {
-              "name": "docs/reference/action.md",
-              "value": false,
-              "target": null,
-              "note": "line 115: 55 words (limit 50): \"The workflow token may not create a Pages site. So after the first run pushes  …\""
-            },
-            {
-              "name": "docs/reference/cli.md",
-              "value": false,
-              "target": null,
-              "note": "line 45: 52 words (limit 50): \"Names after the pack limit the entry to those categories. After it writes,  …  …\""
-            },
-            {
-              "name": "docs/reference/configuration.md",
-              "value": false,
-              "target": null,
-              "note": "line 69: 75 words (limit 50): \"The packs whose categories run after the project's own. Categories with the sam…\" (and 3 more)"
-            },
-            {
-              "name": "docs/reference/reports.md",
-              "value": false,
-              "target": null,
-              "note": "line 7: 56 words (limit 50): \"The summary lists each category with its score, then each metric with its value…\" (and 1 more)"
-            },
-            {
-              "name": "docs/reference/scoring.md",
-              "value": false,
-              "target": null,
-              "note": "line 81: 54 words (limit 50): \"A category score is the weighted mean of its metric scores, rounded. It adds th…\""
-            },
-            {
-              "name": "examples/README.md",
-              "value": false,
-              "target": null,
-              "note": "line 22: 63 words (limit 50): \"Each example keeps its targets in  … . A record with only a target, such as  … …\""
+              "note": null
             },
             {
               "name": "docs/README.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/guides/baselines.md",
               "value": true,
               "target": null,
               "note": null
@@ -19929,6 +19700,12 @@
             },
             {
               "name": "docs/guides/github-actions.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/guides/packs.md",
               "value": true,
               "target": null,
               "note": null
@@ -19958,13 +19735,49 @@
               "note": null
             },
             {
+              "name": "docs/reference/action.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/reference/cli.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/reference/configuration.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "docs/reference/metric-lines.md",
               "value": true,
               "target": null,
               "note": null
             },
             {
+              "name": "docs/reference/reports.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/reference/scoring.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "docs/reference/units.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "examples/README.md",
               "value": true,
               "target": null,
               "note": null
@@ -20043,9 +19856,9 @@
           "description": "Keep each paragraph to six sentences or fewer.",
           "kind": "check",
           "unit": null,
-          "value": 0.96875,
+          "value": 1,
           "item": null,
-          "score": 97,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -20055,9 +19868,9 @@
           "items": [
             {
               "name": ".agents/plan.md",
-              "value": false,
+              "value": true,
               "target": null,
-              "note": "line 56: 8 sentences (limit 6): \"Decided 2026-11-22, with patterns added the same day.\" (and 19 more)"
+              "note": null
             },
             {
               "name": "README.md",
@@ -20253,9 +20066,9 @@
           "description": "Use the active voice. Avoid passive phrases such as \"is processed\" (write-good `passive`).",
           "kind": "check",
           "unit": null,
-          "value": 0.59375,
+          "value": 1,
           "item": null,
-          "score": 59,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -20265,84 +20078,18 @@
           "items": [
             {
               "name": ".agents/plan.md",
-              "value": false,
+              "value": true,
               "target": null,
-              "note": "line 42: \"is scored\" may be passive voice (and 36 more)"
-            },
-            {
-              "name": "SKILL.md",
-              "value": false,
-              "target": null,
-              "note": "line 118: \"are monitored\" may be passive voice"
-            },
-            {
-              "name": "docs/guides/baselines.md",
-              "value": false,
-              "target": null,
-              "note": "line 7: \"are committed\" may be passive voice (and 1 more)"
-            },
-            {
-              "name": "docs/guides/comparing.md",
-              "value": false,
-              "target": null,
-              "note": "line 22: \"is committed\" may be passive voice (and 1 more)"
-            },
-            {
-              "name": "docs/guides/github-actions.md",
-              "value": false,
-              "target": null,
-              "note": "line 269: \"is set\" may be passive voice"
-            },
-            {
-              "name": "docs/guides/targets.md",
-              "value": false,
-              "target": null,
-              "note": "line 125: \"are left\" may be passive voice"
-            },
-            {
-              "name": "docs/reference/action.md",
-              "value": false,
-              "target": null,
-              "note": "line 92: \"is read\" may be passive voice"
-            },
-            {
-              "name": "docs/reference/cli.md",
-              "value": false,
-              "target": null,
-              "note": "line 375: \"are installed\" may be passive voice"
-            },
-            {
-              "name": "docs/reference/configuration.md",
-              "value": false,
-              "target": null,
-              "note": "line 41: \"is set\" may be passive voice (and 2 more)"
-            },
-            {
-              "name": "docs/reference/metric-lines.md",
-              "value": false,
-              "target": null,
-              "note": "line 7: \"are ignored\" may be passive voice"
-            },
-            {
-              "name": "docs/reference/scoring.md",
-              "value": false,
-              "target": null,
-              "note": "line 64: \"is judged\" may be passive voice (and 1 more)"
-            },
-            {
-              "name": "examples/README.md",
-              "value": false,
-              "target": null,
-              "note": "line 26: \"is measured\" may be passive voice"
-            },
-            {
-              "name": "packs/tigerstyle/README.md",
-              "value": false,
-              "target": null,
-              "note": "line 3: \"are excluded\" may be passive voice"
+              "note": null
             },
             {
               "name": "README.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "SKILL.md",
               "value": true,
               "target": null,
               "note": null
@@ -20360,6 +20107,24 @@
               "note": null
             },
             {
+              "name": "docs/guides/baselines.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/guides/comparing.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/guides/github-actions.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "docs/guides/packs.md",
               "value": true,
               "target": null,
@@ -20367,6 +20132,12 @@
             },
             {
               "name": "docs/guides/scripts.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/guides/targets.md",
               "value": true,
               "target": null,
               "note": null
@@ -20384,13 +20155,49 @@
               "note": null
             },
             {
+              "name": "docs/reference/action.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/reference/cli.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/reference/configuration.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/reference/metric-lines.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "docs/reference/reports.md",
               "value": true,
               "target": null,
               "note": null
             },
             {
+              "name": "docs/reference/scoring.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "docs/reference/units.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "examples/README.md",
               "value": true,
               "target": null,
               "note": null
@@ -20438,6 +20245,12 @@
               "note": null
             },
             {
+              "name": "packs/tigerstyle/README.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/typescript/README.md",
               "value": true,
               "target": null,
@@ -20463,9 +20276,9 @@
           "description": "Use the short word instead of a wordy phrase, such as \"to\" for \"in order to\" (write-good `tooWordy`).",
           "kind": "check",
           "unit": null,
-          "value": 0.5625,
+          "value": 1,
           "item": null,
-          "score": 56,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -20475,90 +20288,18 @@
           "items": [
             {
               "name": ".agents/plan.md",
-              "value": false,
+              "value": true,
               "target": null,
-              "note": "line 50: \"similar to\" is wordy or unneeded (and 10 more)"
-            },
-            {
-              "name": "SKILL.md",
-              "value": false,
-              "target": null,
-              "note": "line 28: \"requirement\" is wordy or unneeded (and 2 more)"
-            },
-            {
-              "name": "docs/guides/baselines.md",
-              "value": false,
-              "target": null,
-              "note": "line 23: \"it was\" is wordy or unneeded (and 1 more)"
-            },
-            {
-              "name": "docs/guides/comparing.md",
-              "value": false,
-              "target": null,
-              "note": "line 152: \"as to\" is wordy or unneeded"
-            },
-            {
-              "name": "docs/guides/github-actions.md",
-              "value": false,
-              "target": null,
-              "note": "line 159: \"it is\" is wordy or unneeded (and 3 more)"
-            },
-            {
-              "name": "docs/guides/scripts.md",
-              "value": false,
-              "target": null,
-              "note": "line 97: \"it is\" is wordy or unneeded"
-            },
-            {
-              "name": "docs/guides/targets.md",
-              "value": false,
-              "target": null,
-              "note": "line 3: \"requirement\" is wordy or unneeded (and 1 more)"
-            },
-            {
-              "name": "docs/reference/action.md",
-              "value": false,
-              "target": null,
-              "note": "line 113: \"overall\" is wordy or unneeded (and 4 more)"
-            },
-            {
-              "name": "docs/reference/cli.md",
-              "value": false,
-              "target": null,
-              "note": "line 298: \"it was\" is wordy or unneeded"
-            },
-            {
-              "name": "docs/reference/configuration.md",
-              "value": false,
-              "target": null,
-              "note": "line 201: \"it is\" is wordy or unneeded (and 1 more)"
-            },
-            {
-              "name": "docs/reference/metric-lines.md",
-              "value": false,
-              "target": null,
-              "note": "line 71: \"It is\" is wordy or unneeded (and 1 more)"
-            },
-            {
-              "name": "docs/reference/reports.md",
-              "value": false,
-              "target": null,
-              "note": "line 154: \"overall\" is wordy or unneeded (and 1 more)"
-            },
-            {
-              "name": "docs/reference/scoring.md",
-              "value": false,
-              "target": null,
-              "note": "line 3: \"overall\" is wordy or unneeded (and 3 more)"
-            },
-            {
-              "name": "packs/deslop/README.md",
-              "value": false,
-              "target": null,
-              "note": "line 15: \"evaluate\" is wordy or unneeded"
+              "note": null
             },
             {
               "name": "README.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "SKILL.md",
               "value": true,
               "target": null,
               "note": null
@@ -20576,7 +20317,37 @@
               "note": null
             },
             {
+              "name": "docs/guides/baselines.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/guides/comparing.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/guides/github-actions.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "docs/guides/packs.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/guides/scripts.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/guides/targets.md",
               "value": true,
               "target": null,
               "note": null
@@ -20589,6 +20360,42 @@
             },
             {
               "name": "docs/introduction/installation.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/reference/action.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/reference/cli.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/reference/configuration.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/reference/metric-lines.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/reference/reports.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/reference/scoring.md",
               "value": true,
               "target": null,
               "note": null
@@ -20625,6 +20432,12 @@
             },
             {
               "name": "npm/README.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/deslop/README.md",
               "value": true,
               "target": null,
               "note": null
@@ -20673,9 +20486,9 @@
           "description": "Avoid weasel words such as \"very\" (write-good `weasel`).",
           "kind": "check",
           "unit": null,
-          "value": 0.65625,
+          "value": 1,
           "item": null,
-          "score": 66,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -20685,72 +20498,18 @@
           "items": [
             {
               "name": ".agents/plan.md",
-              "value": false,
+              "value": true,
               "target": null,
-              "note": "line 64: \"several\" is a weasel word (and 8 more)"
-            },
-            {
-              "name": "SKILL.md",
-              "value": false,
-              "target": null,
-              "note": "line 21: \"several\" is a weasel word (and 2 more)"
-            },
-            {
-              "name": "docs/guides/github-actions.md",
-              "value": false,
-              "target": null,
-              "note": "line 120: \"Several\" is a weasel word"
-            },
-            {
-              "name": "docs/guides/scripts.md",
-              "value": false,
-              "target": null,
-              "note": "line 190: \"several\" is a weasel word"
-            },
-            {
-              "name": "docs/introduction/getting-started.md",
-              "value": false,
-              "target": null,
-              "note": "line 86: \"few\" is a weasel word"
-            },
-            {
-              "name": "docs/reference/cli.md",
-              "value": false,
-              "target": null,
-              "note": "line 3: \"several\" is a weasel word"
-            },
-            {
-              "name": "docs/reference/reports.md",
-              "value": false,
-              "target": null,
-              "note": "line 109: \"many\" is a weasel word (and 4 more)"
-            },
-            {
-              "name": "docs/reference/units.md",
-              "value": false,
-              "target": null,
-              "note": "line 43: \"is a number\" is a weasel word"
-            },
-            {
-              "name": "examples/README.md",
-              "value": false,
-              "target": null,
-              "note": "line 5: \"few\" is a weasel word"
-            },
-            {
-              "name": "examples/typescript-library/README.md",
-              "value": false,
-              "target": null,
-              "note": "line 3: \"tiny\" is a weasel word"
-            },
-            {
-              "name": "examples/web-app/README.md",
-              "value": false,
-              "target": null,
-              "note": "line 10: \"few\" is a weasel word"
+              "note": null
             },
             {
               "name": "README.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "SKILL.md",
               "value": true,
               "target": null,
               "note": null
@@ -20780,13 +20539,31 @@
               "note": null
             },
             {
+              "name": "docs/guides/github-actions.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "docs/guides/packs.md",
               "value": true,
               "target": null,
               "note": null
             },
             {
+              "name": "docs/guides/scripts.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "docs/guides/targets.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/introduction/getting-started.md",
               "value": true,
               "target": null,
               "note": null
@@ -20804,6 +20581,12 @@
               "note": null
             },
             {
+              "name": "docs/reference/cli.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "docs/reference/configuration.md",
               "value": true,
               "target": null,
@@ -20816,13 +20599,43 @@
               "note": null
             },
             {
+              "name": "docs/reference/reports.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "docs/reference/scoring.md",
               "value": true,
               "target": null,
               "note": null
             },
             {
+              "name": "docs/reference/units.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "examples/README.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "examples/rust-api/README.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "examples/typescript-library/README.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "examples/web-app/README.md",
               "value": true,
               "target": null,
               "note": null
@@ -21093,9 +20906,9 @@
           "description": "Use precise verbs such as \"returns\" or \"reports\", not get, give, hand, know, say, see, or tell.",
           "kind": "check",
           "unit": null,
-          "value": 0.375,
+          "value": 1,
           "item": null,
-          "score": 38,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -21105,123 +20918,27 @@
           "items": [
             {
               "name": ".agents/plan.md",
-              "value": false,
+              "value": true,
               "target": null,
-              "note": "line 14: Conversational verb: \"say\" (and 20 more)"
+              "note": null
             },
             {
               "name": "README.md",
-              "value": false,
+              "value": true,
               "target": null,
-              "note": "line 35: Conversational verb: \"says\" (and 1 more)"
+              "note": null
             },
             {
               "name": "SKILL.md",
-              "value": false,
+              "value": true,
               "target": null,
-              "note": "line 19: Conversational verb: \"see\" (and 8 more)"
+              "note": null
             },
             {
               "name": "crates/cli/src/init.md",
-              "value": false,
+              "value": true,
               "target": null,
-              "note": "line 11: Conversational verb: \"hand\" (and 2 more)"
-            },
-            {
-              "name": "docs/guides/baselines.md",
-              "value": false,
-              "target": null,
-              "note": "line 49: Conversational verb: \"gives\" (and 1 more)"
-            },
-            {
-              "name": "docs/guides/comparing.md",
-              "value": false,
-              "target": null,
-              "note": "line 18: Conversational verb: \"gets\""
-            },
-            {
-              "name": "docs/guides/github-actions.md",
-              "value": false,
-              "target": null,
-              "note": "line 87: Conversational verb: \"see\""
-            },
-            {
-              "name": "docs/guides/packs.md",
-              "value": false,
-              "target": null,
-              "note": "line 193: Conversational verb: \"Give\""
-            },
-            {
-              "name": "docs/guides/scripts.md",
-              "value": false,
-              "target": null,
-              "note": "line 79: Conversational verb: \"gives\" (and 2 more)"
-            },
-            {
-              "name": "docs/guides/targets.md",
-              "value": false,
-              "target": null,
-              "note": "line 9: Conversational verb: \"knows\" (and 2 more)"
-            },
-            {
-              "name": "docs/introduction/getting-started.md",
-              "value": false,
-              "target": null,
-              "note": "line 86: Conversational verb: \"gives\""
-            },
-            {
-              "name": "docs/reference/action.md",
-              "value": false,
-              "target": null,
-              "note": "line 113: Conversational verb: \"gets\""
-            },
-            {
-              "name": "docs/reference/cli.md",
-              "value": false,
-              "target": null,
-              "note": "line 100: Conversational verb: \"gives\" (and 1 more)"
-            },
-            {
-              "name": "docs/reference/configuration.md",
-              "value": false,
-              "target": null,
-              "note": "line 69: Conversational verb: \"see\""
-            },
-            {
-              "name": "docs/reference/metric-lines.md",
-              "value": false,
-              "target": null,
-              "note": "line 37: Conversational verb: \"gives\" (and 1 more)"
-            },
-            {
-              "name": "docs/reference/reports.md",
-              "value": false,
-              "target": null,
-              "note": "line 154: Conversational verb: \"see\""
-            },
-            {
-              "name": "examples/README.md",
-              "value": false,
-              "target": null,
-              "note": "line 9: Conversational verb: \"get\" (and 3 more)"
-            },
-            {
-              "name": "examples/typescript-library/README.md",
-              "value": false,
-              "target": null,
-              "note": "line 9: Conversational verb: \"get\""
-            },
-            {
-              "name": "npm/README.md",
-              "value": false,
-              "target": null,
-              "note": "line 15: Conversational verb: \"See\""
-            },
-            {
-              "name": "packs/typescript/README.md",
-              "value": false,
-              "target": null,
-              "note": "line 9: Conversational verb: \"gets\""
+              "note": null
             },
             {
               "name": "docs/README.md",
@@ -21230,7 +20947,79 @@
               "note": null
             },
             {
+              "name": "docs/guides/baselines.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/guides/comparing.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/guides/github-actions.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/guides/packs.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/guides/scripts.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/guides/targets.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/introduction/getting-started.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "docs/introduction/installation.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/reference/action.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/reference/cli.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/reference/configuration.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/reference/metric-lines.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "docs/reference/reports.md",
               "value": true,
               "target": null,
               "note": null
@@ -21248,13 +21037,31 @@
               "note": null
             },
             {
+              "name": "examples/README.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "examples/rust-api/README.md",
               "value": true,
               "target": null,
               "note": null
             },
             {
+              "name": "examples/typescript-library/README.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "examples/web-app/README.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "npm/README.md",
               "value": true,
               "target": null,
               "note": null
@@ -21284,6 +21091,12 @@
               "note": null
             },
             {
+              "name": "packs/typescript/README.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/web/README.md",
               "value": true,
               "target": null,
@@ -21303,9 +21116,9 @@
           "description": "Use the imperative, simple present, simple past, or simple future. Do not use a progressive or perfect form.",
           "kind": "check",
           "unit": null,
-          "value": 0.96875,
+          "value": 1,
           "item": null,
-          "score": 97,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -21315,9 +21128,9 @@
           "items": [
             {
               "name": ".agents/plan.md",
-              "value": false,
+              "value": true,
               "target": null,
-              "note": "line 315: Possible perfect: \"has been\""
+              "note": null
             },
             {
               "name": "README.md",
@@ -21723,9 +21536,9 @@
           "description": "Do not use semicolons in prose. Split the sentence, or use a comma, colon, or parenthesis.",
           "kind": "check",
           "unit": null,
-          "value": 0.96875,
+          "value": 1,
           "item": null,
-          "score": 97,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -21735,9 +21548,9 @@
           "items": [
             {
               "name": ".agents/plan.md",
-              "value": false,
+              "value": true,
               "target": null,
-              "note": "line 377: Semicolon: \";\" (and 2 more)"
+              "note": null
             },
             {
               "name": "README.md",
@@ -22353,9 +22166,9 @@
           "description": "Write headings in Title Case. Lowercase minor words unless they begin or end the heading.",
           "kind": "check",
           "unit": null,
-          "value": 0.9375,
+          "value": 1,
           "item": null,
-          "score": 94,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -22365,15 +22178,9 @@
           "items": [
             {
               "name": ".agents/plan.md",
-              "value": false,
+              "value": true,
               "target": null,
-              "note": "line 1: \"Implementation plan\" is not in title case (and 2 more)"
-            },
-            {
-              "name": "crates/cli/src/init.md",
-              "value": false,
-              "target": null,
-              "note": "line 1: \"Set up Uphill in this project\" is not in title case (and 1 more)"
+              "note": null
             },
             {
               "name": "README.md",
@@ -22383,6 +22190,12 @@
             },
             {
               "name": "SKILL.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/init.md",
               "value": true,
               "target": null,
               "note": null
@@ -22563,9 +22376,9 @@
           "description": "Keep every heading to fewer than four words.",
           "kind": "check",
           "unit": null,
-          "value": 0.9375,
+          "value": 1,
           "item": null,
-          "score": 94,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -22575,15 +22388,9 @@
           "items": [
             {
               "name": ".agents/plan.md",
-              "value": false,
+              "value": true,
               "target": null,
-              "note": "line 18: 5 words (limit 3): \"How Uphill Maps to Lighthouse\" (and 8 more)"
-            },
-            {
-              "name": "crates/cli/src/init.md",
-              "value": false,
-              "target": null,
-              "note": "line 1: 6 words (limit 3): \"Set up Uphill in this project\""
+              "note": null
             },
             {
               "name": "README.md",
@@ -22593,6 +22400,12 @@
             },
             {
               "name": "SKILL.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/init.md",
               "value": true,
               "target": null,
               "note": null
@@ -22773,9 +22586,9 @@
           "description": "Document every export with TSDoc. Overloads share the comment on the first signature.",
           "kind": "check",
           "unit": null,
-          "value": 0.8923076923076924,
+          "value": 1,
           "item": null,
-          "score": 89,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -22783,48 +22596,6 @@
           "weight": 1,
           "rollup": null,
           "items": [
-            {
-              "name": "examples/typescript-library/src/index.ts",
-              "value": false,
-              "target": null,
-              "note": "line 7: ./date.js (and 1 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/fuzz-lib.ts",
-              "value": false,
-              "target": null,
-              "note": "line 117: Prng (and 3 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/fuzz-worker.ts",
-              "value": false,
-              "target": null,
-              "note": "line 135: FailureRecord"
-            },
-            {
-              "name": "packs/typescript/metrics/speed-vitest.config.ts",
-              "value": false,
-              "target": null,
-              "note": "line 111: default"
-            },
-            {
-              "name": "packs/typescript/metrics/types-calls-worker.ts",
-              "value": false,
-              "target": null,
-              "note": "line 60: EntriesResult (and 3 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/types-host.ts",
-              "value": false,
-              "target": null,
-              "note": "line 126: createHost"
-            },
-            {
-              "name": "vite.config.ts",
-              "value": false,
-              "target": null,
-              "note": "line 19: default"
-            },
             {
               "name": ".agents/uphill/metrics/speed.ts",
               "value": true,
@@ -22893,6 +22664,12 @@
             },
             {
               "name": "examples/typescript-library/src/date.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "examples/typescript-library/src/index.ts",
               "value": true,
               "target": null,
               "note": null
@@ -23042,6 +22819,18 @@
               "note": null
             },
             {
+              "name": "packs/typescript/metrics/fuzz-lib.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/fuzz-worker.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/typescript/metrics/fuzz.ts",
               "value": true,
               "target": null,
@@ -23072,6 +22861,12 @@
               "note": null
             },
             {
+              "name": "packs/typescript/metrics/speed-vitest.config.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/typescript/metrics/speed-worker.ts",
               "value": true,
               "target": null,
@@ -23084,6 +22879,12 @@
               "note": null
             },
             {
+              "name": "packs/typescript/metrics/types-calls-worker.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/typescript/metrics/types-calls.ts",
               "value": true,
               "target": null,
@@ -23091,6 +22892,12 @@
             },
             {
               "name": "packs/typescript/metrics/types-enumerate.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/types-host.ts",
               "value": true,
               "target": null,
               "note": null
@@ -23172,6 +22979,12 @@
               "value": true,
               "target": null,
               "note": null
+            },
+            {
+              "name": "vite.config.ts",
+              "value": true,
+              "target": null,
+              "note": null
             }
           ]
         },
@@ -23181,9 +22994,9 @@
           "description": "Document every property of an exported type with TSDoc.",
           "kind": "check",
           "unit": null,
-          "value": 0.8923076923076924,
+          "value": 1,
           "item": null,
-          "score": 89,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -23191,48 +23004,6 @@
           "weight": 1,
           "rollup": null,
           "items": [
-            {
-              "name": "examples/rust-api/.agents/uphill/metrics/server.ts",
-              "value": false,
-              "target": null,
-              "note": "line 14: Server.host (and 2 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/fuzz-lib.ts",
-              "value": false,
-              "target": null,
-              "note": "line 91: Property.arb (and 12 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/fuzz-worker.ts",
-              "value": false,
-              "target": null,
-              "note": "line 117: Planned.name (and 16 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/speed-codec.ts",
-              "value": false,
-              "target": null,
-              "note": "line 97: Origin.key (and 2 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/types-calls-worker.ts",
-              "value": false,
-              "target": null,
-              "note": "line 50: PublicFunction.name (and 25 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/types-enumerate.ts",
-              "value": false,
-              "target": null,
-              "note": "line 37: Item.item (and 3 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/types-worker.ts",
-              "value": false,
-              "target": null,
-              "note": "line 29: Job.id (and 6 more)"
-            },
             {
               "name": ".agents/uphill/metrics/speed.ts",
               "value": true,
@@ -23259,6 +23030,12 @@
             },
             {
               "name": "examples/rust-api/.agents/uphill/metrics/reliability.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "examples/rust-api/.agents/uphill/metrics/server.ts",
               "value": true,
               "target": null,
               "note": null
@@ -23450,6 +23227,18 @@
               "note": null
             },
             {
+              "name": "packs/typescript/metrics/fuzz-lib.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/fuzz-worker.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/typescript/metrics/fuzz.ts",
               "value": true,
               "target": null,
@@ -23463,6 +23252,12 @@
             },
             {
               "name": "packs/typescript/metrics/library.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/speed-codec.ts",
               "value": true,
               "target": null,
               "note": null
@@ -23492,13 +23287,31 @@
               "note": null
             },
             {
+              "name": "packs/typescript/metrics/types-calls-worker.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/typescript/metrics/types-calls.ts",
               "value": true,
               "target": null,
               "note": null
             },
             {
+              "name": "packs/typescript/metrics/types-enumerate.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/typescript/metrics/types-host.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/types-worker.ts",
               "value": true,
               "target": null,
               "note": null
@@ -24968,6 +24781,18 @@
           "rollup": null,
           "items": [
             {
+              "name": "1438d14",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "51e3b82",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "020e0dd",
               "value": true,
               "target": null,
@@ -25251,18 +25076,6 @@
             },
             {
               "name": "21992c9",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "1af8260",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "a04d518",
               "value": true,
               "target": null,
               "note": null
@@ -25286,6 +25099,18 @@
           "rollup": null,
           "items": [
             {
+              "name": "1438d14",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "51e3b82",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "020e0dd",
               "value": true,
               "target": null,
@@ -25569,18 +25394,6 @@
             },
             {
               "name": "21992c9",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "1af8260",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "a04d518",
               "value": true,
               "target": null,
               "note": null
@@ -25604,6 +25417,18 @@
           "rollup": null,
           "items": [
             {
+              "name": "1438d14",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "51e3b82",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "020e0dd",
               "value": true,
               "target": null,
@@ -25887,18 +25712,6 @@
             },
             {
               "name": "21992c9",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "1af8260",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "a04d518",
               "value": true,
               "target": null,
               "note": null
@@ -25940,6 +25753,18 @@
               "note": "header must not be longer than 100 characters, current length is 104: docs: rename the devising-metrics skill to creating-metrics and add Quick Prompt and Packs to the README"
             },
             {
+              "name": "1438d14",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "51e3b82",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "020e0dd",
               "value": true,
               "target": null,
@@ -26208,18 +26033,6 @@
               "value": true,
               "target": null,
               "note": null
-            },
-            {
-              "name": "1af8260",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "a04d518",
-              "value": true,
-              "target": null,
-              "note": null
             }
           ]
         },
@@ -26229,9 +26042,9 @@
           "description": "Put a blank line before the body and the footer, and wrap them at 100 characters (commitlint `body-leading-blank`, `body-max-line-length`, and the matching footer rules).",
           "kind": "check",
           "unit": null,
-          "value": 0.94,
+          "value": 0.96,
           "item": null,
-          "score": 94,
+          "score": 96,
           "target": null,
           "default": null,
           "note": null,
@@ -26252,10 +26065,16 @@
               "note": "body's lines must not be longer than 100 characters: docs: frame the devising-metrics patterns as references to research"
             },
             {
-              "name": "1af8260",
-              "value": false,
+              "name": "1438d14",
+              "value": true,
               "target": null,
-              "note": "body's lines must not be longer than 100 characters: feat: add the devising-metrics skill and end the `uphill init` brief with it"
+              "note": null
+            },
+            {
+              "name": "51e3b82",
+              "value": true,
+              "target": null,
+              "note": null
             },
             {
               "name": "020e0dd",
@@ -26529,12 +26348,6 @@
             },
             {
               "name": "d969835",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "a04d518",
               "value": true,
               "target": null,
               "note": null
@@ -26558,6 +26371,18 @@
           "rollup": null,
           "items": [
             {
+              "name": "1438d14",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "51e3b82",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "020e0dd",
               "value": true,
               "target": null,
@@ -26844,18 +26669,6 @@
               "value": true,
               "target": null,
               "note": null
-            },
-            {
-              "name": "1af8260",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "a04d518",
-              "value": true,
-              "target": null,
-              "note": null
             }
           ]
         },
@@ -26875,6 +26688,18 @@
           "weight": 1,
           "rollup": null,
           "items": [
+            {
+              "name": "1438d14",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "51e3b82",
+              "value": true,
+              "target": null,
+              "note": null
+            },
             {
               "name": "020e0dd",
               "value": true,
@@ -27111,18 +26936,6 @@
             },
             {
               "name": "21992c9",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "1af8260",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "a04d518",
               "value": true,
               "target": null,
               "note": null
@@ -27183,9 +26996,9 @@
           "description": "Add or edit a test source file in each `fix:` commit.",
           "kind": "check",
           "unit": null,
-          "value": 0.7777777777777778,
+          "value": 0.75,
           "item": null,
-          "score": 78,
+          "score": 75,
           "target": null,
           "default": null,
           "note": null,
@@ -27240,12 +27053,6 @@
               "value": true,
               "target": null,
               "note": null
-            },
-            {
-              "name": "a04d518",
-              "value": true,
-              "target": null,
-              "note": null
             }
           ]
         },
@@ -27297,366 +27104,15 @@
           "items": []
         }
       ]
-    },
-    {
-      "name": "coverage",
-      "title": "Coverage",
-      "subject": null,
-      "description": null,
-      "score": null,
-      "rounds": 1,
-      "metrics": [
-        {
-          "name": "benched",
-          "title": "Benched",
-          "description": "Call each public function in the tests with arguments that rebuild in another process, such as plain data. Make sure the call returns or resolves.",
-          "kind": "check",
-          "unit": null,
-          "value": null,
-          "item": null,
-          "score": null,
-          "target": null,
-          "default": null,
-          "note": "package.json exports no ES module",
-          "better": "lower",
-          "weight": 1,
-          "rollup": null,
-          "items": []
-        }
-      ]
-    },
-    {
-      "name": "types",
-      "title": "Types",
-      "subject": null,
-      "description": null,
-      "score": null,
-      "rounds": 1,
-      "metrics": [
-        {
-          "name": "instantiations",
-          "title": "Instantiations",
-          "description": "Keep each public export cheap to type-check. Avoid types that need many instantiations to resolve.",
-          "kind": "check",
-          "unit": null,
-          "value": null,
-          "item": null,
-          "score": null,
-          "target": null,
-          "default": 1000,
-          "note": "package.json exports no ES module",
-          "better": "lower",
-          "weight": 1,
-          "rollup": null,
-          "items": []
-        },
-        {
-          "name": "check-time",
-          "title": "Check time",
-          "description": "Keep each public export fast to type-check.",
-          "kind": "check",
-          "unit": null,
-          "value": null,
-          "item": null,
-          "score": null,
-          "target": null,
-          "default": 5000000,
-          "note": "package.json exports no ES module",
-          "better": "lower",
-          "weight": 1,
-          "rollup": null,
-          "items": []
-        },
-        {
-          "name": "check-memory",
-          "title": "Check memory",
-          "description": "Keep the heap bytes that type-checking each public export allocates small.",
-          "kind": "check",
-          "unit": null,
-          "value": null,
-          "item": null,
-          "score": null,
-          "target": null,
-          "default": 2000000,
-          "note": "package.json exports no ES module",
-          "better": "lower",
-          "weight": 1,
-          "rollup": null,
-          "items": []
-        },
-        {
-          "name": "bench-instantiations",
-          "title": "Bench instantiations",
-          "description": "Keep the instantiations of each benchmarked type test low, within any count the test pins.",
-          "kind": "check",
-          "unit": null,
-          "value": null,
-          "item": null,
-          "score": null,
-          "target": null,
-          "default": 20000,
-          "note": "package.json exports no ES module",
-          "better": "lower",
-          "weight": 1,
-          "rollup": null,
-          "items": []
-        },
-        {
-          "name": "hot-instantiations",
-          "title": "Hot instantiations",
-          "description": "Keep each hot export especially cheap to type-check.",
-          "kind": "check",
-          "unit": null,
-          "value": null,
-          "item": null,
-          "score": null,
-          "target": null,
-          "default": 1000,
-          "note": "package.json exports no ES module",
-          "better": "lower",
-          "weight": 1,
-          "rollup": null,
-          "items": []
-        }
-      ]
-    },
-    {
-      "name": "call-types",
-      "title": "Call types",
-      "subject": null,
-      "description": null,
-      "score": null,
-      "rounds": 1,
-      "metrics": [
-        {
-          "name": "instantiations",
-          "title": "Instantiations",
-          "description": "Keep each public function cheap to type-check at the call sites that the tests write.",
-          "kind": "check",
-          "unit": null,
-          "value": null,
-          "item": null,
-          "score": null,
-          "target": null,
-          "default": 1000,
-          "note": "package.json exports no ES module",
-          "better": "lower",
-          "weight": 1,
-          "rollup": null,
-          "items": []
-        },
-        {
-          "name": "hot-instantiations",
-          "title": "Hot instantiations",
-          "description": "Keep each hot function especially cheap to type-check at its call sites.",
-          "kind": "check",
-          "unit": null,
-          "value": null,
-          "item": null,
-          "score": null,
-          "target": null,
-          "default": 1000,
-          "note": "package.json exports no ES module",
-          "better": "lower",
-          "weight": 1,
-          "rollup": null,
-          "items": []
-        }
-      ]
-    },
-    {
-      "name": "type-coverage",
-      "title": "Type coverage",
-      "subject": null,
-      "description": null,
-      "score": null,
-      "rounds": 1,
-      "metrics": [
-        {
-          "name": "type-benched",
-          "title": "Type benched",
-          "description": "Call each public function in the runtime or type tests. Make sure the imports and fixtures of that call resolve.",
-          "kind": "check",
-          "unit": null,
-          "value": null,
-          "item": null,
-          "score": null,
-          "target": null,
-          "default": null,
-          "note": "package.json exports no ES module",
-          "better": "lower",
-          "weight": 1,
-          "rollup": null,
-          "items": []
-        }
-      ]
-    },
-    {
-      "name": "fuzz",
-      "title": "Fuzz",
-      "subject": null,
-      "description": null,
-      "score": null,
-      "rounds": 1,
-      "metrics": [
-        {
-          "name": "fuzzed",
-          "title": "Fuzzed",
-          "description": "Make sure each public function has a fuzz harness that runs.",
-          "kind": "check",
-          "unit": null,
-          "value": null,
-          "item": null,
-          "score": null,
-          "target": null,
-          "default": null,
-          "note": "package.json exports no ES module",
-          "better": "lower",
-          "weight": 1,
-          "rollup": null,
-          "items": []
-        },
-        {
-          "name": "fuzz-clean",
-          "title": "Fuzz clean",
-          "description": "Handle every input that keeps the declared types. Throw no undocumented TypeError, RangeError, or SyntaxError, and avoid stack overflows, hangs, and runaway memory. Keep each property in `fuzz.properties` true.",
-          "kind": "check",
-          "unit": null,
-          "value": null,
-          "item": null,
-          "score": null,
-          "target": null,
-          "default": null,
-          "note": "package.json exports no ES module",
-          "better": "lower",
-          "weight": 1,
-          "rollup": null,
-          "items": []
-        },
-        {
-          "name": "fuzz-coverage",
-          "title": "Fuzz coverage",
-          "description": "Make every line of a public function's own source reachable by fuzzing.",
-          "kind": "check",
-          "unit": null,
-          "value": null,
-          "item": null,
-          "score": null,
-          "target": null,
-          "default": 90,
-          "note": "package.json exports no ES module",
-          "better": "higher",
-          "weight": 1,
-          "rollup": null,
-          "items": []
-        },
-        {
-          "name": "hot-fuzz-coverage",
-          "title": "Hot fuzz coverage",
-          "description": "Make sure every line of a hot item's own source runs under fuzzing.",
-          "kind": "check",
-          "unit": null,
-          "value": null,
-          "item": null,
-          "score": null,
-          "target": null,
-          "default": 100,
-          "note": "package.json exports no ES module",
-          "better": "higher",
-          "weight": 1,
-          "rollup": null,
-          "items": []
-        }
-      ]
     }
   ],
   "opportunities": [
-    {
-      "category": "footprint",
-      "subject": null,
-      "metric": "dependencies",
-      "item": null,
-      "items": 1,
-      "value": 54,
-      "target": 10,
-      "gain": 44
-    },
-    {
-      "category": "footprint",
-      "subject": null,
-      "metric": "binary-size",
-      "item": null,
-      "items": 1,
-      "value": 3003216,
-      "target": 1000000,
-      "gain": 34
-    },
-    {
-      "category": "documentation",
-      "subject": null,
-      "metric": "rustdoc",
-      "item": null,
-      "items": 1,
-      "value": false,
-      "target": true,
-      "gain": 5
-    },
-    {
-      "category": "documentation",
-      "subject": null,
-      "metric": "conversational-verbs",
-      "item": null,
-      "items": 20,
-      "value": false,
-      "target": true,
-      "gain": 3
-    },
-    {
-      "category": "documentation",
-      "subject": null,
-      "metric": "wordy-words",
-      "item": null,
-      "items": 14,
-      "value": false,
-      "target": true,
-      "gain": 2
-    },
     {
       "category": "style",
       "subject": null,
       "metric": "mutable-arrays",
       "item": null,
       "items": 35,
-      "value": false,
-      "target": true,
-      "gain": 2
-    },
-    {
-      "category": "documentation",
-      "subject": null,
-      "metric": "passive-voice",
-      "item": null,
-      "items": 13,
-      "value": false,
-      "target": true,
-      "gain": 2
-    },
-    {
-      "category": "documentation",
-      "subject": null,
-      "metric": "sentence-words",
-      "item": null,
-      "items": 12,
-      "value": false,
-      "target": true,
-      "gain": 2
-    },
-    {
-      "category": "documentation",
-      "subject": null,
-      "metric": "paragraph-words",
-      "item": null,
-      "items": 12,
       "value": false,
       "target": true,
       "gain": 2
@@ -27682,16 +27138,6 @@
       "gain": 2
     },
     {
-      "category": "documentation",
-      "subject": null,
-      "metric": "weasel-words",
-      "item": null,
-      "items": 11,
-      "value": false,
-      "target": true,
-      "gain": 2
-    },
-    {
       "category": "testing",
       "subject": null,
       "metric": "test-sleeps",
@@ -27702,21 +27148,21 @@
       "gain": 2
     },
     {
+      "category": "speed",
+      "subject": null,
+      "metric": "startup",
+      "item": null,
+      "items": 1,
+      "value": 1068000,
+      "target": 1000000,
+      "gain": 2
+    },
+    {
       "category": "architecture",
       "subject": null,
       "metric": "module-state",
       "item": null,
       "items": 12,
-      "value": false,
-      "target": true,
-      "gain": 1
-    },
-    {
-      "category": "style",
-      "subject": null,
-      "metric": "positional-parameters",
-      "item": null,
-      "items": 20,
       "value": false,
       "target": true,
       "gain": 1
@@ -27737,6 +27183,16 @@
       "metric": "fix-tests",
       "item": "ee76cd9",
       "items": 1,
+      "value": false,
+      "target": true,
+      "gain": 1
+    },
+    {
+      "category": "style",
+      "subject": null,
+      "metric": "positional-parameters",
+      "item": null,
+      "items": 20,
       "value": false,
       "target": true,
       "gain": 1
@@ -27837,36 +27293,6 @@
       "metric": "header-length",
       "item": null,
       "items": 3,
-      "value": false,
-      "target": true,
-      "gain": 1
-    },
-    {
-      "category": "commits",
-      "subject": null,
-      "metric": "message-body",
-      "item": null,
-      "items": 3,
-      "value": false,
-      "target": true,
-      "gain": 1
-    },
-    {
-      "category": "documentation",
-      "subject": null,
-      "metric": "export-docs",
-      "item": null,
-      "items": 7,
-      "value": false,
-      "target": true,
-      "gain": 1
-    },
-    {
-      "category": "documentation",
-      "subject": null,
-      "metric": "property-docs",
-      "item": null,
-      "items": 7,
       "value": false,
       "target": true,
       "gain": 1
