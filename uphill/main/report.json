@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "score": 96,
+  "score": 99,
   "categories": [
     {
       "name": "footprint",
@@ -16,7 +16,7 @@
           "description": null,
           "kind": "size",
           "unit": "B",
-          "value": 3003024,
+          "value": 3003808,
           "item": null,
           "score": 94,
           "target": 3500000,
@@ -51,7 +51,7 @@
       "title": "Speed",
       "subject": null,
       "description": null,
-      "score": 94,
+      "score": 97,
       "rounds": 5,
       "metrics": [
         {
@@ -60,9 +60,9 @@
           "description": null,
           "kind": "time",
           "unit": "ns",
-          "value": 1068000,
+          "value": 854000,
           "item": null,
-          "score": 87,
+          "score": 94,
           "target": 1000000,
           "default": 1000000,
           "note": null,
@@ -77,7 +77,7 @@
           "description": null,
           "kind": "time",
           "unit": "ns",
-          "value": 2176000,
+          "value": 1823000,
           "item": null,
           "score": 100,
           "target": 5000000,
@@ -95,7 +95,7 @@
       "title": "Correctness",
       "subject": null,
       "description": null,
-      "score": 97,
+      "score": 100,
       "rounds": 1,
       "metrics": [
         {
@@ -122,6 +122,12 @@
             },
             {
               "name": "crates/cli/src/dashboard.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/error.rs",
               "value": true,
               "target": null,
               "note": null
@@ -385,6 +391,12 @@
               "note": null
             },
             {
+              "name": "crates/cli/src/error.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "crates/cli/src/fetch.rs",
               "value": true,
               "target": null,
@@ -584,9 +596,9 @@
           "description": "Encode invariants in types instead of `unwrap`, `expect`, slicing, or `panic!`. Use `get`, pattern matching, and `let` chains.",
           "kind": "check",
           "unit": null,
-          "value": 0.9411764705882353,
+          "value": 1,
           "item": null,
-          "score": 94,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -596,18 +608,18 @@
           "items": [
             {
               "name": "crates/cli/src/check.rs",
-              "value": false,
+              "value": true,
               "target": null,
-              "note": "line 49: indexing may panic (clippy::indexing_slicing) (and 1 more)"
-            },
-            {
-              "name": "crates/cli/src/score.rs",
-              "value": false,
-              "target": null,
-              "note": "line 139: indexing may panic (clippy::indexing_slicing) (and 1 more)"
+              "note": null
             },
             {
               "name": "crates/cli/src/dashboard.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/error.rs",
               "value": true,
               "target": null,
               "note": null
@@ -656,6 +668,12 @@
             },
             {
               "name": "crates/cli/src/rules.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/score.rs",
               "value": true,
               "target": null,
               "note": null
@@ -824,6 +842,12 @@
             },
             {
               "name": "crates/cli/src/dashboard.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/error.rs",
               "value": true,
               "target": null,
               "note": null
@@ -1051,6 +1075,12 @@
               "note": null
             },
             {
+              "name": "crates/cli/src/error.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "crates/cli/src/fetch.rs",
               "value": true,
               "target": null,
@@ -1268,6 +1298,12 @@
             },
             {
               "name": "crates/cli/src/dashboard.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/error.rs",
               "value": true,
               "target": null,
               "note": null
@@ -1495,6 +1531,12 @@
               "note": null
             },
             {
+              "name": "crates/cli/src/error.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "crates/cli/src/fetch.rs",
               "value": true,
               "target": null,
@@ -1712,6 +1754,12 @@
             },
             {
               "name": "crates/cli/src/dashboard.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/error.rs",
               "value": true,
               "target": null,
               "note": null
@@ -1967,9 +2015,9 @@
           "description": "Keep the original error. Do not discard it with `map_err(|_| ...)`.",
           "kind": "check",
           "unit": null,
-          "value": 0.9117647058823529,
+          "value": 1,
           "item": null,
-          "score": 91,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -1977,24 +2025,6 @@
           "weight": 1,
           "rollup": null,
           "items": [
-            {
-              "name": "crates/cli/src/history.rs",
-              "value": false,
-              "target": null,
-              "note": "line 361: `map_err(|_|...` wildcard pattern discards the original error (clippy::map_err_ignore)"
-            },
-            {
-              "name": "crates/cli/src/worktree.rs",
-              "value": false,
-              "target": null,
-              "note": "line 44: `map_err(|_|...` wildcard pattern discards the original error (clippy::map_err_ignore) (and 1 more)"
-            },
-            {
-              "name": "crates/engine/src/pack.rs",
-              "value": false,
-              "target": null,
-              "note": "line 589: `map_err(|_|...` wildcard pattern discards the original error (clippy::map_err_ignore) (and 2 more)"
-            },
             {
               "name": "crates/cli/src/check.rs",
               "value": true,
@@ -2008,7 +2038,19 @@
               "note": null
             },
             {
+              "name": "crates/cli/src/error.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "crates/cli/src/fetch.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/history.rs",
               "value": true,
               "target": null,
               "note": null
@@ -2057,6 +2099,12 @@
             },
             {
               "name": "crates/cli/src/script.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/worktree.rs",
               "value": true,
               "target": null,
               "note": null
@@ -2152,6 +2200,12 @@
               "note": null
             },
             {
+              "name": "crates/engine/src/pack.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "crates/engine/src/report.rs",
               "value": true,
               "target": null,
@@ -2207,6 +2261,12 @@
             },
             {
               "name": "crates/cli/src/dashboard.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/error.rs",
               "value": true,
               "target": null,
               "note": null
@@ -2411,9 +2471,9 @@
           "description": "Return errors as typed values, not `String`, `&str`, or `Box<dyn Error>`.",
           "kind": "check",
           "unit": null,
-          "value": 0.6470588235294118,
+          "value": 1,
           "item": null,
-          "score": 65,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -2423,75 +2483,33 @@
           "items": [
             {
               "name": "crates/cli/src/check.rs",
-              "value": false,
+              "value": true,
               "target": null,
-              "note": "line 25: a string as the error"
+              "note": null
             },
             {
               "name": "crates/cli/src/dashboard.rs",
-              "value": false,
+              "value": true,
               "target": null,
-              "note": "line 23: a string as the error (and 3 more)"
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/error.rs",
+              "value": true,
+              "target": null,
+              "note": null
             },
             {
               "name": "crates/cli/src/fetch.rs",
-              "value": false,
+              "value": true,
               "target": null,
-              "note": "line 47: a string as the error (and 10 more)"
+              "note": null
             },
             {
               "name": "crates/cli/src/history.rs",
-              "value": false,
+              "value": true,
               "target": null,
-              "note": "line 80: a string as the error (and 8 more)"
-            },
-            {
-              "name": "crates/cli/src/main.rs",
-              "value": false,
-              "target": null,
-              "note": "line 241: a string as the error (and 1 more)"
-            },
-            {
-              "name": "crates/cli/src/measure.rs",
-              "value": false,
-              "target": null,
-              "note": "line 55: a string as the error (and 4 more)"
-            },
-            {
-              "name": "crates/cli/src/packs.rs",
-              "value": false,
-              "target": null,
-              "note": "line 42: a string as the error (and 10 more)"
-            },
-            {
-              "name": "crates/cli/src/project.rs",
-              "value": false,
-              "target": null,
-              "note": "line 63: a string as the error (and 5 more)"
-            },
-            {
-              "name": "crates/cli/src/rules.rs",
-              "value": false,
-              "target": null,
-              "note": "line 28: a string as the error (and 1 more)"
-            },
-            {
-              "name": "crates/cli/src/score.rs",
-              "value": false,
-              "target": null,
-              "note": "line 77: a string as the error (and 3 more)"
-            },
-            {
-              "name": "crates/cli/src/worktree.rs",
-              "value": false,
-              "target": null,
-              "note": "line 30: a string as the error (and 2 more)"
-            },
-            {
-              "name": "crates/engine/src/pack.rs",
-              "value": false,
-              "target": null,
-              "note": "line 151: a string as the error (and 1 more)"
+              "note": null
             },
             {
               "name": "crates/cli/src/init.rs",
@@ -2500,7 +2518,49 @@
               "note": null
             },
             {
+              "name": "crates/cli/src/main.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/measure.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/packs.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/project.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/rules.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/score.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "crates/cli/src/script.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/worktree.rs",
               "value": true,
               "target": null,
               "note": null
@@ -2596,6 +2656,12 @@
               "note": null
             },
             {
+              "name": "crates/engine/src/pack.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "crates/engine/src/report.rs",
               "value": true,
               "target": null,
@@ -2651,6 +2717,12 @@
             },
             {
               "name": "crates/cli/src/dashboard.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/error.rs",
               "value": true,
               "target": null,
               "note": null
@@ -2914,9 +2986,9 @@
           "description": "Avoid `any`. Use a precise type, validation, or narrowing (oxlint `typescript/no-explicit-any`).",
           "kind": "check",
           "unit": null,
-          "value": 0.9846153846153847,
+          "value": 1,
           "item": null,
-          "score": 98,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -2924,12 +2996,6 @@
           "weight": 1,
           "rollup": null,
           "items": [
-            {
-              "name": "packs/typescript/metrics/fuzz-lib.ts",
-              "value": false,
-              "target": null,
-              "note": "line 26: Unexpected `any`. Specify a different type. (typescript(no-explicit-any))"
-            },
             {
               "name": ".agents/uphill/metrics/speed.ts",
               "value": true,
@@ -3148,6 +3214,12 @@
             },
             {
               "name": "packs/typescript/metrics/footprint.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/fuzz-lib.ts",
               "value": true,
               "target": null,
               "note": null
@@ -3339,9 +3411,9 @@
           "description": "Use `crypto.getRandomValues()`, not `Math.random()` (oxlint `eslint/no-restricted-properties`).",
           "kind": "check",
           "unit": null,
-          "value": 0.9846153846153847,
+          "value": 1,
           "item": null,
-          "score": 98,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -3349,12 +3421,6 @@
           "weight": 1,
           "rollup": null,
           "items": [
-            {
-              "name": "packs/typescript/metrics/speed-record-setup.ts",
-              "value": false,
-              "target": null,
-              "note": "line 485: 'Math.random' is restricted from being used. (eslint(no-restricted-properties))"
-            },
             {
               "name": ".agents/uphill/metrics/speed.ts",
               "value": true,
@@ -3614,6 +3680,12 @@
               "note": null
             },
             {
+              "name": "packs/typescript/metrics/speed-record-setup.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/typescript/metrics/speed-vitest.config.ts",
               "value": true,
               "target": null,
@@ -3796,7 +3868,7 @@
       "title": "Style",
       "subject": null,
       "description": null,
-      "score": 94,
+      "score": 100,
       "rounds": 1,
       "metrics": [
         {
@@ -3823,6 +3895,12 @@
             },
             {
               "name": "crates/cli/src/dashboard.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/error.rs",
               "value": true,
               "target": null,
               "note": null
@@ -4086,6 +4164,12 @@
               "note": null
             },
             {
+              "name": "crates/cli/src/error.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "crates/cli/src/fetch.rs",
               "value": true,
               "target": null,
@@ -4303,6 +4387,12 @@
             },
             {
               "name": "crates/cli/src/dashboard.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/error.rs",
               "value": true,
               "target": null,
               "note": null
@@ -4566,6 +4656,12 @@
               "note": null
             },
             {
+              "name": "crates/cli/src/error.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "crates/cli/src/fetch.rs",
               "value": true,
               "target": null,
@@ -4801,9 +4897,9 @@
           "description": "Keep the item's own name in `use` declarations. Do not rename it with `as`.",
           "kind": "check",
           "unit": null,
-          "value": 0.975,
+          "value": 1,
           "item": null,
-          "score": 98,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -4812,12 +4908,6 @@
           "rollup": null,
           "items": [
             {
-              "name": "crates/engine/src/baseline.rs",
-              "value": false,
-              "target": null,
-              "note": "line 55: a renamed import"
-            },
-            {
               "name": "crates/cli/src/check.rs",
               "value": true,
               "target": null,
@@ -4825,6 +4915,12 @@
             },
             {
               "name": "crates/cli/src/dashboard.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/error.rs",
               "value": true,
               "target": null,
               "note": null
@@ -4897,6 +4993,12 @@
             },
             {
               "name": "crates/cli/tests/cli.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/engine/src/baseline.rs",
               "value": true,
               "target": null,
               "note": null
@@ -5077,6 +5179,12 @@
             },
             {
               "name": "crates/cli/src/dashboard.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/error.rs",
               "value": true,
               "target": null,
               "note": null
@@ -5281,9 +5389,9 @@
           "description": "Use a struct instead of a tuple of three or more types.",
           "kind": "check",
           "unit": null,
-          "value": 0.7941176470588235,
+          "value": 1,
           "item": null,
-          "score": 79,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -5292,48 +5400,6 @@
           "rollup": null,
           "items": [
             {
-              "name": "crates/cli/src/init.rs",
-              "value": false,
-              "target": null,
-              "note": "line 69: a tuple of three or more types"
-            },
-            {
-              "name": "crates/cli/src/measure.rs",
-              "value": false,
-              "target": null,
-              "note": "line 54: a tuple of three or more types"
-            },
-            {
-              "name": "crates/cli/src/project.rs",
-              "value": false,
-              "target": null,
-              "note": "line 171: a tuple of three or more types"
-            },
-            {
-              "name": "crates/engine/src/baseline.rs",
-              "value": false,
-              "target": null,
-              "note": "line 402: a tuple of three or more types (and 3 more)"
-            },
-            {
-              "name": "crates/engine/src/check.rs",
-              "value": false,
-              "target": null,
-              "note": "line 324: a tuple of three or more types"
-            },
-            {
-              "name": "crates/engine/src/report.rs",
-              "value": false,
-              "target": null,
-              "note": "line 280: a tuple of three or more types"
-            },
-            {
-              "name": "crates/engine/src/scan.rs",
-              "value": false,
-              "target": null,
-              "note": "line 63: a tuple of three or more types (and 1 more)"
-            },
-            {
               "name": "crates/cli/src/check.rs",
               "value": true,
               "target": null,
@@ -5341,6 +5407,12 @@
             },
             {
               "name": "crates/cli/src/dashboard.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/error.rs",
               "value": true,
               "target": null,
               "note": null
@@ -5358,13 +5430,31 @@
               "note": null
             },
             {
+              "name": "crates/cli/src/init.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "crates/cli/src/main.rs",
               "value": true,
               "target": null,
               "note": null
             },
             {
+              "name": "crates/cli/src/measure.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "crates/cli/src/packs.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/project.rs",
               "value": true,
               "target": null,
               "note": null
@@ -5389,6 +5479,18 @@
             },
             {
               "name": "crates/cli/src/worktree.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/engine/src/baseline.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/engine/src/check.rs",
               "value": true,
               "target": null,
               "note": null
@@ -5478,7 +5580,19 @@
               "note": null
             },
             {
+              "name": "crates/engine/src/report.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "crates/engine/src/rules.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/engine/src/scan.rs",
               "value": true,
               "target": null,
               "note": null
@@ -5503,9 +5617,9 @@
           "description": "Leave no trailing whitespace, blank lines at the end, or conflict markers in a tracked text file (`git diff --check`).",
           "kind": "check",
           "unit": null,
-          "value": 0.9936102236421726,
+          "value": 1,
           "item": null,
-          "score": 99,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -5513,18 +5627,6 @@
           "weight": 1,
           "rollup": null,
           "items": [
-            {
-              "name": "crates/cli/Cargo.toml",
-              "value": false,
-              "target": null,
-              "note": "line 23: new blank line at EOF."
-            },
-            {
-              "name": "crates/engine/Cargo.toml",
-              "value": false,
-              "target": null,
-              "note": "line 20: new blank line at EOF."
-            },
             {
               "name": ".agents/uphill/metrics/footprint.sh",
               "value": true,
@@ -6240,6 +6342,12 @@
               "note": null
             },
             {
+              "name": "crates/cli/Cargo.toml",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "crates/cli/src/check.rs",
               "value": true,
               "target": null,
@@ -6247,6 +6355,12 @@
             },
             {
               "name": "crates/cli/src/dashboard.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/error.rs",
               "value": true,
               "target": null,
               "note": null
@@ -6529,6 +6643,12 @@
             },
             {
               "name": "crates/cli/tests/fixtures/timeout/uphill.yaml",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/engine/Cargo.toml",
               "value": true,
               "target": null,
               "note": null
@@ -8257,9 +8377,9 @@
           "description": "Annotate arrays as `readonly T[]`. Keep an array mutable only where code mutates the binding or a function's result.",
           "kind": "check",
           "unit": null,
-          "value": 0.46153846153846156,
+          "value": 1,
           "item": null,
-          "score": 46,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -8269,213 +8389,9 @@
           "items": [
             {
               "name": ".agents/uphill/metrics/speed.ts",
-              "value": false,
+              "value": true,
               "target": null,
-              "note": "line 37: string[] (and 1 more)"
-            },
-            {
-              "name": "examples/typescript-library/.agents/uphill/metrics/quality.ts",
-              "value": false,
-              "target": null,
-              "note": "line 69: string[] (and 1 more)"
-            },
-            {
-              "name": "examples/typescript-library/.agents/uphill/metrics/speed.ts",
-              "value": false,
-              "target": null,
-              "note": "line 18: unknown[] (and 1 more)"
-            },
-            {
-              "name": "examples/web-app/.agents/uphill/metrics/lighthouse.ts",
-              "value": false,
-              "target": null,
-              "note": "line 95: item[] (and 1 more)"
-            },
-            {
-              "name": "packs/deslop/metrics/Imports.ts",
-              "value": false,
-              "target": null,
-              "note": "line 20: string[]"
-            },
-            {
-              "name": "packs/deslop/metrics/Rust.ts",
-              "value": false,
-              "target": null,
-              "note": "line 25: { name: string; targets: { name: string; kind: string[] }[] }[] (and 5 more)"
-            },
-            {
-              "name": "packs/deslop/metrics/deslop.ts",
-              "value": false,
-              "target": null,
-              "note": "line 103: number[] (and 10 more)"
-            },
-            {
-              "name": "packs/rust/metrics/Cargo.ts",
-              "value": false,
-              "target": null,
-              "note": "line 5: string[] (and 11 more)"
-            },
-            {
-              "name": "packs/rust/metrics/Source.ts",
-              "value": false,
-              "target": null,
-              "note": "line 16: Node[] (and 4 more)"
-            },
-            {
-              "name": "packs/rust/metrics/rust.ts",
-              "value": false,
-              "target": null,
-              "note": "line 56: string[]"
-            },
-            {
-              "name": "packs/tigerstyle/metrics/linters.ts",
-              "value": false,
-              "target": null,
-              "note": "line 63: Span[] (and 2 more)"
-            },
-            {
-              "name": "packs/tigerstyle/metrics/syntax.ts",
-              "value": false,
-              "target": null,
-              "note": "line 186: string[]"
-            },
-            {
-              "name": "packs/typescript/metrics/compiler.ts",
-              "value": false,
-              "target": null,
-              "note": "line 18: Project[] (and 1 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/footprint.ts",
-              "value": false,
-              "target": null,
-              "note": "line 124: string[] (and 1 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/fuzz-lib.ts",
-              "value": false,
-              "target": null,
-              "note": "line 34: never[] (and 33 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/fuzz-worker.ts",
-              "value": false,
-              "target": null,
-              "note": "line 107: unknown[] (and 40 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/fuzz.ts",
-              "value": false,
-              "target": null,
-              "note": "line 70: string[] (and 12 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/hot.ts",
-              "value": false,
-              "target": null,
-              "note": "line 27: string[]"
-            },
-            {
-              "name": "packs/typescript/metrics/library.ts",
-              "value": false,
-              "target": null,
-              "note": "line 173: string[] (and 6 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/speed-codec.ts",
-              "value": false,
-              "target": null,
-              "note": "line 126: unknown[] (and 17 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/speed-record-setup.ts",
-              "value": false,
-              "target": null,
-              "note": "line 76: Origin[] (and 1 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/speed-vitest.config.ts",
-              "value": false,
-              "target": null,
-              "note": "line 37: { find: string | RegExp }[] (and 8 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/speed-worker.ts",
-              "value": false,
-              "target": null,
-              "note": "line 117: string[] (and 8 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/speed.ts",
-              "value": false,
-              "target": null,
-              "note": "line 95: Sample[] (and 19 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/types-calls-worker.ts",
-              "value": false,
-              "target": null,
-              "note": "line 59: PublicFunction[] (and 13 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/types-calls.ts",
-              "value": false,
-              "target": null,
-              "note": "line 128: string[] (and 7 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/types-enumerate.ts",
-              "value": false,
-              "target": null,
-              "note": "line 264: string[]"
-            },
-            {
-              "name": "packs/typescript/metrics/types-worker.ts",
-              "value": false,
-              "target": null,
-              "note": "line 57: { code: number; message: string }[] (and 1 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/types.ts",
-              "value": false,
-              "target": null,
-              "note": "line 93: Item[] (and 2 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/typescript.ts",
-              "value": false,
-              "target": null,
-              "note": "line 403: string[] (and 14 more)"
-            },
-            {
-              "name": "packs/web/metrics/selectors.ts",
-              "value": false,
-              "target": null,
-              "note": "line 26: string[] (and 1 more)"
-            },
-            {
-              "name": "packs/web/metrics/web.ts",
-              "value": false,
-              "target": null,
-              "note": "line 252: {           code?: string           filename: string           labels: { span: { line: number } }[]           message: string         }[] (and 3 more)"
-            },
-            {
-              "name": "tests/packs/deslop.test.ts",
-              "value": false,
-              "target": null,
-              "note": "line 12: {     score: number | null     metrics: {       name: string       score: number | null       items: { name: string; value: boolean | null; note: string }[]     }[]   }[] (and 2 more)"
-            },
-            {
-              "name": "tests/packs/reports.test.ts",
-              "value": false,
-              "target": null,
-              "note": "line 38: {       error?: { details: string }       metrics?: {         items: { name: string; value: boolean | null }[]         name: string         score: number | null       }[]       name: string       score: number | null     }[] (and 3 more)"
-            },
-            {
-              "name": "tests/packs/tigerstyle.test.ts",
-              "value": false,
-              "target": null,
-              "note": "line 28: string[] (and 2 more)"
+              "note": null
             },
             {
               "name": "assets/gauges.ts",
@@ -8520,6 +8436,18 @@
               "note": null
             },
             {
+              "name": "examples/typescript-library/.agents/uphill/metrics/quality.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "examples/typescript-library/.agents/uphill/metrics/speed.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "examples/typescript-library/src/date.test.ts",
               "value": true,
               "target": null,
@@ -8556,6 +8484,12 @@
               "note": null
             },
             {
+              "name": "examples/web-app/.agents/uphill/metrics/lighthouse.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "examples/web-app/.agents/uphill/metrics/serve.ts",
               "value": true,
               "target": null,
@@ -8580,7 +8514,25 @@
               "note": null
             },
             {
+              "name": "packs/deslop/metrics/Imports.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/deslop/metrics/Rust.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/deslop/metrics/TypeScript.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/deslop/metrics/deslop.ts",
               "value": true,
               "target": null,
               "note": null
@@ -8592,13 +8544,43 @@
               "note": null
             },
             {
+              "name": "packs/rust/metrics/Cargo.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/rust/metrics/Manifest.ts",
               "value": true,
               "target": null,
               "note": null
             },
             {
+              "name": "packs/rust/metrics/Source.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/rust/metrics/rust.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/tigerstyle/metrics/linters.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/tigerstyle/metrics/manifests.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/tigerstyle/metrics/syntax.ts",
               "value": true,
               "target": null,
               "note": null
@@ -8616,7 +8598,127 @@
               "note": null
             },
             {
+              "name": "packs/typescript/metrics/compiler.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/footprint.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/fuzz-lib.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/fuzz-worker.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/fuzz.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/hot.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/library.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/speed-codec.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/speed-record-setup.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/speed-vitest.config.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/speed-worker.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/speed.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/types-calls-worker.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/types-calls.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/types-enumerate.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/typescript/metrics/types-host.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/types-worker.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/types.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/typescript.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/web/metrics/selectors.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/web/metrics/web.ts",
               "value": true,
               "target": null,
               "note": null
@@ -8634,7 +8736,25 @@
               "note": null
             },
             {
+              "name": "tests/packs/deslop.test.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "tests/packs/reports.test.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "tests/packs/rust.test.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "tests/packs/tigerstyle.test.ts",
               "value": true,
               "target": null,
               "note": null
@@ -10705,9 +10825,9 @@
           "description": "Give each function at most two positional parameters, a receiver and then an options bag (oxlint `eslint/max-params`).",
           "kind": "check",
           "unit": null,
-          "value": 0.6923076923076923,
+          "value": 1,
           "item": null,
-          "score": 69,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -10715,126 +10835,6 @@
           "weight": 1,
           "rollup": null,
           "items": [
-            {
-              "name": "packs/deslop/metrics/deslop.ts",
-              "value": false,
-              "target": null,
-              "note": "line 169: Function 'find' has too many parameters (3). Maximum allowed is 2. (eslint(max-params)) (and 1 more)"
-            },
-            {
-              "name": "packs/tigerstyle/metrics/linters.ts",
-              "value": false,
-              "target": null,
-              "note": "line 9: Function 'clippy' has too many parameters (4). Maximum allowed is 2. (eslint(max-params)) (and 4 more)"
-            },
-            {
-              "name": "packs/tigerstyle/metrics/manifests.ts",
-              "value": false,
-              "target": null,
-              "note": "line 99: Function 'dependencies' has too many parameters (3). Maximum allowed is 2. (eslint(max-params))"
-            },
-            {
-              "name": "packs/tigerstyle/metrics/syntax.ts",
-              "value": false,
-              "target": null,
-              "note": "line 26: Function 'read' has too many parameters (3). Maximum allowed is 2. (eslint(max-params)) (and 2 more)"
-            },
-            {
-              "name": "packs/tigerstyle/metrics/tigerstyle.ts",
-              "value": false,
-              "target": null,
-              "note": "line 50: Function 'emit' has too many parameters (4). Maximum allowed is 2. (eslint(max-params)) (and 1 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/bindings.ts",
-              "value": false,
-              "target": null,
-              "note": "line 221: Function 'isExpect' has too many parameters (3). Maximum allowed is 2. (eslint(max-params))"
-            },
-            {
-              "name": "packs/typescript/metrics/compiler.ts",
-              "value": false,
-              "target": null,
-              "note": "line 48: Function 'measure' has too many parameters (3). Maximum allowed is 2. (eslint(max-params))"
-            },
-            {
-              "name": "packs/typescript/metrics/footprint.ts",
-              "value": false,
-              "target": null,
-              "note": "line 124: Arrow function has too many parameters (3). Maximum allowed is 2. (eslint(max-params))"
-            },
-            {
-              "name": "packs/typescript/metrics/fuzz-lib.ts",
-              "value": false,
-              "target": null,
-              "note": "line 40: Function has too many parameters (4). Maximum allowed is 2. (eslint(max-params)) (and 6 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/fuzz-worker.ts",
-              "value": false,
-              "target": null,
-              "note": "line 173: Arrow function has too many parameters (4). Maximum allowed is 2. (eslint(max-params)) (and 8 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/fuzz.ts",
-              "value": false,
-              "target": null,
-              "note": "line 153: Arrow function has too many parameters (3). Maximum allowed is 2. (eslint(max-params)) (and 1 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/speed-codec.ts",
-              "value": false,
-              "target": null,
-              "note": "line 187: Function 'decode' has too many parameters (3). Maximum allowed is 2. (eslint(max-params))"
-            },
-            {
-              "name": "packs/typescript/metrics/speed-record-setup.ts",
-              "value": false,
-              "target": null,
-              "note": "line 86: Function has too many parameters (3). Maximum allowed is 2. (eslint(max-params)) (and 11 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/speed-worker.ts",
-              "value": false,
-              "target": null,
-              "note": "line 89: Function has too many parameters (3). Maximum allowed is 2. (eslint(max-params)) (and 4 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/types-calls-worker.ts",
-              "value": false,
-              "target": null,
-              "note": "line 252: Arrow function has too many parameters (4). Maximum allowed is 2. (eslint(max-params)) (and 5 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/types-enumerate.ts",
-              "value": false,
-              "target": null,
-              "note": "line 183: Function 'consumerText' has too many parameters (5). Maximum allowed is 2. (eslint(max-params))"
-            },
-            {
-              "name": "packs/typescript/metrics/types-host.ts",
-              "value": false,
-              "target": null,
-              "note": "line 152: Function has too many parameters (3). Maximum allowed is 2. (eslint(max-params)) (and 1 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/typescript.ts",
-              "value": false,
-              "target": null,
-              "note": "line 1099: Function has too many parameters (3). Maximum allowed is 2. (eslint(max-params)) (and 1 more)"
-            },
-            {
-              "name": "packs/writing-docs/metrics/writing-docs.ts",
-              "value": false,
-              "target": null,
-              "note": "line 167: Function 'overLimit' has too many parameters (5). Maximum allowed is 2. (eslint(max-params))"
-            },
-            {
-              "name": "tests/packs/tigerstyle.test.ts",
-              "value": false,
-              "target": null,
-              "note": "line 154: Function 'has' has too many parameters (3). Maximum allowed is 2. (eslint(max-params))"
-            },
             {
               "name": ".agents/uphill/metrics/speed.ts",
               "value": true,
@@ -10980,6 +10980,12 @@
               "note": null
             },
             {
+              "name": "packs/deslop/metrics/deslop.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/git/metrics/git.ts",
               "value": true,
               "target": null,
@@ -11010,6 +11016,66 @@
               "note": null
             },
             {
+              "name": "packs/tigerstyle/metrics/linters.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/tigerstyle/metrics/manifests.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/tigerstyle/metrics/syntax.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/tigerstyle/metrics/tigerstyle.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/bindings.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/compiler.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/footprint.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/fuzz-lib.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/fuzz-worker.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/fuzz.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/typescript/metrics/hot.ts",
               "value": true,
               "target": null,
@@ -11022,7 +11088,25 @@
               "note": null
             },
             {
+              "name": "packs/typescript/metrics/speed-codec.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/speed-record-setup.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/typescript/metrics/speed-vitest.config.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/speed-worker.ts",
               "value": true,
               "target": null,
               "note": null
@@ -11034,7 +11118,25 @@
               "note": null
             },
             {
+              "name": "packs/typescript/metrics/types-calls-worker.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/typescript/metrics/types-calls.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/types-enumerate.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/types-host.ts",
               "value": true,
               "target": null,
               "note": null
@@ -11047,6 +11149,12 @@
             },
             {
               "name": "packs/typescript/metrics/types.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/typescript.ts",
               "value": true,
               "target": null,
               "note": null
@@ -11070,6 +11178,12 @@
               "note": null
             },
             {
+              "name": "packs/writing-docs/metrics/writing-docs.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "tests/packs/deslop.test.ts",
               "value": true,
               "target": null,
@@ -11083,6 +11197,12 @@
             },
             {
               "name": "tests/packs/rust.test.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "tests/packs/tigerstyle.test.ts",
               "value": true,
               "target": null,
               "note": null
@@ -11113,9 +11233,9 @@
           "description": "Do not destructure parameters in the signature. Take each parameter whole and destructure it in the body.",
           "kind": "check",
           "unit": null,
-          "value": 0.8,
+          "value": 1,
           "item": null,
-          "score": 80,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -11123,84 +11243,6 @@
           "weight": 1,
           "rollup": null,
           "items": [
-            {
-              "name": "packs/deslop/metrics/deslop.ts",
-              "value": false,
-              "target": null,
-              "note": "line 316: function destructures a parameter"
-            },
-            {
-              "name": "packs/typescript/metrics/footprint.ts",
-              "value": false,
-              "target": null,
-              "note": "line 234: function destructures a parameter (and 4 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/fuzz-worker.ts",
-              "value": false,
-              "target": null,
-              "note": "line 95: function destructures a parameter (and 5 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/fuzz.ts",
-              "value": false,
-              "target": null,
-              "note": "line 150: function destructures a parameter (and 2 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/library.ts",
-              "value": false,
-              "target": null,
-              "note": "line 319: function destructures a parameter (and 2 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/speed-codec.ts",
-              "value": false,
-              "target": null,
-              "note": "line 312: function destructures a parameter (and 1 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/speed-record-setup.ts",
-              "value": false,
-              "target": null,
-              "note": "line 125: function destructures a parameter"
-            },
-            {
-              "name": "packs/typescript/metrics/speed-vitest.config.ts",
-              "value": false,
-              "target": null,
-              "note": "line 134: function destructures a parameter"
-            },
-            {
-              "name": "packs/typescript/metrics/speed-worker.ts",
-              "value": false,
-              "target": null,
-              "note": "line 178: function destructures a parameter (and 2 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/speed.ts",
-              "value": false,
-              "target": null,
-              "note": "line 243: function destructures a parameter (and 5 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/types-calls-worker.ts",
-              "value": false,
-              "target": null,
-              "note": "line 285: function destructures a parameter (and 2 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/types-calls.ts",
-              "value": false,
-              "target": null,
-              "note": "line 260: function destructures a parameter (and 2 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/types-enumerate.ts",
-              "value": false,
-              "target": null,
-              "note": "line 242: function destructures a parameter"
-            },
             {
               "name": ".agents/uphill/metrics/speed.ts",
               "value": true,
@@ -11346,6 +11388,12 @@
               "note": null
             },
             {
+              "name": "packs/deslop/metrics/deslop.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/git/metrics/git.ts",
               "value": true,
               "target": null,
@@ -11412,13 +11460,85 @@
               "note": null
             },
             {
+              "name": "packs/typescript/metrics/footprint.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/typescript/metrics/fuzz-lib.ts",
               "value": true,
               "target": null,
               "note": null
             },
             {
+              "name": "packs/typescript/metrics/fuzz-worker.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/fuzz.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/typescript/metrics/hot.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/library.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/speed-codec.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/speed-record-setup.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/speed-vitest.config.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/speed-worker.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/speed.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/types-calls-worker.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/types-calls.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/types-enumerate.ts",
               "value": true,
               "target": null,
               "note": null
@@ -11521,9 +11641,9 @@
           "description": "Avoid nested ternaries. Use an IIFE with early returns (oxlint `eslint/no-nested-ternary`).",
           "kind": "check",
           "unit": null,
-          "value": 0.8153846153846154,
+          "value": 1,
           "item": null,
-          "score": 82,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -11531,78 +11651,6 @@
           "weight": 1,
           "rollup": null,
           "items": [
-            {
-              "name": "examples/web-app/.agents/uphill/metrics/serve.ts",
-              "value": false,
-              "target": null,
-              "note": "line 27: Do not nest ternary expressions. (eslint(no-nested-ternary)) (and 1 more)"
-            },
-            {
-              "name": "packs/deslop/metrics/deslop.ts",
-              "value": false,
-              "target": null,
-              "note": "line 146: Do not nest ternary expressions. (eslint(no-nested-ternary))"
-            },
-            {
-              "name": "packs/rust/metrics/Manifest.ts",
-              "value": false,
-              "target": null,
-              "note": "line 76: Do not nest ternary expressions. (eslint(no-nested-ternary)) (and 1 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/bindings.ts",
-              "value": false,
-              "target": null,
-              "note": "line 187: Do not nest ternary expressions. (eslint(no-nested-ternary))"
-            },
-            {
-              "name": "packs/typescript/metrics/fuzz-lib.ts",
-              "value": false,
-              "target": null,
-              "note": "line 336: Do not nest ternary expressions. (eslint(no-nested-ternary)) (and 2 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/fuzz.ts",
-              "value": false,
-              "target": null,
-              "note": "line 251: Do not nest ternary expressions. (eslint(no-nested-ternary)) (and 1 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/library.ts",
-              "value": false,
-              "target": null,
-              "note": "line 316: Do not nest ternary expressions. (eslint(no-nested-ternary))"
-            },
-            {
-              "name": "packs/typescript/metrics/speed-codec.ts",
-              "value": false,
-              "target": null,
-              "note": "line 373: Do not nest ternary expressions. (eslint(no-nested-ternary))"
-            },
-            {
-              "name": "packs/typescript/metrics/speed.ts",
-              "value": false,
-              "target": null,
-              "note": "line 352: Do not nest ternary expressions. (eslint(no-nested-ternary)) (and 1 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/types-calls-worker.ts",
-              "value": false,
-              "target": null,
-              "note": "line 219: Do not nest ternary expressions. (eslint(no-nested-ternary)) (and 1 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/types-calls.ts",
-              "value": false,
-              "target": null,
-              "note": "line 221: Do not nest ternary expressions. (eslint(no-nested-ternary))"
-            },
-            {
-              "name": "packs/typescript/metrics/typescript.ts",
-              "value": false,
-              "target": null,
-              "note": "line 1144: Do not nest ternary expressions. (eslint(no-nested-ternary)) (and 1 more)"
-            },
             {
               "name": ".agents/uphill/metrics/speed.ts",
               "value": true,
@@ -11706,6 +11754,12 @@
               "note": null
             },
             {
+              "name": "examples/web-app/.agents/uphill/metrics/serve.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "examples/web-app/src/app.ts",
               "value": true,
               "target": null,
@@ -11742,6 +11796,12 @@
               "note": null
             },
             {
+              "name": "packs/deslop/metrics/deslop.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/git/metrics/git.ts",
               "value": true,
               "target": null,
@@ -11749,6 +11809,12 @@
             },
             {
               "name": "packs/rust/metrics/Cargo.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/rust/metrics/Manifest.ts",
               "value": true,
               "target": null,
               "note": null
@@ -11790,6 +11856,12 @@
               "note": null
             },
             {
+              "name": "packs/typescript/metrics/bindings.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/typescript/metrics/compiler.ts",
               "value": true,
               "target": null,
@@ -11802,13 +11874,37 @@
               "note": null
             },
             {
+              "name": "packs/typescript/metrics/fuzz-lib.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/typescript/metrics/fuzz-worker.ts",
               "value": true,
               "target": null,
               "note": null
             },
             {
+              "name": "packs/typescript/metrics/fuzz.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/typescript/metrics/hot.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/library.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/speed-codec.ts",
               "value": true,
               "target": null,
               "note": null
@@ -11827,6 +11923,24 @@
             },
             {
               "name": "packs/typescript/metrics/speed-worker.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/speed.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/types-calls-worker.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/types-calls.ts",
               "value": true,
               "target": null,
               "note": null
@@ -11851,6 +11965,12 @@
             },
             {
               "name": "packs/typescript/metrics/types.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/typescript.ts",
               "value": true,
               "target": null,
               "note": null
@@ -11929,9 +12049,9 @@
           "description": "Do not annotate local variables with inline object types. Name the type above the use.",
           "kind": "check",
           "unit": null,
-          "value": 0.9846153846153847,
+          "value": 1,
           "item": null,
-          "score": 98,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -11939,12 +12059,6 @@
           "weight": 1,
           "rollup": null,
           "items": [
-            {
-              "name": "packs/typescript/metrics/typescript.ts",
-              "value": false,
-              "target": null,
-              "note": "line 211: cache has an inline object type"
-            },
             {
               "name": ".agents/uphill/metrics/speed.ts",
               "value": true,
@@ -12259,6 +12373,12 @@
             },
             {
               "name": "packs/typescript/metrics/types.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/typescript.ts",
               "value": true,
               "target": null,
               "note": null
@@ -13153,9 +13273,9 @@
           "description": "Derive a fallible value in an IIFE, not in a `let` assigned across `try` and `catch`.",
           "kind": "check",
           "unit": null,
-          "value": 0.9846153846153847,
+          "value": 1,
           "item": null,
-          "score": 98,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -13163,12 +13283,6 @@
           "weight": 1,
           "rollup": null,
           "items": [
-            {
-              "name": "packs/typescript/metrics/types-calls.ts",
-              "value": false,
-              "target": null,
-              "note": "line 414: let result is assigned across try and catch"
-            },
             {
               "name": ".agents/uphill/metrics/speed.ts",
               "value": true,
@@ -13453,6 +13567,12 @@
             },
             {
               "name": "packs/typescript/metrics/types-calls-worker.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/types-calls.ts",
               "value": true,
               "target": null,
               "note": null
@@ -13970,7 +14090,7 @@
       "title": "Architecture",
       "subject": null,
       "description": null,
-      "score": 95,
+      "score": 99,
       "rounds": 1,
       "metrics": [
         {
@@ -13997,6 +14117,12 @@
             },
             {
               "name": "crates/cli/src/dashboard.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/error.rs",
               "value": true,
               "target": null,
               "note": null
@@ -14219,6 +14345,12 @@
             },
             {
               "name": "crates/cli/src/dashboard.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/error.rs",
               "value": true,
               "target": null,
               "note": null
@@ -15275,9 +15407,9 @@
           "description": "Import Node built-ins as namespaces (`import * as fs from 'node:fs'`).",
           "kind": "check",
           "unit": null,
-          "value": 0.7846153846153846,
+          "value": 1,
           "item": null,
-          "score": 78,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -15285,90 +15417,6 @@
           "weight": 1,
           "rollup": null,
           "items": [
-            {
-              "name": "packs/typescript/metrics/footprint.ts",
-              "value": false,
-              "target": null,
-              "note": "line 27: non-namespace import from 'node:module'"
-            },
-            {
-              "name": "packs/typescript/metrics/fuzz-worker.ts",
-              "value": false,
-              "target": null,
-              "note": "line 26: non-namespace import from 'node:child_process' (and 2 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/library.ts",
-              "value": false,
-              "target": null,
-              "note": "line 18: non-namespace import from 'node:url'"
-            },
-            {
-              "name": "packs/typescript/metrics/speed-record-setup.ts",
-              "value": false,
-              "target": null,
-              "note": "line 30: non-namespace import from 'node:async_hooks'"
-            },
-            {
-              "name": "packs/typescript/metrics/speed-vitest.config.ts",
-              "value": false,
-              "target": null,
-              "note": "line 22: non-namespace import from 'node:url'"
-            },
-            {
-              "name": "packs/typescript/metrics/speed-worker.ts",
-              "value": false,
-              "target": null,
-              "note": "line 26: non-namespace import from 'node:module' (and 1 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/types-calls-worker.ts",
-              "value": false,
-              "target": null,
-              "note": "line 37: non-namespace import from 'node:url'"
-            },
-            {
-              "name": "packs/typescript/metrics/types-host.ts",
-              "value": false,
-              "target": null,
-              "note": "line 11: non-namespace import from 'node:child_process' (and 1 more)"
-            },
-            {
-              "name": "tests/packs/deslop.test.ts",
-              "value": false,
-              "target": null,
-              "note": "line 7: non-namespace import from 'node:test' (and 1 more)"
-            },
-            {
-              "name": "tests/packs/reports.test.ts",
-              "value": false,
-              "target": null,
-              "note": "line 7: non-namespace import from 'node:test'"
-            },
-            {
-              "name": "tests/packs/rust.test.ts",
-              "value": false,
-              "target": null,
-              "note": "line 7: non-namespace import from 'node:test'"
-            },
-            {
-              "name": "tests/packs/tigerstyle.test.ts",
-              "value": false,
-              "target": null,
-              "note": "line 2: non-namespace import from 'node:assert/strict' (and 1 more)"
-            },
-            {
-              "name": "tests/packs/typescript.test.ts",
-              "value": false,
-              "target": null,
-              "note": "line 10: non-namespace import from 'node:test' (and 1 more)"
-            },
-            {
-              "name": "tests/packs/writing-docs.test.ts",
-              "value": false,
-              "target": null,
-              "note": "line 7: non-namespace import from 'node:test' (and 1 more)"
-            },
             {
               "name": ".agents/uphill/metrics/speed.ts",
               "value": true,
@@ -15586,7 +15634,19 @@
               "note": null
             },
             {
+              "name": "packs/typescript/metrics/footprint.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/typescript/metrics/fuzz-lib.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/fuzz-worker.ts",
               "value": true,
               "target": null,
               "note": null
@@ -15604,13 +15664,43 @@
               "note": null
             },
             {
+              "name": "packs/typescript/metrics/library.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/typescript/metrics/speed-codec.ts",
               "value": true,
               "target": null,
               "note": null
             },
             {
+              "name": "packs/typescript/metrics/speed-record-setup.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/speed-vitest.config.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/speed-worker.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/typescript/metrics/speed.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/types-calls-worker.ts",
               "value": true,
               "target": null,
               "note": null
@@ -15623,6 +15713,12 @@
             },
             {
               "name": "packs/typescript/metrics/types-enumerate.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/types-host.ts",
               "value": true,
               "target": null,
               "note": null
@@ -15670,6 +15766,42 @@
               "note": null
             },
             {
+              "name": "tests/packs/deslop.test.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "tests/packs/reports.test.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "tests/packs/rust.test.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "tests/packs/tigerstyle.test.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "tests/packs/typescript.test.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "tests/packs/writing-docs.test.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "vite.config.ts",
               "value": true,
               "target": null,
@@ -15683,9 +15815,9 @@
           "description": "Re-export modules as namespaces (`export * as Store`). Do not flatten them into a barrel with `export *` or `export { … } from`.",
           "kind": "check",
           "unit": null,
-          "value": 0.9846153846153847,
+          "value": 1,
           "item": null,
-          "score": 98,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -15693,12 +15825,6 @@
           "weight": 1,
           "rollup": null,
           "items": [
-            {
-              "name": "examples/typescript-library/src/index.ts",
-              "value": false,
-              "target": null,
-              "note": "line 8: export * from './date.js' (and 1 more)"
-            },
             {
               "name": ".agents/uphill/metrics/speed.ts",
               "value": true,
@@ -15767,6 +15893,12 @@
             },
             {
               "name": "examples/typescript-library/src/date.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "examples/typescript-library/src/index.ts",
               "value": true,
               "target": null,
               "note": null
@@ -16105,25 +16237,25 @@
               "name": "examples/typescript-library/.agents/uphill/metrics/footprint.ts",
               "value": false,
               "target": null,
-              "note": "line 44: import(…) (and 1 more)"
+              "note": "line 46: import(…) (and 1 more)"
             },
             {
               "name": "examples/typescript-library/.agents/uphill/metrics/quality.ts",
               "value": false,
               "target": null,
-              "note": "line 56: import(…)"
+              "note": "line 58: import(…)"
             },
             {
               "name": "packs/typescript/metrics/footprint.ts",
               "value": false,
               "target": null,
-              "note": "line 88: import(…) (and 1 more)"
+              "note": "line 113: import(…) (and 1 more)"
             },
             {
               "name": "packs/typescript/metrics/fuzz-worker.ts",
               "value": false,
               "target": null,
-              "note": "line 70: import(…) (and 2 more)"
+              "note": "line 63: import(…) (and 2 more)"
             },
             {
               "name": "packs/typescript/metrics/library.ts",
@@ -16135,19 +16267,19 @@
               "name": "packs/typescript/metrics/speed-vitest.config.ts",
               "value": false,
               "target": null,
-              "note": "line 50: import(…)"
+              "note": "line 53: import(…)"
             },
             {
               "name": "packs/typescript/metrics/speed-worker.ts",
               "value": false,
               "target": null,
-              "note": "line 62: import(…) (and 1 more)"
+              "note": "line 58: import(…) (and 1 more)"
             },
             {
               "name": "packs/typescript/metrics/types-calls-worker.ts",
               "value": false,
               "target": null,
-              "note": "line 241: import(…)"
+              "note": "line 240: import(…)"
             },
             {
               "name": ".agents/uphill/metrics/speed.ts",
@@ -16907,9 +17039,9 @@
           "description": "Use functions and plain data. Limit classes to errors and framework entrypoints.",
           "kind": "check",
           "unit": null,
-          "value": 0.9692307692307692,
+          "value": 1,
           "item": null,
-          "score": 97,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -16917,18 +17049,6 @@
           "weight": 1,
           "rollup": null,
           "items": [
-            {
-              "name": "packs/typescript/metrics/fuzz-worker.ts",
-              "value": false,
-              "target": null,
-              "note": "line 1199: class anonymous class is not an error"
-            },
-            {
-              "name": "packs/typescript/metrics/speed-worker.ts",
-              "value": false,
-              "target": null,
-              "note": "line 549: class anonymous class is not an error"
-            },
             {
               "name": ".agents/uphill/metrics/speed.ts",
               "value": true,
@@ -17158,6 +17278,12 @@
               "note": null
             },
             {
+              "name": "packs/typescript/metrics/fuzz-worker.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/typescript/metrics/fuzz.ts",
               "value": true,
               "target": null,
@@ -17189,6 +17315,12 @@
             },
             {
               "name": "packs/typescript/metrics/speed-vitest.config.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/speed-worker.ts",
               "value": true,
               "target": null,
               "note": null
@@ -17315,9 +17447,9 @@
           "description": "Set a namespaced `name` on each error class, such as `'Config.InvalidError'`.",
           "kind": "check",
           "unit": null,
-          "value": 0.9538461538461539,
+          "value": 1,
           "item": null,
-          "score": 95,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -17325,24 +17457,6 @@
           "weight": 1,
           "rollup": null,
           "items": [
-            {
-              "name": "packs/typescript/metrics/fuzz-lib.ts",
-              "value": false,
-              "target": null,
-              "note": "line 53: Failure has name unset, not 'Module.Failure'"
-            },
-            {
-              "name": "packs/typescript/metrics/fuzz-worker.ts",
-              "value": false,
-              "target": null,
-              "note": "line 1216: TimeoutError has name unset, not 'Module.TimeoutError'"
-            },
-            {
-              "name": "packs/typescript/metrics/speed-codec.ts",
-              "value": false,
-              "target": null,
-              "note": "line 87: Unreplayable has name unset, not 'Module.Unreplayable'"
-            },
             {
               "name": ".agents/uphill/metrics/speed.ts",
               "value": true,
@@ -17566,6 +17680,18 @@
               "note": null
             },
             {
+              "name": "packs/typescript/metrics/fuzz-lib.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/fuzz-worker.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/typescript/metrics/fuzz.ts",
               "value": true,
               "target": null,
@@ -17579,6 +17705,12 @@
             },
             {
               "name": "packs/typescript/metrics/library.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/speed-codec.ts",
               "value": true,
               "target": null,
               "note": null
@@ -17737,7 +17869,7 @@
               "name": "packs/typescript/metrics/speed-vitest.config.ts",
               "value": false,
               "target": null,
-              "note": "line 179: `this` outside a class"
+              "note": "line 182: `this` outside a class"
             },
             {
               "name": ".agents/uphill/metrics/speed.ts",
@@ -18131,9 +18263,9 @@
           "description": "Keep only constants at module scope. Do not use a module-scope `let` or an empty `Map` or `Set` cache.",
           "kind": "check",
           "unit": null,
-          "value": 0.8153846153846154,
+          "value": 1,
           "item": null,
-          "score": 82,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -18141,78 +18273,6 @@
           "weight": 1,
           "rollup": null,
           "items": [
-            {
-              "name": "examples/typescript-library/src/number.ts",
-              "value": false,
-              "target": null,
-              "note": "line 11: let numbers at module scope"
-            },
-            {
-              "name": "packs/deslop/metrics/deslop.ts",
-              "value": false,
-              "target": null,
-              "note": "line 103: new Map() at module scope"
-            },
-            {
-              "name": "packs/tigerstyle/metrics/tigerstyle.ts",
-              "value": false,
-              "target": null,
-              "note": "line 39: new Set() at module scope"
-            },
-            {
-              "name": "packs/typescript/metrics/footprint.ts",
-              "value": false,
-              "target": null,
-              "note": "line 80: new Set() at module scope (and 4 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/fuzz-lib.ts",
-              "value": false,
-              "target": null,
-              "note": "line 242: new Map() at module scope (and 2 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/fuzz-worker.ts",
-              "value": false,
-              "target": null,
-              "note": "line 1048: new Map() at module scope"
-            },
-            {
-              "name": "packs/typescript/metrics/types-calls-worker.ts",
-              "value": false,
-              "target": null,
-              "note": "line 213: new Map() at module scope"
-            },
-            {
-              "name": "packs/typescript/metrics/types-calls.ts",
-              "value": false,
-              "target": null,
-              "note": "line 126: let nextId at module scope (and 11 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/types-enumerate.ts",
-              "value": false,
-              "target": null,
-              "note": "line 61: new Set() at module scope (and 4 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/types-host.ts",
-              "value": false,
-              "target": null,
-              "note": "line 124: new Map() at module scope"
-            },
-            {
-              "name": "packs/typescript/metrics/types-worker.ts",
-              "value": false,
-              "target": null,
-              "note": "line 75: new Map() at module scope (and 1 more)"
-            },
-            {
-              "name": "packs/typescript/metrics/types.ts",
-              "value": false,
-              "target": null,
-              "note": "line 164: new Map() at module scope"
-            },
             {
               "name": ".agents/uphill/metrics/speed.ts",
               "value": true,
@@ -18298,6 +18358,12 @@
               "note": null
             },
             {
+              "name": "examples/typescript-library/src/number.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "examples/web-app/.agents/uphill/metrics/build.ts",
               "value": true,
               "target": null,
@@ -18352,6 +18418,12 @@
               "note": null
             },
             {
+              "name": "packs/deslop/metrics/deslop.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/git/metrics/git.ts",
               "value": true,
               "target": null,
@@ -18400,6 +18472,12 @@
               "note": null
             },
             {
+              "name": "packs/tigerstyle/metrics/tigerstyle.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "packs/typescript/metrics/bindings.ts",
               "value": true,
               "target": null,
@@ -18407,6 +18485,24 @@
             },
             {
               "name": "packs/typescript/metrics/compiler.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/footprint.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/fuzz-lib.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/fuzz-worker.ts",
               "value": true,
               "target": null,
               "note": null
@@ -18455,6 +18551,42 @@
             },
             {
               "name": "packs/typescript/metrics/speed.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/types-calls-worker.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/types-calls.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/types-enumerate.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/types-host.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/types-worker.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "packs/typescript/metrics/types.ts",
               "value": true,
               "target": null,
               "note": null
@@ -18567,6 +18699,12 @@
             },
             {
               "name": "crates/cli/src/dashboard.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/error.rs",
               "value": true,
               "target": null,
               "note": null
@@ -19215,6 +19353,12 @@
             },
             {
               "name": "crates/cli/src/dashboard.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/error.rs",
               "value": true,
               "target": null,
               "note": null
@@ -23403,7 +23547,7 @@
       "title": "Testing",
       "subject": null,
       "description": null,
-      "score": 94,
+      "score": 100,
       "rounds": 1,
       "metrics": [
         {
@@ -23430,6 +23574,12 @@
             },
             {
               "name": "crates/cli/src/dashboard.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/error.rs",
               "value": true,
               "target": null,
               "note": null
@@ -23634,9 +23784,9 @@
           "description": "Assert with inline `insta` snapshots in each Rust test file, not `assert_eq!`. Assert with inline snapshots in TypeScript tests, not with `toBe` or `toEqual`.",
           "kind": "check",
           "unit": null,
-          "value": 0.6428571428571429,
+          "value": 1,
           "item": null,
-          "score": 64,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -23646,36 +23796,18 @@
           "items": [
             {
               "name": "crates/cli/tests/cli.rs",
-              "value": false,
+              "value": true,
               "target": null,
-              "note": "155 of 271 assertions are not inline snapshots"
-            },
-            {
-              "name": "crates/engine/tests/config.rs",
-              "value": false,
-              "target": null,
-              "note": "4 of 47 assertions are not inline snapshots"
-            },
-            {
-              "name": "crates/engine/tests/score.rs",
-              "value": false,
-              "target": null,
-              "note": "2 of 22 assertions are not inline snapshots"
-            },
-            {
-              "name": "examples/typescript-library/src/date.test.ts",
-              "value": false,
-              "target": null,
-              "note": "4 of 4 assertions are not inline snapshots"
-            },
-            {
-              "name": "examples/typescript-library/src/number.test.ts",
-              "value": false,
-              "target": null,
-              "note": "2 of 2 assertions are not inline snapshots"
+              "note": null
             },
             {
               "name": "crates/engine/tests/check.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/engine/tests/config.rs",
               "value": true,
               "target": null,
               "note": null
@@ -23688,6 +23820,24 @@
             },
             {
               "name": "crates/engine/tests/lines.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/engine/tests/score.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "examples/typescript-library/src/date.test.ts",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "examples/typescript-library/src/number.test.ts",
               "value": true,
               "target": null,
               "note": null
@@ -23772,9 +23922,9 @@
           "description": "Check one condition in each assertion. Do not join two with `&&` or `||`.",
           "kind": "check",
           "unit": null,
-          "value": 0.95,
+          "value": 1,
           "item": null,
-          "score": 95,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -23783,18 +23933,6 @@
           "rollup": null,
           "items": [
             {
-              "name": "crates/cli/tests/cli.rs",
-              "value": false,
-              "target": null,
-              "note": "line 1132: one assertion checks two conditions (and 1 more)"
-            },
-            {
-              "name": "crates/engine/src/score.rs",
-              "value": false,
-              "target": null,
-              "note": "line 300: one assertion checks two conditions"
-            },
-            {
               "name": "crates/cli/src/check.rs",
               "value": true,
               "target": null,
@@ -23802,6 +23940,12 @@
             },
             {
               "name": "crates/cli/src/dashboard.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/src/error.rs",
               "value": true,
               "target": null,
               "note": null
@@ -23868,6 +24012,12 @@
             },
             {
               "name": "crates/cli/src/worktree.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "crates/cli/tests/cli.rs",
               "value": true,
               "target": null,
               "note": null
@@ -23987,6 +24137,12 @@
               "note": null
             },
             {
+              "name": "crates/engine/src/score.rs",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "crates/engine/src/value.rs",
               "value": true,
               "target": null,
@@ -24030,9 +24186,9 @@
           "description": "Make tests wait for a condition, not for a fixed `sleep`.",
           "kind": "check",
           "unit": null,
-          "value": 0.8333333333333334,
+          "value": 1,
           "item": null,
-          "score": 83,
+          "score": 100,
           "target": null,
           "default": null,
           "note": null,
@@ -24042,9 +24198,9 @@
           "items": [
             {
               "name": "crates/cli/tests/cli.rs",
-              "value": false,
+              "value": true,
               "target": null,
-              "note": "line 2954: a test that sleeps a fixed time"
+              "note": null
             },
             {
               "name": "crates/engine/tests/check.rs",
@@ -24781,6 +24937,30 @@
           "rollup": null,
           "items": [
             {
+              "name": "f71fba4",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "c449d90",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "e4ea8d9",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "50d39be",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "1438d14",
               "value": true,
               "target": null,
@@ -25052,30 +25232,6 @@
             },
             {
               "name": "a4f5ace",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "f5dee79",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "df01ddd",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "d969835",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "21992c9",
               "value": true,
               "target": null,
               "note": null
@@ -25099,6 +25255,30 @@
           "rollup": null,
           "items": [
             {
+              "name": "f71fba4",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "c449d90",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "e4ea8d9",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "50d39be",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "1438d14",
               "value": true,
               "target": null,
@@ -25370,30 +25550,6 @@
             },
             {
               "name": "a4f5ace",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "f5dee79",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "df01ddd",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "d969835",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "21992c9",
               "value": true,
               "target": null,
               "note": null
@@ -25417,6 +25573,30 @@
           "rollup": null,
           "items": [
             {
+              "name": "f71fba4",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "c449d90",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "e4ea8d9",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "50d39be",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "1438d14",
               "value": true,
               "target": null,
@@ -25688,30 +25868,6 @@
             },
             {
               "name": "a4f5ace",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "f5dee79",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "df01ddd",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "d969835",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "21992c9",
               "value": true,
               "target": null,
               "note": null
@@ -25753,6 +25909,30 @@
               "note": "header must not be longer than 100 characters, current length is 104: docs: rename the devising-metrics skill to creating-metrics and add Quick Prompt and Packs to the README"
             },
             {
+              "name": "f71fba4",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "c449d90",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "e4ea8d9",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "50d39be",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "1438d14",
               "value": true,
               "target": null,
@@ -26009,30 +26189,6 @@
               "value": true,
               "target": null,
               "note": null
-            },
-            {
-              "name": "f5dee79",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "df01ddd",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "d969835",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "21992c9",
-              "value": true,
-              "target": null,
-              "note": null
             }
           ]
         },
@@ -26042,9 +26198,9 @@
           "description": "Put a blank line before the body and the footer, and wrap them at 100 characters (commitlint `body-leading-blank`, `body-max-line-length`, and the matching footer rules).",
           "kind": "check",
           "unit": null,
-          "value": 0.96,
+          "value": 0.98,
           "item": null,
-          "score": 96,
+          "score": 98,
           "target": null,
           "default": null,
           "note": null,
@@ -26059,10 +26215,28 @@
               "note": "body's lines must not be longer than 100 characters: fix: measure checked inputs across convention packs"
             },
             {
-              "name": "21992c9",
-              "value": false,
+              "name": "f71fba4",
+              "value": true,
               "target": null,
-              "note": "body's lines must not be longer than 100 characters: docs: frame the devising-metrics patterns as references to research"
+              "note": null
+            },
+            {
+              "name": "c449d90",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "e4ea8d9",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "50d39be",
+              "value": true,
+              "target": null,
+              "note": null
             },
             {
               "name": "1438d14",
@@ -26330,24 +26504,6 @@
             },
             {
               "name": "a4f5ace",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "f5dee79",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "df01ddd",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "d969835",
               "value": true,
               "target": null,
               "note": null
@@ -26371,6 +26527,30 @@
           "rollup": null,
           "items": [
             {
+              "name": "f71fba4",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "c449d90",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "e4ea8d9",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "50d39be",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "1438d14",
               "value": true,
               "target": null,
@@ -26645,30 +26825,6 @@
               "value": true,
               "target": null,
               "note": null
-            },
-            {
-              "name": "f5dee79",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "df01ddd",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "d969835",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "21992c9",
-              "value": true,
-              "target": null,
-              "note": null
             }
           ]
         },
@@ -26688,6 +26844,24 @@
           "weight": 1,
           "rollup": null,
           "items": [
+            {
+              "name": "c449d90",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "e4ea8d9",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": "50d39be",
+              "value": true,
+              "target": null,
+              "note": null
+            },
             {
               "name": "1438d14",
               "value": true,
@@ -26917,28 +27091,10 @@
               "note": null
             },
             {
-              "name": "f5dee79",
-              "value": true,
+              "name": "f71fba4",
+              "value": null,
               "target": null,
-              "note": null
-            },
-            {
-              "name": "df01ddd",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "d969835",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "21992c9",
-              "value": true,
-              "target": null,
-              "note": null
+              "note": "no known verb form for the opening word: re"
             },
             {
               "name": "2ac5afb",
@@ -27108,66 +27264,6 @@
   ],
   "opportunities": [
     {
-      "category": "style",
-      "subject": null,
-      "metric": "mutable-arrays",
-      "item": null,
-      "items": 35,
-      "value": false,
-      "target": true,
-      "gain": 2
-    },
-    {
-      "category": "correctness",
-      "subject": null,
-      "metric": "string-errors",
-      "item": null,
-      "items": 12,
-      "value": false,
-      "target": true,
-      "gain": 2
-    },
-    {
-      "category": "architecture",
-      "subject": null,
-      "metric": "node-imports",
-      "item": null,
-      "items": 14,
-      "value": false,
-      "target": true,
-      "gain": 2
-    },
-    {
-      "category": "testing",
-      "subject": null,
-      "metric": "test-sleeps",
-      "item": "crates/cli/tests/cli.rs",
-      "items": 1,
-      "value": false,
-      "target": true,
-      "gain": 2
-    },
-    {
-      "category": "speed",
-      "subject": null,
-      "metric": "startup",
-      "item": null,
-      "items": 1,
-      "value": 1068000,
-      "target": 1000000,
-      "gain": 2
-    },
-    {
-      "category": "architecture",
-      "subject": null,
-      "metric": "module-state",
-      "item": null,
-      "items": 12,
-      "value": false,
-      "target": true,
-      "gain": 1
-    },
-    {
       "category": "commits",
       "subject": null,
       "metric": "fix-tests",
@@ -27188,16 +27284,6 @@
       "gain": 1
     },
     {
-      "category": "style",
-      "subject": null,
-      "metric": "positional-parameters",
-      "item": null,
-      "items": 20,
-      "value": false,
-      "target": true,
-      "gain": 1
-    },
-    {
       "category": "architecture",
       "subject": null,
       "metric": "dynamic-imports",
@@ -27208,101 +27294,11 @@
       "gain": 1
     },
     {
-      "category": "style",
-      "subject": null,
-      "metric": "wide-tuples",
-      "item": null,
-      "items": 7,
-      "value": false,
-      "target": true,
-      "gain": 1
-    },
-    {
-      "category": "style",
-      "subject": null,
-      "metric": "destructured-parameters",
-      "item": null,
-      "items": 13,
-      "value": false,
-      "target": true,
-      "gain": 1
-    },
-    {
-      "category": "style",
-      "subject": null,
-      "metric": "nested-ternaries",
-      "item": null,
-      "items": 12,
-      "value": false,
-      "target": true,
-      "gain": 1
-    },
-    {
-      "category": "testing",
-      "subject": null,
-      "metric": "inline-snapshots",
-      "item": "crates/cli/tests/cli.rs",
-      "items": 1,
-      "value": false,
-      "target": true,
-      "gain": 1
-    },
-    {
-      "category": "testing",
-      "subject": null,
-      "metric": "inline-snapshots",
-      "item": "crates/engine/tests/config.rs",
-      "items": 1,
-      "value": false,
-      "target": true,
-      "gain": 1
-    },
-    {
-      "category": "testing",
-      "subject": null,
-      "metric": "inline-snapshots",
-      "item": "crates/engine/tests/score.rs",
-      "items": 1,
-      "value": false,
-      "target": true,
-      "gain": 1
-    },
-    {
-      "category": "testing",
-      "subject": null,
-      "metric": "inline-snapshots",
-      "item": "examples/typescript-library/src/date.test.ts",
-      "items": 1,
-      "value": false,
-      "target": true,
-      "gain": 1
-    },
-    {
-      "category": "testing",
-      "subject": null,
-      "metric": "inline-snapshots",
-      "item": "examples/typescript-library/src/number.test.ts",
-      "items": 1,
-      "value": false,
-      "target": true,
-      "gain": 1
-    },
-    {
       "category": "commits",
       "subject": null,
       "metric": "header-length",
       "item": null,
       "items": 3,
-      "value": false,
-      "target": true,
-      "gain": 1
-    },
-    {
-      "category": "testing",
-      "subject": null,
-      "metric": "compound-asserts",
-      "item": null,
-      "items": 2,
       "value": false,
       "target": true,
       "gain": 1
