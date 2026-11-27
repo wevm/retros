@@ -208,7 +208,8 @@ const lines: string[] = []
 const projects = Compiler.projects()
 const bindings = Bindings.inspect(files, projects)
 /** The diagnostics of the oxlint run with the pack's rules, once it ran. */
-const cache: { configured?: ReturnType<typeof diagnostics> } = {}
+type Cache = { configured?: ReturnType<typeof diagnostics> }
+const cache: Cache = {}
 
 if (files.length === 0) {
   process.stderr.write('Found no TypeScript files to measure\n')
@@ -230,7 +231,7 @@ try {
 
 /** Writes type errors, compiler options, and the type constructs the conventions ban. */
 function types(): void {
-  const compiler = Compiler.measure(files, projects, temporary)
+  const compiler = Compiler.measure(files, { projects, temporary })
   if (compiler.bin && projects.length) {
     for (const file of files) {
       const errors = compiler.errors.get(file)
@@ -400,11 +401,13 @@ function modules(): void {
 /** Writes classes, error names, constants, parameters, ternaries, local types, and module state. */
 function style(): void {
   for (const [file, source] of sources) {
-    const problems: Record<string, string[]> = {}
-    const add = (problem: Problem) =>
-      (problems[problem.metric] ??= []).push(
+    const problems: Record<string, readonly string[]> = {}
+    const add = (problem: Problem) => {
+      problems[problem.metric] = [
+        ...(problems[problem.metric] ?? []),
         `line ${source.line(problem.node)}: ${problem.text}`,
-      )
+      ]
+    }
     const exported = new Set<string>()
     const types: Node[] = []
 
@@ -638,9 +641,10 @@ function style(): void {
         !/cut/.test(comment.value) &&
         !/^\*\s*\n/.test(comment.value)
       )
-        (problems['section-dividers'] ??= []).push(
+        problems['section-dividers'] = [
+          ...(problems['section-dividers'] ?? []),
           `line ${source.lineAt(comment.start)}: a section divider`,
-        )
+        ]
 
     problems['let-across-try'] = bindings.get(file)?.acrossTry ?? []
     for (const metric of [
@@ -690,7 +694,7 @@ function docs(): void {
 
     const exports: string[] = []
     const properties: string[] = []
-    const visit = (statements: Node[]) => {
+    const visit = (statements: readonly Node[]) => {
       const locals = new Map<string, Node>()
       for (const statement of statements) {
         if (statement.id?.name) locals.set(statement.id.name, statement)
@@ -728,7 +732,7 @@ function docs(): void {
           )
             exports.push(`line ${source.line(statement)}: ${name}`)
 
-          const members: Node[] = (() => {
+          const members: readonly Node[] = (() => {
             if (declaration.type === 'TSInterfaceDeclaration')
               return declaration.body.body
             if (declaration.typeAnnotation?.type === 'TSTypeLiteral')
@@ -1016,7 +1020,7 @@ function tooling(): void {
   const workspace = fs.existsSync('pnpm-workspace.yaml')
     ? ((
         Bun.YAML.parse(fs.readFileSync('pnpm-workspace.yaml', 'utf8')) as {
-          packages?: string[]
+          packages?: readonly string[]
         } | null
       )?.packages ?? ['**'])
     : undefined
@@ -1098,11 +1102,18 @@ type Tool = {
   name: string
   parse: (
     output: string,
-    batch: readonly string[],
-    command: readonly string[],
+    options: Tool.Run,
   ) => {
     checked?: readonly string[]
     found: readonly Diagnostic[]
+  }
+}
+
+declare namespace Tool {
+  /** One run of a tool: the files of the batch, and the command without files. */
+  type Run = {
+    batch: readonly string[]
+    command: readonly string[]
   }
 }
 
@@ -1141,11 +1152,11 @@ function lint(metrics: readonly string[]): void {
         item: file,
         metric,
         problems,
-        skip: !configured.checked.has(file)
-          ? 'not examined by oxlint'
-          : problems.length
-            ? undefined
-            : evidence?.unresolved[0],
+        skip: (() => {
+          if (!configured.checked.has(file)) return 'not examined by oxlint'
+          if (problems.length) return undefined
+          return evidence?.unresolved[0]
+        })(),
       })
     }
   }
@@ -1241,7 +1252,7 @@ function diagnostics(tool: Tool, inputs: readonly string[]) {
     const result = Bun.spawnSync([...tool.command, '--', ...batch])
     const output = result.stdout.toString()
     try {
-      const parsed = tool.parse(output, batch, tool.command)
+      const parsed = tool.parse(output, { batch, command: tool.command })
       if (
         (!result.success && (result.exitCode !== 1 || !parsed.found.length)) ||
         parsed.found.some((diagnostic) => !batch.includes(diagnostic.file))
@@ -1260,17 +1271,14 @@ function diagnostics(tool: Tool, inputs: readonly string[]) {
 }
 
 /** Reads the JSON report of oxlint, which `vp lint` writes too. */
-function oxlintReport(
-  output: string,
-  batch: readonly string[],
-  command: readonly string[],
-) {
+function oxlintReport(output: string, options: Tool.Run) {
+  const { batch, command } = options
   const report = JSON.parse(output.slice(output.indexOf('{'))) as {
     number_of_files: number
-    diagnostics: {
+    diagnostics: readonly {
       code?: string
       filename: string
-      labels: { span: { line: number } }[]
+      labels: readonly { span: { line: number } }[]
       message: string
     }[]
   }
@@ -1302,9 +1310,13 @@ function oxlintReport(
 
 /** Reads the JSON report of ESLint, which `bun lint` writes too. */
 function eslintReport(output: string) {
-  const report = JSON.parse(output.slice(output.indexOf('['))) as {
+  const report = JSON.parse(output.slice(output.indexOf('['))) as readonly {
     filePath: string
-    messages: { line?: number; message: string; ruleId: string | null }[]
+    messages: readonly {
+      line?: number
+      message: string
+      ruleId: string | null
+    }[]
   }[]
   const found = report.flatMap((entry) =>
     entry.messages.map((message) => ({
@@ -1437,7 +1449,7 @@ function read(file: string) {
     }
     return low + 1
   }
-  const comments = result.comments as {
+  const comments = result.comments as readonly {
     end: number
     start: number
     type: 'Block' | 'Line'
@@ -1470,7 +1482,7 @@ function read(file: string) {
 /** Calls `visit` for every node of the tree, with the node's ancestors from the root down. */
 function walk(
   source: Pick<Source, 'program'>,
-  visit: (node: Node, parents: Node[]) => void,
+  visit: (node: Node, parents: readonly Node[]) => void,
 ): void {
   const parents: Node[] = []
   const step = (node: Node) => {
@@ -1493,7 +1505,7 @@ function walk(
  * Returns whether `this` at the end of `parents` belongs to a class. Arrow functions keep the outer
  * `this`.
  */
-function insideClass(parents: Node[]): boolean {
+function insideClass(parents: readonly Node[]): boolean {
   for (let index = parents.length - 1; index >= 0; index--) {
     const node = parents[index]
     if (node.type === 'ClassBody' || node.type === 'PropertyDefinition')
@@ -1514,7 +1526,8 @@ function moduleTag(comment: string): boolean {
 
 /** Returns the literal property name, without mistaking a computed variable for its value. */
 function keyName(key: Node, computed: boolean): string | undefined {
-  return key?.type === 'Literal' ? key.value : computed ? undefined : key?.name
+  if (key?.type === 'Literal') return key.value
+  return computed ? undefined : key?.name
 }
 
 /** Checks command positions, not arbitrary arguments or the extension of a Bun entry point. */
@@ -1542,14 +1555,16 @@ function scriptRunner(script: string): string | undefined {
 }
 
 /** Returns each package.json that Git tracks, outside installed packages. */
-function manifests(): { file: string; json: Record<string, Node> }[] {
+function manifests(): readonly { file: string; json: Record<string, Node> }[] {
   return list(['package.json', '*/package.json'])
     .filter((file) => !ignored.some((pattern) => pattern.test(file)))
     .map((file) => ({ file, json: JSON.parse(fs.readFileSync(file, 'utf8')) }))
 }
 
 /** Returns each dependency of a package.json as its name, version, and field. */
-function dependencies(json: Record<string, Node>): [string, string, string][] {
+function dependencies(
+  json: Record<string, Node>,
+): readonly [string, string, string][] {
   return [
     'dependencies',
     'devDependencies',
@@ -1563,7 +1578,7 @@ function dependencies(json: Record<string, Node>): [string, string, string][] {
 }
 
 /** Returns tracked files in a checkout, or matching files when measuring a source archive. */
-function list(patterns: string[]): string[] {
+function list(patterns: readonly string[]): readonly string[] {
   const result = Bun.spawnSync(
     [
       'git',

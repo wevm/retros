@@ -249,10 +249,10 @@ function controls(): void {
         throw new Error(`oxlint: ${result.stderr.toString().trim() || output}`)
       const report = JSON.parse(output) as {
         number_of_files: number
-        diagnostics: {
+        diagnostics: readonly {
           code?: string
           filename: string
-          labels: { span: { line: number } }[]
+          labels: readonly { span: { line: number } }[]
           message: string
         }[]
       }
@@ -379,7 +379,7 @@ function sizes(): void {
 }
 
 /** Returns every file under a directory, sorted, so pages and assets keep one order across runs. */
-function walk(directory: string): string[] {
+function walk(directory: string): readonly string[] {
   return fs
     .readdirSync(directory, { recursive: true, withFileTypes: true })
     .filter((entry) => entry.isFile())
@@ -388,7 +388,7 @@ function walk(directory: string): string[] {
 }
 
 /** Returns the tracked and untracked files that match the patterns and that Git does not ignore. */
-function list(patterns: readonly string[]): string[] {
+function list(patterns: readonly string[]): readonly string[] {
   const result = Bun.spawnSync([
     'git',
     'ls-files',

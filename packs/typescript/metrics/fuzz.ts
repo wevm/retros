@@ -67,7 +67,7 @@ type Location = { url: string; line: number; column: number }
 type Planned = {
   name: string
   package?: string
-  properties: string[]
+  properties: readonly string[]
   seeds: number
   reason?: string
   location?: Location
@@ -82,8 +82,8 @@ type FailureRecord = {
 }
 type Result = {
   name: string
-  harnesses: { id: string; oracle: string; runs: number }[]
-  failures: FailureRecord[]
+  harnesses: readonly { id: string; oracle: string; runs: number }[]
+  failures: readonly FailureRecord[]
   coverage?: { percent: number; lines: number; covered: number }
   ms: number
   calls: number
@@ -110,9 +110,13 @@ async function main() {
     throw new Error('Planning failed.')
   }
   const plan = JSON.parse(fs.readFileSync(planFile, 'utf8')) as {
-    items: Planned[]
-    properties: { id: string; oracle: string; covers: string[] }[]
-    unknownCovers: string[]
+    items: readonly Planned[]
+    properties: readonly {
+      id: string
+      oracle: string
+      covers: readonly string[]
+    }[]
+    unknownCovers: readonly string[]
   }
   if (plan.unknownCovers.length)
     throw new Error(
@@ -138,22 +142,24 @@ async function main() {
     .map((item) => item.name)
     .filter((name) => !only || only.test(name))
     .sort()
-  const byModule = new Map<string, string[]>()
+  const byModule = new Map<string, readonly string[]>()
   for (const name of sorted) {
     if (isolated.has(name)) continue
     const module = moduleOf(name)
-    if (!byModule.has(module)) byModule.set(module, [])
-    byModule.get(module)!.push(name)
+    byModule.set(module, [...(byModule.get(module) ?? []), name])
   }
-  const shards: string[][] = Array.from({ length: shardCount }, () => [])
+  const shards: (readonly string[])[] = Array.from(
+    { length: shardCount },
+    () => [],
+  )
   for (const [, names] of [...byModule].sort(
-    ([a, x], [b, y]) => y.length - x.length || (a < b ? -1 : 1),
+    (left, right) =>
+      right[1].length - left[1].length || (left[0] < right[0] ? -1 : 1),
   )) {
-    const smallest = shards.reduce(
-      (best, shard, i) => (shard.length < shards[best]!.length ? i : best),
-      0,
-    )
-    shards[smallest]!.push(...names)
+    // The first of the shards with the fewest functions.
+    const sizes = shards.map((shard) => shard.length)
+    const smallest = sizes.indexOf(Math.min(...sizes))
+    shards[smallest] = [...shards[smallest]!, ...names]
   }
   for (const name of sorted) if (isolated.has(name)) shards.push([name])
 
@@ -169,7 +175,7 @@ async function main() {
   const fuzzSeconds = (performance.now() - fuzzStarted) / 1000
 
   /** Runs a shard; when the worker dies, records the function it died in and runs the rest. */
-  async function runShard(id: number, names: string[]) {
+  async function runShard(id: number, names: readonly string[]) {
     let remaining = names
     let attempt = 0
     while (remaining.length) {
@@ -203,7 +209,7 @@ async function main() {
       if (outcome.code === 0 && !current) return
       // The worker died: in the function it had started, or before it started any.
       const culprit = current ?? remaining.find((name) => !finished.has(name))!
-      results.set(culprit, await diagnose(id, culprit, outcome))
+      results.set(culprit, await diagnose(culprit, { first: outcome, id }))
       remaining = remaining.filter(
         (name) => !finished.has(name) && name !== culprit,
       )
@@ -213,10 +219,10 @@ async function main() {
 
   /** Runs one function alone with tracing on, and names the input that stopped the worker. */
   async function diagnose(
-    id: number,
     name: string,
-    first: WorkerOutcome,
+    options: diagnose.Options,
   ): Promise<Result> {
+    const { first, id } = options
     const out = path.join(tmp, `diagnose-${id}.jsonl`)
     const job = path.join(tmp, `diagnose-${id}.json`)
     const trace = path.join(tmp, `trace-${id}.jsonl`)
@@ -244,15 +250,14 @@ async function main() {
       ? (JSON.parse(last) as {
           harness: string
           input: string
-          changes?: string[]
+          changes?: readonly string[]
         })
       : undefined
-    const kind =
-      (outcome.killed ?? first.killed) === 'memory'
-        ? 'runaway memory'
-        : (outcome.killed ?? first.killed) === 'time'
-          ? 'hang'
-          : 'worker crashed'
+    const kind = (() => {
+      if ((outcome.killed ?? first.killed) === 'memory') return 'runaway memory'
+      if ((outcome.killed ?? first.killed) === 'time') return 'hang'
+      return 'worker crashed'
+    })()
     return {
       name,
       harnesses: [
@@ -270,12 +275,13 @@ async function main() {
           input: input
             ? `${input.input}${input.changes ? ` (${input.changes.join('; ')})` : ''}`
             : 'unknown',
-          message:
-            kind === 'runaway memory'
-              ? `resident memory passed ${memoryLimitBytes / 1e9} GB`
-              : kind === 'hang'
-                ? `still running after ${functionTimeoutMs / 1000}s`
-                : errorLine(outcome.stderr || first.stderr),
+          message: (() => {
+            if (kind === 'runaway memory')
+              return `resident memory passed ${memoryLimitBytes / 1e9} GB`
+            if (kind === 'hang')
+              return `still running after ${functionTimeoutMs / 1000}s`
+            return errorLine(outcome.stderr || first.stderr)
+          })(),
         },
       ],
       ms: 0,
@@ -318,7 +324,7 @@ async function main() {
       ...reasons,
     ]
       .sort((a, b) => b[1] - a[1])
-      .map(([reason, count]) => `${count} ${reason}`)
+      .map((entry) => `${entry[1]} ${entry[0]}`)
       .join(', ')}.`,
   )
   log(
@@ -417,6 +423,11 @@ function corpusFile() {
   return file
 }
 
+declare namespace diagnose {
+  /** The shard, and the outcome of the run that stopped in the function. */
+  type Options = { first: WorkerOutcome; id: number }
+}
+
 type WorkerOutcome = {
   code: number | null
   stderr: string
@@ -478,8 +489,9 @@ function residentBytes(pid: number) {
   }
 }
 
-async function run(command: string[], timeoutMs: number) {
-  const child = Bun.spawn(command, {
+async function run(command: readonly string[], timeoutMs: number) {
+  // `Bun.spawn` takes a mutable array, so it gets a copy.
+  const child = Bun.spawn([...command], {
     cwd: library.root,
     stdout: 'pipe',
     stderr: 'pipe',
@@ -494,7 +506,7 @@ async function run(command: string[], timeoutMs: number) {
   return { code: child.exitCode, stdout, stderr }
 }
 
-async function pool(tasks: (() => Promise<void>)[], size: number) {
+async function pool(tasks: readonly (() => Promise<void>)[], size: number) {
   let next = 0
   await Promise.all(
     Array.from({ length: Math.min(size, tasks.length) }, async () => {

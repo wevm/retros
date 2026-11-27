@@ -2,22 +2,22 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
-type Target = { kind: string[]; src_path: string }
+type Target = { kind: readonly string[]; src_path: string }
 type Package = {
-  dependencies: { name: string }[]
+  dependencies: readonly { name: string }[]
   edition: string
   id: string
   manifest_path: string
   name: string
-  targets: Target[]
+  targets: readonly Target[]
 }
 type Metadata = {
-  packages: Package[]
+  packages: readonly Package[]
   target_directory: string
-  workspace_members: string[]
+  workspace_members: readonly string[]
 }
 type Artifact = {
-  filenames: string[]
+  filenames: readonly string[]
   package_id: string
   reason: 'compiler-artifact'
   target: Target
@@ -27,7 +27,7 @@ type Diagnostic = {
     code: { code: string } | null
     level: string
     message: string
-    spans: {
+    spans: readonly {
       column_start: number
       file_name: string
       is_primary: boolean
@@ -39,7 +39,7 @@ type Diagnostic = {
 }
 
 /** Runs Cargo without dropping stderr or treating a failed command as empty output. */
-export function run(args: string[], env = process.env) {
+export function run(args: readonly string[], env = process.env) {
   const result = Bun.spawnSync(['cargo', ...args], {
     env,
     stderr: 'pipe',
@@ -72,7 +72,7 @@ function messages(output: ReturnType<typeof run>) {
   const finished = records.some(
     (entry) => entry.reason === 'build-finished' && entry.success === true,
   )
-  const entries: (Artifact | Diagnostic)[] = records.filter(
+  const entries: readonly (Artifact | Diagnostic)[] = records.filter(
     (entry) =>
       entry.reason === 'compiler-artifact' ||
       entry.reason === 'compiler-message',
@@ -110,7 +110,7 @@ export function relative(file: string): string {
 }
 
 /** Returns the normal build artifacts' rustc dep-info, never stale artifacts from a directory scan. */
-function inputs(artifact: Artifact): string[] {
+function inputs(artifact: Artifact): readonly string[] {
   const files = new Set([relative(artifact.target.src_path)])
   for (const filename of artifact.filenames) {
     const directory = path.dirname(filename)
@@ -134,7 +134,7 @@ function inputs(artifact: Artifact): string[] {
 
 /** Reads Clippy's measured files, distinct lint locations, and any incomplete-build reason. */
 export function clippy(options: {
-  flags: string[]
+  flags: readonly string[]
   members: ReadonlySet<string>
 }) {
   const result = messages(
@@ -210,7 +210,7 @@ export function formatted(metadata: Metadata) {
 export function sources(options: {
   metadata: Metadata
   reached: ReadonlySet<string>
-}): string[] {
+}): readonly string[] {
   const manifests = new Set(
     options.metadata.packages.map((entry) => relative(entry.manifest_path)),
   )

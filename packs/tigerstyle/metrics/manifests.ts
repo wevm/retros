@@ -97,11 +97,11 @@ function zig(root: Node) {
 
 /** Returns direct dependency names, or undefined for manifests that require evaluation. */
 export async function dependencies(
-  name: string,
-  text: string,
   read: Awaited<ReturnType<typeof Syntax.create>>,
+  options: dependencies.Options,
 ) {
-  switch (name) {
+  const { text } = options
+  switch (options.name) {
     case 'Cargo.toml': {
       type Table = { dependencies?: object }
       const manifest = Bun.TOML.parse(text) as Table & {
@@ -122,11 +122,22 @@ export async function dependencies(
       ].flatMap((field) => Object.keys(manifest[field] ?? {}))
     }
     case 'Package.swift':
-      return read('swift', text, swift)
+      return read('swift', { inspect: swift, text })
     // ZON is a Zig expression, not a complete Zig source file.
     case 'build.zig.zon':
-      return read('zig', `const manifest = ${text};`, zig)
+      return read('zig', { inspect: zig, text: `const manifest = ${text};` })
     default:
       return undefined
+  }
+}
+
+/** The types of `dependencies`. */
+export declare namespace dependencies {
+  /** The manifest's file name, which selects its format, and its text. */
+  type Options = {
+    /** The manifest's base name, such as `Cargo.toml`. */
+    name: string
+    /** The manifest's contents. */
+    text: string
   }
 }

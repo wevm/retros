@@ -92,7 +92,7 @@ type Key = {
   threw: number
   error?: string | undefined
   errorWhere?: string | undefined
-  ok: Sample[]
+  ok: readonly Sample[]
 }
 type TestFile = {
   file: string
@@ -107,13 +107,13 @@ type Recording = {
   createdAt: string
   seconds: number
   concurrency: number
-  files: TestFile[]
+  files: readonly TestFile[]
   keys: Record<string, Key>
 }
-type Item = { name: string; entry: string; keys: string[] }
+type Item = { name: string; entry: string; keys: readonly string[] }
 type Enumeration = {
-  items: Item[]
-  exports: { name: string; item: string }[]
+  items: readonly Item[]
+  exports: readonly { name: string; item: string }[]
   counts: {
     functions: number
     errors: number
@@ -121,8 +121,8 @@ type Enumeration = {
     values: number
     foreign: number
   }
-  entries: { name: string; file: string; barrel: boolean }[]
-  unmatched: string[]
+  entries: readonly { name: string; file: string; barrel: boolean }[]
+  unmatched: readonly string[]
 }
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'uphill-speed-'))
@@ -150,7 +150,7 @@ async function main() {
 
   const lines: string[] = []
   const failures = new Map<string, string>()
-  const jobs: { item: Item; candidates: Sample[] }[] = []
+  const jobs: { item: Item; candidates: readonly Sample[] }[] = []
   for (const item of recording ? items : []) {
     const merged = mergeKeys(item.keys.map((key) => recording.keys[key]!))
     if (!merged?.ok.length) failures.set(item.name, whyNot(merged))
@@ -159,13 +159,12 @@ async function main() {
 
   const replayStarted = performance.now()
   const tasks: (() => Promise<void>)[] = []
-  const imports = new Map<string, { cpu: number; heap: number }[]>()
+  const imports = new Map<string, readonly { cpu: number; heap: number }[]>()
   for (const entry of enumeration.entries)
     for (let run = 0; run < importRuns; run++)
       tasks.push(async () => {
         const result = await importProbe(entry.file)
-        if (!imports.has(entry.name)) imports.set(entry.name, [])
-        imports.get(entry.name)!.push(result)
+        imports.set(entry.name, [...(imports.get(entry.name) ?? []), result])
       })
   const results = new Map<string, BenchResult>()
   for (const [index, job] of jobs.entries())
@@ -240,7 +239,7 @@ async function main() {
   const benched = [...results.values()].filter((result) => result.ok).length
   const missing = [...reasons]
     .sort((a, b) => b[1] - a[1])
-    .map(([reason, count]) => `${count} ${reason}`)
+    .map((entry) => `${entry[1]} ${entry[0]}`)
   log(
     `Benched ${benched} of ${items.length} public functions${missing.length ? `; not benched: ${missing.join(', ')}` : ''}.`,
   )
@@ -349,7 +348,11 @@ async function loadRecording(testConfig: string): Promise<Recording> {
       line,
       file: line.match(/^\{"file":"([^"]*)"/)?.[1] ?? '',
     }))
-    .sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0))
+    .sort((a, b) => {
+      if (a.file < b.file) return -1
+      if (a.file > b.file) return 1
+      return 0
+    })
   const keys: Record<string, Key> = {}
   for (const { line } of lines) {
     const { keys: recorded } = JSON.parse(line) as {
@@ -387,7 +390,7 @@ async function loadRecording(testConfig: string): Promise<Recording> {
     concurrency,
     files,
     keys: Object.fromEntries(
-      Object.entries(keys).sort(([a], [b]) => (a < b ? -1 : 1)),
+      Object.entries(keys).sort((a, b) => (a[0] < b[0] ? -1 : 1)),
     ),
   }
   const partial = `${cacheFile}.${process.pid}`
@@ -413,10 +416,10 @@ async function loadRecording(testConfig: string): Promise<Recording> {
 function readReport(report: string) {
   return (
     JSON.parse(fs.readFileSync(report, 'utf8')) as {
-      testResults: {
+      testResults: readonly {
         name: string
         status: string
-        assertionResults: { status: string }[]
+        assertionResults: readonly { status: string }[]
       }[]
     }
   ).testResults
@@ -493,7 +496,7 @@ function hashInputs() {
   return hash.digest('hex').slice(0, 16)
 }
 
-async function enumerate(keys: string[]): Promise<Enumeration> {
+async function enumerate(keys: readonly string[]): Promise<Enumeration> {
   const input = path.join(tmp, 'keys.json')
   const output = path.join(tmp, 'enumeration.json')
   fs.writeFileSync(input, JSON.stringify({ keys }))
@@ -525,7 +528,7 @@ type BenchResult = {
 
 async function benchProbe(
   index: number,
-  job: { item: Item; candidates: Sample[] },
+  job: { item: Item; candidates: readonly Sample[] },
 ): Promise<BenchResult> {
   const input = path.join(tmp, `job-${index}.json`)
   const output = path.join(tmp, `result-${index}.json`)
@@ -534,10 +537,10 @@ async function benchProbe(
     JSON.stringify({
       name: job.item.name,
       key: job.item.keys[0],
-      candidates: job.candidates.map(({ args, where, direct }) => ({
-        args,
-        where,
-        direct,
+      candidates: job.candidates.map((candidate) => ({
+        args: candidate.args,
+        where: candidate.where,
+        direct: candidate.direct,
       })),
       sampleMs,
       samples,
@@ -596,8 +599,8 @@ process.stdout.write(JSON.stringify({ cpu: user + system, heap: v8.getHeapStatis
   return JSON.parse(result.stdout) as { cpu: number; heap: number }
 }
 
-async function run(command: string[], timeoutMs: number) {
-  const child = Bun.spawn(command, {
+async function run(command: readonly string[], timeoutMs: number) {
+  const child = Bun.spawn([...command], {
     cwd: root,
     stdout: 'pipe',
     stderr: 'pipe',
@@ -616,7 +619,7 @@ async function run(command: string[], timeoutMs: number) {
   return { code: child.exitCode, stdout, stderr, timedOut }
 }
 
-async function pool(tasks: (() => Promise<void>)[], size: number) {
+async function pool(tasks: readonly (() => Promise<void>)[], size: number) {
   let next = 0
   await Promise.all(
     Array.from({ length: Math.min(size, tasks.length) }, async () => {
@@ -626,21 +629,22 @@ async function pool(tasks: (() => Promise<void>)[], size: number) {
 }
 
 /** Mixes import probes with replays, so no entry point's runs all share one stretch of load. */
-function shuffle<value>(values: value[]) {
+function shuffle<value>(values: readonly value[]) {
   let seed = 1
   const random = () => {
     seed = (seed * 16807) % 2147483647
     return seed / 2147483647
   }
-  for (let i = values.length - 1; i > 0; i--) {
+  const shuffled = [...values]
+  for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(random() * (i + 1))
-    ;[values[i], values[j]] = [values[j]!, values[i]!]
+    ;[shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!]
   }
-  return values
+  return shuffled
 }
 
 /** Merges what was recorded for one function, from several test files or several exports. */
-function mergeKeys(values: (Key | undefined)[]): Key | undefined {
+function mergeKeys(values: readonly (Key | undefined)[]): Key | undefined {
   const present = values.filter((value): value is Key => !!value)
   if (!present.length) return undefined
   const merged: Key = {
@@ -679,10 +683,10 @@ function mergeKeys(values: (Key | undefined)[]): Key | undefined {
 }
 
 /** Keeps the argument sets tests pass most, then the shortest. */
-function trim(samples: Sample[]) {
+function trim(samples: readonly Sample[]) {
   let length = 0
   return samples
-    .sort(
+    .toSorted(
       (a, b) =>
         Number(b.direct) - Number(a.direct) ||
         b.n - a.n ||
@@ -701,8 +705,8 @@ function trim(samples: Sample[]) {
  * and in each group the median-sized set first, so neither an empty edge case nor a stress input
  * stands for the function. The same recording always yields the same order.
  */
-function pick(samples: Sample[]) {
-  const order = (group: Sample[]) => {
+function pick(samples: readonly Sample[]) {
+  const order = (group: readonly Sample[]) => {
     const sorted = [...group].sort(
       (a, b) => a.args.length - b.args.length || (a.args < b.args ? -1 : 1),
     )
@@ -710,7 +714,7 @@ function pick(samples: Sample[]) {
     return sorted
       .map((sample, index) => ({ sample, distance: Math.abs(index - middle) }))
       .sort((a, b) => a.distance - b.distance)
-      .map(({ sample }) => sample)
+      .map((entry) => entry.sample)
   }
   return [
     ...order(samples.filter((sample) => sample.direct)),
@@ -733,7 +737,7 @@ function whyNot(key: Key | undefined) {
   if (!reasons.length && key.threw)
     return `every recorded call ${threw.replace(/ \(\d+\)/, '')}`
   if (!reasons.length) return 'no recorded call could be sampled'
-  const parts = reasons.map(([reason, count]) => `${reason} (${count})`)
+  const parts = reasons.map((entry) => `${entry[0]} (${entry[1]})`)
   if (key.threw) parts.push(threw)
   return `every recorded call ${parts.join(' or ')}`
 }
@@ -762,14 +766,12 @@ function formatSize(bytes: number) {
 
 /** About three significant digits, never in exponent notation. */
 function digits(value: number) {
-  return value >= 100
-    ? value.toFixed(0)
-    : value >= 10
-      ? value.toFixed(1)
-      : value.toFixed(2)
+  if (value >= 100) return value.toFixed(0)
+  if (value >= 10) return value.toFixed(1)
+  return value.toFixed(2)
 }
 
-function median(values: number[]) {
+function median(values: readonly number[]) {
   const sorted = [...values].sort((a, b) => a - b)
   const middle = sorted.length >> 1
   return sorted.length % 2

@@ -122,55 +122,15 @@ const concurrency = Math.max(
     Math.floor(typesHost.availableMemory() / workerBytes),
   ),
 )
-const workers = Array.from({ length: concurrency }, () => startWorker(heap))
-let nextId = 0
-/** The public functions each declaration key is, since a declaration can have several names. */
-const declarations = new Map<string, string[]>()
-const sitesByFile = new Map<string, Site[]>()
-const texts = new Map<string, string>()
-let missing: string[] = []
-await run([
-  {
-    job: {
-      kind: 'entries',
-      id: nextId++,
-      names: functions.map((item) => item.name),
-    },
-    done(result: EntriesResult) {
-      for (const [name, keys] of Object.entries(result.declarations))
-        for (const key of keys)
-          declarations.set(key, [...(declarations.get(key) ?? []), name])
-      missing = result.missing
-    },
-  },
-  ...testFiles.map((file) => ({
-    job: { kind: 'scan' as const, id: nextId++, file },
-    done(result: ScanResult) {
-      sitesByFile.set(result.file, result.sites)
-      texts.set(result.file, result.text)
-    },
-  })),
-])
-if (missing.length)
+const pool = createPool(concurrency)
+const scanned = await scan(pool)
+if (scanned.missing.length)
   log(
-    `${missing.length} public functions did not resolve to a declaration, such as ${missing.slice(0, 3).join(', ')}`,
+    `${scanned.missing.length} public functions did not resolve to a declaration, such as ${scanned.missing.slice(0, 3).join(', ')}`,
   )
 
 type Candidate = Site & { file: string; item: string }
-const candidates = new Map<string, Candidate[]>()
-let callCount = 0
-// In file order, since scans finish in any order.
-for (const file of [...sitesByFile.keys()].sort())
-  for (const site of sitesByFile.get(file)!) {
-    const items = declarations.get(site.declaration)
-    if (!items) continue
-    callCount++
-    for (const item of items) {
-      const list = candidates.get(item) ?? []
-      list.push({ ...site, file, item })
-      candidates.set(item, list)
-    }
-  }
+const { callCount, candidates } = collect(scanned)
 log(
   `found ${callCount} calls to ${candidates.size} public functions in ${((performance.now() - started) / 1000).toFixed(1)}s`,
 )
@@ -183,47 +143,7 @@ log(
 // `describe` block named after the function come first, which is most often the test named
 // `default`, the way its documentation calls it. A call that fails to check once copied out gives
 // its place to the function's next call, up to five calls.
-const order = new Map<string, Candidate[]>()
-for (const [item, list] of candidates) {
-  const module = moduleOf.get(item)!
-  // The function's own name, such as `add` for `lib:Math.add`.
-  const name = item.slice(
-    Math.max(item.indexOf(':'), item.lastIndexOf('.')) + 1,
-  )
-  const fileRank = (file: string) => {
-    const base = path.basename(file)
-    const types = /-d\.[cm]?[jt]sx?$/.test(base)
-    // The name without its test suffix, such as `Math.round` for Math.round.test.ts.
-    const stem = base.replace(/\.\w+(-d)?\.[cm]?[jt]sx?$/, '')
-    if (!types && stem === module) return 0
-    if (!types && stem === `${module}.${name}`) return 1
-    if (!types && stem.startsWith(`${module}.`)) return 2
-    if (types && stem === module) return 3
-    return 4
-  }
-  // Within a file, calls in the `describe` block named after the function come first, such as
-  // `describe('toJson')` rather than a `fromJson` test that calls `toJson` on its result.
-  const rank = (candidate: Candidate) =>
-    fileRank(candidate.file) * 2 +
-    (candidate.test
-      .split(' > ')
-      .slice(1, -1)
-      .some((block) => block === name || block.endsWith(`.${name}`))
-      ? 0
-      : 1)
-  order.set(
-    item,
-    list
-      .filter((candidate) => !candidate.skip)
-      .sort(
-        (a, b) =>
-          rank(a) - rank(b) ||
-          (a.file < b.file ? -1 : a.file > b.file ? 1 : 0) ||
-          a.start - b.start,
-      ),
-  )
-}
-
+const order = orderCalls(candidates)
 const timesFile = path.join(
   os.tmpdir(),
   `uphill-${library.name.replace(/\W/g, '-')}-types-calls-times.json`,
@@ -231,87 +151,21 @@ const timesFile = path.join(
 const lastTimes: Record<string, number> = fs.existsSync(timesFile)
   ? JSON.parse(fs.readFileSync(timesFile, 'utf8'))
   : {}
-const times: Record<string, number> = {}
-const measured = new Map<string, Measurement & { candidate: Candidate }>()
-const rejected = new Map<string, (Measurement & { candidate: Candidate })[]>()
-const tried = new Map<string, number>()
-for (let round = 1; ; round++) {
-  const chosen: Candidate[] = []
-  for (const [item, list] of order) {
-    const next = tried.get(item) ?? 0
-    if (measured.has(item) || next >= Math.min(list.length, tries)) continue
-    chosen.push(list[next]!)
-    tried.set(item, next + 1)
-  }
-  if (!chosen.length) break
-  const byFile = Map.groupBy(chosen, (candidate) => candidate.file)
-  log(
-    `measuring ${chosen.length} calls in ${byFile.size} test files (round ${round})`,
-  )
-  // The costliest files first, so the slowest job does not run alone at the end. The last run's
-  // times order the queue, then the number of calls; they only decide the order, never a value.
-  const jobs = [...byFile].sort(
-    (a, b) =>
-      (lastTimes[b[0]] ?? Number.POSITIVE_INFINITY) -
-        (lastTimes[a[0]] ?? Number.POSITIVE_INFINITY) ||
-      b[1].length - a[1].length,
-  )
-  await run(
-    jobs.map(([file, list]) => ({
-      job: {
-        kind: 'measure' as const,
-        id: nextId++,
-        file,
-        text: texts.get(file)!,
-        sites: list.map((candidate, site) => ({
-          site,
-          start: candidate.start,
-          end: candidate.end,
-          outer: candidate.outer,
-          anchor: candidate.anchor,
-        })),
-      },
-      done(result: MeasureResult) {
-        for (const measurement of result.measurements) {
-          const candidate = list[measurement.site]!
-          if (!measurement.errors.length)
-            measured.set(candidate.item, { ...measurement, candidate })
-          else
-            rejected.set(candidate.item, [
-              ...(rejected.get(candidate.item) ?? []),
-              { ...measurement, candidate },
-            ])
-        }
-      },
-    })),
-  )
-}
-const peak = Math.max(
-  ...(await Promise.all(workers.map((worker) => worker.close()))),
-)
-fs.writeFileSync(`${timesFile}.${process.pid}`, JSON.stringify(times))
+const { measured, rejected } = await measure(pool, {
+  order,
+  texts: scanned.texts,
+})
+const peak = await pool.close()
+fs.writeFileSync(`${timesFile}.${process.pid}`, JSON.stringify(pool.times))
 fs.renameSync(`${timesFile}.${process.pid}`, timesFile)
 
 // 4. Lines: one value per measured function, and one check per public function.
-const lines: string[] = []
-const reasons = new Map<string, number>()
-const reported: { item: string; value: number; note: string }[] = []
-for (const { name } of functions) {
-  const measurement = measured.get(name)
-  if (measurement) {
-    const text = note(measurement)
-    lines.push(
-      `instantiations ${quote(name)} ${measurement.instantiations} note ${quote(text)}`,
-      `type-benched ${quote(name)} pass note ${quote(where(measurement.candidate))}`,
-    )
-    reported.push({ item: name, value: measurement.instantiations, note: text })
-    continue
-  }
-  const reason = whyNot(name)
-  const kind = reason.split(/[:(]/)[0]!.trim()
-  reasons.set(kind, (reasons.get(kind) ?? 0) + 1)
-  lines.push(`type-benched ${quote(name)} fail note ${quote(reason)}`)
-}
+const { lines, reasons, reported } = report({
+  candidates,
+  measured,
+  missing: scanned.missing,
+  rejected,
+})
 fs.appendFileSync(metrics, `${[...lines, ...hot.hot(lines)].join('\n')}\n`)
 
 log(
@@ -319,7 +173,7 @@ log(
     ...reasons,
   ]
     .sort((a, b) => b[1] - a[1])
-    .map(([reason, count]) => `${count} ${reason}`)
+    .map((entry) => `${entry[1]} ${entry[0]}`)
     .join(', ')}`,
 )
 log('costliest calls:')
@@ -330,6 +184,229 @@ for (const { item, value, note } of reported
 log(
   `done in ${((performance.now() - started) / 1000).toFixed(1)}s with ${concurrency} workers; peak worker memory ${size(peak)}`,
 )
+
+/** Resolves each public function to its declaration keys, and lists the calls in each test file. */
+async function scan(pool: Pool) {
+  /** The public functions each declaration key is, since a declaration can have several names. */
+  const declarations = new Map<string, readonly string[]>()
+  const sitesByFile = new Map<string, readonly Site[]>()
+  const texts = new Map<string, string>()
+  let missing: readonly string[] = []
+  await pool.run([
+    {
+      job: {
+        kind: 'entries',
+        id: pool.id(),
+        names: functions.map((item) => item.name),
+      },
+      done(result: EntriesResult) {
+        for (const [name, keys] of Object.entries(result.declarations))
+          for (const key of keys)
+            declarations.set(key, [...(declarations.get(key) ?? []), name])
+        missing = result.missing
+      },
+    },
+    ...testFiles.map((file) => ({
+      job: { kind: 'scan' as const, id: pool.id(), file },
+      done(result: ScanResult) {
+        sitesByFile.set(result.file, result.sites)
+        texts.set(result.file, result.text)
+      },
+    })),
+  ])
+  return { declarations, missing, sitesByFile, texts }
+}
+
+/** Lists each public function's calls in file order, since scans finish in any order. */
+function collect(options: Awaited<ReturnType<typeof scan>>) {
+  const { declarations, sitesByFile } = options
+  const candidates = new Map<string, readonly Candidate[]>()
+  let callCount = 0
+  for (const file of [...sitesByFile.keys()].sort())
+    for (const site of sitesByFile.get(file)!) {
+      const items = declarations.get(site.declaration)
+      if (!items) continue
+      callCount++
+      for (const item of items)
+        candidates.set(item, [
+          ...(candidates.get(item) ?? []),
+          { ...site, file, item },
+        ])
+    }
+  return { callCount, candidates }
+}
+
+/** Orders each function's calls, leaving out the ones that cannot be measured. */
+function orderCalls(candidates: ReadonlyMap<string, readonly Candidate[]>) {
+  const order = new Map<string, readonly Candidate[]>()
+  for (const [item, list] of candidates) {
+    const module = moduleOf.get(item)!
+    // The function's own name, such as `add` for `lib:Math.add`.
+    const name = item.slice(
+      Math.max(item.indexOf(':'), item.lastIndexOf('.')) + 1,
+    )
+    const fileRank = (file: string) => {
+      const base = path.basename(file)
+      const types = /-d\.[cm]?[jt]sx?$/.test(base)
+      // The name without its test suffix, such as `Math.round` for Math.round.test.ts.
+      const stem = base.replace(/\.\w+(-d)?\.[cm]?[jt]sx?$/, '')
+      if (!types && stem === module) return 0
+      if (!types && stem === `${module}.${name}`) return 1
+      if (!types && stem.startsWith(`${module}.`)) return 2
+      if (types && stem === module) return 3
+      return 4
+    }
+    // Within a file, calls in the `describe` block named after the function come first, such as
+    // `describe('toJson')` rather than a `fromJson` test that calls `toJson` on its result.
+    const rank = (candidate: Candidate) =>
+      fileRank(candidate.file) * 2 +
+      (candidate.test
+        .split(' > ')
+        .slice(1, -1)
+        .some((block) => block === name || block.endsWith(`.${name}`))
+        ? 0
+        : 1)
+    order.set(
+      item,
+      list
+        .filter((candidate) => !candidate.skip)
+        .sort(
+          (a, b) =>
+            rank(a) - rank(b) ||
+            (() => {
+              if (a.file < b.file) return -1
+              return a.file > b.file ? 1 : 0
+            })() ||
+            a.start - b.start,
+        ),
+    )
+  }
+  return order
+}
+
+/**
+ * Measures one call per function in rounds. Each round takes each function's next call that has
+ * not run, until one checks once copied out or the function used up its tries.
+ */
+async function measure(pool: Pool, options: measure.Options) {
+  const { order, texts } = options
+  const measured = new Map<string, Measurement & { candidate: Candidate }>()
+  const rejected = new Map<
+    string,
+    readonly (Measurement & { candidate: Candidate })[]
+  >()
+  const tried = new Map<string, number>()
+  for (let round = 1; ; round++) {
+    const chosen: Candidate[] = []
+    for (const [item, list] of order) {
+      const next = tried.get(item) ?? 0
+      if (measured.has(item) || next >= Math.min(list.length, tries)) continue
+      chosen.push(list[next]!)
+      tried.set(item, next + 1)
+    }
+    if (!chosen.length) break
+    const byFile = Map.groupBy(chosen, (candidate) => candidate.file)
+    log(
+      `measuring ${chosen.length} calls in ${byFile.size} test files (round ${round})`,
+    )
+    // The costliest files first, so the slowest job does not run alone at the end. The last run's
+    // times order the queue, then the number of calls; they only decide the order, never a value.
+    const jobs = [...byFile].sort(
+      (a, b) =>
+        (lastTimes[b[0]] ?? Number.POSITIVE_INFINITY) -
+          (lastTimes[a[0]] ?? Number.POSITIVE_INFINITY) ||
+        b[1].length - a[1].length,
+    )
+    await pool.run(
+      jobs.map((entry) => {
+        const [file, list] = entry
+        return {
+          job: {
+            kind: 'measure' as const,
+            id: pool.id(),
+            file,
+            text: texts.get(file)!,
+            sites: list.map((candidate, site) => ({
+              site,
+              start: candidate.start,
+              end: candidate.end,
+              outer: candidate.outer,
+              anchor: candidate.anchor,
+            })),
+          },
+          done(result: MeasureResult) {
+            for (const measurement of result.measurements) {
+              const candidate = list[measurement.site]!
+              if (!measurement.errors.length)
+                measured.set(candidate.item, { ...measurement, candidate })
+              else
+                rejected.set(candidate.item, [
+                  ...(rejected.get(candidate.item) ?? []),
+                  { ...measurement, candidate },
+                ])
+            }
+          },
+        }
+      }),
+    )
+  }
+  return { measured, rejected }
+}
+
+declare namespace measure {
+  /** The ordered calls of each function, and the text of each test file. */
+  type Options = {
+    /** Each function's calls, in the order to try them. */
+    order: ReadonlyMap<string, readonly Candidate[]>
+    /** The text of each scanned test file, by path. */
+    texts: ReadonlyMap<string, string>
+  }
+}
+
+/** Writes one value per measured function and one check per public function, and counts why not. */
+function report(options: report.Options) {
+  const lines: string[] = []
+  const reasons = new Map<string, number>()
+  const reported: { item: string; value: number; note: string }[] = []
+  for (const { name } of functions) {
+    const measurement = options.measured.get(name)
+    if (measurement) {
+      const text = note(measurement)
+      lines.push(
+        `instantiations ${quote(name)} ${measurement.instantiations} note ${quote(text)}`,
+        `type-benched ${quote(name)} pass note ${quote(where(measurement.candidate))}`,
+      )
+      reported.push({
+        item: name,
+        value: measurement.instantiations,
+        note: text,
+      })
+      continue
+    }
+    const reason = whyNot(name, options)
+    const kind = reason.split(/[:(]/)[0]!.trim()
+    reasons.set(kind, (reasons.get(kind) ?? 0) + 1)
+    lines.push(`type-benched ${quote(name)} fail note ${quote(reason)}`)
+  }
+  return { lines, reasons, reported }
+}
+
+declare namespace report {
+  /** What the scan and the measuring rounds found for each public function. */
+  type Options = {
+    /** The calls of each public function in the tests. */
+    candidates: ReadonlyMap<string, readonly Candidate[]>
+    /** The measured call of each public function that has one. */
+    measured: ReadonlyMap<string, Measurement & { candidate: Candidate }>
+    /** The public functions that resolve to no declaration. */
+    missing: readonly string[]
+    /** The calls of each public function that failed to check once copied out. */
+    rejected: ReadonlyMap<
+      string,
+      readonly (Measurement & { candidate: Candidate })[]
+    >
+  }
+}
 
 /** Names a call's test, such as `src/Math.test.ts > add > default (line 12)`. */
 function where(candidate: Candidate) {
@@ -345,7 +422,8 @@ function note(measurement: Measurement & { candidate: Candidate }) {
   if (instantiations < costly) return text.join('; ')
   const share = (count: number) =>
     `${Math.min(100, Math.round((count / instantiations) * 100))}%`
-  const declared = (parameters: string[]) => short(`(${parameters.join(', ')})`)
+  const declared = (parameters: readonly string[]) =>
+    short(`(${parameters.join(', ')})`)
   const [count, description] = (
     [
       [
@@ -366,12 +444,12 @@ function note(measurement: Measurement & { candidate: Candidate }) {
 }
 
 /** Why a public function has no measured call. */
-function whyNot(name: string) {
-  if (missing.includes(name))
+function whyNot(name: string, options: report.Options) {
+  if (options.missing.includes(name))
     return 'no declaration names it, since it is built at run time'
-  const all = candidates.get(name) ?? []
+  const all = options.candidates.get(name) ?? []
   if (!all.length) return 'no test calls it directly'
-  const failed = rejected.get(name) ?? []
+  const failed = options.rejected.get(name) ?? []
   if (failed.length) {
     const first = failed[0]!
     const error = first.errors[0]!
@@ -386,8 +464,7 @@ function whyNot(name: string) {
   return `every call in the tests is unmeasurable: ${[...counts]
     .sort((a, b) => b[1] - a[1])
     .map(
-      ([reason, count]) =>
-        `${count} ${count === 1 ? 'call' : 'calls'} ${reason}`,
+      (entry) => `${entry[1]} ${entry[1] === 1 ? 'call' : 'calls'} ${entry[0]}`,
     )
     .join(', ')} (such as ${where(all[0]!)})`
 }
@@ -398,48 +475,84 @@ function short(text: string) {
   return flat.length > 100 ? `${flat.slice(0, 99)}…` : flat
 }
 
+/** One job for the pool, and what to do with its result. */
+type Task = { job: Job; done: (result: never) => void }
+
+/** The worker pool that `createPool` returns. */
+type Pool = ReturnType<typeof createPool>
+
 /**
- * Runs jobs on the pool, each worker taking the next job as it finishes one. A worker that runs
- * out of memory is replaced, and its job runs again in a worker with a larger heap, once, if the
- * machine has the memory for it; otherwise the job's calls are left out.
+ * Starts `size` workers. The pool hands out job IDs, and records the time each test file's measure
+ * jobs take in `times`.
  */
-async function run(tasks: { job: Job; done: (result: never) => void }[]) {
-  let next = 0
-  let finished = 0
-  await Promise.all(
-    workers.map(async (_, index) => {
-      while (next < tasks.length) {
-        const task = tasks[next++]!
-        const begun = performance.now()
-        let result: unknown
-        try {
-          result = await workers[index]!.send(task.job)
-        } catch (error) {
-          workers[index] = startWorker(heap)
-          if (typesHost.availableMemory() < 2.5e9) {
-            log(`${String(error)}; no room for a larger heap, leaving it out`)
-            if (task.job.kind !== 'measure') throw error
-            continue
-          }
-          log(`${String(error)}; checking it again with a ${largeHeap}MB heap`)
-          const large = startWorker(largeHeap)
-          try {
-            result = await large.send(task.job)
-          } finally {
-            await large.close()
-          }
+function createPool(size: number) {
+  const workers = Array.from({ length: size }, () => startWorker(heap))
+  const times: Record<string, number> = {}
+  let nextId = 0
+
+  /**
+   * Runs jobs on the pool, each worker taking the next job as it finishes one. A worker that runs
+   * out of memory is replaced, and its job runs again in a worker with a larger heap, once, if the
+   * machine has the memory for it; otherwise the job's calls are left out.
+   */
+  async function run(tasks: readonly Task[]) {
+    let next = 0
+    let finished = 0
+    await Promise.all(
+      workers.map(async (_, index) => {
+        while (next < tasks.length) {
+          const task = tasks[next++]!
+          const begun = performance.now()
+          // An empty result leaves the job out.
+          const result = await (async () => {
+            try {
+              return { value: await workers[index]!.send(task.job) }
+            } catch (error) {
+              workers[index] = startWorker(heap)
+              if (typesHost.availableMemory() < 2.5e9) {
+                log(
+                  `${String(error)}; no room for a larger heap, leaving it out`,
+                )
+                if (task.job.kind !== 'measure') throw error
+                return undefined
+              }
+              log(
+                `${String(error)}; checking it again with a ${largeHeap}MB heap`,
+              )
+              const large = startWorker(largeHeap)
+              try {
+                return { value: await large.send(task.job) }
+              } finally {
+                await large.close()
+              }
+            }
+          })()
+          if (!result) continue
+          task.done(result.value as never)
+          if (task.job.kind === 'measure')
+            times[task.job.file] =
+              (times[task.job.file] ?? 0) + performance.now() - begun
+          if (++finished % 100 === 0)
+            log(
+              `${finished} of ${tasks.length} jobs done after ${((performance.now() - started) / 1000).toFixed(0)}s`,
+            )
         }
-        task.done(result as never)
-        if (task.job.kind === 'measure')
-          times[task.job.file] =
-            (times[task.job.file] ?? 0) + performance.now() - begun
-        if (++finished % 100 === 0)
-          log(
-            `${finished} of ${tasks.length} jobs done after ${((performance.now() - started) / 1000).toFixed(0)}s`,
-          )
-      }
-    }),
-  )
+      }),
+    )
+  }
+
+  return {
+    /** Stops the workers, and returns the peak memory of the largest. */
+    async close() {
+      return Math.max(
+        ...(await Promise.all(workers.map((worker) => worker.close()))),
+      )
+    },
+    /** Returns the next job ID. */
+    id: () => nextId++,
+    run,
+    times,
+  }
 }
 
 /** Starts one Node worker process, which takes one job at a time. */

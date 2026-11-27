@@ -13,7 +13,7 @@ export async function parser(): Promise<Parser> {
   return new Parser().setLanguage(language)
 }
 
-function children(node: Node | null | undefined): Node[] {
+function children(node: Node | null | undefined): readonly Node[] {
   return (
     node?.namedChildren.filter(
       (child): child is Node => child !== null && !child.isExtra,
@@ -72,14 +72,18 @@ function imports(root: Node) {
   }
 }
 
-function macroArguments(tokens: Node): Node[][] {
-  const groups: Node[][] = [[]]
+function macroArguments(tokens: Node): readonly (readonly Node[])[] {
+  const groups: (readonly Node[])[] = []
+  let group: Node[] = []
   // Nested delimiters and literals are each one token-tree child, not text to split.
   for (const token of tokens.children.slice(1, -1)) {
     if (!token || token.isExtra) continue
-    if (token.type === ',') groups.push([])
-    else groups.at(-1)?.push(token)
+    if (token.type === ',') {
+      groups.push(group)
+      group = []
+    } else group.push(token)
   }
+  groups.push(group)
   return groups
 }
 
@@ -107,7 +111,7 @@ function assertion(parser: Parser, tokens: Node) {
 
 /** Returns distinct source findings and an explicit reason when the grammar cannot parse the file. */
 export function inspect(parser: Parser, source: string) {
-  const problems = new Map<string, string[]>()
+  const problems = new Map<string, readonly string[]>()
   const tree = parser.parse(source)
   try {
     const root = tree?.rootNode
@@ -136,9 +140,10 @@ export function inspect(parser: Parser, source: string) {
     ])) {
       if (!node) continue
       const add = (metric: string, text: string) => {
-        const entries = problems.get(metric) ?? []
-        entries.push(`line ${node.startPosition.row + 1}: ${text}`)
-        problems.set(metric, entries)
+        problems.set(metric, [
+          ...(problems.get(metric) ?? []),
+          `line ${node.startPosition.row + 1}: ${text}`,
+        ])
       }
       if (
         node.type === 'line_comment' &&

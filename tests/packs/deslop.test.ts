@@ -4,17 +4,17 @@ import * as child from 'node:child_process'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { test } from 'node:test'
-import { fileURLToPath } from 'node:url'
+import * as test from 'node:test'
+import * as url from 'node:url'
 
-const repo = fileURLToPath(new URL('../../', import.meta.url))
+const repo = url.fileURLToPath(new URL('../../', import.meta.url))
 type Report = {
-  categories: {
+  categories: readonly {
     score: number | null
-    metrics: {
+    metrics: readonly {
       name: string
       score: number | null
-      items: { name: string; value: boolean | null; note: string }[]
+      items: readonly { name: string; value: boolean | null; note: string }[]
     }[]
   }[]
 }
@@ -67,91 +67,97 @@ function measure(cwd: string, status: number) {
   return { category, item }
 }
 
-test('source graphs include real edges but exclude inert source text', () =>
-  project((cwd) => {
-    write(cwd, {
-      'go.mod': 'module example.org/sample\n\ngo 1.24',
-      'a/lib.go': 'package a\nconst text = `import "example.org/sample/b"`',
-      'b/lib.go': 'package b\nimport (_ "example.org/sample/a")',
-      'a.h': '/*\n#include "b.h"\n*/',
-      'b.h': '#include "a.h"',
-      'a.ts': `import './b.js'; export {}`,
-      'b.ts': `export const text = "import './a.js'"`,
-      // A runtime built-in is outside the project, so the program stays complete without its types.
-      'c.ts': `import * as fs from 'node:fs'; export const read = fs.readFileSync`,
-      'a.zig': 'const b = @import( // local module\n "b.zig");',
-      'b.zig': '// @import("a.zig")',
-      'A.swift': 'func first() -> Int { second() }',
-      'B.swift': 'func second() -> Int { 1 }',
-    })
-    const items = [
-      'a/',
-      'b/',
-      'a.h',
-      'b.h',
-      'a.ts',
-      'b.ts',
-      'a.zig',
-      'b.zig',
-      'A.swift',
-      'B.swift',
-    ]
-    const clean = measure(cwd, 0)
-    for (const file of [...items, 'c.ts'])
-      assert.equal(clean.item('module-cycle', file).value, true, file)
+test.test(
+  'source graphs include real edges but exclude inert source text',
+  () =>
+    project((cwd) => {
+      write(cwd, {
+        'go.mod': 'module example.org/sample\n\ngo 1.24',
+        'a/lib.go': 'package a\nconst text = `import "example.org/sample/b"`',
+        'b/lib.go': 'package b\nimport (_ "example.org/sample/a")',
+        'a.h': '/*\n#include "b.h"\n*/',
+        'b.h': '#include "a.h"',
+        'a.ts': `import './b.js'; export {}`,
+        'b.ts': `export const text = "import './a.js'"`,
+        // A runtime built-in is outside the project, so the program stays complete without its types.
+        'c.ts': `import * as fs from 'node:fs'; export const read = fs.readFileSync`,
+        'a.zig': 'const b = @import( // local module\n "b.zig");',
+        'b.zig': '// @import("a.zig")',
+        'A.swift': 'func first() -> Int { second() }',
+        'B.swift': 'func second() -> Int { 1 }',
+      })
+      const items = [
+        'a/',
+        'b/',
+        'a.h',
+        'b.h',
+        'a.ts',
+        'b.ts',
+        'a.zig',
+        'b.zig',
+        'A.swift',
+        'B.swift',
+      ]
+      const clean = measure(cwd, 0)
+      for (const file of [...items, 'c.ts'])
+        assert.equal(clean.item('module-cycle', file).value, true, file)
 
-    write(cwd, {
-      'a/lib.go': 'package a\nimport (\n_ `example.org/sample/b`\n)',
-      'a.h': '#include "b.h"',
-      'b.ts': `import './a.js'`,
-      'b.zig': 'const a = @import("a.zig");',
-      'B.swift': 'func second() -> Int { first() }',
-    })
-    const cycles = measure(cwd, 1)
-    for (const file of items)
-      assert.equal(cycles.item('module-cycle', file).value, false, file)
+      write(cwd, {
+        'a/lib.go': 'package a\nimport (\n_ `example.org/sample/b`\n)',
+        'a.h': '#include "b.h"',
+        'b.ts': `import './a.js'`,
+        'b.zig': 'const a = @import("a.zig");',
+        'B.swift': 'func second() -> Int { first() }',
+      })
+      const cycles = measure(cwd, 1)
+      for (const file of items)
+        assert.equal(cycles.item('module-cycle', file).value, false, file)
 
-    write(cwd, {
-      'a.h': '#include HEADER',
-      'b.ts': `void import('./' + name)`,
-      'b.zig': 'const a = @import("app");',
-      'B.swift': 'func second() -> Int { object.first() }',
-    })
-    const unknown = measure(cwd, 1)
-    for (const file of ['a.h', 'b.ts', 'b.zig', 'B.swift'])
-      assert.equal(unknown.item('module-cycle', file).value, null, file)
-  }))
+      write(cwd, {
+        'a.h': '#include HEADER',
+        'b.ts': `void import('./' + name)`,
+        'b.zig': 'const a = @import("app");',
+        'B.swift': 'func second() -> Int { object.first() }',
+      })
+      const unknown = measure(cwd, 1)
+      for (const file of ['a.h', 'b.ts', 'b.zig', 'B.swift'])
+        assert.equal(unknown.item('module-cycle', file).value, null, file)
+    }),
+)
 
-test('TypeScript binds field receivers and aliased calls to their owners', () =>
-  project((cwd) => {
-    const functions = Array.from({ length: 8 }, (_, i) => `fn${i}`)
-    write(cwd, {
-      'Api.ts': functions
-        .map((name) => `export function ${name}() { return 1 }`)
-        .join('\n'),
-      'Queue.ts':
-        'export class Queue { entries: number[] = []; private capacity = 4; full() { return this.entries.length >= this.capacity } }',
-      'Use.ts': `import { ${functions.map((name) => `${name} as local${name}`).join(', ')} } from './Api.js';\n${functions.map((name) => `local${name}();`).join('\n')}\nconst other = { entries: [] as number[] }; other.entries.push(2)`,
-    })
-    const aliased = measure(cwd, 1)
-    assert.equal(aliased.item('field-leak', 'Queue.ts').value, true)
-    assert.equal(aliased.item('shallow-module', 'Api.ts').value, false)
+test.test(
+  'TypeScript binds field receivers and aliased calls to their owners',
+  () =>
+    project((cwd) => {
+      const functions = Array.from({ length: 8 }, (_, i) => `fn${i}`)
+      write(cwd, {
+        'Api.ts': functions
+          .map((name) => `export function ${name}() { return 1 }`)
+          .join('\n'),
+        'Queue.ts':
+          'export class Queue { entries: number[] = []; private capacity = 4; full() { return this.entries.length >= this.capacity } }',
+        'Use.ts': `import { ${functions.map((name) => `${name} as local${name}`).join(', ')} } from './Api.js';\n${functions.map((name) => `local${name}();`).join('\n')}\nconst other = { entries: [] as number[] }; other.entries.push(2)`,
+      })
+      const aliased = measure(cwd, 1)
+      assert.equal(aliased.item('field-leak', 'Queue.ts').value, true)
+      assert.equal(aliased.item('shallow-module', 'Api.ts').value, false)
 
-    write(cwd, {
-      'Use.ts': `import {Queue as Buffer} from './Queue.js'; const value = new Buffer(); value.entries.push(2)`,
-    })
-    const leak = measure(cwd, 1)
-    assert.equal(leak.item('field-leak', 'Queue.ts').value, false)
-    assert.match(leak.item('field-leak', 'Queue.ts').note, /Use\.ts:1/)
-    assert.equal(leak.item('shallow-module', 'Api.ts').value, true)
+      write(cwd, {
+        'Use.ts': `import {Queue as Buffer} from './Queue.js'; const value = new Buffer(); value.entries.push(2)`,
+      })
+      const leak = measure(cwd, 1)
+      assert.equal(leak.item('field-leak', 'Queue.ts').value, false)
+      assert.match(leak.item('field-leak', 'Queue.ts').note, /Use\.ts:1/)
+      assert.equal(leak.item('shallow-module', 'Api.ts').value, true)
 
-    write(cwd, {
-      'Use.ts': `declare const unknown: any; unknown.entries.push(2); export {}`,
-    })
-    assert.equal(measure(cwd, 0).item('field-leak', 'Queue.ts').value, null)
-  }))
+      write(cwd, {
+        'Use.ts': `declare const unknown: any; unknown.entries.push(2); export {}`,
+      })
+      assert.equal(measure(cwd, 0).item('field-leak', 'Queue.ts').value, null)
+    }),
+)
 
-test('only verified Cargo production inputs count toward the score', () =>
+test.test('only verified Cargo production inputs count toward the score', () =>
   project((cwd) => {
     write(cwd, {
       'Cargo.toml':
@@ -195,4 +201,5 @@ test('only verified Cargo production inputs count toward the score', () =>
 
     write(cwd, { 'src/b.rs': 'pub fn broken(' })
     assert.equal(measure(cwd, 1).category.score, null)
-  }))
+  }),
+)

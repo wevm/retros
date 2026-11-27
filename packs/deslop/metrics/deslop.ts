@@ -100,10 +100,9 @@ const files = candidates.filter(
     (!rust.diagnostics && rust.files.has(file)),
 )
 const known = new Set(files)
-const lineStarts = new Map<string, number[]>()
 const sources = new Map(files.map((file) => [file, parse(file)]))
 const modules = [...new Set(files.map(moduleOf))]
-const findings = new Map<string, Map<string, string[]>>(
+const findings = new Map<string, Map<string, readonly string[]>>(
   lints.map((lint) => [lint, new Map()]),
 )
 const skipped = new Map<string, Map<string, string>>(
@@ -142,12 +141,12 @@ if (rust?.diagnostics) nativeFindings(rust.diagnostics)
 
 const lines = lints.flatMap((lint) =>
   modules.map((module) => {
-    const backend =
-      module.endsWith('.rs') || module === 'Cargo.toml'
-        ? (rust?.label ?? 'Rust source scanner')
-        : ts.edges.has(module)
-          ? 'TypeScript source program'
-          : 'source scanner'
+    const backend = (() => {
+      if (module.endsWith('.rs') || module === 'Cargo.toml')
+        return rust?.label ?? 'Rust source scanner'
+      if (ts.edges.has(module)) return 'TypeScript source program'
+      return 'source scanner'
+    })()
     const problems = findings.get(lint)!.get(module) ?? []
     const first = problems[0]
     const prefix = `${lint} ${quote(module)}`
@@ -166,13 +165,12 @@ const lines = lints.flatMap((lint) =>
 fs.appendFileSync(process.env.UPHILL_METRICS!, `${lines.join('\n')}\n`)
 
 /** Records a finding of `lint` for `module`. */
-function find(
-  lint: (typeof lints)[number],
-  module: string,
-  text: string,
-): void {
+function find(lint: (typeof lints)[number], options: find.Options): void {
   const found = findings.get(lint)!
-  found.set(module, [...(found.get(module) ?? []), text])
+  found.set(options.module, [
+    ...(found.get(options.module) ?? []),
+    options.text,
+  ])
 }
 
 /** Returns the module of a file: the file, its Go package, or its C source and header together. */
@@ -239,11 +237,10 @@ function uses(): Map<string, Set<string>> {
       for (const match of source.code.matchAll(
         /\b(crate|super|self)((?:\s*::\s*\w+)+)/g,
       )) {
-        const target = resolveRust(
-          file,
-          match[1]!,
-          match[2]!.replaceAll(/\s/g, '').slice(2),
-        )
+        const target = resolveRust(file, {
+          rest: match[2]!.replaceAll(/\s/g, '').slice(2),
+          start: match[1]!,
+        })
         if (target.length === 0) unknown(`unresolved Rust path ${match[0]}`)
         targets.push(...target)
       }
@@ -285,13 +282,16 @@ function uses(): Map<string, Set<string>> {
 }
 
 /** Returns the file of the longest module path that a Rust path names, such as `crate::a::b`. */
-function resolveRust(file: string, start: string, rest: string): string[] {
+function resolveRust(
+  file: string,
+  options: resolveRust.Options,
+): readonly string[] {
   const own = roots.has(path.basename(file))
     ? path.dirname(file)
     : file.replace(/\.rs$/, '')
   const base = (() => {
-    if (start === 'self') return own
-    if (start === 'super') return path.dirname(own)
+    if (options.start === 'self') return own
+    if (options.start === 'super') return path.dirname(own)
     for (let dir = path.dirname(file); ; dir = path.dirname(dir)) {
       if (
         known.has(path.join(dir, 'lib.rs')) ||
@@ -301,7 +301,7 @@ function resolveRust(file: string, start: string, rest: string): string[] {
       if (dir === '.' || dir === path.dirname(dir)) return path.dirname(file)
     }
   })()
-  const segments = rest.split('::')
+  const segments = options.rest.split('::')
   for (let count = segments.length; count > 0; count--) {
     const at = path.join(base, ...segments.slice(0, count))
     for (const candidate of [`${at}.rs`, `${at}/mod.rs`])
@@ -313,15 +313,18 @@ function resolveRust(file: string, start: string, rest: string): string[] {
 /** Writes `module-cycle`: modules that use each other in a circle, apart from enclosing ones. */
 function moduleCycles(): void {
   const unrelated = new Map(
-    [...graph].map(([from, to]) => [
-      from,
-      new Set([...to].filter((other) => !related(from, other))),
-    ]),
+    [...graph].map((edge) => {
+      const [from, to] = edge
+      return [from, new Set([...to].filter((other) => !related(from, other)))]
+    }),
   )
   for (const circle of circles(unrelated)) {
     const names = listed(circle)
     for (const module of circle)
-      find('module-cycle', module, `${names} use each other in a circle`)
+      find('module-cycle', {
+        module,
+        text: `${names} use each other in a circle`,
+      })
   }
 }
 
@@ -330,8 +333,8 @@ function moduleCycles(): void {
  * that add methods to it. A type name that two modules declare is left out, since a reference
  * cannot say which it names.
  */
-function types(): Map<string, Extent[]> {
-  const found = new Map<string, Extent[]>()
+function types(): Map<string, readonly Extent[]> {
+  const found = new Map<string, readonly Extent[]>()
   const add = (extent: Extent) =>
     found.set(extent.name, [...(found.get(extent.name) ?? []), extent])
 
@@ -433,7 +436,7 @@ function tangled(): void {
     )
     if (where.size < 2 && members.length <= heldInMind) continue
     const text = `${listed(members)} know each other in a circle across ${listed([...where])}`
-    for (const module of where) find('tangle', module, text)
+    for (const module of where) find('tangle', { module, text })
   }
 }
 
@@ -463,7 +466,7 @@ function fieldLeaks(): void {
     })
     if (!works || fields.length < 2) continue
 
-    const leaks = new Map<string, string[]>()
+    const leaks = new Map<string, readonly string[]>()
     for (const file of files) {
       const source = sources.get(file)!
       if (source.language !== language) continue
@@ -482,7 +485,7 @@ function fieldLeaks(): void {
           )
           if (insider) continue
           const at = match.index + match[0].length - field.length
-          const place = `${file}:${lineAt(code, at)}`
+          const place = `${file}:${lineAt(source.starts, at)}`
           const receiver = ts.edges.has(file)
             ? ts.properties.get(file)?.get(at)
             : receiverType(source, at)
@@ -501,11 +504,10 @@ function fieldLeaks(): void {
     if (leaks.size === 0 || leaks.size === fields.length) continue
 
     for (const [field, places] of leaks)
-      find(
-        'field-leak',
-        owner,
-        `\`${name}.${field}\` in ${owner} accessed at ${listed(places)}`,
-      )
+      find('field-leak', {
+        module: owner,
+        text: `\`${name}.${field}\` in ${owner} accessed at ${listed(places)}`,
+      })
   }
 }
 
@@ -535,7 +537,7 @@ function receiverType(
 }
 
 /** Returns the field names that a type's declaration lists at the top level of its body. */
-function fieldNames(extent: Extent): string[] {
+function fieldNames(extent: Extent): readonly string[] {
   if (ts.edges.has(extent.file))
     return [...(ts.fieldsOf.get(`${extent.file}:${extent.name}`) ?? [])]
   const source = sources.get(extent.file)!
@@ -606,11 +608,10 @@ function shallowModules(): void {
     if (ts.edges.has(module) && ts.unknownCall)
       skipped.get('shallow-module')!.set(module, ts.unknownCall)
     if (shown.length > heldInMind && hidden <= shown.length)
-      find(
-        'shallow-module',
+      find('shallow-module', {
         module,
-        `shows ${shown.length} of its ${names.size} functions: ${listed(shown)}`,
-      )
+        text: `shows ${shown.length} of its ${names.size} functions: ${listed(shown)}`,
+      })
   }
 }
 
@@ -653,17 +654,19 @@ function nativeFindings(output: string): void {
         for (const other of lints)
           skipped.get(other)!.set(file, 'diagnostic location only')
       }
-      find(lint, file, text)
+      find(lint, { module: file, text })
     }
   }
 }
 
 /** Returns the strongly connected groups of more than one node, in first-seen order (Tarjan). */
-function circles(edges: Map<string, Set<string>>): string[][] {
+function circles(
+  edges: Map<string, Set<string>>,
+): readonly (readonly string[])[] {
   const index = new Map<string, number>()
   const low = new Map<string, number>()
   const stack: string[] = []
-  const found: string[][] = []
+  const found: (readonly string[])[] = []
 
   for (const root of edges.keys()) {
     if (index.has(root)) continue
@@ -726,8 +729,9 @@ type Extent = {
 }
 
 /**
- * Reads a file, and returns its text, its code with comments and strings blanked out, and its
- * functions. Blanking keeps every offset and newline, so lines match the file.
+ * Reads a file, and returns its text, its code with comments and strings blanked out, its
+ * functions, and the offsets where its lines start. Blanking keeps every offset and newline, so
+ * lines match the file.
  */
 function parse(file: string) {
   const text = fs.readFileSync(file, 'utf8')
@@ -783,7 +787,10 @@ function parse(file: string) {
     if (name && !keywords.has(name))
       functions.push({ name, offset: match.index })
   }
-  return { code: blanked, extension, functions, language }
+  const starts = [0]
+  for (let index = 0; index < blanked.length; index++)
+    if (blanked[index] === '\n') starts.push(index + 1)
+  return { code: blanked, extension, functions, language, starts }
 }
 
 /**
@@ -814,15 +821,8 @@ function brace(code: string, start: number): number {
   return code.length - 1
 }
 
-/** Returns the line of an offset, from the line starts of each text, computed once. */
-function lineAt(text: string, offset: number): number {
-  let starts = lineStarts.get(text)
-  if (!starts) {
-    starts = [0]
-    for (let index = 0; index < text.length; index++)
-      if (text[index] === '\n') starts.push(index + 1)
-    lineStarts.set(text, starts)
-  }
+/** Returns the line of an offset from the offsets where its text's lines start. */
+function lineAt(starts: readonly number[], offset: number): number {
   let low = 0
   let high = starts.length - 1
   while (low < high) {
@@ -834,7 +834,7 @@ function lineAt(text: string, offset: number): number {
 }
 
 /** Returns the tracked and untracked files that match `patterns` and that Git does not ignore. */
-function list(patterns: readonly string[]): string[] {
+function list(patterns: readonly string[]): readonly string[] {
   const result = Bun.spawnSync(
     [
       'git',
@@ -861,6 +861,22 @@ function list(patterns: readonly string[]): string[] {
 /** Quotes an item or note for a metric line, escaping `"` and `\`. */
 function quote(text: string): string {
   return `"${text.replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll('\n', ' ')}"`
+}
+
+declare namespace find {
+  /** The module the finding belongs to, and the finding's text. */
+  type Options = {
+    module: string
+    text: string
+  }
+}
+
+declare namespace resolveRust {
+  /** The path's first segment (`crate`, `self`, or `super`), and its remaining segments. */
+  type Options = {
+    rest: string
+    start: string
+  }
 }
 
 declare namespace closing {

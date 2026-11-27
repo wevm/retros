@@ -6,12 +6,21 @@ import * as path from 'node:path'
 /** Confirmed length diagnostics, by tracked file and declaration line. */
 export type Findings = Map<string, Map<number, string>>
 
-function clippy(
-  files: Set<string>,
-  limit: number,
-  dir: string,
-  add: (file: string, line: number, reason: string) => void,
-) {
+/** One linter run: the scratch directory for its settings, the eligible files, and the length limit. */
+type Run = {
+  dir: string
+  files: ReadonlySet<string>
+  limit: number
+}
+
+function add(found: Findings, options: add.Options) {
+  const rows = found.get(options.file) ?? new Map<number, string>()
+  rows.set(options.line, options.reason)
+  found.set(options.file, rows)
+}
+
+function clippy(found: Findings, options: Run) {
+  const { dir, files, limit } = options
   if (
     ![...files].some((file) => file.endsWith('.rs')) ||
     !fs.existsSync('Cargo.toml') ||
@@ -60,7 +69,11 @@ function clippy(
     type Span = { file_name: string; is_primary: boolean; line_start: number }
     const data = JSON.parse(line) as {
       manifest_path?: string
-      message?: { code?: { code: string }; message: string; spans: Span[] }
+      message?: {
+        code?: { code: string }
+        message: string
+        spans: readonly Span[]
+      }
     }
     const msg = data.message
     if (msg?.code?.code !== 'clippy::too_many_lines') continue
@@ -81,16 +94,16 @@ function clippy(
     )
     if (candidates.size === 1)
       for (const file of candidates)
-        add(file, span.line_start, msg.message + ' (clippy::too_many_lines)')
+        add(found, {
+          file,
+          line: span.line_start,
+          reason: msg.message + ' (clippy::too_many_lines)',
+        })
   }
 }
 
-function oxlint(
-  files: Set<string>,
-  limit: number,
-  dir: string,
-  add: (file: string, line: number, reason: string) => void,
-) {
+function oxlint(found: Findings, options: Run) {
+  const { dir, files, limit } = options
   const sources = [...files].filter((file) => /\.(?:[cm]?ts|tsx)$/.test(file))
   if (!sources.length) return
   const manifest = path.resolve('node_modules/oxlint/package.json')
@@ -129,13 +142,15 @@ function oxlint(
     type Diagnostic = {
       code?: string
       filename: string
-      labels: { span: { line: number } }[]
+      labels: readonly { span: { line: number } }[]
       message: string
     }
     const diagnostics = (() => {
       try {
         return (
-          JSON.parse(result.stdout.toString()) as { diagnostics?: Diagnostic[] }
+          JSON.parse(result.stdout.toString()) as {
+            diagnostics?: readonly Diagnostic[]
+          }
         ).diagnostics
       } catch {
         return undefined
@@ -152,7 +167,11 @@ function oxlint(
       const file = path.relative(process.cwd(), path.resolve(diag.filename))
       const line = diag.labels[0]?.span.line
       if (files.has(file) && line)
-        add(file, line, diag.message + ' (eslint/max-lines-per-function)')
+        add(found, {
+          file,
+          line,
+          reason: diag.message + ' (eslint/max-lines-per-function)',
+        })
     }
   }
 }
@@ -162,17 +181,21 @@ export function lengths(files: readonly string[], limit: number): Findings {
   const found: Findings = new Map()
   const eligible = new Set(files)
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uphill-lengths-'))
-  function add(file: string, line: number, reason: string) {
-    const rows = found.get(file) ?? new Map<number, string>()
-    rows.set(line, reason)
-    found.set(file, rows)
-  }
 
   try {
-    clippy(eligible, limit, dir, add)
-    oxlint(eligible, limit, dir, add)
+    clippy(found, { dir, files: eligible, limit })
+    oxlint(found, { dir, files: eligible, limit })
     return found
   } finally {
     fs.rmSync(dir, { force: true, recursive: true })
+  }
+}
+
+declare namespace add {
+  /** The tracked file, the declaration line, and the linter's message. */
+  type Options = {
+    file: string
+    line: number
+    reason: string
   }
 }

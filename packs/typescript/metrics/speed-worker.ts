@@ -23,13 +23,9 @@
 
 import * as fs from 'node:fs'
 import * as inspector from 'node:inspector/promises'
-import {
-  createRequire,
-  registerHooks,
-  syncBuiltinESMExports,
-} from 'node:module'
+import * as module from 'node:module'
 import * as path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import * as url from 'node:url'
 import * as v8 from 'node:v8'
 
 import * as library from './library.ts'
@@ -59,9 +55,9 @@ function moduleOf(key: string) {
 /** The value a recorded key names, following an export path such as `curve.CURVE`. */
 async function resolve(key: string): Promise<unknown> {
   const exportPath = key.slice(key.indexOf('#') + 1)
-  let value: unknown = await import(pathToFileURL(moduleOf(key)).href).catch(
-    () => null,
-  )
+  let value: unknown = await import(
+    url.pathToFileURL(moduleOf(key)).href
+  ).catch(() => null)
   for (const part of exportPath.split('.'))
     value =
       value && (typeof value === 'object' || typeof value === 'function')
@@ -81,14 +77,16 @@ function loadTestHelpers() {
   const builds = new Map(
     library
       .entries()
-      .map((entry) => [entry.name, pathToFileURL(entry.file).href]),
+      .map((entry) => [entry.name, url.pathToFileURL(entry.file).href]),
   )
-  const root = pathToFileURL(library.root).href
-  const build = pathToFileURL(library.build).href
-  registerHooks({
+  const root = url.pathToFileURL(library.root).href
+  const build = url.pathToFileURL(library.build).href
+  module.registerHooks({
+    // oxlint-disable-next-line eslint/max-params -- Node fixes the signature of a module hook.
     resolve(specifier, context, nextResolve) {
       return nextResolve(builds.get(specifier) ?? specifier, context)
     },
+    // oxlint-disable-next-line eslint/max-params -- Node fixes the signature of a module hook.
     load(url, context, nextLoad) {
       const result = nextLoad(url, context)
       if (
@@ -114,7 +112,7 @@ function loadTestHelpers() {
 
 async function enumerate() {
   const { keys } = JSON.parse(fs.readFileSync(input!, 'utf8')) as {
-    keys: string[]
+    keys: readonly string[]
   }
   type Item = {
     name: string
@@ -131,7 +129,10 @@ async function enumerate() {
   const counts = { functions: 0, errors: 0, classes: 0, values: 0, foreign: 0 }
   const list: { name: string; file: string; barrel: boolean }[] = []
 
-  const walk = (entry: string, name: string, value: unknown) => {
+  /** The entry point a value is exported from, and its name there. */
+  type Place = { entry: string; name: string }
+  const walk = (value: unknown, place: Place) => {
+    const { entry, name } = place
     if (typeof value === 'function') {
       if (isClass(value)) {
         if (!walked.has(value))
@@ -154,7 +155,7 @@ async function enumerate() {
       if (walked.has(value)) return
       walked.add(value)
       for (const [key, member] of Object.entries(value))
-        walk(entry, name ? `${name}.${key}` : key, member)
+        walk(member, { entry, name: name ? `${name}.${key}` : key })
       return
     }
     if (!walked.has(value)) counts.values++
@@ -163,11 +164,11 @@ async function enumerate() {
 
   for (const entry of library.entries()) {
     list.push({ name: entry.name, file: entry.file, barrel: entry.index })
-    const module = await import(pathToFileURL(entry.file).href)
-    if (walked.has(module)) continue
-    walked.add(module)
-    for (const [name, value] of Object.entries(module))
-      walk(entry.name, name, value)
+    const loaded = await import(url.pathToFileURL(entry.file).href)
+    if (walked.has(loaded)) continue
+    walked.add(loaded)
+    for (const [name, value] of Object.entries(loaded))
+      walk(value, { entry: entry.name, name })
   }
 
   // Names the dependency in node_modules that defines each function, and leaves those out: they
@@ -175,8 +176,8 @@ async function enumerate() {
   const session = new inspector.Session()
   session.connect()
   const scripts = new Map<string, string>()
-  session.on('Debugger.scriptParsed', ({ params }) =>
-    scripts.set(params.scriptId, params.url),
+  session.on('Debugger.scriptParsed', (event) =>
+    scripts.set(event.params.scriptId, event.params.url),
   )
   await session.post('Debugger.enable')
   const probe = globalThis as { __uphillProbe?: unknown }
@@ -205,8 +206,8 @@ async function enumerate() {
     }
   const own = items.filter((item) => !item.package)
   const exports = names
-    .filter(({ item }) => !item.package)
-    .map(({ name, item }) => ({ name, item: item.name }))
+    .filter((entry) => !entry.item.package)
+    .map((entry) => ({ name: entry.name, item: entry.item.name }))
   counts.functions = exports.length
 
   const unmatched: string[] = []
@@ -226,7 +227,7 @@ type Candidate = { args: string; where: string; direct: boolean }
 type Job = {
   name: string
   key: string
-  candidates: Candidate[]
+  candidates: readonly Candidate[]
   sampleMs: number
   samples: number
   warmupMs: number
@@ -259,7 +260,7 @@ async function bench() {
     ...job.candidates.flatMap((candidate) => keys(candidate.args)),
   ]))
     exports.set(key, await resolve(key))
-  let call = exports.get(job.key) as (...args: unknown[]) => unknown
+  let call = exports.get(job.key) as (...args: readonly unknown[]) => unknown
   if (typeof call !== 'function')
     return write({ ok: false, error: `${job.key} is not a function` })
   // A method that uses `this` is called on its object, as the test called it.
@@ -294,7 +295,7 @@ async function bench() {
 
   // The first candidate that replays without throwing is the one measured.
   let chosen: Candidate | undefined
-  let args: unknown[] = []
+  let args: readonly unknown[] = []
   let async = false
   let mutates = false
   let window = false
@@ -311,12 +312,12 @@ async function bench() {
         return undefined
       }
     }
-    let replay: unknown[] = []
+    let replay: readonly unknown[] = []
     let before: string | undefined
     network.attempts = 0
     async = false
     try {
-      replay = await decode(candidate.args, rebuild, origins)
+      replay = await decode(candidate.args, { origins, rebuild })
       before = snapshot()
       caches.clear()
       caches.sets = 0
@@ -352,15 +353,14 @@ async function bench() {
   if (!chosen) return write({ ok: false, error: failure })
   const cached = caches.sets > 0
 
-  const fresh = (text: string) => decode(text, rebuild)
-  const loop = makeLoop(
-    call,
+  const fresh = (text: string) => decode(text, { rebuild })
+  const loop = makeLoop(call, {
     args,
     async,
-    mutates ? chosen.args : undefined,
-    fresh,
+    decode: fresh,
     reset,
-  )
+    text: mutates ? chosen.args : undefined,
+  })
   // Rebuilding the arguments of a function that mutates them costs time and memory, which a
   // second loop that only rebuilds them measures, and which is subtracted. Otherwise a loop that
   // calls nothing measures what measuring costs. Both clear the caches every time when the
@@ -370,8 +370,20 @@ async function bench() {
     if (caches.cold && cached) caches.clear()
   }
   const overhead = mutates
-    ? makeLoop(() => undefined, [], false, chosen.args, fresh, clear)
-    : makeLoop(() => undefined, args, false, undefined, fresh, clear)
+    ? makeLoop(() => undefined, {
+        args: [],
+        async: false,
+        decode: fresh,
+        reset: clear,
+        text: chosen.args,
+      })
+    : makeLoop(() => undefined, {
+        args,
+        async: false,
+        decode: fresh,
+        reset: clear,
+        text: undefined,
+      })
   const subtract = async (count: number) => {
     const extra: number[] = []
     for (let i = 0; i < 3; i++)
@@ -379,7 +391,10 @@ async function bench() {
     return median(extra)
   }
 
-  const { count, times } = await measure(loop, job, job.warmupMs * 1000)
+  const { count, times } = await measure(loop, {
+    job,
+    warmup: job.warmupMs * 1000,
+  })
   const ns = Math.max(0, median(times) - (await subtract(count)))
 
   const bytes = Math.max(
@@ -392,7 +407,7 @@ async function bench() {
   if (cached) {
     caches.cold = false
     // The loop is warm by now.
-    const measured = await measure(loop, job, 0)
+    const measured = await measure(loop, { job, warmup: 0 })
     warm = Math.max(
       0,
       median(measured.times) - (await subtract(measured.count)),
@@ -429,7 +444,8 @@ type Loop = (count: number) => unknown
  * call that waits, such as on a timer, takes wall time without CPU time, so a run is kept under
  * half a second of wall time.
  */
-async function measure(loop: Loop, job: Job, warmup: number) {
+async function measure(loop: Loop, options: measure.Options) {
+  const { job, warmup } = options
   const target = job.sampleMs * 1000
   let count = 1
   let spent = 0
@@ -470,18 +486,20 @@ async function measure(loop: Loop, job: Job, warmup: number) {
   return { count, times }
 }
 
+declare namespace measure {
+  /** The job's sample length and count, and the warm-up in µs of CPU time. */
+  type Options = { job: Job; warmup: number }
+}
+
 /**
  * A fresh loop per function keeps its call site monomorphic. With `text`, every call rebuilds its
  * arguments from it, for functions that mutate their arguments. `reset` runs before every call.
  */
 function makeLoop(
-  fn: (...args: unknown[]) => unknown,
-  args: unknown[],
-  async: boolean,
-  text: string | undefined,
-  decode: (text: string) => Promise<unknown[]>,
-  reset: () => void,
+  fn: (...args: readonly unknown[]) => unknown,
+  options: makeLoop.Options,
 ): Loop {
+  const { args, async, decode, reset, text } = options
   const params = args.map((_, i) => `a${i}`)
   // Rebuilding arguments is async, as rebuilding a value an async export returned awaits it.
   const call = text ? `fn(...(await decode(text)))` : `fn(${params.join(', ')})`
@@ -501,6 +519,22 @@ return ${async || text ? 'async ' : ''}function loop(count) {
   return result
 }`,
   )(fn, args, decode, text, reset)
+}
+
+declare namespace makeLoop {
+  /** What the loop calls its function with, and what runs before each call. */
+  type Options = {
+    /** The arguments, used when `text` is `undefined`. */
+    args: readonly unknown[]
+    /** Whether the loop awaits each call. */
+    async: boolean
+    /** Rebuilds the arguments from `text`. */
+    decode: (text: string) => Promise<readonly unknown[]>
+    /** Runs before every call. */
+    reset: () => void
+    /** The encoded arguments to rebuild for every call, for a function that mutates them. */
+    text: string | undefined
+  }
 }
 
 /** CPU time of the whole process in µs, which `--single-threaded` keeps on this thread. */
@@ -546,19 +580,18 @@ function blockNetwork() {
     throw new Error('the network is disabled in the speed bench')
   }
   globalThis.fetch = (async () => blocked()) as unknown as typeof fetch
-  ;(globalThis as { WebSocket?: unknown }).WebSocket = class {
-    constructor() {
-      blocked()
-    }
+  // `new WebSocket(…)` runs this function, which counts the attempt and throws.
+  ;(globalThis as { WebSocket?: unknown }).WebSocket = function () {
+    blocked()
   }
-  const require = createRequire(import.meta.url)
+  const require = module.createRequire(import.meta.url)
   const net = require('node:net')
   net.connect = net.createConnection = blocked
   for (const name of ['node:http', 'node:https']) {
     const http = require(name)
     http.request = http.get = blocked
   }
-  syncBuiltinESMExports()
+  module.syncBuiltinESMExports()
   return network
 }
 
@@ -621,7 +654,7 @@ function message(error: unknown) {
   return text.split('\n')[0]!.slice(0, 160)
 }
 
-function median(values: number[]) {
+function median(values: readonly number[]) {
   const sorted = [...values].sort((a, b) => a - b)
   const middle = sorted.length >> 1
   return sorted.length % 2

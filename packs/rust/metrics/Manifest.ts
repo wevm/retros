@@ -73,7 +73,7 @@ export function* inspect(
     .filter((name) => mockCrates.has(name))
   const packages = metadata.packages
     .map((pkg) => ({ file: Cargo.relative(pkg.manifest_path), pkg }))
-    .sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0))
+    .sort((a, b) => Number(a.file > b.file) - Number(a.file < b.file))
   for (const { file, pkg } of packages) {
     const manifest = read(file)
     const mocks = new Set([
@@ -156,11 +156,12 @@ export function* inspect(
   })()
   yield {
     metric: 'toolchain',
-    problems: !filename
-      ? ['no rust-toolchain.toml']
-      : typeof channel === 'string' && /^\d+\.\d+(\.\d+)?$/.test(channel)
-        ? []
-        : [`the channel is ${channel ?? 'unset'}, not a version`],
+    problems: (() => {
+      if (!filename) return ['no rust-toolchain.toml']
+      if (typeof channel === 'string' && /^\d+\.\d+(\.\d+)?$/.test(channel))
+        return []
+      return [`the channel is ${channel ?? 'unset'}, not a version`]
+    })(),
   }
   yield {
     metric: 'rust-version',

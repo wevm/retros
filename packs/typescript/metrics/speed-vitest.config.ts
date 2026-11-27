@@ -19,7 +19,7 @@
  */
 
 import * as path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import * as url from 'node:url'
 
 import * as acorn from 'acorn'
 import MagicString from 'magic-string'
@@ -34,20 +34,23 @@ const configFile = process.env.UPHILL_SPEED_TEST_CONFIG
 if (!configFile) throw new Error('UPHILL_SPEED_TEST_CONFIG is not set.')
 
 type Test = library.SpeedProject & {
-  alias?: Record<string, string> | { find: string | RegExp }[] | undefined
-  projects?: unknown[] | undefined
+  alias?:
+    | Record<string, string>
+    | readonly { find: string | RegExp }[]
+    | undefined
+  projects?: readonly unknown[] | undefined
 }
 
 type Base = {
-  envPrefix?: string | string[] | undefined
-  plugins?: unknown[] | undefined
+  envPrefix?: string | readonly string[] | undefined
+  plugins?: readonly unknown[] | undefined
   resolve?: unknown
   test?: Test | undefined
 }
 
 // The config may export a function of the command and mode, or a promise.
 const base = await (async (): Promise<Base> => {
-  const module = (await import(pathToFileURL(configFile).href)) as {
+  const module = (await import(url.pathToFileURL(configFile).href)) as {
     default: unknown
   }
   const exported = await module.default
@@ -56,7 +59,7 @@ const base = await (async (): Promise<Base> => {
     : (exported as Base)
 })()
 
-const list = (value: string | string[] | undefined) =>
+const list = (value: string | readonly string[] | undefined) =>
   value === undefined ? [] : [value].flat()
 
 // Each project extends the root options, which merge arrays, so the test files and setup files
@@ -131,9 +134,9 @@ export default {
         : []),
       ...(Array.isArray(alias)
         ? alias
-        : Object.entries(alias).map(([find, replacement]) => ({
-            find,
-            replacement,
+        : Object.entries(alias).map((entry) => ({
+            find: entry[0],
+            replacement: entry[1],
           }))),
     ],
     passWithNoTests: true,
@@ -212,7 +215,7 @@ function record(): Plugin {
       const program = acorn.parse(code, {
         ecmaVersion: 'latest',
         sourceType: 'module',
-      }) as unknown as { body: Node[] }
+      }) as unknown as { body: readonly Node[] }
       const output = new MagicString(code)
       const consts = new Map<string, Node>()
       const imports = new Set<string>()
@@ -286,7 +289,7 @@ function record(): Plugin {
         const declaration = consts.get(local)
         if (declaration) relet.add(declaration)
         wraps.push(
-          `${local} = __w(${local}, ${JSON.stringify(file)}, ${JSON.stringify(exported)});`,
+          `${local} = __w(${local}, { file: ${JSON.stringify(file)}, name: ${JSON.stringify(exported)} });`,
         )
       }
       if (!wraps.length) return
@@ -310,7 +313,7 @@ function fixtures(code: string, id: string) {
   const program = acorn.parse(code, {
     ecmaVersion: 'latest',
     sourceType: 'module',
-  }) as unknown as { body: Node[] }
+  }) as unknown as { body: readonly Node[] }
   const names: string[] = []
   for (const node of program.body) {
     if (node.type !== 'ExportNamedDeclaration' || node.source) continue
@@ -326,7 +329,7 @@ function fixtures(code: string, id: string) {
   const file = JSON.stringify(path.relative(root, id))
   const output = new MagicString(code)
   output.append(
-    `\n;{ const __f = globalThis.__uphillFixture; if (__f) { ${names.map((name) => `__f(${name}, ${file}, ${JSON.stringify(name)});`).join(' ')} } }\n`,
+    `\n;{ const __f = globalThis.__uphillFixture; if (__f) { ${names.map((name) => `__f(${name}, { file: ${file}, name: ${JSON.stringify(name)} });`).join(' ')} } }\n`,
   )
   return { code: output.toString(), map: output.generateMap({ source: id }) }
 }
@@ -343,6 +346,6 @@ type Node = {
   exported?: Node
   source?: Node
   declaration?: Node | null
-  declarations?: Node[]
-  specifiers?: Node[]
+  declarations?: readonly Node[]
+  specifiers?: readonly Node[]
 }

@@ -15,7 +15,7 @@ export type Project = {
 }
 
 /** Returns the root project and each distinct project reachable through its references. */
-export function projects(): Project[] {
+export function projects(): readonly Project[] {
   const found = new Map<string, Project>()
   function visit(file: string) {
     const config = path.relative(process.cwd(), file)
@@ -45,17 +45,14 @@ export function projects(): Project[] {
 }
 
 /** Runs the project's compiler without writing build information or output to the checkout. */
-export function measure(
-  files: readonly string[],
-  projects: readonly Project[],
-  temporary: string,
-) {
+export function measure(files: readonly string[], options: measure.Options) {
+  const { projects, temporary } = options
   const bin = ['node_modules/.bin/tsgo', 'node_modules/.bin/tsc'].find((file) =>
     fs.existsSync(file),
   )
   const checked = new Set<string>()
-  const errors = new Map<string, string[]>()
-  const options = new Map<string, Record<string, unknown>>()
+  const errors = new Map<string, readonly string[]>()
+  const configs = new Map<string, Record<string, unknown>>()
   const tracked = new Set(files)
 
   for (const project of projects) {
@@ -66,7 +63,7 @@ export function measure(
         throw new Error(
           `${config}: ${ts.flattenDiagnosticMessageText(parsed.errors[0]!.messageText, '\n')}`,
         )
-      options.set(config, parsed.options)
+      configs.set(config, parsed.options)
       continue
     }
 
@@ -83,13 +80,13 @@ export function measure(
         `${bin} --showConfig: ${show.stdout.toString()}${show.stderr.toString()}`,
       )
     const effective = JSON.parse(show.stdout.toString()).compilerOptions ?? {}
-    options.set(config, effective)
+    configs.set(config, effective)
 
     const flags: string[] = []
     if (effective.composite || effective.incremental)
       flags.push(
         '--tsBuildInfoFile',
-        path.join(temporary, `${options.size}.tsbuildinfo`),
+        path.join(temporary, `${configs.size}.tsbuildinfo`),
       )
     if (effective.noCheck) flags.push('--noCheck', 'false')
     if (effective.emitDeclarationOnly)
@@ -124,9 +121,7 @@ export function measure(
             ? `${location === file ? '' : `${location}: `}line ${diagnostic[2]}: ${diagnostic[3]}`
             : diagnostic[3]!
         ).replaceAll(`${process.cwd()}${path.sep}`, '')
-        const previous = errors.get(file) ?? []
-        previous.push(message)
-        errors.set(file, previous)
+        errors.set(file, [...(errors.get(file) ?? []), message])
       } else if (line && !/^\s/.test(line)) {
         const file = path.relative(process.cwd(), path.resolve(line))
         if (
@@ -141,5 +136,16 @@ export function measure(
         `${bin} -p ${config}: ${output.trim() || `exit ${result.exitCode}`}`,
       )
   }
-  return { bin, checked, errors, options }
+  return { bin, checked, errors, options: configs }
+}
+
+/** The types of `measure`. */
+export declare namespace measure {
+  /** The projects to compile, and the directory for build information outside the checkout. */
+  type Options = {
+    /** The projects that `projects` returns. */
+    projects: readonly Project[]
+    /** A directory outside the checkout for `.tsbuildinfo` files. */
+    temporary: string
+  }
 }

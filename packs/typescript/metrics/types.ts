@@ -90,7 +90,7 @@ const { found, topLevel, unique, namespaces, foreign, items, baselines } =
     unique: number
     namespaces: number
     foreign: number
-    items: Item[]
+    items: readonly Item[]
     baselines: Record<string, string>
   }
 log(
@@ -161,14 +161,7 @@ const warmup = items
     ...measured[items.indexOf(item)]!.job,
     id: -1 - index,
   }))
-const results = new Map<number, Result>()
-const peaks: number[] = []
-const skipped: string[] = []
-await Promise.all(
-  Array.from({ length: concurrency }, (_, index) =>
-    work(index ? [] : benchQueue),
-  ),
-)
+const { peaks, results, skipped } = await run()
 
 const lines: string[] = []
 const exportsMeasured = measured.filter(
@@ -238,73 +231,93 @@ log(
 )
 
 /**
- * Runs one Node worker until the queues are empty: first its own jobs, then the shared export
- * queue. A worker that runs out of memory hands its job to a worker with a larger heap, once, if
- * the machine has the memory for it; otherwise the job is left out. That worker skips the warm-up,
- * so it only parses what the job needs.
+ * Runs `concurrency` workers until the queues are empty. Returns the results by job ID, the peak
+ * memory of each worker, and the consumers that no worker had the memory to check.
  */
-async function work(own: Job[], limit = heap): Promise<void> {
-  const worker = Bun.spawn(
-    [node, `--max-old-space-size=${limit}`, path.join(here, 'types-worker.ts')],
-    {
-      stdin: 'pipe',
-      stdout: 'pipe',
-      stderr: 'inherit',
-    },
+async function run() {
+  const results = new Map<number, Result>()
+  const peaks: number[] = []
+  const skipped: string[] = []
+  await Promise.all(
+    Array.from({ length: concurrency }, (_, index) =>
+      work(index ? [] : benchQueue),
+    ),
   )
-  const pending = limit === heap ? [...warmup, ...warmup] : []
-  let current: Job | undefined
-  const send = () => {
-    current =
-      pending.shift() ??
-      own.shift() ??
-      (limit === heap ? exportQueue.shift() : undefined)
-    if (current) worker.stdin.write(`${jsonLine(current)}\n`)
-    else worker.stdin.end()
-  }
-  send()
-  let buffer = ''
-  for await (const chunk of worker.stdout.pipeThrough(
-    new TextDecoderStream(),
-  )) {
-    buffer += chunk
-    for (
-      let newline = buffer.indexOf('\n');
-      newline >= 0;
-      newline = buffer.indexOf('\n')
-    ) {
-      const result: Result & { peak?: number } = JSON.parse(
-        buffer.slice(0, newline),
-      )
-      buffer = buffer.slice(newline + 1)
-      if (result.peak) peaks.push(result.peak)
-      else {
-        if (result.id >= 0) {
-          results.set(result.id, result)
-          if (results.size % 500 === 0)
-            log(`${results.size} of ${measured.length} checked`)
+  return { peaks, results, skipped }
+
+  /**
+   * Runs one Node worker until the queues are empty: first its own jobs, then the shared export
+   * queue. A worker that runs out of memory hands its job to a worker with a larger heap, once, if
+   * the machine has the memory for it; otherwise the job is left out. That worker skips the warm-up,
+   * so it only parses what the job needs.
+   */
+  async function work(own: Job[], limit = heap): Promise<void> {
+    const worker = Bun.spawn(
+      [
+        node,
+        `--max-old-space-size=${limit}`,
+        path.join(here, 'types-worker.ts'),
+      ],
+      {
+        stdin: 'pipe',
+        stdout: 'pipe',
+        stderr: 'inherit',
+      },
+    )
+    const pending = limit === heap ? [...warmup, ...warmup] : []
+    let current: Job | undefined
+    const send = () => {
+      current =
+        pending.shift() ??
+        own.shift() ??
+        (limit === heap ? exportQueue.shift() : undefined)
+      if (current) worker.stdin.write(`${jsonLine(current)}\n`)
+      else worker.stdin.end()
+    }
+    send()
+    let buffer = ''
+    for await (const chunk of worker.stdout.pipeThrough(
+      new TextDecoderStream(),
+    )) {
+      buffer += chunk
+      for (
+        let newline = buffer.indexOf('\n');
+        newline >= 0;
+        newline = buffer.indexOf('\n')
+      ) {
+        const result: Result & { peak?: number } = JSON.parse(
+          buffer.slice(0, newline),
+        )
+        buffer = buffer.slice(newline + 1)
+        if (result.peak) peaks.push(result.peak)
+        else {
+          if (result.id >= 0) {
+            results.set(result.id, result)
+            if (results.size % 500 === 0)
+              log(`${results.size} of ${measured.length} checked`)
+          }
+          send()
         }
-        send()
       }
     }
+    const status = await worker.exited
+    if (status === 0) return
+    if (!current || current.id < 0)
+      throw new Error(`a types worker exited with status ${status}`)
+    const line = measured[current.id]!.line
+    if (limit !== heap || availableMemory() < 2.5e9) {
+      log(
+        `${line} ran a worker out of memory at ${limit}MB and there is no room for a larger heap; leaving it out`,
+      )
+      skipped.push(line)
+    } else {
+      log(
+        `${line} ran a worker out of memory; checking it with a ${largeHeap}MB heap`,
+      )
+      await work([current], largeHeap)
+    }
+    if (limit === heap) await work(own)
   }
-  const status = await worker.exited
-  if (status === 0) return
-  if (!current || current.id < 0)
-    throw new Error(`a types worker exited with status ${status}`)
-  const line = measured[current.id]!.line
-  if (limit !== heap || availableMemory() < 2.5e9) {
-    log(
-      `${line} ran a worker out of memory at ${limit}MB and there is no room for a larger heap; leaving it out`,
-    )
-    skipped.push(line)
-  } else {
-    log(
-      `${line} ran a worker out of memory; checking it with a ${largeHeap}MB heap`,
-    )
-    await work([current], largeHeap)
-  }
-  if (limit === heap) await work(own)
 }
 
 /**
@@ -327,7 +340,7 @@ function note(result: Result, forms: Record<string, string>): string {
  * file with every `bench()`, `it()` and `test()` call removed, at any depth, is the baseline, and
  * the test's function is added back as a constant.
  */
-function benches(pattern: string): Measured[] {
+function benches(pattern: string): readonly Measured[] {
   const result: Measured[] = []
   const names = ['bench', 'it', 'test']
   const repeats = new Map<string, number>()
@@ -400,7 +413,7 @@ function benches(pattern: string): Measured[] {
 }
 
 /** The names of the `describe` calls around a test, outermost first. */
-function describePath(node: TS.Node, source: TS.SourceFile): string[] {
+function describePath(node: TS.Node, source: TS.SourceFile): readonly string[] {
   const names: string[] = []
   for (let current = node.parent; current; current = current.parent) {
     if (

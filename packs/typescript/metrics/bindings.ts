@@ -175,7 +175,7 @@ export function inspect(
 
         if (
           !ts.isCallExpression(node) ||
-          !isExpect(node.expression, checker, source)
+          !isExpect(node.expression, { checker, source })
         )
           return
         evidence.assertions++
@@ -184,11 +184,13 @@ export function inspect(
           ts.isPropertyAccessExpression(parent) ||
           ts.isElementAccessExpression(parent)
         ) {
-          const name = ts.isPropertyAccessExpression(parent)
-            ? parent.name.text
-            : ts.isStringLiteral(parent.argumentExpression)
-              ? parent.argumentExpression.text
+          const access = parent
+          const name = (() => {
+            if (ts.isPropertyAccessExpression(access)) return access.name.text
+            return ts.isStringLiteral(access.argumentExpression)
+              ? access.argumentExpression.text
               : ''
+          })()
           if (
             ts.isCallExpression(parent.parent) &&
             /^(toMatchInlineSnapshot|toThrowErrorMatchingInlineSnapshot)$/.test(
@@ -220,9 +222,9 @@ export function inspect(
 /** Identifies the framework import behind an alias, namespace, or unshadowed global `expect`. */
 function isExpect(
   expression: ts.Expression,
-  checker: ts.TypeChecker,
-  source: ts.SourceFile,
+  options: isExpect.Options,
 ): boolean {
+  const { checker, source } = options
   const namespace =
     ts.isPropertyAccessExpression(expression) &&
     expression.name.text === 'expect'
@@ -257,4 +259,9 @@ function isExpect(
         declaration.getSourceFile().isDeclarationFile,
     )
   )
+}
+
+declare namespace isExpect {
+  /** The checker that resolves the callee, and the file that contains the call. */
+  type Options = { checker: ts.TypeChecker; source: ts.SourceFile }
 }

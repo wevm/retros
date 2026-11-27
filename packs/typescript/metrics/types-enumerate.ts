@@ -44,7 +44,7 @@ export type Item = {
   forms: Record<string, string>
 }
 
-const host = createHost(consumerOptions)
+const host = createHost(consumerOptions, { sourceFiles: new Map() })
 host.setFile(consumerFile, 'export {}')
 const program = ts.createProgram({
   rootNames: [consumerFile, ...entries.map((entry) => entry.types)],
@@ -58,11 +58,6 @@ const entrySpecifiers = new Map(
   entries.map((entry) => [entry.types, entry.name]),
 )
 
-const seen = new Set<TS.Symbol>()
-// The unique symbols the entries export at their top level, before namespaces are expanded.
-const topLevel = new Set<TS.Symbol>()
-const items: Item[] = []
-const baselines: Record<string, string> = {}
 // The directories of the packages that `reexports` names, such as `dep` for `dep/mini`, in the
 // project's node_modules or in a pnpm store inside it.
 const reexported = (library.config.reexports ?? []).map((specifier) => {
@@ -74,87 +69,98 @@ const reexported = (library.config.reexports ?? []).map((specifier) => {
   return new RegExp(`/node_modules/(\\.pnpm/[^/]+/node_modules/)?${name}/`)
 })
 
-let found = 0
-let namespaces = 0
-let foreign = 0
+process.stdout.write(JSON.stringify(enumerate()))
 
-for (const { name: specifier, types: file } of entries) {
-  const source = program.getSourceFile(file)
-  if (!source) throw new Error(`${file} is missing; build the library first`)
-  const module = checker.getSymbolAtLocation(source)
-  // An entry with no exports, such as `lib/globals`, only augments globals.
-  if (!module) continue
-  const exports = checker.getExportsOfModule(module)
-  found += exports.length
-  for (const symbol of exports)
-    topLevel.add(
-      symbol.flags & ts.SymbolFlags.Alias
-        ? checker.getAliasedSymbol(symbol)
-        : symbol,
-    )
-  if (exports[0])
-    // The baseline imports the entry and nothing else. Importing any name resolves the entry's
-    // export table, which every consumer of the entry pays as well.
-    baselines[specifier] =
-      `import type { ${exports[0].name} as $ } from '${specifier}'\nexport type { $ }\n`
-  // Breadth first, so a top-level export keeps its shortest name.
-  const queue = exports.map((symbol) => ({
-    symbol,
-    top: symbol.name,
-    member: '',
-  }))
-  for (const { symbol, top, member } of queue) {
-    const target =
-      symbol.flags & ts.SymbolFlags.Alias
-        ? checker.getAliasedSymbol(symbol)
-        : symbol
-    if (seen.has(target)) continue
-    seen.add(target)
-    // The functions and types of a dependency that an entry re-exports are the dependency's to
-    // measure.
-    if (
-      target.declarations?.length &&
-      target.declarations.every((declaration) =>
-        reexported.some((pattern) =>
-          pattern.test(declaration.getSourceFile().fileName),
-        ),
+/**
+ * Lists the consumer of every export that each entry reaches, the baseline of each entry, and the
+ * counts that the summary reports.
+ */
+function enumerate() {
+  const seen = new Set<TS.Symbol>()
+  // The unique symbols the entries export at their top level, before namespaces are expanded.
+  const topLevel = new Set<TS.Symbol>()
+  const items: Item[] = []
+  const baselines: Record<string, string> = {}
+
+  let found = 0
+  let namespaces = 0
+  let foreign = 0
+
+  for (const { name: specifier, types: file } of entries) {
+    const source = program.getSourceFile(file)
+    if (!source) throw new Error(`${file} is missing; build the library first`)
+    const module = checker.getSymbolAtLocation(source)
+    // An entry with no exports, such as `lib/globals`, only augments globals.
+    if (!module) continue
+    const exports = checker.getExportsOfModule(module)
+    found += exports.length
+    for (const symbol of exports)
+      topLevel.add(
+        symbol.flags & ts.SymbolFlags.Alias
+          ? checker.getAliasedSymbol(symbol)
+          : symbol,
       )
-    ) {
-      foreign++
-      continue
-    }
-    const name = member ? `${top}.${member}` : top
-    if (
-      target.flags & ts.SymbolFlags.ValueModule &&
-      target.declarations?.some(ts.isSourceFile)
-    ) {
-      namespaces++
-      for (const child of checker.getExportsOfModule(target))
-        queue.push({
-          symbol: child,
-          top,
-          member: member ? `${member}.${child.name}` : child.name,
-        })
-      continue
-    }
-    const consumer = consumerText(
-      target,
-      specifier,
-      top,
-      member ? `$.${member}` : '$',
-      symbol.name,
-    )
-    if (consumer)
-      items.push({
-        item: `${specifier}:${name}`,
-        group: specifier,
-        ...consumer,
+    if (exports[0])
+      // The baseline imports the entry and nothing else. Importing any name resolves the entry's
+      // export table, which every consumer of the entry pays as well.
+      baselines[specifier] =
+        `import type { ${exports[0].name} as $ } from '${specifier}'\nexport type { $ }\n`
+    // Breadth first, so a top-level export keeps its shortest name.
+    const queue = exports.map((symbol) => ({
+      symbol,
+      top: symbol.name,
+      member: '',
+    }))
+    for (const { symbol, top, member } of queue) {
+      const target =
+        symbol.flags & ts.SymbolFlags.Alias
+          ? checker.getAliasedSymbol(symbol)
+          : symbol
+      if (seen.has(target)) continue
+      seen.add(target)
+      // The functions and types of a dependency that an entry re-exports are the dependency's to
+      // measure.
+      if (
+        target.declarations?.length &&
+        target.declarations.every((declaration) =>
+          reexported.some((pattern) =>
+            pattern.test(declaration.getSourceFile().fileName),
+          ),
+        )
+      ) {
+        foreign++
+        continue
+      }
+      const name = member ? `${top}.${member}` : top
+      if (
+        target.flags & ts.SymbolFlags.ValueModule &&
+        target.declarations?.some(ts.isSourceFile)
+      ) {
+        namespaces++
+        for (const child of checker.getExportsOfModule(target))
+          queue.push({
+            symbol: child,
+            top,
+            member: member ? `${member}.${child.name}` : child.name,
+          })
+        continue
+      }
+      const consumer = consumerText(target, {
+        name: symbol.name,
+        ref: member ? `$.${member}` : '$',
+        specifier,
+        top,
       })
+      if (consumer)
+        items.push({
+          item: `${specifier}:${name}`,
+          group: specifier,
+          ...consumer,
+        })
+    }
   }
-}
 
-process.stdout.write(
-  JSON.stringify({
+  return {
     found,
     topLevel: topLevel.size,
     unique: seen.size,
@@ -162,8 +168,8 @@ process.stdout.write(
     foreign,
     items,
     baselines,
-  }),
-)
+  }
+}
 
 /**
  * Writes the consumer for one export. TypeScript resolves types lazily: `type T = typeof x` only
@@ -180,13 +186,8 @@ process.stdout.write(
  * - Any other value: `typeof x`.
  * - A type: the type with its defaults, or with its constraints where a parameter has no default.
  */
-function consumerText(
-  symbol: TS.Symbol,
-  specifier: string,
-  top: string,
-  ref: string,
-  name: string,
-) {
+function consumerText(symbol: TS.Symbol, options: consumerText.Options) {
+  const { name, ref, specifier, top } = options
   const lines = [`import type { ${top} as $ } from '${specifier}'`]
   const members: [type: string, description: string][] = []
   const forms: Record<string, string> = {}
@@ -239,12 +240,27 @@ function consumerText(
     members.push(['Type', name])
   }
   if (lines.length === 1) return undefined
-  members.forEach(([type, description], index) => {
+  members.forEach((entry, index) => {
+    const [type, description] = entry
     lines.push(`export type Members${index} = Members<${type}>`)
     forms[`Members${index}`] = `reading the properties of ${description}`
   })
   lines.push('type Members<T> = T extends object ? T[keyof T] : T')
   return { text: `${lines.join('\n')}\n`, forms }
+}
+
+declare namespace consumerText {
+  /** How the consumer imports and names the export. */
+  type Options = {
+    /** The export's own name, which the notes show. */
+    name: string
+    /** The reference to the export in the consumer, such as `$` or `$.add`. */
+    ref: string
+    /** The entry point's specifier, which the consumer imports. */
+    specifier: string
+    /** The top-level export the consumer imports as `$`. */
+    top: string
+  }
 }
 
 /** Describes a declared type for a note, shortened to its first 80 characters. */
@@ -261,7 +277,10 @@ function declared(text: string | undefined): string {
  * checker prints each constraint relative to the consumer, with `import()` types for names it
  * does not import.
  */
-function typeArguments(symbol: TS.Symbol): { aliases: string[]; args: string } {
+function typeArguments(symbol: TS.Symbol): {
+  aliases: readonly string[]
+  args: string
+} {
   const declaration = symbol.declarations?.find(
     (node): node is TS.TypeAliasDeclaration | TS.InterfaceDeclaration =>
       (ts.isTypeAliasDeclaration(node) || ts.isInterfaceDeclaration(node)) &&

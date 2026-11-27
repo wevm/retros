@@ -24,7 +24,7 @@
  */
 
 import * as fs from 'node:fs'
-import { isBuiltin } from 'node:module'
+import * as module from 'node:module'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { type OutputChunk, rolldown } from 'rolldown'
@@ -76,106 +76,131 @@ type Job = {
   item: string
   metric: 'entry-size' | 'tree-shaking'
 }
-const jobs: Job[] = []
-const seen = new Set<unknown>()
-/** The namespaces whose members the walk measured. */
-const walked = new Set<unknown>()
-// The values of the dependencies that an entry re-exports, which belong to those dependencies. Each
-// resolves from the root, as the build's own imports of it do.
-const reexported = new Set<unknown>()
-for (const specifier of library.config.reexports ?? [])
-  for (const value of Object.values(
-    await import(Bun.resolveSync(specifier, library.root)),
-  ))
-    reexported.add(value)
-for (const entry of entries) {
-  const module = await import(entry.file)
-  if (!entry.index)
-    jobs.push({
-      code: `import '${entry.name}'\n`,
-      file: fs.realpathSync(entry.file),
-      item: entry.name,
-      metric: 'tree-shaking',
-    })
-  if (entry.index) {
-    // A whole entry is named by its bare specifier, so a target pattern such as `lib/extra:*`
-    // matches its exports and not the entry itself.
-    jobs.push({
-      code: `export * from '${entry.name}'\n`,
-      item: entry.name,
-      metric: 'entry-size',
-    })
-  } else {
-    // A module entry whose members an index walked, such as `lib/Math` under `lib:Math`, adds
-    // nothing: a constant would only repeat. One deeper than the walk goes, such as
-    // `lib/extra/a/Math` under `lib/extra:a.Math`, has its members measured here.
-    if (walked.has(module)) continue
-    // A module entry that no index reaches, such as `lib/Internal`, is measured whole too.
-    if (!seen.has(module)) {
-      seen.add(module)
-      jobs.push({
-        code: `export * from '${entry.name}'\n`,
-        item: entry.name,
-        metric: 'entry-size',
-      })
-    }
-  }
-  // A namespace, such as `Math` or a nested `a.Math`, is measured whole and then member by member.
-  const walk = (top: string, members: string[], value: unknown) => {
-    const isObject =
-      (!!value && typeof value === 'object') || typeof value === 'function'
-    if (isObject && (seen.has(value) || reexported.has(value))) return
-    if (isObject) seen.add(value)
-    const item = `${entry.name}:${[top, ...members].join('.')}`
-    jobs.push({
-      code: members.length
-        ? `import { ${top} } from '${entry.name}'\nexport const $ = ${[top, ...members].join('.')}\n`
-        : `export { ${top} } from '${entry.name}'\n`,
-      item,
-      metric: 'entry-size',
-    })
-    if (isModule(value) && members.length < 2) {
-      walked.add(value)
-      for (const [member, inner] of Object.entries(value))
-        walk(top, [...members, member], inner)
-    }
-  }
-  for (const [name, value] of Object.entries(module)) walk(name, [], value)
-}
-
-// Each worker takes the next job until none are left, or until a build fails.
-const lines: string[] = []
-let next = 0
-let failure: string | undefined
-await Promise.all(
-  Array.from({ length: Math.min(concurrency, jobs.length) }, async () => {
-    while (failure === undefined && next < jobs.length) {
-      const index = next++
-      const job = jobs[index]!
-      try {
-        lines[index] = await measure(index, job)
-      } catch (error) {
-        failure ??= `${job.item}: ${(error as Error).message}`
-      }
-    }
-  }),
-)
+const jobs = await enumerate()
+const pool = await run(jobs)
 fs.rmSync(scratch, { force: true, recursive: true })
 
-if (failure) {
+if (pool.failure) {
   // biome-ignore lint/suspicious/noConsole: a metric script reports failures on stderr
-  console.error(`footprint: could not measure ${failure}`)
+  console.error(`footprint: could not measure ${pool.failure}`)
   process.exit(1)
 }
 
 // Only module entries, such as `lib/Math`, have a tree-shaking check.
-if (!jobs.some((job) => job.metric === 'tree-shaking'))
-  lines.push('tree-shaking skip note "no module entry points, only indexes"')
+const lines = jobs.some((job) => job.metric === 'tree-shaking')
+  ? pool.lines
+  : [
+      ...pool.lines,
+      'tree-shaking skip note "no module entry points, only indexes"',
+    ]
 
 fs.appendFileSync(metrics, `${[...lines, ...hot(lines)].join('\n')}\n`)
 console.log(
   `footprint: measured ${jobs.length} items in ${((performance.now() - started) / 1000).toFixed(1)}s, ${concurrency} builds at a time`,
 )
+
+/** Lists the jobs of every entry, in the order of library.ts. */
+async function enumerate(): Promise<readonly Job[]> {
+  const jobs: Job[] = []
+  const seen = new Set<unknown>()
+  /** The namespaces whose members the walk measured. */
+  const walked = new Set<unknown>()
+  // The values of the dependencies that an entry re-exports, which belong to those dependencies.
+  // Each resolves from the root, as the build's own imports of it do.
+  const reexported = new Set<unknown>()
+  for (const specifier of library.config.reexports ?? [])
+    for (const value of Object.values(
+      await import(Bun.resolveSync(specifier, library.root)),
+    ))
+      reexported.add(value)
+  for (const entry of entries) {
+    const imported = await import(entry.file)
+    if (!entry.index)
+      jobs.push({
+        code: `import '${entry.name}'\n`,
+        file: fs.realpathSync(entry.file),
+        item: entry.name,
+        metric: 'tree-shaking',
+      })
+    if (entry.index) {
+      // A whole entry is named by its bare specifier, so a target pattern such as `lib/extra:*`
+      // matches its exports and not the entry itself.
+      jobs.push({
+        code: `export * from '${entry.name}'\n`,
+        item: entry.name,
+        metric: 'entry-size',
+      })
+    } else {
+      // A module entry whose members an index walked, such as `lib/Math` under `lib:Math`, adds
+      // nothing: a constant would only repeat. One deeper than the walk goes, such as
+      // `lib/extra/a/Math` under `lib/extra:a.Math`, has its members measured here.
+      if (walked.has(imported)) continue
+      // A module entry that no index reaches, such as `lib/Internal`, is measured whole too.
+      if (!seen.has(imported)) {
+        seen.add(imported)
+        jobs.push({
+          code: `export * from '${entry.name}'\n`,
+          item: entry.name,
+          metric: 'entry-size',
+        })
+      }
+    }
+    // A namespace, such as `Math` or a nested `a.Math`, is measured whole and then member by
+    // member.
+    const walk = (value: unknown, options: Walk) => {
+      const { members, top } = options
+      const isObject =
+        (!!value && typeof value === 'object') || typeof value === 'function'
+      if (isObject && (seen.has(value) || reexported.has(value))) return
+      if (isObject) seen.add(value)
+      const item = `${entry.name}:${[top, ...members].join('.')}`
+      jobs.push({
+        code: members.length
+          ? `import { ${top} } from '${entry.name}'\nexport const $ = ${[top, ...members].join('.')}\n`
+          : `export { ${top} } from '${entry.name}'\n`,
+        item,
+        metric: 'entry-size',
+      })
+      if (isModule(value) && members.length < 2) {
+        walked.add(value)
+        for (const [member, inner] of Object.entries(value))
+          walk(inner, { members: [...members, member], top })
+      }
+    }
+    for (const [name, value] of Object.entries(imported))
+      walk(value, { members: [], top: name })
+  }
+  return jobs
+}
+
+/** The path of a namespace member: the export it starts from, and the members below it. */
+type Walk = { members: readonly string[]; top: string }
+
+/**
+ * Runs the jobs in a pool of `concurrency` builds, and returns their metric lines in job order.
+ * Each worker takes the next job until none are left, or until a build fails.
+ */
+async function run(
+  jobs: readonly Job[],
+): Promise<{ failure: string | undefined; lines: readonly string[] }> {
+  const lines: string[] = []
+  let next = 0
+  let failure: string | undefined
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, jobs.length) }, async () => {
+      while (failure === undefined && next < jobs.length) {
+        const index = next++
+        const job = jobs[index]!
+        try {
+          lines[index] = await measure(index, job)
+        } catch (error) {
+          failure ??= `${job.item}: ${(error as Error).message}`
+        }
+      }
+    }),
+  )
+  return { failure, lines }
+}
 
 /** Bundles one consumer module, and returns its metric line. */
 async function measure(index: number, job: Job): Promise<string> {
@@ -220,7 +245,8 @@ async function measure(index: number, job: Job): Promise<string> {
       if (imported) load(imported)
       // Node built-ins, which a Node entry imports, are left to the runtime. Any other import left
       // in the output is a module rolldown could not find.
-      else if (!isBuiltin(id)) throw new Error(`could not resolve "${id}"`)
+      else if (!module.isBuiltin(id))
+        throw new Error(`could not resolve "${id}"`)
     }
   }
   load(output.output[0])
@@ -231,7 +257,7 @@ async function measure(index: number, job: Job): Promise<string> {
   if (job.metric === 'tree-shaking') {
     const kept = rank(loaded)
     if (kept.length === 0) return `tree-shaking ${quote(job.item)} pass`
-    const top = kept.slice(0, 3).map(([name, bytes]) => `${name} ${bytes} B`)
+    const top = kept.slice(0, 3).map((entry) => `${entry[0]} ${entry[1]} B`)
     return `tree-shaking ${quote(job.item)} fail note ${quote(`keeps ${size} B gzipped: ${top.join(', ')}`)}`
   }
 
@@ -241,12 +267,12 @@ async function measure(index: number, job: Job): Promise<string> {
   // Above 3 kB, name the three packages or library modules that render the most bytes, so a reader
   // knows what to cut first.
   const ranked = rank(loaded)
-  const total = ranked.reduce((sum, [, bytes]) => sum + bytes, 0)
+  const total = ranked.reduce((sum, entry) => sum + entry[1], 0)
   const top = ranked
-    .map(([name, bytes]) => [name, Math.round((bytes / total) * 100)] as const)
-    .filter(([, share]) => share > 0)
+    .map((entry) => [entry[0], Math.round((entry[1] / total) * 100)] as const)
+    .filter((entry) => entry[1] > 0)
     .slice(0, 3)
-    .map(([name, share]) => `${name} ${share}%`)
+    .map((entry) => `${entry[0]} ${entry[1]}%`)
   return `${line} note ${quote(`most bytes: ${top.join(', ')}`)}`
 }
 
@@ -263,15 +289,17 @@ function sideEffects(file: string) {
 }
 
 /** Ranks the packages and library modules of a bundle by the minified bytes they render. */
-function rank(loaded: Set<OutputChunk>): (readonly [string, number])[] {
+function rank(
+  loaded: Set<OutputChunk>,
+): readonly (readonly [string, number])[] {
   const bytes = new Map<string, number>()
   for (const chunk of loaded)
-    for (const [id, module] of Object.entries(chunk.modules)) {
-      if (module.renderedLength === 0) continue
+    for (const [id, rendered] of Object.entries(chunk.modules)) {
+      if (rendered.renderedLength === 0) continue
       // The consumer module only imports or re-exports.
       if (id.startsWith(scratch) && !id.includes('/node_modules/')) continue
       const name = owner(id)
-      bytes.set(name, (bytes.get(name) ?? 0) + module.renderedLength)
+      bytes.set(name, (bytes.get(name) ?? 0) + rendered.renderedLength)
     }
   return [...bytes].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))
 }

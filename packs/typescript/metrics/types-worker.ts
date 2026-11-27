@@ -54,7 +54,7 @@ export type Cost = {
 export type Result = Cost & {
   id: number
   baseline: Cost
-  errors: { code: number; message: string }[]
+  errors: readonly { code: number; message: string }[]
   parts: Record<string, number>
 }
 
@@ -67,19 +67,13 @@ if (allocated() === undefined)
     `Node ${process.version} does not report total_allocated_bytes from v8.getHeapStatistics(); Node 26 does`,
   )
 
-const hosts = {
-  export: createHost(consumerOptions),
-  bench: createHost(testOptions),
-}
-const options = { export: consumerOptions, bench: testOptions }
-const templates = new Map<string, TS.Program>()
-const baselines = new Map<string, Cost>()
+const worker = createWorker()
 
 const lines = readline.createInterface({ input: process.stdin })
 for await (const line of lines) {
   const job: Job = JSON.parse(line)
-  const baseline = baselineOf(job)
-  const { cost, errors, parts } = check(job, job.text)
+  const baseline = worker.baselineOf(job)
+  const { cost, errors, parts } = worker.check(job, job.text)
   const result: Result = { id: job.id, ...cost, baseline, errors, parts }
   process.stdout.write(`${JSON.stringify(result)}\n`)
 }
@@ -88,78 +82,99 @@ process.stdout.write(
   `${JSON.stringify({ peak: process.resourceUsage().maxRSS * 1024 })}\n`,
 )
 
-/** Measures a group's baseline the first time a job needs it. */
-function baselineOf(job: Job): Cost {
-  let baseline = baselines.get(job.group)
-  if (baseline) return baseline
-  const runs = Array.from({ length: 5 }, () => check(job, job.baseline).cost)
-  const counts = new Set(runs.map((run) => run.instantiations))
-  if (counts.size > 1)
-    throw new Error(`${job.group}: baseline instantiations differ between runs`)
-  baseline = {
-    instantiations: runs[0]!.instantiations,
-    cpu: median(runs.map((run) => run.cpu)),
-    bytes: median(runs.map((run) => run.bytes)),
+/**
+ * Creates the checker of one worker process. Its hosts share the parsed files, and it caches each
+ * group's template program and baseline cost.
+ */
+function createWorker() {
+  const sourceFiles = new Map<string, TS.SourceFile>()
+  const hosts = {
+    export: createHost(consumerOptions, { sourceFiles }),
+    bench: createHost(testOptions, { sourceFiles }),
   }
-  baselines.set(job.group, baseline)
-  return baseline
-}
+  const options = { export: consumerOptions, bench: testOptions }
+  const templates = new Map<string, TS.Program>()
+  const baselines = new Map<string, Cost>()
 
-/** Checks one text in a fresh program that reuses the group's parsed files and resolutions. */
-function check(job: Job, text: string) {
-  const host = hosts[job.mode]
-  let template = templates.get(job.group)
-  if (!template) {
-    host.setFile(job.file, job.baseline)
-    template = ts.createProgram({
+  /** Measures a group's baseline the first time a job needs it. */
+  function baselineOf(job: Job): Cost {
+    let baseline = baselines.get(job.group)
+    if (baseline) return baseline
+    const runs = Array.from({ length: 5 }, () => check(job, job.baseline).cost)
+    const counts = new Set(runs.map((run) => run.instantiations))
+    if (counts.size > 1)
+      throw new Error(
+        `${job.group}: baseline instantiations differ between runs`,
+      )
+    baseline = {
+      instantiations: runs[0]!.instantiations,
+      cpu: median(runs.map((run) => run.cpu)),
+      bytes: median(runs.map((run) => run.bytes)),
+    }
+    baselines.set(job.group, baseline)
+    return baseline
+  }
+
+  /** Checks one text in a fresh program that reuses the group's parsed files and resolutions. */
+  function check(job: Job, text: string) {
+    const host = hosts[job.mode]
+    let template = templates.get(job.group)
+    if (!template) {
+      host.setFile(job.file, job.baseline)
+      template = ts.createProgram({
+        rootNames: [job.file],
+        options: options[job.mode],
+        host,
+      })
+      templates.set(job.group, template)
+    }
+    host.setFile(job.file, text)
+    const program = ts.createProgram({
       rootNames: [job.file],
       options: options[job.mode],
       host,
+      oldProgram: template,
     })
-    templates.set(job.group, template)
-  }
-  host.setFile(job.file, text)
-  const program = ts.createProgram({
-    rootNames: [job.file],
-    options: options[job.mode],
-    host,
-    oldProgram: template,
-  })
-  const file = program.getSourceFile(job.file)!
-  const checker = program.getTypeChecker()
-  const bytes = allocated()
-  const cpu = cpuTime()
-  // A consumer's forms resolve one exported alias at a time, in order, so each one's share of the
-  // instantiations can explain the cost in a note. The check after them reuses what they resolved.
-  const parts: Record<string, number> = {}
-  if (job.mode === 'export')
-    for (const statement of file.statements) {
-      if (!ts.isTypeAliasDeclaration(statement)) continue
-      if (
-        !statement.modifiers?.some(
-          (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword,
+    const file = program.getSourceFile(job.file)!
+    const checker = program.getTypeChecker()
+    const bytes = allocated()
+    const cpu = cpuTime()
+    // A consumer's forms resolve one exported alias at a time, in order, so each one's share of the
+    // instantiations can explain the cost in a note. The check after them reuses what they resolved.
+    const parts: Record<string, number> = {}
+    if (job.mode === 'export')
+      for (const statement of file.statements) {
+        if (!ts.isTypeAliasDeclaration(statement)) continue
+        if (
+          !statement.modifiers?.some(
+            (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword,
+          )
         )
-      )
-        continue
-      const before = program.getInstantiationCount()
-      checker.getTypeAtLocation(statement.type)
-      parts[statement.name.text] = program.getInstantiationCount() - before
+          continue
+        const before = program.getInstantiationCount()
+        checker.getTypeAtLocation(statement.type)
+        parts[statement.name.text] = program.getInstantiationCount() - before
+      }
+    const diagnostics = program.getSemanticDiagnostics(file)
+    // The type-test runner also asks for declaration diagnostics.
+    if (job.mode === 'bench') program.getDeclarationDiagnostics(file)
+    const cost = {
+      cpu: cpuTime() - cpu,
+      bytes: allocated() - bytes,
+      instantiations: program.getInstantiationCount(),
     }
-  const diagnostics = program.getSemanticDiagnostics(file)
-  // The type-test runner also asks for declaration diagnostics.
-  if (job.mode === 'bench') program.getDeclarationDiagnostics(file)
-  const cost = {
-    cpu: cpuTime() - cpu,
-    bytes: allocated() - bytes,
-    instantiations: program.getInstantiationCount(),
+    const errors = diagnostics
+      .filter(
+        (diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error,
+      )
+      .map((diagnostic) => ({
+        code: diagnostic.code,
+        message: ts.flattenDiagnosticMessageText(diagnostic.messageText, ' '),
+      }))
+    return { cost, errors, parts }
   }
-  const errors = diagnostics
-    .filter((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error)
-    .map((diagnostic) => ({
-      code: diagnostic.code,
-      message: ts.flattenDiagnosticMessageText(diagnostic.messageText, ' '),
-    }))
-  return { cost, errors, parts }
+
+  return { baselineOf, check }
 }
 
 /** Bytes V8 has allocated on its heap since the process started. */
@@ -180,7 +195,7 @@ function cpuTime(): number {
   )
 }
 
-function median(values: number[]): number {
+function median(values: readonly number[]): number {
   const sorted = values.toSorted((a, b) => a - b)
   return sorted[Math.floor(sorted.length / 2)]!
 }

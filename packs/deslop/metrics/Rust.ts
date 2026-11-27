@@ -22,8 +22,11 @@ export function workspace() {
     run(['cargo', 'metadata', '--no-deps', '--format-version=1']),
   ) as {
     target_directory: string
-    packages: { name: string; targets: { name: string; kind: string[] }[] }[]
-    workspace_members: string[]
+    packages: readonly {
+      name: string
+      targets: readonly { name: string; kind: readonly string[] }[]
+    }[]
+    workspace_members: readonly string[]
     workspace_root: string
   }
   const build = run([
@@ -34,7 +37,7 @@ export function workspace() {
   ])
   for (const line of build.trim().split('\n')) {
     const event = JSON.parse(line) as {
-      filenames: string[]
+      filenames: readonly string[]
       package_id: string
       profile: { test: boolean }
       reason: string
@@ -169,8 +172,8 @@ function* bytesFields(data: Buffer, field: number): Generator<Buffer> {
 }
 
 /** A native finding is exit 1. Every other unsuccessful invocation is an analysis failure. */
-function run(args: string[], native = false): string {
-  const result = Bun.spawnSync(args, {
+function run(args: readonly string[], native = false): string {
+  const result = Bun.spawnSync([...args], {
     env: { ...process.env, CARGO_TERM_COLOR: 'never' },
     maxBuffer: 64 * 1024 * 1024,
   })

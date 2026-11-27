@@ -17,7 +17,7 @@ export async function analyze(files: readonly string[]) {
   const edges = new Map<string, Set<string>>()
   const incomplete = new Map<string, string>()
   const parsers = new Map<Grammar, Parser>()
-  const swift = new Map<string, string[]>()
+  const swift = new Map<string, readonly string[]>()
   const calls = new Map<string, Set<string>>()
   const types = new Map<string, Set<string>>()
   const shadows = new Map<string, Set<string>>()

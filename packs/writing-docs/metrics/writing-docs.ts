@@ -71,7 +71,11 @@ const metrics: Record<string, Rule> = {
       : [],
   'heading-words': (block) =>
     block.kind === 'Header'
-      ? overLimit(block.words.length, 3, 'words', block.text)
+      ? overLimit(block.words.length, {
+          limit: 3,
+          text: block.text,
+          unit: 'words',
+        })
       : [],
   'latin-abbreviations': pattern(
     /\b(?:e\.g\.|i\.e\.|etc\.)/gi,
@@ -80,18 +84,21 @@ const metrics: Record<string, Rule> = {
   'paragraph-sentences': (block) => {
     const excess = block.sentences[6]
     return excess
-      ? overLimit(
-          block.sentences.length,
-          6,
-          'sentences',
-          excess.raw,
-          excess.range[0],
-        )
+      ? overLimit(block.sentences.length, {
+          index: excess.range[0],
+          limit: 6,
+          text: excess.raw,
+          unit: 'sentences',
+        })
       : []
   },
   'paragraph-words': (block) =>
     block.kind === 'Paragraph'
-      ? overLimit(block.words.length, 50, 'words', block.text)
+      ? overLimit(block.words.length, {
+          limit: 50,
+          text: block.text,
+          unit: 'words',
+        })
       : [],
   'passive-voice': (block) =>
     writeGood(block.text, { ...writeGoodOff, passive: true }),
@@ -102,7 +109,12 @@ const metrics: Record<string, Rule> = {
   semicolons: pattern(/;/g, 'Semicolon'),
   'sentence-words': (block) =>
     block.sentences.flatMap((sentence) =>
-      overLimit(sentence.words, 25, 'words', sentence.raw, sentence.range[0]),
+      overLimit(sentence.words, {
+        index: sentence.range[0],
+        limit: 25,
+        text: sentence.raw,
+        unit: 'words',
+      }),
     ),
   'verb-tenses': (block) => block.verbs.tenses,
   'weasel-words': (block) =>
@@ -166,11 +178,9 @@ function excerpt(text: string): string {
 
 function overLimit(
   count: number,
-  limit: number,
-  unit: string,
-  text: string,
-  index = 0,
+  options: overLimit.Options,
 ): readonly Finding[] {
+  const { index = 0, limit, text, unit } = options
   return count > limit
     ? [
         {
@@ -329,4 +339,14 @@ function markdownFiles(): readonly string[] {
 /** Quotes an item or note for a metric line, escaping `"` and `\`. */
 function quote(text: string): string {
   return `"${text.replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll('\n', ' ')}"`
+}
+
+declare namespace overLimit {
+  /** The limit and unit of the count, the text to quote, and the offset of the finding. */
+  type Options = {
+    index?: number | undefined
+    limit: number
+    text: string
+    unit: string
+  }
 }

@@ -23,7 +23,10 @@ const preference =
 export function measure(css: string, file: string) {
   const root = PostCSS.parse(css, { from: file })
   const selectors = new Set<string>()
-  const hovers = new Map<string, { companions: string[]; line: number }>()
+  const hovers = new Map<
+    string,
+    { companions: readonly string[]; line: number }
+  >()
 
   root.walkRules((rule) => {
     const scope = ancestors(rule).map(context).join(' / ')
@@ -142,7 +145,9 @@ export function measure(css: string, file: string) {
 }
 
 /** Returns enclosing rules and conditions in source nesting order. */
-function ancestors(node: PostCSS.ChildNode): (PostCSS.AtRule | PostCSS.Rule)[] {
+function ancestors(
+  node: PostCSS.ChildNode,
+): readonly (PostCSS.AtRule | PostCSS.Rule)[] {
   const parts: (PostCSS.AtRule | PostCSS.Rule)[] = []
   for (
     let at = node.parent;

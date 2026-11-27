@@ -36,7 +36,6 @@ const manifests = tracked.filter((file) =>
   Manifests.names.includes(path.basename(file)),
 )
 const lines: string[] = []
-const emitted = new Set<string>()
 const lint = Linters.lengths(files, functionLimit)
 const read = await Syntax.create()
 
@@ -47,30 +46,25 @@ function quote(value: string) {
     .replace(/[\r\n]/g, ' ')}"`
 }
 
-function emit(metric: string, file: string, value: string, note?: string) {
-  emitted.add(metric)
+function emit(metric: string, options: emit.Options) {
+  const { file, note, value } = options
   lines.push(
     `${metric}${file ? ` ${quote(file)}` : ''} ${value}${note ? ` note ${quote(note)}` : ''}`,
   )
 }
 
-function check(
-  metric: string,
-  file: string,
-  problems: readonly string[],
-  unavailable?: string,
-) {
+function check(metric: string, options: check.Options) {
+  const { file, problems, unavailable } = options
   if (unavailable) {
-    emit(metric, file, 'skip', unavailable)
+    emit(metric, { file, note: unavailable, value: 'skip' })
     return
   }
   const more = problems.length > 5 ? ` (and ${problems.length - 5} more)` : ''
-  emit(
-    metric,
+  emit(metric, {
     file,
-    problems.length ? 'fail' : 'pass',
-    problems.slice(0, 5).join('; ') + more,
-  )
+    note: problems.slice(0, 5).join('; ') + more,
+    value: problems.length ? 'fail' : 'pass',
+  })
 }
 
 function sentences(comments: ReturnType<typeof Syntax.measure>['comments']) {
@@ -103,11 +97,12 @@ for (const file of files) {
   const text = fs.readFileSync(file, 'utf8')
   const grammar =
     Syntax.extensions[path.extname(file) as keyof typeof Syntax.extensions]
-  const source = await read(grammar, text, (root) =>
-    Syntax.measure(root, grammar, text),
-  )
+  const source = await read(grammar, {
+    inspect: (root) => Syntax.measure(root, { grammar, text }),
+    text,
+  })
   const { error, functions } = source
-  check('source-coverage', file, error ? [error] : [])
+  check('source-coverage', { file, problems: error ? [error] : [] })
 
   const lengths: string[] = []
   const confirmed = new Map(lint.get(file))
@@ -120,12 +115,11 @@ for (const file of files) {
       const n = (occurrences.get(fn.name) ?? 0) + 1
       occurrences.set(fn.name, n)
       const size = fn.end - fn.line + 1
-      emit(
-        'function-lines',
-        `${file}::${fn.name}${n > 1 ? `#${n}` : ''}`,
-        String(size),
-        `lines ${fn.line}-${fn.end}`,
-      )
+      emit('function-lines', {
+        file: `${file}::${fn.name}${n > 1 ? `#${n}` : ''}`,
+        note: `lines ${fn.line}-${fn.end}`,
+        value: String(size),
+      })
       const diagnostic =
         starts.get(fn.line) === 1 ? confirmed.get(fn.line) : undefined
       if (size > functionLimit || diagnostic)
@@ -136,17 +130,24 @@ for (const file of files) {
     }
   for (const [line, message] of confirmed)
     lengths.push(`line ${line}: ${message}`)
-  check('function-length', file, lengths, lengths.length ? undefined : error)
-  check(
-    'recursion',
+  check('function-length', {
     file,
-    functions.flatMap((fn) =>
+    problems: lengths,
+    unavailable: lengths.length ? undefined : error,
+  })
+  check('recursion', {
+    file,
+    problems: functions.flatMap((fn) =>
       fn.calls.map((line) => `line ${line}: ${fn.name} calls itself`),
     ),
-    error,
-  )
+    unavailable: error,
+  })
   if (grammar === 'rust' || grammar === 'zig')
-    check('sized-integers', file, source.sized, error)
+    check('sized-integers', {
+      file,
+      problems: source.sized,
+      unavailable: error,
+    })
 
   if (!tests.test(file)) {
     const production = functions.filter((fn) => fn.production)
@@ -159,67 +160,78 @@ for (const file of files) {
       const detail = lowest
         .map((fn) => `${fn.name} (${fn.assertions}, line ${fn.line})`)
         .join(', ')
-      emit(
-        'assertion-density',
+      emit('assertion-density', {
         file,
+        note: `${total} assertions in ${production.length} functions: ${detail}`,
         // Keep small changes visible near the target while retaining the usual two-decimal display.
-        Number.isInteger(density * 100) ? density.toFixed(2) : String(density),
-        `${total} assertions in ${production.length} functions: ${detail}`,
-      )
+        value: Number.isInteger(density * 100)
+          ? density.toFixed(2)
+          : String(density),
+      })
     }
-    check('compound-assertions', file, source.compounds, error)
+    check('compound-assertions', {
+      file,
+      problems: source.compounds,
+      unavailable: error,
+    })
   }
 
-  check(
-    'line-length',
+  check('line-length', {
     file,
-    text.split(/\r?\n/).flatMap((line, i) => {
+    problems: text.split(/\r?\n/).flatMap((line, i) => {
       const columns = [...line.replaceAll('\t', '    ')].length
       return columns > 100 ? [`line ${i + 1}: ${columns} columns`] : []
     }),
-  )
-  check('comment-sentences', file, sentences(source.comments), error)
-  check(
-    'indentation',
+  })
+  check('comment-sentences', {
     file,
-    grammar === 'go'
-      ? []
-      : source.code.split('\n').flatMap((line, i) => {
-          if (!line.trim()) return []
-          const indent = /^[ \t]*/.exec(line)![0]
-          if (indent.includes('\t')) return [`line ${i + 1}: a tab`]
-          return indent.length % 4
-            ? [`line ${i + 1}: ${indent.length} spaces`]
-            : []
-        }),
-    error,
-  )
+    problems: sentences(source.comments),
+    unavailable: error,
+  })
+  check('indentation', {
+    file,
+    problems:
+      grammar === 'go'
+        ? []
+        : source.code.split('\n').flatMap((line, i) => {
+            if (!line.trim()) return []
+            const indent = /^[ \t]*/.exec(line)![0]
+            if (indent.includes('\t')) return [`line ${i + 1}: a tab`]
+            return indent.length % 4
+              ? [`line ${i + 1}: ${indent.length} spaces`]
+              : []
+          }),
+    unavailable: error,
+  })
   const name = path.basename(file, path.extname(file))
-  check(
-    'file-names',
+  check('file-names', {
     file,
-    /^[a-z0-9_]+$/.test(name)
+    problems: /^[a-z0-9_]+$/.test(name)
       ? []
       : [`${path.basename(file)} is not snake_case`],
-    path.basename(file) === 'Package.swift'
-      ? 'SwiftPM requires this manifest name'
-      : undefined,
-  )
+    unavailable:
+      path.basename(file) === 'Package.swift'
+        ? 'SwiftPM requires this manifest name'
+        : undefined,
+  })
 }
 
 for (const file of manifests) {
-  const names = await Manifests.dependencies(
-    path.basename(file),
-    fs.readFileSync(file, 'utf8'),
-    read,
-  )
-  check(
-    'zero-dependencies',
+  const names = await Manifests.dependencies(read, {
+    name: path.basename(file),
+    text: fs.readFileSync(file, 'utf8'),
+  })
+  check('zero-dependencies', {
     file,
-    [...new Set(names)].map((name) => `depends on ${name}`),
-    names ? undefined : 'could not read static package declarations',
-  )
+    problems: [...new Set(names)].map((name) => `depends on ${name}`),
+    unavailable: names
+      ? undefined
+      : 'could not read static package declarations',
+  })
 }
+
+// Every metric line starts with its metric name and a space.
+const emitted = new Set(lines.map((line) => line.split(' ', 1)[0]))
 
 // Counts with a numeric target cannot mix with a `skip` check. Leave density unmeasured without a denominator.
 if (!emitted.has('assertion-density'))
@@ -240,6 +252,28 @@ for (const metric of [
   'zero-dependencies',
 ]) {
   if (!emitted.has(metric))
-    emit(metric, '', 'skip', 'no applicable files or functions')
+    emit(metric, {
+      file: '',
+      note: 'no applicable files or functions',
+      value: 'skip',
+    })
 }
 fs.appendFileSync(process.env.UPHILL_METRICS!, `${lines.join('\n')}\n`)
+
+declare namespace check {
+  /** The item, its violations, and the reason it was not measured, which takes precedence. */
+  type Options = {
+    file: string
+    problems: readonly string[]
+    unavailable?: string | undefined
+  }
+}
+
+declare namespace emit {
+  /** The item, an optional note, and the value or verdict. */
+  type Options = {
+    file: string
+    note?: string | undefined
+    value: string
+  }
+}

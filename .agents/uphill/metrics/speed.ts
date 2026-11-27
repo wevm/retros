@@ -34,7 +34,7 @@ try {
 }
 
 /** Returns the median wall time of `command` over `runs` runs, in milliseconds. */
-function medianMs(command: string[], cwd?: string): number {
+function medianMs(command: readonly string[], cwd?: string): number {
   const samples: number[] = []
 
   for (let index = 0; index < runs; index++) {
@@ -48,8 +48,8 @@ function medianMs(command: string[], cwd?: string): number {
 }
 
 /** Runs `command` and throws when it fails. */
-function run(command: string[], cwd?: string): void {
-  const result = Bun.spawnSync(command, {
+function run(command: readonly string[], cwd?: string): void {
+  const result = Bun.spawnSync([...command], {
     cwd,
     stderr: 'inherit',
     stdout: 'ignore',

@@ -27,7 +27,7 @@
  * @module
  */
 
-import { AsyncLocalStorage } from 'node:async_hooks'
+import * as asyncHooks from 'node:async_hooks'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { afterAll, afterEach, beforeEach, expect } from 'vitest'
@@ -68,23 +68,33 @@ type State = {
   test: string
   inTest: boolean
   /** How many wrapped calls the current one runs inside. */
-  depth: AsyncLocalStorage<number>
+  depth: asyncHooks.AsyncLocalStorage<number>
   proxies: WeakMap<object, Map<string, unknown>>
   /** Every proxy the recorder made, so an export that re-exports another is not wrapped twice. */
   wrapped: WeakSet<object>
   /** The calls that returned each object or function a wrapped export returned, outermost first. */
-  produced: WeakMap<object, Origin[]>
+  produced: WeakMap<object, readonly Origin[]>
   /** The export path of each value an export reaches. */
   refs: WeakMap<object, string>
   /** The export path of each value a test helper module exports or reaches. */
   fixtures: WeakMap<object, string>
 }
+/** An export the transform in `speed-vitest.config.ts` passes: its module's path and its name. */
+type Export = { file: string; name: string }
+/** An export path to remember for a value, and the paths it goes into. */
+type Path = { key: string; paths: WeakMap<object, string> }
+/** A `Path` for a value that `reach` found `depth` properties below its export. */
+type Reach = Path & { depth: number }
+/** A call that a wrapped function's proxy forwards to `record`. */
+type Call = { args: readonly unknown[]; self: unknown; target: Function }
+/** The proxy `cached` keeps for a value under an export path, and how to make it. */
+type Proxied = { key: string; make: () => unknown }
 
 const root = process.cwd()
 const g = globalThis as typeof globalThis & {
   __uphillState?: State
-  __uphillWrap?: (value: unknown, file: string, name: string) => unknown
-  __uphillFixture?: (value: unknown, file: string, name: string) => void
+  __uphillWrap?: (value: unknown, options: Export) => unknown
+  __uphillFixture?: (value: unknown, options: Export) => void
 }
 
 const state: State = (g.__uphillState ??= install())
@@ -122,7 +132,7 @@ afterAll(() => {
         threw: value.threw,
         error: value.error,
         errorWhere: value.errorWhere,
-        ok: [...value.ok].map(([args, sample]) => ({ args, ...sample })),
+        ok: [...value.ok].map((entry) => ({ args: entry[0], ...entry[1] })),
       }
     fs.appendFileSync(
       path.join(dir, `${process.pid}.jsonl`),
@@ -138,20 +148,25 @@ function install(): State {
     file: '',
     test: '',
     inTest: false,
-    depth: new AsyncLocalStorage<number>(),
+    depth: new asyncHooks.AsyncLocalStorage<number>(),
     proxies: new WeakMap(),
     wrapped: new WeakSet(),
     produced: new WeakMap(),
     refs: new WeakMap(),
     fixtures: new WeakMap(),
   }
-  g.__uphillWrap = (value, file, name) => {
-    const key = `${file}#${name}`
-    if (value && typeof value === 'object') reach(value, key, 0, created.refs)
+  g.__uphillWrap = (value, options) => {
+    const key = `${options.file}#${options.name}`
+    if (value && typeof value === 'object')
+      reach(value, { depth: 0, key, paths: created.refs })
     return wrap(value, key)
   }
-  g.__uphillFixture = (value, file, name) =>
-    reach(value, `${file}#${name}`, 0, created.fixtures)
+  g.__uphillFixture = (value, options) =>
+    reach(value, {
+      depth: 0,
+      key: `${options.file}#${options.name}`,
+      paths: created.fixtures,
+    })
   blockNetwork()
   return created
 
@@ -166,28 +181,35 @@ function install(): State {
     if (typeof value === 'function') {
       // An instance of an exported class, such as an error, remembers its construction.
       if (isClass(value))
-        return cached(value, key, () => {
-          const proxy: object = new Proxy(value, {
-            construct: (target, args, newTarget) => {
-              const direct = newTarget === proxy
-              const instance = Reflect.construct(
-                target,
-                args,
-                direct ? target : newTarget,
-              )
-              if (direct && !created.produced.has(instance))
-                created.produced.set(instance, [{ key, args, construct: true }])
-              return instance
-            },
-          })
-          return proxy
+        return cached(value, {
+          key,
+          make: () => {
+            const proxy: object = new Proxy(value, {
+              // oxlint-disable-next-line eslint/max-params -- JavaScript fixes the signature of a Proxy trap.
+              construct: (target, args, newTarget) => {
+                const direct = newTarget === proxy
+                const instance = Reflect.construct(
+                  target,
+                  args,
+                  direct ? target : newTarget,
+                )
+                if (direct && !created.produced.has(instance))
+                  created.produced.set(instance, [
+                    { key, args, construct: true },
+                  ])
+                return instance
+              },
+            })
+            return proxy
+          },
         })
-      return cached(
-        value,
+      return cached(value, {
         key,
-        () =>
+        make: () =>
           new Proxy(value, {
-            apply: (target, self, args) => record(key, target, self, args),
+            // oxlint-disable-next-line eslint/max-params -- JavaScript fixes the signature of a Proxy trap.
+            apply: (target, self, args) => record(key, { args, self, target }),
+            // oxlint-disable-next-line eslint/max-params -- JavaScript fixes the signature of a Proxy trap.
             get: (target, property, receiver) => {
               const member = Reflect.get(target, property, receiver)
               if (
@@ -200,14 +222,14 @@ function install(): State {
               return member
             },
           }),
-      )
+      })
     }
     if (isNamespace(value))
-      return cached(
-        value,
+      return cached(value, {
         key,
-        () =>
+        make: () =>
           new Proxy(value, {
+            // oxlint-disable-next-line eslint/max-params -- JavaScript fixes the signature of a Proxy trap.
             get: (target, property, receiver) => {
               const member = Reflect.get(target, property, receiver)
               if (
@@ -218,34 +240,31 @@ function install(): State {
               return member
             },
           }),
-      )
+      })
     return value
   }
 
-  function cached(value: object, key: string, make: () => unknown) {
+  function cached(value: object, options: Proxied) {
+    const { key } = options
     let byKey = created.proxies.get(value)
     if (!byKey) created.proxies.set(value, (byKey = new Map()))
     let proxy = byKey.get(key)
     if (!proxy) {
-      byKey.set(key, (proxy = make()))
+      byKey.set(key, (proxy = options.make()))
       created.wrapped.add(proxy as object)
-      remember(value, key, created.refs)
-      remember(proxy as object, key, created.refs)
+      remember(value, { key, paths: created.refs })
+      remember(proxy as object, { key, paths: created.refs })
     }
     return proxy
   }
 
   /** Remembers the export path of an exported object and of the values its properties hold. */
-  function reach(
-    value: unknown,
-    key: string,
-    depth: number,
-    paths: WeakMap<object, string>,
-  ) {
+  function reach(value: unknown, options: Reach) {
+    const { depth, key, paths } = options
     if (!value || (typeof value !== 'object' && typeof value !== 'function'))
       return
     if (value instanceof Uint8Array) return
-    remember(value, key, paths)
+    remember(value, { key, paths })
     if (depth >= 3 || typeof value !== 'object' || Array.isArray(value)) return
     const proto = Object.getPrototypeOf(value)
     if (proto !== Object.prototype && proto !== null) return
@@ -257,16 +276,13 @@ function install(): State {
       } catch {
         continue
       }
-      reach(member, `${key}.${property}`, depth + 1, paths)
+      reach(member, { depth: depth + 1, key: `${key}.${property}`, paths })
     }
   }
 
   /** Keeps the shortest path for a value reachable at several, so the choice does not depend on load order. */
-  function remember(
-    value: object,
-    key: string,
-    paths: WeakMap<object, string>,
-  ) {
+  function remember(value: object, options: Path) {
+    const { key, paths } = options
     const existing = paths.get(value)
     if (
       existing === undefined ||
@@ -276,12 +292,8 @@ function install(): State {
       paths.set(value, key)
   }
 
-  function record(
-    key: string,
-    target: Function,
-    self: unknown,
-    args: unknown[],
-  ) {
+  function record(key: string, call: Call) {
+    const { args, self, target } = call
     const current = g.__uphillState!
     let entry = current.keys.get(key)
     if (!entry)
@@ -416,7 +428,7 @@ function install(): State {
       origins.length < maxOrigins &&
       !origins.some((existing) => existing.key === origin.key)
     )
-      origins.unshift(origin)
+      created.produced.set(value, [origin, ...origins])
   }
 
   function unreplayable(entry: Key, reason: string) {
@@ -482,7 +494,11 @@ function seedRandomness(file: string) {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296
   }
-  Math.random = next
+  Object.defineProperty(Math, 'random', {
+    configurable: true,
+    writable: true,
+    value: next,
+  })
   Object.defineProperty(globalThis.crypto, 'getRandomValues', {
     configurable: true,
     writable: true,

@@ -24,7 +24,7 @@ const metrics = new Set([
  * Returns a `hot-<metric>` copy of each line about a hot item, and a `skip` line for each metric
  * with items when none of them is hot, such as when the project lists no hot items.
  */
-export function hot(lines: readonly string[]): string[] {
+export function hot(lines: readonly string[]): readonly string[] {
   const copies: string[] = []
   const measured = new Set<string>()
   for (const line of lines) {

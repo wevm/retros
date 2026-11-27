@@ -53,7 +53,7 @@ function line(check: Manifest.Check): string {
   return `${subject} pass`
 }
 
-async function measure(): Promise<string[]> {
+async function measure(): Promise<readonly string[]> {
   if (!fs.existsSync('Cargo.toml'))
     throw new Error('Found no Cargo.toml in the project root')
   const metadata = Cargo.metadata()

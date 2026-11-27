@@ -34,7 +34,7 @@ import * as fs from 'node:fs'
 import * as inspector from 'node:inspector/promises'
 import * as path from 'node:path'
 import * as readline from 'node:readline'
-import { pathToFileURL } from 'node:url'
+import * as url from 'node:url'
 
 import type * as TS from 'typescript'
 
@@ -56,7 +56,7 @@ export type PublicFunction = {
 /** What `functions` writes. */
 export type FunctionsResult = {
   /** Every public function, in the order the entry points reach them. */
-  functions: PublicFunction[]
+  functions: readonly PublicFunction[]
 }
 
 /** Walks public functions' names to the declarations they resolve to. */
@@ -66,16 +66,16 @@ export type EntriesJob = {
   /** The job's ID, which the result repeats. */
   id: number
   /** The public functions' names, such as `lib/Math:Vector.add`. */
-  names: string[]
+  names: readonly string[]
 }
 /** What an `entries` job returns. */
 export type EntriesResult = {
   /** The ID of the job this result answers. */
   id: number
   /** Each name's declaration keys, which `scan` reports for a callee that resolves to it. */
-  declarations: Record<string, string[]>
+  declarations: Record<string, readonly string[]>
   /** The names that resolve to no declaration. */
-  missing: string[]
+  missing: readonly string[]
 }
 
 /** Lists the calls in one test file. */
@@ -117,7 +117,7 @@ export type ScanResult = {
   /** The file's text at the time of the scan. */
   text: string
   /** The calls in the file whose callee resolves to a declaration. */
-  sites: Site[]
+  sites: readonly Site[]
 }
 
 /** Measures chosen calls of one test file, each in a fresh checker. */
@@ -131,7 +131,7 @@ export type MeasureJob = {
   /** The text the scan found the sites in, even if the file has changed on disk since. */
   text: string
   /** The calls to measure, each with an index that its measurement repeats, and its spans. */
-  sites: {
+  sites: readonly {
     site: number
     start: number
     end: number
@@ -150,16 +150,16 @@ export type Measurement = {
   /** Instantiations the warm-up spent on what the call references, which do not count. */
   warm: number
   /** The callee's declared parameters and return type, for notes. */
-  signature: { parameters: string[]; returns: string }
+  signature: { parameters: readonly string[]; returns: string }
   /** The type errors in the copy of the call, which make the measurement invalid. */
-  errors: { code: number; message: string }[]
+  errors: readonly { code: number; message: string }[]
 }
 /** What a `measure` job returns. */
 export type MeasureResult = {
   /** The ID of the job this result answers. */
   id: number
   /** One measurement per measured call. */
-  measurements: Measurement[]
+  measurements: readonly Measurement[]
 }
 
 /** Any job that the worker accepts on standard input. */
@@ -209,18 +209,17 @@ const testOptions: TS.CompilerOptions = {
       typesHost.entries.map((entry) => [entry.name, [entry.source]]),
     ),
 }
-const host = typesHost.createHost(testOptions)
-const templates = new Map<string, TS.Program>()
+const host = typesHost.createHost(testOptions, { sourceFiles: new Map() })
+const templates = createTemplates()
 
 const lines = readline.createInterface({ input: process.stdin })
 for await (const line of lines) {
   const job: Job = JSON.parse(line)
-  const result =
-    job.kind === 'entries'
-      ? entries(job)
-      : job.kind === 'scan'
-        ? scan(job)
-        : measure(job)
+  const result = (() => {
+    if (job.kind === 'entries') return entries(job)
+    if (job.kind === 'scan') return scan(job)
+    return measure(job, templates)
+  })()
   process.stdout.write(`${JSON.stringify(result)}\n`)
 }
 // The last line reports the worker's peak resident memory.
@@ -238,7 +237,7 @@ async function functions(): Promise<FunctionsResult> {
   const modules = new Map<object, string>()
   const loaded: [entry: string, module: object][] = []
   for (const entry of typesHost.entries) {
-    const module = await import(pathToFileURL(entry.file).href)
+    const module = await import(url.pathToFileURL(entry.file).href)
     loaded.push([entry.name, module])
     if (!entry.index)
       modules.set(
@@ -249,12 +248,8 @@ async function functions(): Promise<FunctionsResult> {
   const found: [fn: unknown, item: PublicFunction][] = []
   const listed = new Set<unknown>()
   const walked = new Set<unknown>()
-  const walk = (
-    entry: string,
-    module: string,
-    name: string,
-    value: unknown,
-  ) => {
+  const walk = (value: unknown, options: Walk) => {
+    const { entry, module, name } = options
     if (typeof value === 'function') {
       if (
         !listed.has(value) &&
@@ -267,23 +262,22 @@ async function functions(): Promise<FunctionsResult> {
     if (!isNamespace(value) || walked.has(value)) return
     walked.add(value)
     for (const [key, member] of Object.entries(value))
-      walk(
+      walk(member, {
         entry,
-        modules.get(member as object) ?? module,
-        name ? `${name}.${key}` : key,
-        member,
-      )
+        module: modules.get(member as object) ?? module,
+        name: name ? `${name}.${key}` : key,
+      })
   }
   for (const [entry, module] of loaded)
-    walk(entry, modules.get(module) ?? 'index', '', module)
+    walk(module, { entry, module: modules.get(module) ?? 'index', name: '' })
 
   // A function a dependency defines, such as one that `lib/schema` re-exports, is the
   // dependency's to measure. Its location says where it comes from.
   const session = new inspector.Session()
   session.connect()
   const scripts = new Map<string, string>()
-  session.on('Debugger.scriptParsed', ({ params }) =>
-    scripts.set(params.scriptId, params.url),
+  session.on('Debugger.scriptParsed', (message) =>
+    scripts.set(message.params.scriptId, message.params.url),
   )
   await session.post('Debugger.enable')
   const probe = globalThis as { __uphillProbe?: unknown }
@@ -306,9 +300,14 @@ async function functions(): Promise<FunctionsResult> {
   }
   session.disconnect()
   return {
-    functions: found.filter(([fn]) => own.get(fn)).map(([, item]) => item),
+    functions: found
+      .filter((entry) => own.get(entry[0]))
+      .map((entry) => entry[1]),
   }
 }
+
+/** Where `functions` walks: the entry that reaches a value, its module, and its path from there. */
+type Walk = { entry: string; module: string; name: string }
 
 /** A module namespace, or a plain object whose values are all functions or namespaces. */
 function isNamespace(value: unknown, depth = 0): value is object {
@@ -338,14 +337,14 @@ function entries(job: EntriesJob): EntriesResult {
     const symbol = source && checker.getSymbolAtLocation(source)
     if (symbol) modules.set(entry.name, symbol)
   }
-  const declarations: Record<string, string[]> = {}
+  const declarations: Record<string, readonly string[]> = {}
   const missing: string[] = []
   for (const name of job.names) {
     const colon = name.indexOf(':')
     let symbol = modules.get(name.slice(0, colon))
     for (const part of name.slice(colon + 1).split('.')) {
       if (!symbol) break
-      symbol = member(checker, symbol, part)
+      symbol = member(symbol, { checker, name: part })
     }
     const keys = symbol ? declarationKeys(checker, symbol) : []
     if (keys.length) declarations[name] = keys
@@ -355,7 +354,8 @@ function entries(job: EntriesJob): EntriesResult {
 }
 
 /** A module's export, a namespace's member, or a value's property, by name. */
-function member(checker: TS.TypeChecker, symbol: TS.Symbol, name: string) {
+function member(symbol: TS.Symbol, options: member.Options) {
+  const { checker, name } = options
   const target = resolveAlias(checker, symbol)
   if (target.flags & ts.SymbolFlags.Module) {
     const exported = checker
@@ -389,12 +389,20 @@ function member(checker: TS.TypeChecker, symbol: TS.Symbol, name: string) {
   return undefined
 }
 
+declare namespace member {
+  /** The checker that resolves the symbol, and the name to look up. */
+  type Options = { checker: TS.TypeChecker; name: string }
+}
+
 /**
  * The keys of the declarations a symbol resolves to. A property or variable that only names
  * another function, as in `{ transfer }` or `const send = transfer`, resolves to that function too,
  * since a test can call either.
  */
-function declarationKeys(checker: TS.TypeChecker, symbol: TS.Symbol): string[] {
+function declarationKeys(
+  checker: TS.TypeChecker,
+  symbol: TS.Symbol,
+): readonly string[] {
   const keys = new Set<string>()
   const seen = new Set<TS.Symbol>()
   const visit = (current: TS.Symbol | undefined) => {
@@ -433,30 +441,39 @@ function resolveAlias(checker: TS.TypeChecker, symbol: TS.Symbol): TS.Symbol {
     : symbol
 }
 
-/**
- * The program for a test file as it is on disk, which each measured program reuses. It never gets a
- * checker of its own.
- */
-function template(file: string, text: string): TS.Program {
-  let program = templates.get(file)
-  templates.delete(file)
-  if (program?.getSourceFile(file)?.text === text) {
-    templates.set(file, program)
-    return program
+/** The template programs that `createTemplates` returns. */
+type Templates = ReturnType<typeof createTemplates>
+
+/** Creates the cache of the last few test files' template programs, by file. */
+function createTemplates() {
+  const programs = new Map<string, TS.Program>()
+  return {
+    /**
+     * Returns the program for a test file as it is on disk, which each measured program reuses. It
+     * never gets a checker of its own.
+     */
+    get(file: string, text: string): TS.Program {
+      let program = programs.get(file)
+      programs.delete(file)
+      if (program?.getSourceFile(file)?.text === text) {
+        programs.set(file, program)
+        return program
+      }
+      host.setFile(file, text)
+      program = ts.createProgram({
+        rootNames: [file],
+        options: testOptions,
+        host,
+      })
+      programs.set(file, program)
+      // A few templates are enough, since jobs come grouped by file.
+      for (const key of programs.keys()) {
+        if (programs.size <= 4) break
+        programs.delete(key)
+      }
+      return program
+    },
   }
-  host.setFile(file, text)
-  program = ts.createProgram({
-    rootNames: [file],
-    options: testOptions,
-    host,
-  })
-  templates.set(file, program)
-  // A few templates are enough, since jobs come grouped by file.
-  for (const key of templates.keys()) {
-    if (templates.size <= 4) break
-    templates.delete(key)
-  }
-  return program
 }
 
 function scan(job: ScanJob): ScanResult {
@@ -474,7 +491,9 @@ function scan(job: ScanJob): ScanResult {
   // Lines under a comment directive, such as `@ts-expect-error`, hold a deliberate type error.
   const covered = new Set<number>()
   for (const directive of (
-    source as unknown as { commentDirectives?: { range: TS.TextRange }[] }
+    source as unknown as {
+      commentDirectives?: readonly { range: TS.TextRange }[]
+    }
   ).commentDirectives ?? [])
     covered.add(
       source.getLineAndCharacterOfPosition(directive.range.end).line + 1,
@@ -631,7 +650,7 @@ function scan(job: ScanJob): ScanResult {
   }
 
   /** The names of the `describe` and `test` calls around a node, outermost first. */
-  function testPath(node: TS.Node): string[] {
+  function testPath(node: TS.Node): readonly string[] {
     const names: string[] = []
     for (let current = node.parent; current; current = current.parent) {
       if (!ts.isCallExpression(current)) continue
@@ -715,8 +734,8 @@ function isStatement(node: TS.Node): node is TS.Statement {
   )
 }
 
-function measure(job: MeasureJob): MeasureResult {
-  const base = template(job.file, job.text)
+function measure(job: MeasureJob, templates: Templates): MeasureResult {
+  const base = templates.get(job.file, job.text)
   // A tree with parent pointers to copy calls from, which the template's unbound file lacks.
   const source = ts.createSourceFile(
     job.file,
@@ -726,11 +745,14 @@ function measure(job: MeasureJob): MeasureResult {
   )
   const measurements: Measurement[] = []
   for (const site of job.sites) {
-    const call = findCall(source, site.start, site.end)
+    const call = findCall(source, { end: site.end, start: site.start })
     if (!call) throw new Error(`no call at ${site.start} in ${job.file}`)
     let outer: TS.Node = call
     while (outer.end < site.outer) outer = outer.parent
-    const measured = check(base, site, copy(source, call, outer))
+    const measured = check(base, {
+      copied: copy(call, { outer, source }),
+      site,
+    })
     measurements.push({ site: site.site, ...measured })
   }
   host.setFile(job.file, source.text)
@@ -738,7 +760,7 @@ function measure(job: MeasureJob): MeasureResult {
 }
 
 /** The text of a measured call, and the declarations of the calls in its arguments. */
-type Copy = { hoisted: string[]; text: string; callLength: number }
+type Copy = { hoisted: readonly string[]; text: string; callLength: number }
 
 /**
  * Copies a call, with any calls chained on it up to `outer`. A call in its arguments, such as
@@ -746,11 +768,8 @@ type Copy = { hoisted: string[]; text: string; callLength: number }
  * it moves into a declaration of its own, `const $uphill0 = ...`, which the warm-up resolves like
  * any other fixture. A call inside a callback stays, since it may name the callback's parameters.
  */
-function copy(
-  source: TS.SourceFile,
-  call: TS.CallExpression,
-  outer: TS.Node,
-): Copy {
+function copy(call: TS.CallExpression, options: copy.Options): Copy {
+  const { outer, source } = options
   const replacements: { start: number; end: number; text: string }[] = []
   const hoisted: string[] = []
   // The spine: the call, and the calls chained on it, whose callees stay as written.
@@ -798,6 +817,11 @@ function copy(
   }
 }
 
+declare namespace copy {
+  /** The end of the copied chain, and the file that holds the call. */
+  type Options = { outer: TS.Node; source: TS.SourceFile }
+}
+
 /**
  * Puts a copied call in `const $uphill = <call>` at its statement's full start, on a line of its
  * own so a comment directive above the statement still applies to the statement, after the
@@ -815,15 +839,18 @@ function copy(
  */
 function check(
   base: TS.Program,
-  site: MeasureJob['sites'][number],
-  copied: Copy,
+  options: check.Options,
 ): Omit<Measurement, 'site'> {
+  const { copied, site } = options
   const file = base.getRootFileNames()[0]!
   const original = base.getSourceFile(file)!.text
   const before = copied.hoisted.map((line) => `\n${line}`).join('')
   const prefix = `${before}\nconst ${copyName} = `
   const text = `${original.slice(0, site.anchor)}${prefix}${copied.text};${original.slice(site.anchor)}`
-  host.setFile(file, reduce(file, text, site.anchor + before.length + 1))
+  host.setFile(
+    file,
+    reduce(text, { file, position: site.anchor + before.length + 1 }),
+  )
   const program = ts.createProgram({
     rootNames: [file],
     options: testOptions,
@@ -836,7 +863,10 @@ function check(
   const statement = findStatement(source, site.anchor + before.length + 1)
   const declaration = statement.declarationList.declarations[0]!
   const outer = declaration.initializer!
-  const call = findCall(outer, callStart, callStart + copied.callLength)
+  const call = findCall(outer, {
+    end: callStart + copied.callLength,
+    start: callStart,
+  })
   if (!call) throw new Error(`no copy of the call at ${callStart} in ${file}`)
 
   // Warm up: what the call references from outside it, and the callee's declared signature.
@@ -883,13 +913,19 @@ function check(
   }
 }
 
+declare namespace check {
+  /** The copy of the call, and the spans of its site. */
+  type Options = { copied: Copy; site: MeasureJob['sites'][number] }
+}
+
 /**
  * Replaces with spaces every statement the copy at `position` cannot depend on: in each statement
  * list around it, the calls to the test API before it, such as other tests and `expect(...)`, and
  * everything after it but hoisted declarations. Declarations, imports, and statements before it
  * that might narrow a variable stay.
  */
-function reduce(file: string, text: string, position: number): string {
+function reduce(text: string, options: reduce.Options): string {
+  const { file, position } = options
   const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true)
   const copy = findStatement(source, position)
   const blank: TS.Statement[] = []
@@ -935,6 +971,11 @@ function reduce(file: string, text: string, position: number): string {
   }
 }
 
+declare namespace reduce {
+  /** The file's path, and the position of the copy's statement. */
+  type Options = { file: string; position: number }
+}
+
 function findStatement(source: TS.SourceFile, position: number) {
   let found: TS.VariableStatement | undefined
   const visit = (node: TS.Node) => {
@@ -952,7 +993,8 @@ function findStatement(source: TS.SourceFile, position: number) {
   return found
 }
 
-function findCall(node: TS.Node, start: number, end: number) {
+function findCall(node: TS.Node, options: findCall.Options) {
+  const { end, start } = options
   let found: TS.CallExpression | undefined
   const visit = (child: TS.Node) => {
     if (found || child.end < end || child.pos > start) return
@@ -966,6 +1008,11 @@ function findCall(node: TS.Node, start: number, end: number) {
   }
   visit(node)
   return found
+}
+
+declare namespace findCall {
+  /** The span of the call. */
+  type Options = { end: number; start: number }
 }
 
 /**
@@ -982,11 +1029,12 @@ function warm(checker: TS.TypeChecker, node: TS.Node) {
         (ts.isPropertyAccessExpression(parent) && parent.name === child) ||
         (ts.isPropertyAssignment(parent) && parent.name === child) ||
         (ts.isQualifiedName(parent) && parent.right === child)
-      const symbol = skip
-        ? undefined
-        : ts.isShorthandPropertyAssignment(parent)
-          ? checker.getShorthandAssignmentValueSymbol(parent)
-          : checker.getSymbolAtLocation(child)
+      const symbol = (() => {
+        if (skip) return undefined
+        if (ts.isShorthandPropertyAssignment(parent))
+          return checker.getShorthandAssignmentValueSymbol(parent)
+        return checker.getSymbolAtLocation(child)
+      })()
       if (symbol && !seen.has(symbol)) {
         seen.add(symbol)
         const target = resolveAlias(checker, symbol)

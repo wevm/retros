@@ -27,7 +27,7 @@
  *     error?: string // the first such error's message, and the test that saw it
  *     errorWhere?: string
  *     ok: {
- *       args: string // the arguments, encoded as below; `decode(args, rebuild)` rebuilds them
+ *       args: string // the arguments, encoded as below; `decode(args, { rebuild })` rebuilds them
  *       n: number // how many recorded calls passed exactly these arguments
  *       direct: boolean // at least one of them came from test code
  *       where: string // the first test that made it: `<test file> > <describe> > <test>`
@@ -85,6 +85,7 @@ export const maxEncodedLength = 1_200_000
 
 /** Why a call's arguments cannot be rebuilt in another process. */
 export class Unreplayable extends Error {
+  override name = 'Speed.Unreplayable'
   reason: string
   constructor(reason: string) {
     super(reason)
@@ -123,9 +124,9 @@ export type Hooks = {
 /** How `decode` rebuilds the values that are not plain data. */
 export type Rebuild = {
   /** Makes a recorded call again. */
-  call: (key: string, args: unknown[]) => unknown
+  call: (key: string, args: readonly unknown[]) => unknown
   /** Constructs a recorded class instance, such as an error, again. */
-  construct: (key: string, args: unknown[]) => unknown
+  construct: (key: string, args: readonly unknown[]) => unknown
   /** The value at an export path. */
   ref: (key: string) => unknown
 }
@@ -168,7 +169,7 @@ export function encodePlain(value: unknown): string {
 }
 
 /** The export keys `decode` needs to rebuild values, so their modules can load first. */
-export function keys(text: string): string[] {
+export function keys(text: string): readonly string[] {
   return [
     ...new Set(
       [...text.matchAll(/"\$(?:await|call|new|ref)":"([^"]+)"/g)].map(
@@ -186,9 +187,9 @@ export function keys(text: string): string[] {
  */
 export async function decode(
   text: string,
-  rebuild?: Rebuild,
-  origins?: Map<object, unknown>,
-): Promise<unknown[]> {
+  options: decode.Options = {},
+): Promise<readonly unknown[]> {
+  const { origins, rebuild } = options
   const need = () => {
     if (!rebuild) throw new Error('decode needs `rebuild` to rebuild values')
     return rebuild
@@ -198,13 +199,13 @@ export async function decode(
       origins?.set(result, node)
     return result
   }
-  const decodeAll = async (values: unknown[]) => {
+  const decodeAll = async (values: readonly unknown[]) => {
     const out: unknown[] = []
     for (const value of values) out.push(await decodeValue(value))
     return out
   }
   const at = (value: unknown, path: unknown) => {
-    for (const property of (path as string[] | undefined) ?? [])
+    for (const property of (path as readonly string[] | undefined) ?? [])
       value = (value as Record<string, unknown>)[property]
     return value
   }
@@ -224,29 +225,29 @@ export async function decode(
     if ('$ref' in record)
       return remember(need().ref(record.$ref as string), record)
     if ('$call' in record) {
-      const args = await decodeAll(record.$args as unknown[])
+      const args = await decodeAll(record.$args as readonly unknown[])
       const result = need().call(record.$call as string, args)
       return remember(at(result, record.$path), record)
     }
     if ('$await' in record) {
-      const args = await decodeAll(record.$args as unknown[])
+      const args = await decodeAll(record.$args as readonly unknown[])
       const result = await need().call(record.$await as string, args)
       return remember(at(result, record.$path), record)
     }
     if ('$new' in record) {
-      const args = await decodeAll(record.$args as unknown[])
+      const args = await decodeAll(record.$args as readonly unknown[])
       const result = need().construct(record.$new as string, args)
       return remember(at(result, record.$path), record)
     }
     if ('$map' in record) {
       const out = new Map()
-      for (const [key, item] of record.$map as [unknown, unknown][])
+      for (const [key, item] of record.$map as readonly [unknown, unknown][])
         out.set(await decodeValue(key), await decodeValue(item))
       return out
     }
     if ('$set' in record) {
       const out = new Set()
-      for (const item of record.$set as unknown[])
+      for (const item of record.$set as readonly unknown[])
         out.add(await decodeValue(item))
       return out
     }
@@ -275,7 +276,17 @@ export async function decode(
       out[key] = await decodeValue(source[key])
     return out
   }
-  return decodeAll(JSON.parse(text) as unknown[])
+  return decodeAll(JSON.parse(text) as readonly unknown[])
+}
+
+/** The options of `decode`. */
+export declare namespace decode {
+  type Options = {
+    /** Learns the encoded form of each value rebuilt from a call, an export, or a source. */
+    origins?: Map<object, unknown> | undefined
+    /** Rebuilds values from calls, exports, and sources. Encoded arguments without them need none. */
+    rebuild?: Rebuild | undefined
+  }
 }
 
 /**
@@ -309,13 +320,13 @@ export function decodePlain(value: unknown): unknown {
   if ('$d' in record) return new Date(record.$d as number)
   if ('$map' in record)
     return new Map(
-      (record.$map as [unknown, unknown][]).map(([key, item]) => [
-        decodePlain(key),
-        decodePlain(item),
+      (record.$map as readonly [unknown, unknown][]).map((entry) => [
+        decodePlain(entry[0]),
+        decodePlain(entry[1]),
       ]),
     )
   if ('$set' in record)
-    return new Set((record.$set as unknown[]).map(decodePlain))
+    return new Set((record.$set as readonly unknown[]).map(decodePlain))
   const source = ('$o' in record ? record.$o : record) as Record<
     string,
     unknown
@@ -370,11 +381,11 @@ function encodeValue(value: unknown, context: Context): unknown {
         for (const origin of origins)
           try {
             const args = origin.args.map((arg) => encodeValue(arg, context))
-            const tag = origin.construct
-              ? '$new'
-              : origin.async
-                ? '$await'
-                : '$call'
+            const tag = (() => {
+              if (origin.construct) return '$new'
+              if (origin.async) return '$await'
+              return '$call'
+            })()
             return origin.path
               ? { [tag]: origin.key, $args: args, $path: origin.path }
               : { [tag]: origin.key, $args: args }
@@ -420,9 +431,9 @@ function encodeStructure(object: object, context: Context): unknown {
     // has behavior of its own, so it is an instance like any other.
     if (proto === Map.prototype)
       return {
-        $map: [...(object as Map<unknown, unknown>)].map(([key, item]) => [
-          encodeValue(key, context),
-          encodeValue(item, context),
+        $map: [...(object as Map<unknown, unknown>)].map((entry) => [
+          encodeValue(entry[0], context),
+          encodeValue(entry[1], context),
         ]),
       }
     if (proto === Set.prototype)
@@ -532,7 +543,7 @@ type AstNode = {
   shorthand?: boolean
   key?: AstNode
   value?: AstNode
-  properties?: AstNode[]
+  properties?: readonly AstNode[]
   [key: string]: unknown
 }
 
@@ -541,7 +552,7 @@ type AstNode = {
  * in the source as declared everywhere in it, which can only let a closure through as a function
  * that then throws when replayed, never reject a self-contained one.
  */
-function freeNames(root: AstNode): string[] {
+function freeNames(root: AstNode): readonly string[] {
   const declared = new Set<string>()
   const used = new Set<string>()
   const declare = (pattern: AstNode | null | undefined) => {
@@ -556,7 +567,7 @@ function freeNames(root: AstNode): string[] {
           declare(property.value)
         }
     else if (pattern.type === 'ArrayPattern')
-      for (const element of pattern.elements as (AstNode | null)[])
+      for (const element of pattern.elements as readonly (AstNode | null)[])
         declare(element)
     else if (pattern.type === 'RestElement')
       declare(pattern.argument as AstNode)
@@ -575,7 +586,7 @@ function freeNames(root: AstNode): string[] {
       case 'FunctionDeclaration':
       case 'ArrowFunctionExpression':
         declare(node.id as AstNode)
-        for (const param of node.params as AstNode[]) declare(param)
+        for (const param of node.params as readonly AstNode[]) declare(param)
         visit(node.body as AstNode)
         return
       case 'ClassDeclaration':

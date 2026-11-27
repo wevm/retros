@@ -23,12 +23,12 @@
  * @module
  */
 
-import { execFileSync } from 'node:child_process'
+import * as childProcess from 'node:child_process'
 import * as fs from 'node:fs'
 import * as inspector from 'node:inspector/promises'
-import { createRequire, syncBuiltinESMExports } from 'node:module'
+import * as nodeModule from 'node:module'
 import * as path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import * as url from 'node:url'
 
 import * as acorn from 'acorn'
 import fc from 'fast-check'
@@ -36,27 +36,20 @@ import fc from 'fast-check'
 import {
   type Base,
   type Crash,
-  classify,
-  clone,
+  create,
   Failure,
-  format,
+  type Fuzzer,
   hash32,
   homogeneous,
   isSchema,
   keepsType,
   type Mutant,
-  markOpaque,
-  markRebuilt,
-  mutate,
-  named,
   type Properties,
   type Property,
   prng,
   type Shapes,
-  shapesOf,
   short,
   site,
-  sizeOf,
 } from './fuzz-lib.ts'
 import * as library from './library.ts'
 import { decode, keys } from './speed-codec.ts'
@@ -68,7 +61,7 @@ const config = library.config.fuzz ?? {}
 /** The project's properties module, or none. */
 const project: Properties = config.properties
   ? await import(
-      pathToFileURL(path.resolve(library.root, config.properties)).href
+      url.pathToFileURL(path.resolve(library.root, config.properties)).href
     )
   : {}
 const budgets = project.budgets ?? []
@@ -92,7 +85,7 @@ const slowCallMs = 3_000
  * iteration count, from `fuzz.slow`.
  */
 const limitOf = (name: string) =>
-  config.slow?.find(([pattern]) => pattern.test(name))?.[1]
+  config.slow?.find((entry) => entry[0].test(name))?.[1]
 /** Distinct failures kept per function. */
 const failuresPerFunction = 3
 /** Attempts the minimizer makes per failure. */
@@ -104,7 +97,7 @@ const documentedErrors = new Map(Object.entries(config.documentedErrors ?? {}))
 type Item = {
   name: string
   entry: string
-  fn: (...args: unknown[]) => unknown
+  fn: (...args: readonly unknown[]) => unknown
   self: unknown
   package?: string | undefined
   params: string
@@ -119,7 +112,7 @@ export type Planned = {
   /** The function's package. The plan skips dependency functions, so it stays `undefined`. */
   package?: string | undefined
   /** The IDs of the structured properties that cover the function. */
-  properties: string[]
+  properties: readonly string[]
   /** The number of recorded and hand-written argument sets to mutate. */
   seeds: number
   /** Why the function has no harness. */
@@ -170,7 +163,10 @@ async function loadEntries() {
   const items: Item[] = []
   const byFunction = new Map<unknown, Item>()
   const walked = new Set<unknown>()
-  const walk = (entry: string, name: string, value: unknown, self: unknown) => {
+  /** Where the walk reaches a value: the entry, the path from it, and the object that holds it. */
+  type Walk = { entry: string; name: string; self: unknown }
+  const walk = (value: unknown, at: Walk) => {
+    const { entry, name, self } = at
     if (typeof value === 'function') {
       if (isClass(value)) {
         walked.add(value)
@@ -193,18 +189,22 @@ async function loadEntries() {
       if (walked.has(value)) return
       walked.add(value)
       for (const [key, member] of Object.entries(value))
-        walk(entry, name ? `${name}.${key}` : key, member, value)
+        walk(member, {
+          entry,
+          name: name ? `${name}.${key}` : key,
+          self: value,
+        })
       return
     }
     if (value && typeof value === 'object') walked.add(value)
   }
   for (const entry of library.entries()) {
-    const module = await import(pathToFileURL(entry.file).href)
+    const module = await import(url.pathToFileURL(entry.file).href)
     modules[entry.name] = module
     if (walked.has(module)) continue
     walked.add(module)
     for (const [key, value] of Object.entries(module))
-      walk(entry.name, key, value, module)
+      walk(value, { entry: entry.name, name: key, self: module })
   }
   const names = new Map<string, string | undefined>()
   const nameOf = (key: string) => {
@@ -228,11 +228,8 @@ async function loadEntries() {
  * arguments, to which the properties module's `library` adds what its properties need, such as
  * reference implementations.
  */
-async function loadLib(
-  modules: Record<string, Record<string, unknown>>,
-  recorded: Map<string, unknown[][]>,
-  nameOf: (key: string) => string | undefined,
-) {
+async function loadLib(fuzzer: Fuzzer, options: loadLib.Options) {
+  const { modules, nameOf, recorded } = options
   const base: Base = {
     BaseError: (() => {
       if (!config.baseError) return Error
@@ -248,8 +245,13 @@ async function loadLib(
     })(),
     fc,
     modules,
+    // oxlint-disable-next-line eslint/max-params -- Properties modules call `mutate` positionally, so its signature is a public contract.
     mutate(seed, pool, random, count) {
-      const mutant = mutate(seed, prng(random), shapesOf(pool), count)
+      const mutant = fuzzer.mutate(seed, {
+        count,
+        random: prng(random),
+        shapes: fuzzer.shapesOf(pool),
+      })
       return mutant.typed ? mutant.args : undefined
     },
     recorded: (name) => recorded.get(nameOf(name) ?? name) ?? [],
@@ -258,11 +260,20 @@ async function loadLib(
   return project.library ? project.library(base) : base
 }
 
+declare namespace loadLib {
+  /** The library's entry modules, the recorded argument sets, and the item names. */
+  type Options = {
+    modules: Record<string, Record<string, unknown>>
+    nameOf: (key: string) => string | undefined
+    recorded: ReadonlyMap<string, readonly (readonly unknown[])[]>
+  }
+}
+
 /** The value a recorded key (`src/<file>.ts#<export path>`) names in the build. */
 async function resolveKey(key: string): Promise<unknown> {
   const [file, exportPath] = key.split('#') as [string, string]
   let value: unknown = await import(
-    pathToFileURL(library.built(file)).href
+    url.pathToFileURL(library.built(file)).href
   ).catch(() => null)
   for (const part of exportPath.split('.'))
     value =
@@ -273,7 +284,7 @@ async function resolveKey(key: string): Promise<unknown> {
 }
 
 type Corpus = {
-  functions: Record<string, { seeds: string[] }>
+  functions: Record<string, { seeds: readonly string[] }>
 }
 
 /**
@@ -285,11 +296,11 @@ function corpusSeeds(
   corpus: Corpus,
   nameOf: (key: string) => string | undefined,
 ) {
-  const out = new Map<string, string[]>()
+  const out = new Map<string, readonly string[]>()
   for (const [key, { seeds }] of Object.entries(corpus.functions)) {
     const item = nameOf(key)
     if (!item) continue
-    const texts = out.get(item) ?? []
+    const texts = [...(out.get(item) ?? [])]
     for (const text of seeds) if (!texts.includes(text)) texts.push(text)
     out.set(item, texts)
   }
@@ -297,30 +308,30 @@ function corpusSeeds(
 }
 
 /** Rebuilds recorded argument sets, skipping any that cannot be rebuilt. */
-async function seedsFor(texts: string[]) {
+async function seedsFor(fuzzer: Fuzzer, texts: readonly string[]) {
   const exports = new Map<string, unknown>()
   for (const text of texts)
     for (const key of keys(text))
       if (!exports.has(key)) exports.set(key, await resolveKey(key))
   const rebuild = {
     ref: (key: string) => exports.get(key),
-    call: (key: string, args: unknown[]) => {
+    call: (key: string, args: readonly unknown[]) => {
       const fn = exports.get(key)
       if (typeof fn !== 'function') throw new Error(`${key} is not a function`)
       return fn(...args)
     },
-    construct: (key: string, args: unknown[]) => {
+    construct: (key: string, args: readonly unknown[]) => {
       const fn = exports.get(key)
       if (typeof fn !== 'function') throw new Error(`${key} is not a class`)
       return Reflect.construct(fn, args)
     },
   }
-  const seeds: unknown[][] = []
+  const seeds: (readonly unknown[])[] = []
   for (const text of texts) {
     try {
       const origins = new Map<object, unknown>()
-      const args = await decode(text, rebuild, origins)
-      markRebuilt(origins)
+      const args = await decode(text, { origins, rebuild })
+      fuzzer.markRebuilt(origins)
       seeds.push(args)
     } catch {}
   }
@@ -329,10 +340,10 @@ async function seedsFor(texts: string[]) {
 
 /** Hand-written argument sets by function name, from the properties module's `seeds`. */
 function writtenSeeds(
-  written: Record<string, unknown[][]>,
+  written: Record<string, readonly (readonly unknown[])[]>,
   nameOf: (key: string) => string | undefined,
 ) {
-  const out = new Map<string, unknown[][]>()
+  const out = new Map<string, readonly (readonly unknown[])[]>()
   for (const [key, sets] of Object.entries(written)) {
     const item = nameOf(key) ?? key
     out.set(item, [...(out.get(item) ?? []), ...sets])
@@ -367,29 +378,22 @@ const longestSeed = 40_000
  */
 async function buildCorpus() {
   const [recordingFile, output] = rest as [string, string]
+  type Sample = { args: string; direct: boolean; n: number; where: string }
   const recording = JSON.parse(fs.readFileSync(recordingFile, 'utf8')) as {
     hash: string
     createdAt: string
-    keys: Record<
-      string,
-      { ok: { args: string; n: number; direct: boolean; where: string }[] }
-    >
+    keys: Record<string, { ok: readonly Sample[] }>
   }
   const { items } = await loadEntries()
   const byFunction = new Map(items.map((item) => [item.fn as unknown, item]))
-  const samples = new Map<
-    string,
-    { args: string; n: number; direct: boolean; where: string }[]
-  >()
+  const samples = new Map<string, readonly Sample[]>()
   for (const [key, value] of Object.entries(recording.keys)) {
     const item = byFunction.get(await resolveKey(key))
     if (!item) continue
-    if (!samples.has(item.name)) samples.set(item.name, [])
-    samples.get(item.name)!.push(...value.ok)
+    samples.set(item.name, [...(samples.get(item.name) ?? []), ...value.ok])
   }
   const functions: Record<string, { seeds: string[]; where: string[] }> = {}
   for (const name of [...samples.keys()].sort()) {
-    type Sample = { args: string; direct: boolean; n: number; where: string }
     const unique = new Map<string, Sample>()
     // A recorded client (`$client`) cannot be rebuilt.
     for (const sample of samples.get(name)!)
@@ -430,19 +434,20 @@ async function buildCorpus() {
   // Over the limit, drop the longest seed of the function with the most until it fits.
   const corpusSize = () =>
     Object.values(functions).reduce(
-      (total, { seeds, where }) =>
-        total + seeds.join('').length * 1.2 + where.join('').length,
+      (total, entry) =>
+        total + entry.seeds.join('').length * 1.2 + entry.where.join('').length,
       0,
     )
   while (corpusSize() > (config.maxLength ?? Number.POSITIVE_INFINITY)) {
     const [name, entry] = Object.entries(functions).sort(
-      ([a, x], [b, y]) => y.seeds.length - x.seeds.length || (a < b ? -1 : 1),
+      (left, right) =>
+        right[1].seeds.length - left[1].seeds.length ||
+        (left[0] < right[0] ? -1 : 1),
     )[0]!
     if (entry.seeds.length <= 1) break
-    const longest = entry.seeds.reduce(
-      (best, seed, i) => (seed.length > entry.seeds[best]!.length ? i : best),
-      0,
-    )
+    // The first of the longest seeds.
+    const lengths = entry.seeds.map((seed) => seed.length)
+    const longest = lengths.indexOf(Math.max(...lengths))
     entry.seeds.splice(longest, 1)
     entry.where.splice(longest, 1)
     functions[name] = entry
@@ -461,9 +466,13 @@ async function buildCorpus() {
   const [command, ...args] = config.format ?? []
   if (command)
     try {
-      execFileSync(path.resolve(library.root, command), [...args, output], {
-        cwd: library.root,
-      })
+      childProcess.execFileSync(
+        path.resolve(library.root, command),
+        [...args, output],
+        {
+          cwd: library.root,
+        },
+      )
     } catch {}
 }
 
@@ -471,24 +480,23 @@ async function plan() {
   const [corpusFile, output] = rest as [string, string]
   blockNetwork()
   const corpus = JSON.parse(fs.readFileSync(corpusFile, 'utf8')) as Corpus
+  const fuzzer = create()
   const { modules, items, nameOf } = await loadEntries()
   const texts = corpusSeeds(corpus, nameOf)
-  const recorded = new Map<string, unknown[][]>()
+  const recorded = new Map<string, readonly (readonly unknown[])[]>()
   for (const item of items)
-    recorded.set(item.name, await seedsFor(texts.get(item.name) ?? []))
-  const lib = await loadLib(modules, recorded, nameOf)
+    recorded.set(item.name, await seedsFor(fuzzer, texts.get(item.name) ?? []))
+  const lib = await loadLib(fuzzer, { modules, nameOf, recorded })
   const props = properties(lib)
   const unknownCovers = props.flatMap((prop) =>
     prop.covers
       .filter((name) => !nameOf(name))
       .map((name) => `${prop.id}: ${name}`),
   )
-  const byName = new Map<string, Property[]>()
+  const byName = new Map<string, readonly Property[]>()
   for (const prop of props)
-    for (const name of coveredBy(prop, nameOf)) {
-      if (!byName.has(name)) byName.set(name, [])
-      byName.get(name)!.push(prop)
-    }
+    for (const name of coveredBy(prop, nameOf))
+      byName.set(name, [...(byName.get(name) ?? []), prop])
 
   const locations = await functionLocations(items)
   const synthetic = writtenSeeds(seeds(lib), nameOf)
@@ -531,12 +539,12 @@ async function plan() {
 }
 
 /** Each function's source location, from its `[[FunctionLocation]]`. */
-async function functionLocations(items: Item[]) {
+async function functionLocations(items: readonly Item[]) {
   const session = new inspector.Session()
   session.connect()
   const scripts = new Map<string, string>()
-  session.on('Debugger.scriptParsed', ({ params }) =>
-    scripts.set(params.scriptId, params.url),
+  session.on('Debugger.scriptParsed', (message) =>
+    scripts.set(message.params.scriptId, message.params.url),
   )
   await session.post('Debugger.enable')
   const locations = new Map<unknown, Location>()
@@ -568,7 +576,7 @@ async function functionLocations(items: Item[]) {
 }
 
 type Job = {
-  items: string[]
+  items: readonly string[]
   corpus: string
   locations: Record<string, Location>
   trace?: string | undefined
@@ -592,13 +600,16 @@ async function fuzz() {
   })
 
   const corpus = JSON.parse(fs.readFileSync(job.corpus, 'utf8')) as Corpus
+  const fuzzer = create()
+  // The sources that coverage reads, parsed once per worker.
+  const sources = new Map<string, Source>()
   const { modules, items, nameOf } = await loadEntries()
   // Recorded arguments are rebuilt up front: properties re-encode them too.
   const texts = corpusSeeds(corpus, nameOf)
-  const recorded = new Map<string, unknown[][]>()
+  const recorded = new Map<string, readonly (readonly unknown[])[]>()
   for (const name of job.items)
-    recorded.set(name, await seedsFor(texts.get(name) ?? []))
-  const lib = await loadLib(modules, recorded, nameOf)
+    recorded.set(name, await seedsFor(fuzzer, texts.get(name) ?? []))
+  const lib = await loadLib(fuzzer, { modules, nameOf, recorded })
   const props = properties(lib).map((prop) => ({
     prop,
     covers: coveredBy(prop, nameOf),
@@ -644,13 +655,19 @@ async function fuzz() {
 
     for (const { prop, covers } of props) {
       if (!covers.includes(name)) continue
-      const runs = await runProperty(prop, name, nameOf, add, traceFd)
+      const runs = await runProperty(prop, {
+        add,
+        fuzzer,
+        name,
+        nameOf,
+        traceFd,
+      })
       result.harnesses.push({ id: prop.id, oracle: prop.oracle, runs })
       result.calls += runs
     }
     const own = recorded.get(name) ?? []
     if (own.length) {
-      const calls = await runCorpus(item, own, add, traceFd)
+      const calls = await runCorpus(item, { add, fuzzer, seeds: own, traceFd })
       result.harnesses.push({
         id: `corpus (${own.length} recorded argument sets)`,
         oracle: 'crash',
@@ -659,17 +676,26 @@ async function fuzz() {
       result.calls += calls
     }
     // Hand-written seeds only count when they run as written: a wrong seed is the fuzzer's bug.
-    const written: unknown[][] = []
+    const written: (readonly unknown[])[] = []
     for (const args of synthetic.get(name) ?? []) {
-      markOpaque(args)
+      fuzzer.markOpaque(args)
       try {
-        let value = item.fn.apply(item.self, clone(args))
+        let value: unknown = Reflect.apply(
+          item.fn,
+          item.self,
+          fuzzer.clone(args),
+        )
         if (isThenable(value)) value = await withTimeout(value, asyncTimeoutMs)
         written.push(args)
       } catch {}
     }
     if (written.length) {
-      const calls = await runCorpus(item, written, add, traceFd)
+      const calls = await runCorpus(item, {
+        add,
+        fuzzer,
+        seeds: written,
+        traceFd,
+      })
       result.harnesses.push({
         id: `seeds (${written.length} hand-written argument sets)`,
         oracle: 'crash',
@@ -684,8 +710,8 @@ async function fuzz() {
     const location = job.locations[name]
     if (location)
       result.coverage = coverageOf(
-        coverage as unknown as ScriptCoverage[],
-        location,
+        coverage as unknown as readonly ScriptCoverage[],
+        { location, sources },
       )
     result.ms = performance.now() - started
     fs.appendFileSync(output, `${JSON.stringify(result)}\n`)
@@ -698,18 +724,13 @@ async function fuzz() {
 }
 
 /** Runs one property with its own fixed seed and run count, and records its failure. */
-async function runProperty(
-  prop: Property,
-  name: string,
-  nameOf: (key: string) => string | undefined,
-  add: (failure: FailureRecord) => void,
-  traceFd: number | undefined,
-) {
+async function runProperty(prop: Property, options: runProperty.Options) {
+  const { add, fuzzer, name, nameOf, traceFd } = options
   const check = (input: unknown) => {
     if (traceFd !== undefined)
       fs.writeSync(
         traceFd,
-        `${JSON.stringify({ harness: prop.id, input: format(input, 2000) })}\n`,
+        `${JSON.stringify({ harness: prop.id, input: fuzzer.format(input, 2000) })}\n`,
       )
     return prop.check(input)
   }
@@ -734,7 +755,7 @@ async function runProperty(
         oracle: prop.oracle,
         harness: prop.id,
         kind: failure?.kind ?? (error as Error)?.name ?? 'failed',
-        input: format(details.counterexample?.[0], 600),
+        input: fuzzer.format(details.counterexample?.[0], 600),
         message: short(
           failure?.message ?? String((error as Error)?.message ?? error),
           300,
@@ -746,20 +767,27 @@ async function runProperty(
   return details.numRuns
 }
 
+declare namespace runProperty {
+  /** The function under test, where failures go, and the trace file. */
+  type Options = {
+    add: (failure: FailureRecord) => void
+    fuzzer: Fuzzer
+    name: string
+    nameOf: (key: string) => string | undefined
+    traceFd: number | undefined
+  }
+}
+
 /**
  * Calls the function with each recorded argument set, then with boundary mutations of them, and
  * applies the crash oracle and the output check to each call.
  */
-async function runCorpus(
-  item: Item,
-  seeds: unknown[][],
-  add: (failure: FailureRecord) => void,
-  traceFd: number | undefined,
-) {
+async function runCorpus(item: Item, options: runCorpus.Options) {
+  const { add, fuzzer, seeds, traceFd } = options
   const budget =
-    budgets.find(([pattern]) => pattern.test(item.name))?.[1] ?? mutations
+    budgets.find((entry) => entry[0].test(item.name))?.[1] ?? mutations
   const random = prng(hash32(item.name))
-  const shapes = shapesOf(seeds)
+  const shapes = fuzzer.shapesOf(seeds)
   let calls = 0
   const seen = new Set<string>()
   const attempt = async (mutant: Mutant) => {
@@ -767,12 +795,12 @@ async function runCorpus(
     if (traceFd !== undefined)
       fs.writeSync(
         traceFd,
-        `${JSON.stringify({ harness: 'corpus', input: describe(item, mutant.args), changes: mutant.changes })}\n`,
+        `${JSON.stringify({ harness: 'corpus', input: describe(item, { args: mutant.args, fuzzer }), changes: mutant.changes })}\n`,
       )
-    return check(item, mutant)
+    return check(item, { fuzzer, mutant })
   }
   const inputs: Mutant[] = seeds.map((seed) => ({
-    args: clone(seed),
+    args: fuzzer.clone(seed),
     typed: true,
     changes: ['as recorded'],
   }))
@@ -782,7 +810,12 @@ async function runCorpus(
   for (let i = 0; i < budget; i++) {
     const seed = seeds[i % seeds.length]!
     inputs.push(
-      mutate(seed, random, shapes, random.next() < 0.25 ? 2 : 1, params),
+      fuzzer.mutate(seed, {
+        count: random.next() < 0.25 ? 2 : 1,
+        params,
+        random,
+        shapes,
+      }),
     )
   }
   for (const mutant of inputs) {
@@ -796,19 +829,29 @@ async function runCorpus(
     const hang = crash.kind === 'hang'
     const minimized =
       mutant.typed && !hang
-        ? await minimize(item, mutant, crash, shapes)
+        ? await minimize(item, { crash, fuzzer, mutant, shapes })
         : mutant
     add({
       oracle: crash.oracle,
       harness: 'corpus',
       kind: crash.kind,
-      input: `${describe(item, minimized.args)}${mutant.typed ? '' : ' (breaks the declared type)'}`,
+      input: `${describe(item, { args: minimized.args, fuzzer })}${mutant.typed ? '' : ' (breaks the declared type)'}`,
       message: crash.message,
       site: crash.site,
     })
     if (hang) break
   }
   return calls
+}
+
+declare namespace runCorpus {
+  /** The argument sets to call with and mutate, where failures go, and the trace file. */
+  type Options = {
+    add: (failure: FailureRecord) => void
+    fuzzer: Fuzzer
+    seeds: readonly (readonly unknown[])[]
+    traceFd: number | undefined
+  }
 }
 
 type Outcome = (Crash & { oracle: string }) | undefined
@@ -833,14 +876,15 @@ function stubWindow() {
 }
 
 /** Calls the function once and returns the oracle failure, if any. */
-async function check(item: Item, mutant: Mutant): Promise<Outcome> {
-  const args = clone(mutant.args)
-  const size = sizeOf(args)
+async function check(item: Item, options: check.Options): Promise<Outcome> {
+  const { fuzzer, mutant } = options
+  const args = fuzzer.clone(mutant.args)
+  const size = fuzzer.sizeOf(args)
   const started = performance.now()
   const limit = limitOf(item.name)
   let value: unknown
   try {
-    value = item.fn.apply(item.self, args)
+    value = Reflect.apply(item.fn, item.self, args)
     if (isThenable(value))
       value = await withTimeout(value, limit ?? asyncTimeoutMs)
   } catch (error) {
@@ -850,7 +894,10 @@ async function check(item: Item, mutant: Mutant): Promise<Outcome> {
         kind: 'hang',
         message: `did not settle within ${(limit ?? asyncTimeoutMs) / 1000}s`,
       }
-    const crash = classify(error, mutant.typed, mutant.args)
+    const crash = fuzzer.classify(error, {
+      args: mutant.args,
+      typed: mutant.typed,
+    })
     if (crash && documentedErrors.get(item.name)?.test(crash.kind))
       return undefined
     return crash && { ...crash, oracle: 'crash' }
@@ -865,17 +912,26 @@ async function check(item: Item, mutant: Mutant): Promise<Outcome> {
   // An encoder whose output starts with a prefix the caller picks, such as a Bech32m
   // human-readable part, can return `0x` strings that are not hex.
   if (mutant.typed && !config.freeOutput?.includes(item.name)) {
-    const bad = garbageOutput(mutant.args, value)
+    const bad = garbageOutput(value, { args: mutant.args, fuzzer })
     if (bad) return { oracle: 'output', kind: 'invalid output', message: bad }
   }
   return undefined
+}
+
+declare namespace check {
+  /** The input to call with, and the operations that copy and classify it. */
+  type Options = { fuzzer: Fuzzer; mutant: Mutant }
 }
 
 /**
  * A typed input whose hex strings are all valid should not come back with a hex string that is
  * not hex, or with text such as `NaN`, `undefined`, or `[object Object]` it did not contain.
  */
-function garbageOutput(args: unknown[], value: unknown): string | undefined {
+function garbageOutput(
+  value: unknown,
+  options: garbageOutput.Options,
+): string | undefined {
+  const { args, fuzzer } = options
   const inputs = new Set<string>()
   let invalidInput = false
   const collect = (value: unknown, depth: number) => {
@@ -899,16 +955,17 @@ function garbageOutput(args: unknown[], value: unknown): string | undefined {
   collect(args, 0)
   if (invalidInput) return undefined
   let found: string | undefined
-  const visit = (value: unknown, where: string, depth: number) => {
+  const visit = (value: unknown, at: { depth: number; where: string }) => {
+    const { depth, where } = at
     if (found || depth > 6) return
     if (typeof value === 'string') {
       if (inputs.has(value)) return
       // A Bech32 string whose human-readable part is `0x` is not hex, and is not meant to be.
       if (/^0x1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{6,}$/.test(value)) return
       if (value.startsWith('0x') && !/^0x[0-9a-fA-F]*$/.test(value))
-        found = `returned ${format(value, 80)}${where ? ` at ${where}` : ''}, which is not hex`
+        found = `returned ${fuzzer.format(value, 80)}${where ? ` at ${where}` : ''}, which is not hex`
       else if (/^(NaN|undefined|\[object Object\])$|0xNaN|0x-/.test(value))
-        found = `returned ${format(value, 80)}${where ? ` at ${where}` : ''}`
+        found = `returned ${fuzzer.format(value, 80)}${where ? ` at ${where}` : ''}`
     } else if (
       value &&
       typeof value === 'object' &&
@@ -917,26 +974,26 @@ function garbageOutput(args: unknown[], value: unknown): string | undefined {
         Object.getPrototypeOf(value) === Object.prototype)
     )
       for (const key of Object.keys(value).slice(0, 200))
-        visit(
-          (value as Record<string, unknown>)[key],
-          where ? `${where}.${key}` : key,
-          depth + 1,
-        )
+        visit((value as Record<string, unknown>)[key], {
+          depth: depth + 1,
+          where: where ? `${where}.${key}` : key,
+        })
   }
-  visit(value, '', 0)
+  visit(value, { depth: 0, where: '' })
   return found
+}
+
+declare namespace garbageOutput {
+  /** The typed input the call returned the value for, and the formatter. */
+  type Options = { args: readonly unknown[]; fuzzer: Fuzzer }
 }
 
 /**
  * Shrinks a failing typed input while it keeps its type and fails the same way: drops fields
  * other recorded calls leave out, drops array elements, and simplifies numbers and strings.
  */
-async function minimize(
-  item: Item,
-  mutant: Mutant,
-  crash: Crash,
-  shapes: Shapes,
-) {
+async function minimize(item: Item, options: minimize.Options) {
+  const { crash, fuzzer, mutant, shapes } = options
   const signature = (outcome: Outcome) =>
     outcome && `${outcome.kind}\0${outcome.site ?? outcome.message}`
   const target = `${crash.kind}\0${crash.site ?? crash.message}`
@@ -945,10 +1002,10 @@ async function minimize(
   let improved = true
   while (improved && attempts < minimizeAttempts) {
     improved = false
-    for (const candidate of simpler(best.args, shapes)) {
+    for (const candidate of simpler(best.args, { fuzzer, shapes })) {
       if (attempts++ >= minimizeAttempts) break
       const next = { ...best, args: candidate }
-      if (signature(await check(item, next)) === target) {
+      if (signature(await check(item, { fuzzer, mutant: next })) === target) {
         best = next
         improved = true
         break
@@ -958,23 +1015,44 @@ async function minimize(
   return best
 }
 
+declare namespace minimize {
+  /** The failure to keep, the input that caused it, and the recorded shapes. */
+  type Options = {
+    crash: Crash
+    fuzzer: Fuzzer
+    mutant: Mutant
+    shapes: Shapes
+  }
+}
+
 /** Simpler variants of an argument set, one change each, that keep the declared types. */
-function* simpler(args: unknown[], shapes: Shapes): Generator<unknown[]> {
-  const paths: (string | number)[][] = []
-  const visit = (value: unknown, path: (string | number)[], depth: number) => {
+function* simpler(
+  args: readonly unknown[],
+  options: simpler.Options,
+): Generator<readonly unknown[]> {
+  const { fuzzer, shapes } = options
+  const paths: (readonly (string | number)[])[] = []
+  const visit = (value: unknown, path: readonly (string | number)[]) => {
     // A simpler ABI or EIP-712 schema is a different input, not a smaller one.
     if (isSchema(path.at(-1), value)) return
     paths.push(path)
-    if (depth > 6 || !value || typeof value !== 'object' || named.has(value))
+    // A path starts with the argument's index, so the rest of it is the depth.
+    const depth = path.length - 1
+    if (
+      depth > 6 ||
+      !value ||
+      typeof value !== 'object' ||
+      fuzzer.isNamed(value)
+    )
       return
     if (value instanceof Uint8Array) return
     for (const key of Object.keys(value))
-      visit((value as Record<string, unknown>)[key], [...path, key], depth + 1)
+      visit((value as Record<string, unknown>)[key], [...path, key])
   }
   args.forEach((arg, i) => {
-    visit(arg, [i], 0)
+    visit(arg, [i])
   })
-  const at = (root: unknown[], path: (string | number)[]) => {
+  const at = (root: readonly unknown[], path: readonly (string | number)[]) => {
     let parent: unknown = root
     for (const part of path.slice(0, -1))
       parent = (parent as Record<string | number, unknown>)[part]
@@ -1006,7 +1084,7 @@ function* simpler(args: unknown[], shapes: Shapes): Generator<unknown[]> {
     if (value instanceof Uint8Array && value.length > 1)
       variants.push(value.slice(0, value.length >> 1))
     for (const variant of variants) {
-      const copy = clone(args)
+      const copy = fuzzer.clone(args)
       const { parent } = at(copy, path)
       parent[key] = variant
       yield copy
@@ -1016,15 +1094,14 @@ function* simpler(args: unknown[], shapes: Shapes): Generator<unknown[]> {
       path.length > 1 &&
       value !== undefined &&
       typeof parent === 'object' &&
-      keepsType(
-        shapes,
-        path.slice(0, -1),
-        { ...parent, [key]: undefined },
+      keepsType(shapes, {
         args,
-      )
+        path: path.slice(0, -1),
+        record: { ...parent, [key]: undefined },
+      })
     ) {
       // Dropping a field another recorded call leaves out keeps the type.
-      const copy = clone(args)
+      const copy = fuzzer.clone(args)
       const { parent } = at(copy, path)
       delete parent[key]
       yield copy
@@ -1032,25 +1109,37 @@ function* simpler(args: unknown[], shapes: Shapes): Generator<unknown[]> {
   }
 }
 
-function describe(item: Item, args: unknown[]) {
+declare namespace simpler {
+  /** The operations that copy the input, and the recorded shapes. */
+  type Options = { fuzzer: Fuzzer; shapes: Shapes }
+}
+
+function describe(item: Item, options: describe.Options) {
   const name = item.name.split(':')[1]
-  return `${name}(${args.map((arg) => format(arg, 500)).join(', ')})`
+  return `${name}(${options.args.map((arg) => options.fuzzer.format(arg, 500)).join(', ')})`
+}
+
+declare namespace describe {
+  /** The arguments of the call, and the formatter. */
+  type Options = { args: readonly unknown[]; fuzzer: Fuzzer }
 }
 
 type ScriptCoverage = {
   url: string
-  functions: {
+  functions: readonly {
     functionName: string
-    ranges: { startOffset: number; endOffset: number; count: number }[]
+    ranges: readonly { startOffset: number; endOffset: number; count: number }[]
   }[]
 }
 
-const sources = new Map<
-  string,
-  { text: string; lineStarts: number[]; functions: [number, number][] }
->()
+/** A parsed source: its text, the offset of each line, and the range of each function. */
+type Source = {
+  text: string
+  lineStarts: readonly number[]
+  functions: readonly (readonly [number, number])[]
+}
 
-function sourceOf(url: string) {
+function sourceOf(sources: Map<string, Source>, url: string) {
   let source = sources.get(url)
   if (source) return source
   const text = fs.readFileSync(new URL(url), 'utf8')
@@ -1091,13 +1180,17 @@ function sourceOf(url: string) {
  * character sits in a block that ran. A nested function that never ran is absent from V8's report,
  * so its lines count as not run.
  */
-function coverageOf(scripts: ScriptCoverage[], location: Location) {
-  const source = sourceOf(location.url)
+function coverageOf(
+  scripts: readonly ScriptCoverage[],
+  options: coverageOf.Options,
+) {
+  const { location, sources } = options
+  const source = sourceOf(sources, location.url)
   const offset = source.lineStarts[location.line]! + location.column
   const script = scripts.find((script) => script.url === location.url)
   const ranges = script?.functions.flatMap((fn) => fn.ranges) ?? []
   // The function's own range: the innermost parsed function around its location.
-  let own: [number, number] | undefined
+  let own: readonly [number, number] | undefined
   for (const range of source.functions)
     if (
       range[0] <= offset &&
@@ -1179,7 +1272,12 @@ function coverageOf(scripts: ScriptCoverage[], location: Location) {
   }
 }
 
-function upperBound(values: number[], target: number) {
+declare namespace coverageOf {
+  /** The function's location, and the sources parsed so far. */
+  type Options = { location: Location; sources: Map<string, Source> }
+}
+
+function upperBound(values: readonly number[], target: number) {
   let low = 0
   let high = values.length
   while (low < high) {
@@ -1196,12 +1294,11 @@ function blockNetwork() {
     throw new Error('the network is disabled in the fuzzer')
   }
   globalThis.fetch = (async () => blocked()) as unknown as typeof fetch
-  ;(globalThis as { WebSocket?: unknown }).WebSocket = class {
-    constructor() {
-      blocked()
-    }
+  // A plain function throws under `new` as the constructor of a class does.
+  ;(globalThis as { WebSocket?: unknown }).WebSocket = function WebSocket() {
+    blocked()
   }
-  const require = createRequire(import.meta.url)
+  const require = nodeModule.createRequire(import.meta.url)
   const net = require('node:net')
   net.connect = net.createConnection = blocked
   const tls = require('node:tls')
@@ -1210,10 +1307,12 @@ function blockNetwork() {
     const module = require(name)
     module.request = module.get = blocked
   }
-  syncBuiltinESMExports()
+  nodeModule.syncBuiltinESMExports()
 }
 
-class TimeoutError extends Error {}
+class TimeoutError extends Error {
+  override name = 'Fuzz.TimeoutError'
+}
 
 function withTimeout<value>(promise: PromiseLike<value>, ms: number) {
   let timer: NodeJS.Timeout | undefined

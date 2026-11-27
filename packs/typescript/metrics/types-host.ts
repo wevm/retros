@@ -8,9 +8,9 @@
  * @module
  */
 
-import { execFileSync } from 'node:child_process'
+import * as childProcess from 'node:child_process'
 import * as fs from 'node:fs'
-import { createRequire } from 'node:module'
+import * as module from 'node:module'
 import * as path from 'node:path'
 
 import type * as TS from 'typescript'
@@ -26,7 +26,7 @@ import * as library from './library.ts'
 export const ts = (() => {
   for (const from of [library.manifest, import.meta.filename]) {
     try {
-      const loaded = createRequire(from)('typescript') as typeof TS
+      const loaded = module.createRequire(from)('typescript') as typeof TS
       if (loaded.createProgram) return loaded
     } catch {}
   }
@@ -121,15 +121,20 @@ export type Host = TS.CompilerHost & {
   setFile(fileName: string, text: string): void
 }
 
-const sourceFiles = new Map<string, TS.SourceFile>()
-
-/** Returns a compiler host for `options` that serves virtual files and caches parsed files. */
-export function createHost(options: TS.CompilerOptions): Host {
-  const base = ts.createCompilerHost(options)
+/**
+ * Returns a compiler host for `compilerOptions` that serves virtual files and caches parsed files
+ * in `options.sourceFiles`.
+ */
+export function createHost(
+  compilerOptions: TS.CompilerOptions,
+  options: createHost.Options,
+): Host {
+  const { sourceFiles } = options
+  const base = ts.createCompilerHost(compilerOptions)
   const cache = ts.createModuleResolutionCache(
     library.root,
     (name) => name,
-    options,
+    compilerOptions,
   )
   const virtual = new Map<string, string>()
   const exists = new Map<string, boolean>()
@@ -149,6 +154,7 @@ export function createHost(options: TS.CompilerOptions): Host {
       return virtual.get(fileName) ?? base.readFile(fileName)
     },
     getModuleResolutionCache: () => cache,
+    // oxlint-disable-next-line eslint/max-params -- TypeScript's CompilerHost fixes the signature.
     getSourceFile(fileName, languageVersion, onError) {
       const text = virtual.get(fileName)
       if (text !== undefined)
@@ -160,6 +166,7 @@ export function createHost(options: TS.CompilerOptions): Host {
       }
       return file
     },
+    // oxlint-disable-next-line eslint/max-params -- TypeScript's CompilerHost fixes the signature.
     resolveModuleNameLiterals(
       literals,
       containingFile,
@@ -220,6 +227,15 @@ export function createHost(options: TS.CompilerOptions): Host {
   return host
 }
 
+/** The types of `createHost`. */
+export declare namespace createHost {
+  /** The state that several hosts share. */
+  type Options = {
+    /** Parsed files by name, which every host that shares the map reuses. */
+    sourceFiles: Map<string, TS.SourceFile>
+  }
+}
+
 /** The memory the kernel says is available, in bytes, which caps how many workers start. */
 export function availableMemory(): number {
   const match = /^MemAvailable:\s+(\d+) kB/m.exec(
@@ -239,10 +255,11 @@ export function nodeBinary(): string {
   for (const command of [['node'], ['npx', '--yes', 'node@26']]) {
     const [version, binary] = (() => {
       try {
-        return execFileSync(command[0]!, [...command.slice(1), ...probe], {
-          encoding: 'utf8',
-          stdio: ['ignore', 'pipe', 'ignore'],
-        })
+        return childProcess
+          .execFileSync(command[0]!, [...command.slice(1), ...probe], {
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+          })
           .trim()
           .split('\n')
           .slice(-2)

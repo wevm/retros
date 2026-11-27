@@ -15,7 +15,7 @@
 
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import * as url from 'node:url'
 
 /**
  * The project's inputs, the default export of `.agents/uphill/typescript/config.ts`. Every key is
@@ -170,15 +170,15 @@ export type SpeedProject = {
   /** The vitest environment, such as `node`. */
   environment?: string | undefined
   /** Globs of test files to leave out. */
-  exclude?: string[] | undefined
+  exclude?: readonly string[] | undefined
   /** Files that run once before the project's tests. */
-  globalSetup?: string | string[] | undefined
+  globalSetup?: string | readonly string[] | undefined
   /** Globs of the project's test files, relative to the root. */
-  include?: string[] | undefined
+  include?: readonly string[] | undefined
   /** The project's name. */
   name?: string | undefined
   /** Files that run before each test file. */
-  setupFiles?: string | string[] | undefined
+  setupFiles?: string | readonly string[] | undefined
 }
 
 /** The project root, which holds package.json. */
@@ -195,7 +195,7 @@ export const configFile = path.join(local, 'config.ts')
 
 /** The project's inputs, or none when it has no `.agents/uphill/typescript/config.ts`. */
 export const config: Config = fs.existsSync(configFile)
-  ? ((await import(pathToFileURL(configFile).href)) as { default: Config })
+  ? ((await import(url.pathToFileURL(configFile).href)) as { default: Config })
       .default
   : {}
 
@@ -241,7 +241,7 @@ type Manifest = {
  * `lib/Math`, is named after the first, so an index's namespaces are named `lib:Math` rather than
  * after their own module entry.
  */
-export function entries(): Entry[] {
+export function entries(): readonly Entry[] {
   const manifest = JSON.parse(
     fs.readFileSync(path.join(root, 'package.json'), 'utf8'),
   ) as Manifest
@@ -312,12 +312,15 @@ function sourceOf(file: string): string {
 }
 
 /** Puts the root entry first, then the other index entries, then the module entries. */
-function order(list: Entry[]): Entry[] {
-  const rank = (entry: Entry) => (entry.name === name ? 0 : entry.index ? 1 : 2)
+function order(list: readonly Entry[]): readonly Entry[] {
+  const rank = (entry: Entry) => {
+    if (entry.name === name) return 0
+    return entry.index ? 1 : 2
+  }
   return list
     .map((entry, i) => [entry, i] as const)
-    .sort(([a, i], [b, j]) => rank(a) - rank(b) || i - j)
-    .map(([entry]) => entry)
+    .sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1])
+    .map((pair) => pair[0])
 }
 
 /**

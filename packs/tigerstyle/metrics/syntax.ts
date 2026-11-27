@@ -25,8 +25,7 @@ export async function create() {
 
   return async function read<T>(
     grammar: Grammar,
-    text: string,
-    inspect: (root: Node) => T,
+    options: create.read.Options<T>,
   ) {
     let parser = parsers.get(grammar)
     if (!parser) {
@@ -42,12 +41,26 @@ export async function create() {
       parsers.set(grammar, parser)
     }
 
-    const tree = parser.parse(text)
+    const tree = parser.parse(options.text)
     if (!tree) throw new Error(`Could not parse ${grammar} source`)
     try {
-      return inspect(tree.rootNode)
+      return options.inspect(tree.rootNode)
     } finally {
       tree.delete()
+    }
+  }
+}
+
+/** The types of `create`. */
+export declare namespace create {
+  /** The types of the `read` function that `create` returns. */
+  namespace read {
+    /** The source text to parse, and the callback that reads its syntax tree. */
+    type Options<T> = {
+      /** Reads the syntax tree. Nodes do not remain valid after it returns. */
+      inspect: (root: Node) => T
+      /** The source text. */
+      text: string
     }
   }
 }
@@ -59,6 +72,13 @@ type Fn = {
   line: number
   name: string
   production: boolean
+}
+
+/** The function that encloses a node, whether the node is production code, and its self-call names. */
+type Scope = {
+  fn?: Fn | undefined
+  production: boolean
+  self?: Set<string> | undefined
 }
 
 const functionTypes = new Set([
@@ -183,7 +203,7 @@ function signature(node: Node, grammar: Grammar) {
 }
 
 // A declaration hides a bare self-call (or its receiver) only in its own lexical block.
-function localBindings(node: Node): string[] {
+function localBindings(node: Node): readonly string[] {
   if (
     node.type === 'lexical_declaration' ||
     node.type === 'variable_declaration'
@@ -249,7 +269,8 @@ function compound(node: Node, rustMacro = false): boolean {
 }
 
 /** Measures syntactic calls, not call graphs. Named function bodies form separate assertion scopes. */
-export function measure(root: Node, grammar: Grammar, text: string) {
+export function measure(root: Node, options: measure.Options) {
+  const { grammar, text } = options
   const functions: Fn[] = []
   const comments: { line: number; text: string }[] = []
   const compounds: string[] = []
@@ -257,7 +278,9 @@ export function measure(root: Node, grammar: Grammar, text: string) {
   const code = text.split('')
   let error: string | undefined
 
-  function visit(node: Node, production: boolean, fn?: Fn, self?: Set<string>) {
+  function visit(node: Node, scope: Scope) {
+    const { fn, self } = scope
+    let production = scope.production
     const type = node.type
     const line = node.startPosition.row + 1
     if (!error && (node.isError || node.isMissing))
@@ -294,7 +317,7 @@ export function measure(root: Node, grammar: Grammar, text: string) {
       if (condition === '0' || condition === '1') {
         for (const child of node.namedChildren) {
           if (child && (child.id === other?.id) === (condition === '0'))
-            visit(child, production, fn, self)
+            visit(child, { fn, production, self })
         }
         return
       }
@@ -326,12 +349,11 @@ export function measure(root: Node, grammar: Grammar, text: string) {
         functions.push(current)
         for (const child of node.namedChildren)
           if (child)
-            visit(
-              child,
+            visit(child, {
+              fn: child.id === body.id ? current : undefined,
               production,
-              child.id === body.id ? current : undefined,
-              child.id === body.id ? sig.calls : undefined,
-            )
+              self: child.id === body.id ? sig.calls : undefined,
+            })
         return
       }
     }
@@ -370,7 +392,7 @@ export function measure(root: Node, grammar: Grammar, text: string) {
     let active = self
     for (const child of node.namedChildren) {
       if (!child) continue
-      visit(child, production, fn, active)
+      visit(child, { fn, production, self: active })
       if (active?.size) {
         const bindings = localBindings(child)
         if (bindings.length)
@@ -383,8 +405,19 @@ export function measure(root: Node, grammar: Grammar, text: string) {
     }
   }
 
-  visit(root, true)
+  visit(root, { production: true })
   if (!error && root.hasError)
     error = 'grammar could not parse the complete source'
   return { code: code.join(''), comments, compounds, error, functions, sized }
+}
+
+/** The types of `measure`. */
+export declare namespace measure {
+  /** The grammar of the source, and its text. */
+  type Options = {
+    /** The grammar that parsed `root`. */
+    grammar: Grammar
+    /** The source text, for comment context and blanked code. */
+    text: string
+  }
 }

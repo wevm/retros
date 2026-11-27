@@ -7,12 +7,12 @@ import * as child from 'node:child_process'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { test } from 'node:test'
-import { fileURLToPath } from 'node:url'
+import * as test from 'node:test'
+import * as url from 'node:url'
 
-const repo = fileURLToPath(new URL('../../', import.meta.url))
+const repo = url.fileURLToPath(new URL('../../', import.meta.url))
 
-test(
+test.test(
   'TypeScript pack checks participating files and preserves tool failures',
   { timeout: 60_000 },
   () => {
