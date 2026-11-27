@@ -1,5 +1,12 @@
 # uphill
 
+## 0.0.12
+
+### Patch Changes
+
+- 44307d1: Added the action's `publish` input, which published `report.html` and a badge per category to GitHub Pages from `gh-pages`, created a deployment with its URL, and linked it from the comment.
+- 2fe0857: Added the project score, the mean of the category scores, as `score` in `report.json` and as the `badges/score.json` and `badges/score.svg` badges that the action published.
+
 ## 0.0.11
 
 ### Patch Changes
