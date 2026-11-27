@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "score": 85,
   "categories": [
     {
       "name": "footprint",
@@ -15,7 +16,7 @@
           "description": null,
           "kind": "size",
           "unit": "B",
-          "value": 3002528,
+          "value": 3003216,
           "item": null,
           "score": 22,
           "target": 1000000,
@@ -101,7 +102,7 @@
       "title": "Speed",
       "subject": null,
       "description": null,
-      "score": 95,
+      "score": 97,
       "rounds": 5,
       "metrics": [
         {
@@ -110,9 +111,9 @@
           "description": null,
           "kind": "time",
           "unit": "ns",
-          "value": 1019000,
+          "value": 840000,
           "item": null,
-          "score": 89,
+          "score": 94,
           "target": 1000000,
           "default": 1000000,
           "note": null,
@@ -127,7 +128,7 @@
           "description": null,
           "kind": "time",
           "unit": "ns",
-          "value": 2055000,
+          "value": 1836000,
           "item": null,
           "score": 100,
           "target": 5000000,
@@ -19636,7 +19637,7 @@
               "name": ".agents/plan.md",
               "value": false,
               "target": null,
-              "note": "line 3: 30 words (limit 25): \"A project's scripts measure it, and Uphill scores each measurement against the …\" (and 87 more)"
+              "note": "line 3: 30 words (limit 25): \"A project's scripts measure it, and Uphill scores each measurement against the …\" (and 89 more)"
             },
             {
               "name": "SKILL.md",
@@ -19696,7 +19697,7 @@
               "name": "docs/reference/scoring.md",
               "value": false,
               "target": null,
-              "note": "line 7: 40 words (limit 25): \"Each value scores on Lighthouse's log-normal curve with two control points: a v…\" (and 3 more)"
+              "note": "line 3: 32 words (limit 25): \"Uphill scores each value from 0 to 100 against its target, collapses each list …\" (and 4 more)"
             },
             {
               "name": "packs/typescript/README.md",
@@ -19846,13 +19847,13 @@
               "name": ".agents/plan.md",
               "value": false,
               "target": null,
-              "note": "line 3: 62 words (limit 50): \"Uphill is continuous metrics and hill climbing. A project's scripts measure it,…\" (and 53 more)"
+              "note": "line 3: 62 words (limit 50): \"Uphill is continuous metrics and hill climbing. A project's scripts measure it,…\" (and 54 more)"
             },
             {
               "name": "README.md",
               "value": false,
               "target": null,
-              "note": "line 31: 51 words (limit 50): \"Uphill scores a project against its own targets. A metric is anything a script …\""
+              "note": "line 23: 51 words (limit 50): \"Uphill scores a project against its own targets. A metric is anything a script …\""
             },
             {
               "name": "SKILL.md",
@@ -20056,7 +20057,7 @@
               "name": ".agents/plan.md",
               "value": false,
               "target": null,
-              "note": "line 56: 8 sentences (limit 6): \"Decided 2026-11-22, with patterns added the same day.\" (and 18 more)"
+              "note": "line 56: 8 sentences (limit 6): \"Decided 2026-11-22, with patterns added the same day.\" (and 19 more)"
             },
             {
               "name": "README.md",
@@ -20462,9 +20463,9 @@
           "description": "Use the short word instead of a wordy phrase, such as \"to\" for \"in order to\" (write-good `tooWordy`).",
           "kind": "check",
           "unit": null,
-          "value": 0.59375,
+          "value": 0.5625,
           "item": null,
-          "score": 59,
+          "score": 56,
           "target": null,
           "default": null,
           "note": null,
@@ -20476,7 +20477,7 @@
               "name": ".agents/plan.md",
               "value": false,
               "target": null,
-              "note": "line 50: \"similar to\" is wordy or unneeded (and 7 more)"
+              "note": "line 50: \"similar to\" is wordy or unneeded (and 10 more)"
             },
             {
               "name": "SKILL.md",
@@ -20500,7 +20501,7 @@
               "name": "docs/guides/github-actions.md",
               "value": false,
               "target": null,
-              "note": "line 159: \"it is\" is wordy or unneeded (and 1 more)"
+              "note": "line 159: \"it is\" is wordy or unneeded (and 2 more)"
             },
             {
               "name": "docs/guides/scripts.md",
@@ -20518,7 +20519,7 @@
               "name": "docs/reference/action.md",
               "value": false,
               "target": null,
-              "note": "line 115: \"it is\" is wordy or unneeded (and 3 more)"
+              "note": "line 113: \"overall\" is wordy or unneeded (and 4 more)"
             },
             {
               "name": "docs/reference/cli.md",
@@ -20539,10 +20540,16 @@
               "note": "line 71: \"It is\" is wordy or unneeded (and 1 more)"
             },
             {
+              "name": "docs/reference/reports.md",
+              "value": false,
+              "target": null,
+              "note": "line 154: \"overall\" is wordy or unneeded (and 1 more)"
+            },
+            {
               "name": "docs/reference/scoring.md",
               "value": false,
               "target": null,
-              "note": "line 3: \"overall\" is wordy or unneeded"
+              "note": "line 3: \"overall\" is wordy or unneeded (and 3 more)"
             },
             {
               "name": "packs/deslop/README.md",
@@ -20582,12 +20589,6 @@
             },
             {
               "name": "docs/introduction/installation.md",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "docs/reference/reports.md",
               "value": true,
               "target": null,
               "note": null
@@ -21092,9 +21093,9 @@
           "description": "Use precise verbs such as \"returns\" or \"reports\", not get, give, hand, know, say, see, or tell.",
           "kind": "check",
           "unit": null,
-          "value": 0.40625,
+          "value": 0.375,
           "item": null,
-          "score": 41,
+          "score": 38,
           "target": null,
           "default": null,
           "note": null,
@@ -21112,7 +21113,7 @@
               "name": "README.md",
               "value": false,
               "target": null,
-              "note": "line 43: Conversational verb: \"says\" (and 1 more)"
+              "note": "line 35: Conversational verb: \"says\" (and 1 more)"
             },
             {
               "name": "SKILL.md",
@@ -21193,6 +21194,12 @@
               "note": "line 37: Conversational verb: \"gives\" (and 1 more)"
             },
             {
+              "name": "docs/reference/reports.md",
+              "value": false,
+              "target": null,
+              "note": "line 154: Conversational verb: \"see\""
+            },
+            {
               "name": "examples/README.md",
               "value": false,
               "target": null,
@@ -21224,12 +21231,6 @@
             },
             {
               "name": "docs/introduction/installation.md",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "docs/reference/reports.md",
               "value": true,
               "target": null,
               "note": null
@@ -21316,7 +21317,7 @@
               "name": ".agents/plan.md",
               "value": false,
               "target": null,
-              "note": "line 314: Possible perfect: \"has been\""
+              "note": "line 315: Possible perfect: \"has been\""
             },
             {
               "name": "README.md",
@@ -21736,7 +21737,7 @@
               "name": ".agents/plan.md",
               "value": false,
               "target": null,
-              "note": "line 376: Semicolon: \";\" (and 2 more)"
+              "note": "line 377: Semicolon: \";\" (and 2 more)"
             },
             {
               "name": "README.md",
@@ -23834,7 +23835,7 @@
               "name": "crates/cli/tests/cli.rs",
               "value": false,
               "target": null,
-              "note": "155 of 269 assertions are not inline snapshots"
+              "note": "155 of 271 assertions are not inline snapshots"
             },
             {
               "name": "crates/engine/tests/config.rs",
@@ -23972,7 +23973,7 @@
               "name": "crates/cli/tests/cli.rs",
               "value": false,
               "target": null,
-              "note": "line 1121: one assertion checks two conditions (and 1 more)"
+              "note": "line 1132: one assertion checks two conditions (and 1 more)"
             },
             {
               "name": "crates/engine/src/score.rs",
@@ -24230,7 +24231,7 @@
               "name": "crates/cli/tests/cli.rs",
               "value": false,
               "target": null,
-              "note": "line 2943: a test that sleeps a fixed time"
+              "note": "line 2954: a test that sleeps a fixed time"
             },
             {
               "name": "crates/engine/tests/check.rs",
@@ -24967,6 +24968,12 @@
           "rollup": null,
           "items": [
             {
+              "name": "2fe0857",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "cfd518c",
               "value": true,
               "target": null,
@@ -25256,12 +25263,6 @@
             },
             {
               "name": "34a88b7",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "d87d7f3",
               "value": true,
               "target": null,
               "note": null
@@ -25285,6 +25286,12 @@
           "rollup": null,
           "items": [
             {
+              "name": "2fe0857",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "cfd518c",
               "value": true,
               "target": null,
@@ -25574,12 +25581,6 @@
             },
             {
               "name": "34a88b7",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "d87d7f3",
               "value": true,
               "target": null,
               "note": null
@@ -25603,6 +25604,12 @@
           "rollup": null,
           "items": [
             {
+              "name": "2fe0857",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "cfd518c",
               "value": true,
               "target": null,
@@ -25892,12 +25899,6 @@
             },
             {
               "name": "34a88b7",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "d87d7f3",
               "value": true,
               "target": null,
               "note": null
@@ -25939,6 +25940,12 @@
               "note": "header must not be longer than 100 characters, current length is 104: docs: rename the devising-metrics skill to creating-metrics and add Quick Prompt and Packs to the README"
             },
             {
+              "name": "2fe0857",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "cfd518c",
               "value": true,
               "target": null,
@@ -26210,12 +26217,6 @@
             },
             {
               "name": "34a88b7",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "d87d7f3",
               "value": true,
               "target": null,
               "note": null
@@ -26257,6 +26258,12 @@
               "note": "body's lines must not be longer than 100 characters: feat: add the devising-metrics skill and end the `uphill init` brief with it"
             },
             {
+              "name": "2fe0857",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "cfd518c",
               "value": true,
               "target": null,
@@ -26528,12 +26535,6 @@
             },
             {
               "name": "34a88b7",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "d87d7f3",
               "value": true,
               "target": null,
               "note": null
@@ -26557,6 +26558,12 @@
           "rollup": null,
           "items": [
             {
+              "name": "2fe0857",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "cfd518c",
               "value": true,
               "target": null,
@@ -26849,12 +26856,6 @@
               "value": true,
               "target": null,
               "note": null
-            },
-            {
-              "name": "d87d7f3",
-              "value": true,
-              "target": null,
-              "note": null
             }
           ]
         },
@@ -26874,6 +26875,12 @@
           "weight": 1,
           "rollup": null,
           "items": [
+            {
+              "name": "2fe0857",
+              "value": true,
+              "target": null,
+              "note": null
+            },
             {
               "name": "cfd518c",
               "value": true,
@@ -27110,12 +27117,6 @@
             },
             {
               "name": "a04d518",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "d87d7f3",
               "value": true,
               "target": null,
               "note": null
@@ -27260,6 +27261,12 @@
           "items": [
             {
               "name": ".changeset/action-publish.md",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
+              "name": ".changeset/overall-score.md",
               "value": true,
               "target": null,
               "note": null
@@ -27574,7 +27581,7 @@
       "metric": "binary-size",
       "item": null,
       "items": 1,
-      "value": 3002528,
+      "value": 3003216,
       "target": 1000000,
       "gain": 34
     },
@@ -27593,10 +27600,20 @@
       "subject": null,
       "metric": "conversational-verbs",
       "item": null,
-      "items": 19,
+      "items": 20,
       "value": false,
       "target": true,
       "gain": 3
+    },
+    {
+      "category": "documentation",
+      "subject": null,
+      "metric": "wordy-words",
+      "item": null,
+      "items": 14,
+      "value": false,
+      "target": true,
+      "gain": 2
     },
     {
       "category": "style",
@@ -27612,16 +27629,6 @@
       "category": "documentation",
       "subject": null,
       "metric": "passive-voice",
-      "item": null,
-      "items": 13,
-      "value": false,
-      "target": true,
-      "gain": 2
-    },
-    {
-      "category": "documentation",
-      "subject": null,
-      "metric": "wordy-words",
       "item": null,
       "items": 13,
       "value": false,
@@ -27846,16 +27853,6 @@
       "items": 7,
       "value": false,
       "target": true,
-      "gain": 1
-    },
-    {
-      "category": "speed",
-      "subject": null,
-      "metric": "startup",
-      "item": null,
-      "items": 1,
-      "value": 1019000,
-      "target": 1000000,
       "gain": 1
     },
     {
