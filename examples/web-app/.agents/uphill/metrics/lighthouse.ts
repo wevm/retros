@@ -92,6 +92,6 @@ function quote(text: string): string {
 }
 
 /** Returns the rows of an audit's details table, or none. */
-function items<item>(audit: { details?: unknown } | undefined): item[] {
-  return (audit?.details as { items?: item[] } | undefined)?.items ?? []
+function items<item>(audit: { details?: unknown } | undefined): readonly item[] {
+  return (audit?.details as { items?: readonly item[] } | undefined)?.items ?? []
 }

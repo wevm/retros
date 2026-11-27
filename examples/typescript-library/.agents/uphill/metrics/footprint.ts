@@ -41,13 +41,33 @@ lines.push(
   `entry-size "." ${await gzipped(root.file)}B target ${Math.round(parts * 1.1)}B`,
 )
 
-const names = Object.keys(await import(root.file))
+// The root re-exports each subpath as a namespace. Each formatter is a member of one, and the
+// formatters keep the code-unit order of a module namespace.
+const namespaces = Object.entries<object>(await import(root.file))
+const names = namespaces
+  .flatMap((pair) =>
+    Object.keys(pair[1]).map((name) => ({ name, namespace: pair[0] })),
+  )
+  .sort((a, b) => (a.name < b.name ? -1 : 1))
 lines.push(`exports ${names.length}`)
 
-for (const name of names) {
+for (const { name, namespace } of names) {
   const own = await subpathOf(name)
-  const fromRoot = await gzipped(consumer(name, root.file))
-  const fromOwn = await gzipped(consumer(name, own.file))
+  // Both consumers read the formatter as a namespace member, so only unshaken code differs.
+  const fromRoot = await gzipped(
+    consumer(`${name}-root.ts`, {
+      clause: `{ ${namespace} as formatters }`,
+      from: root.file,
+      name,
+    }),
+  )
+  const fromOwn = await gzipped(
+    consumer(`${name}-own.ts`, {
+      clause: '* as formatters',
+      from: own.file,
+      name,
+    }),
+  )
 
   lines.push(`export-size ${name} ${fromRoot}B`)
   lines.push(`unused-bytes ${name} ${Math.max(0, fromRoot - fromOwn)}B`)
@@ -56,10 +76,13 @@ for (const name of names) {
 fs.rmSync(scratch, { force: true, recursive: true })
 fs.appendFileSync(process.env.UPHILL_METRICS!, `${lines.join('\n')}\n`)
 
-/** Writes a module that imports one export from `file`, and returns its path. */
-function consumer(name: string, file: string): string {
-  const out = path.join(scratch, `${name}-${path.basename(file)}`)
-  fs.writeFileSync(out, `export { ${name} } from ${JSON.stringify(file)}\n`)
+/** Writes a module that reads one formatter from a namespace import, and returns its path. */
+function consumer(file: string, options: consumer.Options): string {
+  const out = path.join(scratch, file)
+  fs.writeFileSync(
+    out,
+    `import ${options.clause} from ${JSON.stringify(options.from)}\nexport const ${options.name} = formatters.${options.name}\n`,
+  )
   return out
 }
 
@@ -74,4 +97,13 @@ async function subpathOf(name: string): Promise<(typeof entries)[number]> {
 async function gzipped(file: string): Promise<number> {
   const build = await Bun.build({ entrypoints: [file], minify: true })
   return Bun.gzipSync(await build.outputs[0]!.arrayBuffer()).length
+}
+
+declare namespace consumer {
+  /** The import clause that binds `formatters`, the module to import, and the formatter to read. */
+  type Options = {
+    clause: string
+    from: string
+    name: string
+  }
 }

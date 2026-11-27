@@ -24,8 +24,16 @@ export async function start(): Promise<Bun.Server<undefined>> {
     port: 0,
     fetch(request) {
       const url = new URL(request.url).pathname
-      const file = url === '/' ? 'pages/index.html' : url.endsWith('.html') ? path.join('pages', url) : `.${url}`
-      const body = url === '/app.js' ? app : fs.existsSync(file) ? fs.readFileSync(file) : undefined
+      const file = (() => {
+        if (url === '/') return 'pages/index.html'
+        if (url.endsWith('.html')) return path.join('pages', url)
+        return `.${url}`
+      })()
+      const body = (() => {
+        if (url === '/app.js') return app
+        if (fs.existsSync(file)) return fs.readFileSync(file)
+        return undefined
+      })()
       if (!body) return new Response('Not found', { status: 404 })
 
       const headers: Record<string, string> = { 'content-type': types[path.extname(url) || '.html']! }

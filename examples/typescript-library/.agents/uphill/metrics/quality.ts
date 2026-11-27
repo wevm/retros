@@ -46,7 +46,9 @@ for (const record of lcov
   const found = Number(/^LF:(\d+)$/m.exec(record)![1])
   const hit = Number(/^LH:(\d+)$/m.exec(record)![1])
   // `DA:<line>,0` marks a line that no test runs.
-  const missed = [...record.matchAll(/^DA:(\d+),0$/gm)].map((match) => Number(match[1]))
+  const missed = [...record.matchAll(/^DA:(\d+),0$/gm)].map((match) =>
+    Number(match[1]),
+  )
   lines.push(
     `coverage ${file} ${found === 0 ? 100 : ((hit / found) * 100).toFixed(1)}${note(missed.length > 0 && `no test runs ${ranges(missed)}`)}`,
   )
@@ -66,7 +68,7 @@ fs.rmSync(scratch, { force: true, recursive: true })
 fs.appendFileSync(process.env.UPHILL_METRICS!, `${lines.join('\n')}\n`)
 
 /** Runs a command and returns its standard output. A failing exit status is expected. */
-function run(command: string, args: string[]): string {
+function run(command: string, args: readonly string[]): string {
   return Bun.spawnSync([command, ...args]).stdout.toString()
 }
 
@@ -91,9 +93,9 @@ function note(text: string | false | undefined): string {
 }
 
 /** Formats line numbers as ranges, such as `lines 3-7 and 12`. */
-function ranges(numbers: number[]): string {
+function ranges(numbers: readonly number[]): string {
   const parts: string[] = []
-  for (let start = 0; start < numbers.length; ) {
+  for (let start = 0; start < numbers.length;) {
     let end = start
     while (numbers[end + 1] === numbers[end]! + 1) end++
     parts.push(

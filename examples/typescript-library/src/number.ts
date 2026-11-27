@@ -6,14 +6,11 @@
 
 const units = ['B', 'kB', 'MB', 'GB']
 
-// Creating an `Intl` formatter costs far more than formatting with one, and the first one loads
-// locale data, so it is made on the first call rather than on import.
-let numbers: Intl.NumberFormat | undefined
-
 /** Formats a number with thousands separators, such as `12,345`. */
 export function grouped(value: number): string {
-  numbers ??= new Intl.NumberFormat('en-US')
-  return numbers.format(value)
+  // Creating an `Intl.NumberFormat` costs far more than formatting with one. JavaScriptCore, Bun's
+  // engine, caches the formatter behind `toLocaleString`, and import creates none.
+  return value.toLocaleString('en-US')
 }
 
 /** Formats a byte count in decimal units, such as `45.6 MB`. */

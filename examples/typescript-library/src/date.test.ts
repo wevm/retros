@@ -11,17 +11,21 @@ import { isoDate, relative, weekday } from './date.js'
 const now = new Date('2026-11-22T12:00:00Z')
 
 test('isoDate', () => {
-  expect(isoDate(now)).toBe('2026-11-22')
+  expect(isoDate(now)).toMatchInlineSnapshot(`"2026-11-22"`)
 })
 
 test('relative in the past', () => {
-  expect(relative(new Date('2026-11-19T12:00:00Z'), now)).toBe('3 days ago')
+  expect(relative(new Date('2026-11-19T12:00:00Z'), now)).toMatchInlineSnapshot(
+    `"3 days ago"`,
+  )
 })
 
 test('relative in the future', () => {
-  expect(relative(new Date('2026-11-24T12:00:00Z'), now)).toBe('in 2 days')
+  expect(relative(new Date('2026-11-24T12:00:00Z'), now)).toMatchInlineSnapshot(
+    `"in 2 days"`,
+  )
 })
 
 test('weekday', () => {
-  expect(weekday(now)).toBe('Sunday')
+  expect(weekday(now)).toMatchInlineSnapshot(`"Sunday"`)
 })

@@ -14,8 +14,13 @@ import * as formatters from '../../../src/index.js'
 
 const now = new Date('2026-11-22T12:00:00Z')
 
+/** The name of each formatter in each namespace that the root entry point re-exports. */
+type Name = {
+  [Namespace in keyof typeof formatters]: keyof (typeof formatters)[Namespace]
+}[keyof typeof formatters]
+
 /** Arguments for one call of each formatter. A new export needs an entry here. */
-const samples: Record<keyof typeof formatters, unknown[]> = {
+const samples: Record<Name, readonly unknown[]> = {
   bytes: [45_600_000],
   grouped: [12_345],
   isoDate: [now],
@@ -40,9 +45,13 @@ for (const [entry, file] of Object.entries<string>(pkg.exports)) {
   lines.push(`import-time "${entry}" ${ms.toFixed(3)}ms`)
 }
 
-for (const [name, formatter] of Object.entries(formatters)) {
-  const args = samples[name as keyof typeof formatters]
-  const call = formatter as (...args: unknown[]) => unknown
+// A module namespace lists its names in code-unit order. The flattened formatters keep that order.
+const entries = Object.values(formatters)
+  .flatMap((namespace) => Object.entries(namespace))
+  .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+for (const [name, formatter] of entries) {
+  const args = samples[name as Name]
+  const call = formatter as (...args: readonly unknown[]) => unknown
   mitata.bench(name, () => call(...args))
 }
 

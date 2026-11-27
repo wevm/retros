@@ -9,9 +9,9 @@ import { expect, test } from 'bun:test'
 import { bytes, grouped } from './number.js'
 
 test('grouped', () => {
-  expect(grouped(12345)).toBe('12,345')
+  expect(grouped(12345)).toMatchInlineSnapshot(`"12,345"`)
 })
 
 test('bytes', () => {
-  expect(bytes(45_600_000)).toBe('45.6 MB')
+  expect(bytes(45_600_000)).toMatchInlineSnapshot(`"45.6 MB"`)
 })

@@ -4,7 +4,7 @@
  * @module
  */
 
-/** Re-exports the date formatters. */
-export * from './date.js'
-/** Re-exports the number formatters. */
-export * from './number.js'
+/** The date formatters. */
+export * as date from './date.js'
+/** The number formatters. */
+export * as number from './number.js'
