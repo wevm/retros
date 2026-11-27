@@ -60,7 +60,9 @@ fn example(name: &str) -> (TempDir, PathBuf) {
             .current_dir(&project)
             .output()
             .expect("bun runs");
-        assert!(install.status.success(), "{}", stderr(&install));
+        insta::allow_duplicates! {
+            insta::assert_snapshot!(failure(&install), @"");
+        }
     }
     (dir, project)
 }
@@ -116,7 +118,9 @@ fn git(dir: &Path, args: &[&str]) -> String {
         .current_dir(dir)
         .output()
         .expect("git runs");
-    assert!(output.status.success(), "{}", stderr(&output));
+    insta::allow_duplicates! {
+        insta::assert_snapshot!(failure(&output), @"");
+    }
     stdout(&output)
 }
 
@@ -149,25 +153,43 @@ fn stderr(output: &Output) -> String {
     String::from_utf8_lossy(&output.stderr).into_owned()
 }
 
+/// Returns nothing for a command that succeeded, or its exit status and standard error, so a
+/// failed setup command shows why.
+fn failure(output: &Output) -> String {
+    if output.status.success() {
+        return String::new();
+    }
+    format!("{}\n{}", output.status, stderr(output))
+}
+
+/// Returns the lines of `text` from the first that starts with `marker`, for output whose earlier
+/// lines are not under test.
+fn from_line(text: &str, marker: &str) -> String {
+    text.lines()
+        .skip_while(|line| !line.starts_with(marker))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 #[test]
 fn version() {
     let long = uphill(&["--version"]);
     let short = uphill(&["-V"]);
 
     // `pnpm changeset:version` sets the version on each release.
-    assert!(long.status.success());
+    insta::assert_snapshot!(long.status, @"exit status: 0");
     insta::assert_snapshot!(
         stdout(&long).replace(env!("CARGO_PKG_VERSION"), "[version]"),
         @"[version]"
     );
-    assert_eq!(stdout(&short), stdout(&long));
+    insta::assert_snapshot!(stdout(&short) == stdout(&long), @"true");
 }
 
 #[test]
 fn help() {
     let output = uphill(&["--help"]);
 
-    assert!(output.status.success());
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     // `pnpm changeset:version` sets the version on each release.
     insta::assert_snapshot!(stdout(&output).replace(env!("CARGO_PKG_VERSION"), "[version]"), @"
     uphill@[version] — Score metrics against their targets and compare them with their baselines
@@ -220,7 +242,7 @@ fn help() {
 fn unknown_argument() {
     let output = uphill(&["--nope"]);
 
-    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(output.status, @"exit status: 2");
     insta::assert_snapshot!(stderr(&output), @r#"
     code: UNKNOWN
     message: "Unknown flag: --nope"
@@ -231,7 +253,7 @@ fn unknown_argument() {
 fn unknown_check_argument() {
     let output = uphill(&["check", "--fast"]);
 
-    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(output.status, @"exit status: 2");
     insta::assert_snapshot!(stderr(&output), @r#"
     code: UNKNOWN
     message: "Unknown flag: --fast"
@@ -244,7 +266,7 @@ fn scores_every_category_and_writes_reports() {
 
     let output = uphill_in(project.path(), &[], &[]);
 
-    assert_eq!(output.status.code(), Some(0));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     insta::assert_snapshot!(stdout(&output), @"
     ▲  42  footprint
       ▲   3  bundle       27.5 kB                   target 5 kB
@@ -623,7 +645,7 @@ fn scores_one_category_from_a_subdirectory() {
 
     let output = uphill_in(&project.path().join("src"), &["footprint"], &[]);
 
-    assert_eq!(output.status.code(), Some(0));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     insta::assert_snapshot!(stdout(&output), @"
     ▲  42  footprint
       ▲   3  bundle       27.5 kB                   target 5 kB
@@ -656,7 +678,7 @@ fn scoring_reports_failed_categories() {
 
     let output = uphill_in(project.path(), &[], &[]);
 
-    assert_eq!(output.status.code(), Some(1));
+    insta::assert_snapshot!(output.status, @"exit status: 1");
     insta::assert_snapshot!(stdout(&output), @"
         –  footprint
           –  size  1 kB
@@ -703,16 +725,17 @@ fn baselines_record_targets_and_gate_every_change() {
     let edit = |file: &str, from: &str, to: &str| {
         let path = project.path().join(file);
         let script = fs::read_to_string(&path).unwrap();
-        assert!(script.contains(from), "{file} writes `{from}`");
+        insta::allow_duplicates! {
+            insta::assert_snapshot!(script.matches(from).count(), @"1");
+        }
         fs::write(&path, script.replace(from, to)).unwrap();
     };
 
     let missing = uphill_in(project.path(), &["footprint", "--require-baseline"], &[]);
-    assert_eq!(missing.status.code(), Some(1));
-    assert!(
-        stdout(&missing).ends_with(
-            "\n--require-baseline needs a baseline. Run `uphill --update` to record one\n"
-        )
+    insta::assert_snapshot!(missing.status, @"exit status: 1");
+    insta::assert_snapshot!(
+        from_line(&stdout(&missing), "--require-baseline"),
+        @"--require-baseline needs a baseline. Run `uphill --update` to record one"
     );
 
     // The first update writes each item's value beside the target it scored against, from its
@@ -731,10 +754,10 @@ fn baselines_record_targets_and_gate_every_change() {
     let recorded = uphill_in(project.path(), &["--update"], &[]);
 
     // The configuration stays as people wrote it, and the baseline file keeps the declared order.
-    assert_eq!(recorded.status.code(), Some(0));
-    assert_eq!(
-        fs::read_to_string(project.path().join("uphill.yaml")).unwrap(),
-        config
+    insta::assert_snapshot!(recorded.status, @"exit status: 0");
+    insta::assert_snapshot!(
+        fs::read_to_string(project.path().join("uphill.yaml")).unwrap() == config,
+        @"true"
     );
     let baselines = fs::read_to_string(project.path().join("uphill.baseline.yaml")).unwrap();
     insta::assert_snapshot!(baselines, @r#"
@@ -775,27 +798,25 @@ fn baselines_record_targets_and_gate_every_change() {
     );
     let improved = uphill_in(project.path(), &["footprint", "--require-baseline"], &[]);
 
-    assert_eq!(improved.status.code(), Some(1));
-    assert!(stdout(&improved).ends_with(
-        "
-Since the baseline
-  better  footprint  links about.html  fail → pass
+    insta::assert_snapshot!(improved.status, @"exit status: 1");
+    insta::assert_snapshot!(from_line(&stdout(&improved), "Since the baseline"), @"
+    Since the baseline
+      better  footprint  links about.html  fail → pass
 
-Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
+    Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
 
-1 change since the baseline. Run `uphill --update` to accept it
-"
-    ));
+    1 change since the baseline. Run `uphill --update` to accept it
+    ");
     let accepted = uphill_in(project.path(), &["footprint", "--update"], &[]);
-    assert_eq!(accepted.status.code(), Some(0));
+    insta::assert_snapshot!(accepted.status, @"exit status: 0");
 
     // Updating again from the same code leaves the baseline file as it is.
     let baselines = fs::read_to_string(project.path().join("uphill.baseline.yaml")).unwrap();
     let again = uphill_in(project.path(), &["footprint", "--update"], &[]);
-    assert_eq!(again.status.code(), Some(0));
-    assert_eq!(
-        fs::read_to_string(project.path().join("uphill.baseline.yaml")).unwrap(),
-        baselines
+    insta::assert_snapshot!(again.status, @"exit status: 0");
+    insta::assert_snapshot!(
+        fs::read_to_string(project.path().join("uphill.baseline.yaml")).unwrap() == baselines,
+        @"true"
     );
 
     edit(
@@ -830,7 +851,7 @@ Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
     let baselines = fs::read_to_string(project.path().join("uphill.baseline.yaml")).unwrap();
     let gated = uphill_in(project.path(), &["footprint", "--require-baseline"], &[]);
 
-    assert_eq!(gated.status.code(), Some(1));
+    insta::assert_snapshot!(gated.status, @"exit status: 1");
     insta::assert_snapshot!(stdout(&gated), @"
     ▲  48  footprint
       ▲   3  bundle       27.5 kB                target 5 kB
@@ -862,7 +883,7 @@ Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
 
     // Accepting the changes rewrites only the lines of the items that changed.
     let accepted = uphill_in(project.path(), &["footprint", "--update"], &[]);
-    assert_eq!(accepted.status.code(), Some(0));
+    insta::assert_snapshot!(accepted.status, @"exit status: 0");
     let expected = baselines
         .replace(
             "    viem/chains: { baseline: 10kB, target: 15kB }\n",
@@ -877,9 +898,9 @@ Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
             "    \"*\": { baseline: pass }\n",
             "    \"*\": { baseline: pass }\n    team.html: { baseline: fail }\n",
         );
-    assert_eq!(
-        fs::read_to_string(project.path().join("uphill.baseline.yaml")).unwrap(),
-        expected
+    insta::assert_snapshot!(
+        fs::read_to_string(project.path().join("uphill.baseline.yaml")).unwrap() == expected,
+        @"true"
     );
 }
 
@@ -905,20 +926,22 @@ fn checks_record_a_default_and_read_the_older_format() {
     );
     let lines = |from: &str, to: &str| {
         let text = fs::read_to_string(dir.join("lines.txt")).unwrap();
-        assert!(text.contains(from), "lines.txt writes `{from}`");
+        insta::allow_duplicates! {
+            insta::assert_snapshot!(text.matches(from).count(), @"1");
+        }
         fs::write(dir.join("lines.txt"), text.replace(from, to)).unwrap();
     };
 
     // The older format, with one record per item, gates the same checks.
     let older = uphill_in(dir, &["--require-baseline"], &[]);
-    assert_eq!(older.status.code(), Some(0), "{}", stdout(&older));
+    insta::assert_snapshot!(older.status, @"exit status: 0");
     // Checks that vary still run once, since a check has no median.
-    assert_eq!(fs::read_to_string(dir.join(".runs")).unwrap(), "run\n");
+    insta::assert_snapshot!(fs::read_to_string(dir.join(".runs")).unwrap(), @"run");
     fs::remove_file(dir.join(".runs")).unwrap();
 
     // A tie between `pass` and `skip` goes to `pass`, and the commits that vary record nothing.
     let updated = uphill_in(dir, &["--update"], &[]);
-    assert_eq!(updated.status.code(), Some(0));
+    insta::assert_snapshot!(updated.status, @"exit status: 0");
     let baselines = fs::read_to_string(dir.join("uphill.baseline.yaml")).unwrap();
     insta::assert_snapshot!(baselines, @r#"
     # Each measurement's `baseline`, the size, count, or check `uphill --update` accepted, and its
@@ -941,24 +964,22 @@ fn checks_record_a_default_and_read_the_older_format() {
         "commits abc1234 pass\ncommits def5678 fail",
     );
     let gated = uphill_in(dir, &["--require-baseline"], &[]);
-    assert_eq!(gated.status.code(), Some(0), "{}", stdout(&gated));
+    insta::assert_snapshot!(gated.status, @"exit status: 0");
     for (revision, expected) in [
         ("HEAD", "\nNo changes against "),
         ("HEAD~1", "\n  new  style  lint f.ts  pass\n\n"),
     ] {
         let compared = uphill_in(dir, &["--compare", revision], &[]);
-        assert_eq!(compared.status.code(), Some(0));
-        assert!(
-            stdout(&compared).contains(expected),
-            "{}",
-            stdout(&compared)
-        );
+        insta::allow_duplicates! {
+            insta::assert_snapshot!(compared.status, @"exit status: 0");
+            insta::assert_snapshot!(stdout(&compared).contains(expected), @"true");
+        }
     }
 
     // A new item that skips differs from the default, and so does a listed item that is gone.
     lines("lint c.ts fail note \"uses any\"\n", "lint g.ts skip\n");
     let changed = uphill_in(dir, &["--require-baseline"], &[]);
-    assert_eq!(changed.status.code(), Some(1));
+    insta::assert_snapshot!(changed.status, @"exit status: 1");
     let start = stdout(&changed).find("Since the baseline").unwrap();
     insta::assert_snapshot!(stdout(&changed)[start..], @"
     Since the baseline
@@ -975,7 +996,7 @@ fn checks_record_a_default_and_read_the_older_format() {
     uphill_in(dir, &["--update"], &[]);
     commit_on("2026-01-03T12:00:00", "feat: break a.ts");
     let log = uphill_in(dir, &["log", "style", "lint", "a.ts"], &[]);
-    assert_eq!(log.status.code(), Some(0), "{}", stderr(&log));
+    insta::assert_snapshot!(log.status, @"exit status: 0");
     let hashes = git(dir, &["log", "--reverse", "--format=%h"]);
     let named = hashes
         .lines()
@@ -997,10 +1018,10 @@ fn subjects_share_one_run_and_score_on_their_own() {
 
     let output = uphill_in(project.path(), &["--update"], &[]);
 
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     // Both categories come from the same 5 runs: the startup times repeat the script.
     let runs = fs::read_to_string(project.path().join("runs.txt")).unwrap();
-    assert_eq!(runs.lines().count(), 5);
+    insta::assert_snapshot!(runs.lines().count(), @"5");
     insta::assert_snapshot!(stdout(&output), @"
     ● 100  zc: speed  median of 5 rounds
       ● 100  startup  1 ms  target 30 ms
@@ -1128,16 +1149,25 @@ fn subjects_share_one_run_and_score_on_their_own() {
 
     // The page has a tab per subject, shows titles, and loads nothing from the network.
     let html = fs::read_to_string(project.path().join(".uphill/report.html")).unwrap();
-    assert_eq!(html.matches("role=\"tab\"").count(), 2);
-    assert!(html.contains(">zc</button>") && html.contains(">ts</button>"));
-    assert!(html.contains("<h2>Size and memory</h2>"));
-    assert!(html.contains("<span class=\"metric-title\">Peak memory, one turn</span>"));
-    assert!(!html.contains("http://") && !html.contains("https://"));
+    insta::assert_snapshot!(html.matches("role=\"tab\"").count(), @"2");
+    insta::assert_snapshot!(html.matches(">zc</button>").count(), @"1");
+    insta::assert_snapshot!(html.matches(">ts</button>").count(), @"1");
+    insta::assert_snapshot!(html.matches("<h2>Size and memory</h2>").count(), @"2");
+    insta::assert_snapshot!(
+        html.matches("<span class=\"metric-title\">Peak memory, one turn</span>").count(),
+        @"2"
+    );
+    insta::assert_snapshot!(html.matches("http://").count(), @"0");
+    insta::assert_snapshot!(html.matches("https://").count(), @"0");
 
     // The next 5 runs write zc's memory as 6 to 10 MB, which is not a change.
     let again = uphill_in(project.path(), &["--require-baseline"], &[]);
-    assert_eq!(again.status.code(), Some(0), "{}", stdout(&again));
-    assert!(stdout(&again).contains("\nNo changes since the baseline\n"));
+    insta::assert_snapshot!(again.status, @"exit status: 0");
+    insta::assert_snapshot!(from_line(&stdout(&again), "No changes"), @"
+    No changes since the baseline
+
+    Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
+    ");
 }
 
 #[test]
@@ -1157,8 +1187,8 @@ fn require_targets_fails_on_each_missed_target_and_failed_script() {
     )
     .unwrap();
     let met = uphill_in(dir.path(), &["--require-targets"], &[]);
-    assert_eq!(met.status.code(), Some(0), "{}", stdout(&met));
-    assert!(!stdout(&met).contains("Missed targets"));
+    insta::assert_snapshot!(met.status, @"exit status: 0");
+    insta::assert_snapshot!(stdout(&met).matches("Missed targets").count(), @"0");
 
     fs::write(
         &script,
@@ -1166,46 +1196,40 @@ fn require_targets_fails_on_each_missed_target_and_failed_script() {
     )
     .unwrap();
     let past = uphill_in(dir.path(), &["--require-targets"], &[]);
-    assert_eq!(past.status.code(), Some(1));
-    assert!(stdout(&past).ends_with(
-        "
-Missed targets
-  quality  size  2.1 kB  target 2 kB
-  quality  rate  1999    target 2000
+    insta::assert_snapshot!(past.status, @"exit status: 1");
+    insta::assert_snapshot!(from_line(&stdout(&past), "Missed targets"), @"
+    Missed targets
+      quality  size  2.1 kB  target 2 kB
+      quality  rate  1999    target 2000
 
-2 targets missed
-"
-    ));
+    2 targets missed
+    ");
 
     // A list misses at the item its roll-up selects, each failing check item is a miss, and each
     // miss shows its note.
     let scored = fixture("scored");
     let output = uphill_in(scored.path(), &["--require-targets"], &[]);
-    assert_eq!(output.status.code(), Some(1));
-    assert!(stdout(&output).ends_with(
-        "
-Missed targets
-  footprint  bundle                     27.5 kB  target 5 kB  includes all of lodash
-  footprint  export-size viem/op-stack  9 kB     target 5 kB
-  footprint  links about.html           fail                  links to /team, which is gone
-  speed      render parse               5 ms     target 2 ms
+    insta::assert_snapshot!(output.status, @"exit status: 1");
+    insta::assert_snapshot!(from_line(&stdout(&output), "Missed targets"), @"
+    Missed targets
+      footprint  bundle                     27.5 kB  target 5 kB  includes all of lodash
+      footprint  export-size viem/op-stack  9 kB     target 5 kB
+      footprint  links about.html           fail                  links to /team, which is gone
+      speed      render parse               5 ms     target 2 ms
 
-4 targets missed
-"
-    ));
+    4 targets missed
+    ");
 
     let failing = fixture("failing");
     let output = uphill_in(failing.path(), &["--require-targets"], &[]);
-    assert_eq!(output.status.code(), Some(1));
-    assert!(stdout(&output).ends_with(
-        "
-Missed targets
-  build  script exited with status 3
-  crash  script was stopped by signal 9
+    insta::assert_snapshot!(output.status, @"exit status: 1");
+    insta::assert_snapshot!(from_line(&stdout(&output), "Missed targets"), @"
+    Missed targets
+      build  script exited with status 3
+      crash  script was stopped by signal 9
 
-2 targets missed
-"
-    ));
+    2 targets missed
+    ");
 }
 
 #[test]
@@ -1216,7 +1240,7 @@ fn compare_reports_what_changed_since_a_revision_and_leaves_timing_noise_out() {
     fs::write(dir.join(".ready"), "").unwrap();
 
     let (output, unchanged) = compare_head(dir, &[]);
-    assert_eq!(output.status.code(), Some(0), "{unchanged}");
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     insta::assert_snapshot!(unchanged, @"
     Comparing with HEAD (abc1234)
 
@@ -1244,7 +1268,7 @@ fn compare_reports_what_changed_since_a_revision_and_leaves_timing_noise_out() {
     fs::write(dir.join("speed.sh"), speed + "# Changed.\n").unwrap();
 
     let (output, changed) = compare_head(dir, &[]);
-    assert_eq!(output.status.code(), Some(0), "{changed}");
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     insta::assert_snapshot!(changed, @"
     Comparing with HEAD (abc1234)
     warning: speed.sh differs in HEAD (abc1234), so its changes may come from the script
@@ -1345,7 +1369,7 @@ fn compare_reports_what_changed_since_a_revision_and_leaves_timing_noise_out() {
     "#);
 
     // Only the repository's own checkout remains.
-    assert_eq!(git(dir, &["worktree", "list"]).lines().count(), 1);
+    insta::assert_snapshot!(git(dir, &["worktree", "list"]).lines().count(), @"1");
 }
 
 #[test]
@@ -1362,7 +1386,7 @@ fn compare_uses_the_revision_baselines_and_always_removes_its_checkout() {
     commit(dir);
     fs::write(dir.join("footprint.sh"), footprint).unwrap();
     let (output, text) = compare_head(dir, &["footprint"]);
-    assert_eq!(output.status.code(), Some(0), "{text}");
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     insta::assert_snapshot!(text, @"
     Comparing with HEAD (abc1234)
     warning: footprint.sh differs in HEAD (abc1234), so its changes may come from the script
@@ -1377,7 +1401,7 @@ fn compare_uses_the_revision_baselines_and_always_removes_its_checkout() {
 
     Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
     ");
-    assert_eq!(git(dir, &["worktree", "list"]).lines().count(), 1);
+    insta::assert_snapshot!(git(dir, &["worktree", "list"]).lines().count(), @"1");
     insta::assert_snapshot!(scores(dir), @r#"
     "scores": [
           {
@@ -1402,7 +1426,7 @@ fn compare_uses_the_revision_baselines_and_always_removes_its_checkout() {
     .unwrap();
     commit(dir);
     let (output, text) = compare_head(dir, &["footprint"]);
-    assert_eq!(output.status.code(), Some(0), "{text}");
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     insta::assert_snapshot!(text, @"
     Comparing with HEAD (abc1234)
 
@@ -1422,14 +1446,22 @@ fn compare_uses_the_revision_baselines_and_always_removes_its_checkout() {
     // that sets them inline still measures alike, and its baseline still compares. A category
     // that did not run keeps its targets.
     let output = uphill_in(dir, &["footprint", "--update"], &[]);
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
-    assert_eq!(
-        fs::read_to_string(dir.join("uphill.yaml")).unwrap(),
-        config
-            .replace("{ target: 30kB }", "{}")
-            .replace("{ target: 3ms }", "{}")
-            .replace("{ target: 30ms }", "{}")
-    );
+    insta::assert_snapshot!(output.status, @"exit status: 0");
+    insta::assert_snapshot!(fs::read_to_string(dir.join("uphill.yaml")).unwrap(), @"
+    # A size and two timings, each read from a file so a test changes values without changing the
+    # scripts. `setup` creates what footprint.sh needs in each checkout that `--compare` creates.
+
+    setup: touch .ready
+
+    footprint:
+      run: sh footprint.sh
+      bundle: {}
+
+    speed:
+      run: sh speed.sh
+      encode: {}
+      parse: {}
+    ");
     insta::assert_snapshot!(fs::read_to_string(dir.join("uphill.baseline.yaml")).unwrap(), @"
     # Each measurement's `baseline`, the size, count, or check `uphill --update` accepted, and its
     # `target`. Edit a target here, and each run reports what changed since the baseline.
@@ -1442,7 +1474,7 @@ fn compare_uses_the_revision_baselines_and_always_removes_its_checkout() {
       parse: { target: 30ms }
     ");
     let (output, text) = compare_head(dir, &["footprint"]);
-    assert_eq!(output.status.code(), Some(0), "{text}");
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     insta::assert_snapshot!(text, @"
     Comparing with HEAD (abc1234)
 
@@ -1461,8 +1493,8 @@ fn compare_uses_the_revision_baselines_and_always_removes_its_checkout() {
     fs::write(dir.join("bundle.txt"), "20kB\n").unwrap();
     commit(dir);
     fs::write(dir.join("bundle.txt"), "27.5kB\n").unwrap();
-    let (output, text) = compare_head(dir, &["footprint"]);
-    assert_eq!(output.status.code(), Some(0), "{text}");
+    let (output, _) = compare_head(dir, &["footprint"]);
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     insta::assert_snapshot!(scores(dir), @r#"
     "scores": [
           {
@@ -1490,15 +1522,15 @@ fn compare_uses_the_revision_baselines_and_always_removes_its_checkout() {
     )
     .unwrap();
     let (output, _) = compare_head(dir, &[]);
-    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(output.status, @"exit status: 2");
     insta::assert_snapshot!(masked(dir, &stderr(&output)), @"
     error: setup in HEAD (abc1234) exited with status 4
     no network
     ");
-    assert_eq!(git(dir, &["worktree", "list"]).lines().count(), 1);
+    insta::assert_snapshot!(git(dir, &["worktree", "list"]).lines().count(), @"1");
 
     let output = uphill_in(dir, &["--compare", "no-such-branch"], &[]);
-    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(output.status, @"exit status: 2");
     insta::assert_snapshot!(stderr(&output), @"error: unknown revision 'no-such-branch'");
 }
 
@@ -1532,7 +1564,7 @@ fn blame_bisects_commits_until_baselines_record_the_metric_and_log_lists_them() 
     };
 
     let output = uphill_in(dir, &["blame", "footprint", "bundle"], &[]);
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     insta::assert_snapshot!(named(&stdout(&output)), @"
     Bisecting footprint bundle across 4 commits, measuring each in a temporary checkout
       HEAD     30 kB
@@ -1544,7 +1576,7 @@ fn blame_bisects_commits_until_baselines_record_the_metric_and_log_lists_them() 
     ");
 
     let output = uphill_in(dir, &["blame", "speed", "encode"], &[]);
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     insta::assert_snapshot!(named(&stdout(&output)), @"
     Bisecting speed encode across 4 commits, measuring each in a temporary checkout
       HEAD     2.5 ms
@@ -1558,7 +1590,7 @@ fn blame_bisects_commits_until_baselines_record_the_metric_and_log_lists_them() 
 
     // Parse writes the same times at every commit, so nothing moved it.
     let output = uphill_in(dir, &["blame", "speed", "parse"], &[]);
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     insta::assert_snapshot!(named(&stdout(&output)), @"
     Bisecting speed parse across 4 commits, measuring each in a temporary checkout
       HEAD     10 ms
@@ -1566,7 +1598,7 @@ fn blame_bisects_commits_until_baselines_record_the_metric_and_log_lists_them() 
 
     Nothing moved speed parse since commit1: it measures 10 ms there too
     ");
-    assert_eq!(git(dir, &["worktree", "list"]).lines().count(), 1);
+    insta::assert_snapshot!(git(dir, &["worktree", "list"]).lines().count(), @"1");
 
     let output = uphill_in(dir, &["log", "footprint", "bundle"], &[]);
     insta::assert_snapshot!(stdout(&output), @"No baseline or note records footprint bundle. `uphill --note` keeps each run, and `uphill blame` measures commits");
@@ -1580,7 +1612,7 @@ fn blame_bisects_commits_until_baselines_record_the_metric_and_log_lists_them() 
     commit_as(dir, "perf: subset the font");
 
     let output = uphill_in(dir, &["log", "footprint", "bundle"], &[]);
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     insta::assert_snapshot!(named(&stdout(&output)), @"
     footprint bundle in the baselines of uphill.baseline.yaml
 
@@ -1589,7 +1621,7 @@ fn blame_bisects_commits_until_baselines_record_the_metric_and_log_lists_them() 
     ");
 
     let output = uphill_in(dir, &["blame", "footprint", "bundle"], &[]);
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     insta::assert_snapshot!(named(&stdout(&output)), @"
     commit6 moved footprint bundle from 30 kB to 28 kB, by the baselines in uphill.baseline.yaml
       2026-01-06  perf: subset the font
@@ -1607,7 +1639,7 @@ fn blame_bisects_commits_until_baselines_record_the_metric_and_log_lists_them() 
     .unwrap();
     commit_as(dir, "chore: move the scripts");
     let output = uphill_in(dir, &["blame", "speed", "encode"], &[]);
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     insta::assert_snapshot!(named(&stdout(&output)), @"
     Bisecting speed encode across 7 commits, measuring each in a temporary checkout
       HEAD     2.5 ms
@@ -1621,11 +1653,11 @@ fn blame_bisects_commits_until_baselines_record_the_metric_and_log_lists_them() 
     ");
 
     let output = uphill_in(dir, &["blame", "footprint", "size"], &[]);
-    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(output.status, @"exit status: 2");
     insta::assert_snapshot!(stderr(&output), @"error: unknown metric 'size'. footprint configures bundle");
 
     let output = uphill_in(dir, &["log", "footprint"], &[]);
-    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(output.status, @"exit status: 2");
     insta::assert_snapshot!(stderr(&output).lines().next().unwrap(), @"code: VALIDATION_ERROR");
 }
 
@@ -1663,8 +1695,8 @@ fn notes_keep_runs_for_log_and_the_trends_in_report_html() {
     };
 
     let output = uphill_in(dir, &["--note"], &[]);
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
-    assert!(named(&stdout(&output)).ends_with("report.html, a note on commit1\n"));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
+    insta::assert_snapshot!(from_line(&named(&stdout(&output)), "Wrote"), @"Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html, a note on commit1");
     insta::assert_snapshot!(git(dir, &["notes", "--ref", "refs/notes/uphill", "show", "HEAD"]), @"
     [footprint 92]
     bundle 27.5kB
@@ -1673,12 +1705,12 @@ fn notes_keep_runs_for_log_and_the_trends_in_report_html() {
     parse 10ms
     ");
     // The report note holds the same bytes as report.json, for readers outside the repository.
-    assert_eq!(
+    insta::assert_snapshot!(
         git(
             dir,
             &["notes", "--ref", "refs/notes/uphill-report", "show", "HEAD"]
-        ),
-        fs::read_to_string(dir.join(".uphill/report.json")).unwrap()
+        ) == fs::read_to_string(dir.join(".uphill/report.json")).unwrap(),
+        @"true"
     );
 
     // Encode slows in one commit and the bundle grows in the next, and each run is noted.
@@ -1692,7 +1724,7 @@ fn notes_keep_runs_for_log_and_the_trends_in_report_html() {
     uphill_in(dir, &["--note"], &[]);
 
     let output = uphill_in(dir, &["log", "speed", "encode"], &[]);
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     insta::assert_snapshot!(named(&stdout(&output)), @"
     speed encode in the runs noted in refs/notes/uphill
 
@@ -1729,7 +1761,7 @@ fn notes_keep_runs_for_log_and_the_trends_in_report_html() {
 
     fs::write(dir.join("bundle.txt"), "31kB\n").unwrap();
     let output = uphill_in(dir, &["--note"], &[]);
-    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(output.status, @"exit status: 2");
     insta::assert_snapshot!(stderr(&output), @"error: --note needs tracked files that match HEAD, so the note describes that commit. Commit or stash the changes first");
 }
 
@@ -1769,7 +1801,7 @@ fn dashboard_reads_each_repository_from_its_report_or_compact_notes() {
     };
 
     let output = uphill_in(out.path(), &[&["dashboard"][..], &names].concat(), &[]);
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     insta::assert_snapshot!(shown(&stdout(&output)), @"
     noted  abc1234  2026-01-01  report note
       ●  92  footprint
@@ -1803,16 +1835,24 @@ fn dashboard_reads_each_repository_from_its_report_or_compact_notes() {
     0 trends, Newest noted run: <code>abc1234</code> on 2026-01-01, change. From its compact note, which has no targets or metric scores.
     ");
     // The report note's targets, which the compact note does not hold.
-    assert!(
-        html.contains(
+    insta::assert_snapshot!(
+        html.matches(
             "<td>Encode</td><td class=\"value\">2.5 ms</td><td class=\"value\">3 ms</td>"
         )
+        .count(),
+        @"1"
     );
-    assert!(shown(&html).contains("<p class=\"muted\">No noted runs: none.</p>"));
+    insta::assert_snapshot!(
+        shown(&html).matches("<p class=\"muted\">No noted runs: none.</p>").count(),
+        @"1"
+    );
 
     let output = uphill_in(out.path(), &["dashboard", "missing"], &[]);
-    assert_eq!(output.status.code(), Some(2));
-    assert!(stderr(&output).starts_with("error: could not fetch missing: "));
+    insta::assert_snapshot!(output.status, @"exit status: 2");
+    insta::assert_snapshot!(
+        stderr(&output).starts_with("error: could not fetch missing: "),
+        @"true"
+    );
 }
 
 #[test]
@@ -1822,7 +1862,7 @@ fn compact_prints_scores_misses_and_opportunities_in_a_few_lines() {
     // Each miss shows once, with its note, even when --require-targets fails the run.
     let output = uphill_in(project.path(), &["--compact", "--require-targets"], &[]);
 
-    assert_eq!(output.status.code(), Some(1));
+    insta::assert_snapshot!(output.status, @"exit status: 1");
     insta::assert_snapshot!(stdout(&output), @"
     footprint 42, speed 75
 
@@ -1882,7 +1922,9 @@ fn init_points_the_brief_at_the_closest_example() {
             fs::write(path, contents).unwrap();
         }
         let output = uphill_in(dir.path(), &["init"], &[]);
-        assert_eq!(output.status.code(), Some(0));
+        insta::allow_duplicates! {
+            insta::assert_snapshot!(output.status, @"exit status: 0");
+        }
         let text = stdout(&output);
         text.lines()
             .find(|line| line.contains("example"))
@@ -1903,7 +1945,7 @@ fn init_ends_the_brief_with_the_uphill_skill() {
     let dir = tempfile::tempdir().unwrap();
 
     let output = uphill_in(dir.path(), &["init"], &[]);
-    assert_eq!(output.status.code(), Some(0));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
 
     // Headings outside code blocks, where `#` starts a comment. The skill's frontmatter is left
     // out, so the brief keeps one title per part.
@@ -1999,7 +2041,9 @@ impl Host {
             .current_dir(&repository)
             .output()
             .unwrap();
-        assert!(output.status.success(), "{}", stderr(&output));
+        insta::allow_duplicates! {
+            insta::assert_snapshot!(failure(&output), @"");
+        }
         git(&repository, &["rev-parse", "HEAD"]).trim().to_owned()
     }
 
@@ -2066,16 +2110,16 @@ fn add_pins_a_pack_that_runs_from_the_cache() {
         &["add", "acme/packs/sizes@main"],
         &host.envs(),
     );
-    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(output.status, @"exit status: 2");
     insta::assert_snapshot!(stderr(&output), @"error: standard input is not a terminal, so nothing was written. Review the summary above, then run again with --yes");
-    assert!(!host.cache().exists());
+    insta::assert_snapshot!(host.cache().exists(), @"false");
 
     let output = uphill_in(
         project.path(),
         &["add", "acme/packs/sizes@main", "--yes"],
         &host.envs(),
     );
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     let text = stdout(&output);
     let text = commits(&text, &[(first, "<first>")]);
     let text = aged(&text);
@@ -2116,22 +2160,34 @@ fn add_pins_a_pack_that_runs_from_the_cache() {
         names.sort();
         names
     };
-    assert_eq!(
-        names(project.path()),
-        [".agents", "AGENTS.md", "uphill.yaml"]
-    );
-    assert_eq!(names(&project.path().join(".agents/uphill")), ["rules.md"]);
-    assert_eq!(names(&project.path().join(".agents")), ["uphill"]);
-    assert!(
+    insta::assert_debug_snapshot!(names(project.path()), @r#"
+    [
+        ".agents",
+        "AGENTS.md",
+        "uphill.yaml",
+    ]
+    "#);
+    insta::assert_debug_snapshot!(names(&project.path().join(".agents/uphill")), @r#"
+    [
+        "rules.md",
+    ]
+    "#);
+    insta::assert_debug_snapshot!(names(&project.path().join(".agents")), @r#"
+    [
+        "uphill",
+    ]
+    "#);
+    insta::assert_snapshot!(
         host.cached(first)
             .join(".agents/metrics/sizes.sh")
-            .is_file()
+            .is_file(),
+        @"true"
     );
 
     // A run with an empty cache fetches the pinned commit.
     fs::remove_dir_all(host.cache()).unwrap();
     let output = check(project.path(), &host.envs());
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     insta::assert_snapshot!(stdout(&output), @"
     ✓ own        1 metric
     ✓ footprint  1 metric
@@ -2139,30 +2195,30 @@ fn add_pins_a_pack_that_runs_from_the_cache() {
 
     3 passed
     ");
-    assert!(
+    insta::assert_snapshot!(
         host.cached(first)
             .join(".agents/metrics/sizes.sh")
-            .is_file()
+            .is_file(),
+        @"true"
     );
 
     // A cached commit needs no network. Without the cache, the fetch fails.
     fs::rename(host.repository(), host.dir.path().join("moved")).unwrap();
     let output = check(project.path(), &host.envs());
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     fs::remove_dir_all(host.cache()).unwrap();
     let output = check(project.path(), &host.envs());
-    assert_eq!(output.status.code(), Some(2));
-    assert!(
+    insta::assert_snapshot!(output.status, @"exit status: 2");
+    insta::assert_snapshot!(
         stderr(&output)
             .starts_with("error: could not fetch acme/packs/sizes: `git ls-remote` failed"),
-        "{}",
-        stderr(&output)
+        @"true"
     );
     fs::rename(host.dir.path().join("moved"), host.repository()).unwrap();
 
     // `remove` takes the entry away.
     let output = uphill_in(project.path(), &["remove", "sizes"], &[]);
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     insta::assert_snapshot!(stdout(&output), @"
     Removed acme/packs/sizes from uphill.yaml
     Wrote .agents/uphill/rules.md
@@ -2183,7 +2239,7 @@ fn add_pins_a_pack_that_runs_from_the_cache() {
         &["add", "acme/packs/sizes@main", "lines", "--yes"],
         &host.envs(),
     );
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     let config = fs::read_to_string(project.path().join("uphill.toml")).unwrap();
     insta::assert_snapshot!(commits(&config, &[(first, "<first>")]), @r#"
     packs = [
@@ -2196,7 +2252,7 @@ fn add_pins_a_pack_that_runs_from_the_cache() {
     files = {}
     "#);
     let output = check(project.path(), &host.envs());
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
 }
 
 #[test]
@@ -2210,7 +2266,7 @@ fn update_reviews_new_capabilities_and_refuses_fresh_and_force_pushed_commits() 
         &["add", "acme/packs/sizes", "--yes"],
         &host.envs(),
     );
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
 
     // A new script runs code from the network and reads a token.
     fs::write(
@@ -2226,7 +2282,7 @@ fn update_reviews_new_capabilities_and_refuses_fresh_and_force_pushed_commits() 
     let second = host.commit("2026-02-01T00:00:00Z");
 
     let output = uphill_in(project.path(), &["update", "--yes"], &host.envs());
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     let text = commits(
         &stdout(&output),
         &[(&first, "<first>"), (&second, "<second>")],
@@ -2251,14 +2307,15 @@ fn update_reviews_new_capabilities_and_refuses_fresh_and_force_pushed_commits() 
     updated  acme/packs/sizes to <second>
     ");
     let config = fs::read_to_string(project.path().join("uphill.yaml")).unwrap();
-    assert!(
-        config.contains(&format!("acme/packs/sizes@{second}\n")),
-        "{config}"
+    insta::assert_snapshot!(
+        config.matches(&format!("acme/packs/sizes@{second}\n")).count(),
+        @"1"
     );
-    assert!(
+    insta::assert_snapshot!(
         host.cached(&second)
             .join(".agents/metrics/upload.ts")
-            .is_file()
+            .is_file(),
+        @"true"
     );
 
     // A commit from today waits a day, unless `--allow-fresh`.
@@ -2267,7 +2324,7 @@ fn update_reviews_new_capabilities_and_refuses_fresh_and_force_pushed_commits() 
     git(&host.repository(), &["commit", "-q", "-m", "fresh"]);
     let fresh = git(&host.repository(), &["rev-parse", "HEAD"]);
     let output = uphill_in(project.path(), &["update", "--yes"], &host.envs());
-    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(output.status, @"exit status: 2");
     insta::assert_snapshot!(commits(&stderr(&output), &[(fresh.trim(), "<fresh>")]), @"error: the commit <fresh> is less than a day old. Wait for review of the change, or run again with --allow-fresh");
 
     // A force-push replaces the pinned commit's history.
@@ -2275,7 +2332,7 @@ fn update_reviews_new_capabilities_and_refuses_fresh_and_force_pushed_commits() 
     fs::write(host.repository().join("sizes/other.txt"), "other\n").unwrap();
     let forced = host.commit("2026-03-01T00:00:00Z");
     let output = uphill_in(project.path(), &["update", "--yes"], &host.envs());
-    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(output.status, @"exit status: 2");
     insta::assert_snapshot!(
         commits(&stderr(&output), &[(&second, "<second>"), (&forced, "<forced>")]),
         @"error: acme/packs/sizes at <forced> does not descend from the pinned commit <second>. The ref may have been force-pushed, or the repository replaced. Review it, then run `uphill remove sizes` and `uphill add`"
@@ -2289,8 +2346,10 @@ fn add_rejects_links_escaping_paths_fork_commits_and_ambiguous_refs() {
     let repository = host.repository();
     let add = |source: &str| {
         let output = uphill_in(project.path(), &["add", source, "--yes"], &host.envs());
-        assert_eq!(output.status.code(), Some(2), "{}", stdout(&output));
-        assert!(!host.cache().exists());
+        insta::allow_duplicates! {
+            insta::assert_snapshot!(output.status, @"exit status: 2");
+            insta::assert_snapshot!(host.cache().exists(), @"false");
+        }
         stderr(&output)
     };
 
@@ -2346,9 +2405,9 @@ fn add_rejects_links_escaping_paths_fork_commits_and_ambiguous_refs() {
     let config = fs::read_to_string(&path).unwrap();
     fs::write(&path, format!("{config}packs: [acme/packs/sizes@{fork}]\n")).unwrap();
     let output = check(project.path(), &host.envs());
-    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(output.status, @"exit status: 2");
     insta::assert_snapshot!(commits(&stderr(&output), &[(&fork, "<fork>")]), @"error: no branch or tag of acme/packs/sizes contains the commit <fork>. It may come from a fork");
-    assert!(!host.cache().exists());
+    insta::assert_snapshot!(host.cache().exists(), @"false");
     fs::write(&path, config).unwrap();
 
     // A ref that names both a branch and a tag.
@@ -2393,7 +2452,7 @@ fn packs_merge_categories_with_the_same_name() {
     );
 
     let output = uphill_in(dir.path(), &["--compact"], &[]);
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     insta::assert_snapshot!(stdout(&output), @"
     style 93, docs 100
 
@@ -2428,7 +2487,7 @@ fn packs_merge_categories_with_the_same_name() {
         "printf 'formatted a.rs pass\\nnested-ternaries c.ts pass\\n' >> \"$UPHILL_METRICS\"\n",
     );
     let output = check(dir.path(), &[]);
-    assert_eq!(output.status.code(), Some(1));
+    insta::assert_snapshot!(output.status, @"exit status: 1");
     insta::assert_snapshot!(stdout(&output), @"
     ✗ style  item `a.rs` of metric `formatted` is written by two scripts of `style`
     ✓ docs   1 metric
@@ -2442,7 +2501,7 @@ fn packs_merge_categories_with_the_same_name() {
         "packs:\n  - ./packs/a\nstyle:\n  long-lines: false\n",
     );
     let output = uphill_in(dir.path(), &["--update", "--compact"], &[]);
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     insta::assert_snapshot!(stdout(&output), @"
     style 50, docs 100
 
@@ -2465,7 +2524,7 @@ fn packs_merge_categories_with_the_same_name() {
         "packs:\n  - ./packs/a\ndocs:\n  run: echo\n  module-docs: { weight: 2 }\n",
     );
     let output = check(dir.path(), &[]);
-    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(output.status, @"exit status: 2");
     insta::assert_snapshot!(stderr(&output), @"
     error[unexpected-key] uphill.yaml:4:3: `run` runs the metrics that `docs` adds, and it adds none. A pack's metrics keep the pack's script
       4 |   run: echo
@@ -2482,7 +2541,7 @@ fn packs_must_be_pinned_allowed_and_approved_to_install() {
         &["add", "acme/packs/sizes", "--yes"],
         &host.envs(),
     );
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     let path = project.path().join("uphill.yaml");
     let config = fs::read_to_string(&path).unwrap();
     let first = git(&host.repository(), &["rev-parse", "HEAD"]);
@@ -2490,7 +2549,7 @@ fn packs_must_be_pinned_allowed_and_approved_to_install() {
 
     fs::write(&path, config.replace(first, "main")).unwrap();
     let output = check(project.path(), &host.envs());
-    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(output.status, @"exit status: 2");
     insta::assert_snapshot!(stderr(&output), @"
     error[unpinned] uphill.yaml:6:5: pack `acme/packs/sizes` must be pinned to a full commit, such as `acme/packs/sizes@<40-character commit>`. `uphill add acme/packs/sizes` writes the pin
       6 |   - acme/packs/sizes@main
@@ -2499,7 +2558,7 @@ fn packs_must_be_pinned_allowed_and_approved_to_install() {
 
     fs::write(&path, format!("{config}allowed-packs: [wevm/*]\n")).unwrap();
     let output = check(project.path(), &host.envs());
-    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(output.status, @"exit status: 2");
     insta::assert_snapshot!(commits(&stderr(&output), &[(first, "<first>")]), @"
     error[not-allowed] uphill.yaml:6:5: pack `acme/packs/sizes` matches no pattern of `allowed-packs`: wevm/*
       6 |   - acme/packs/sizes@<first>
@@ -2510,7 +2569,7 @@ fn packs_must_be_pinned_allowed_and_approved_to_install() {
     fs::write(host.cached(first).join("package.json"), "{}\n").unwrap();
     fs::write(&path, &config).unwrap();
     let output = check(project.path(), &host.envs());
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     let pinned = format!("acme/packs/sizes@{first}");
     fs::write(
         &path,
@@ -2518,7 +2577,7 @@ fn packs_must_be_pinned_allowed_and_approved_to_install() {
     )
     .unwrap();
     let output = check(project.path(), &host.envs());
-    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(output.status, @"exit status: 2");
     let cache = host.cache().display().to_string();
     insta::assert_snapshot!(commits(&stderr(&output).replace(&cache, "<cache>"), &[(first, "<first>")]), @"error: pack <cache>/uphill/packs/<first>/sizes has a package.json without a lockfile, so Uphill does not install it");
 
@@ -2530,7 +2589,7 @@ fn packs_must_be_pinned_allowed_and_approved_to_install() {
     )
     .unwrap();
     let output = uphill_in(project.path(), &["add", "./local"], &[]);
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     let config = fs::read_to_string(&path).unwrap();
     insta::assert_snapshot!(commits(&config, &[(first, "<first>")]), @r#"
     own:
@@ -2568,7 +2627,9 @@ fn command_in(dir: &Path, args: &[&str], input: &str) -> String {
         .write_all(input.as_bytes())
         .unwrap();
     let output = child.wait_with_output().unwrap();
-    assert!(output.status.success());
+    insta::allow_duplicates! {
+        insta::assert_snapshot!(failure(&output), @"");
+    }
     stdout(&output).trim().to_owned()
 }
 
@@ -2583,7 +2644,7 @@ fn rejects_an_invalid_baseline() {
 
     let output = uphill_in(project.path(), &["footprint"], &[]);
 
-    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(output.status, @"exit status: 2");
     insta::assert_snapshot!(stderr(&output), @"
     error[invalid-value] uphill.baseline.yaml:2:11: expected `{ baseline: <value>, target: <value> }` with either key or both, or a mapping of items, patterns, or subjects to them. A baseline is a size, count, or check, and a target is a size, time, or count
       2 |   bundle: 27.5 kilobytes
@@ -2609,24 +2670,22 @@ fn update_writes_a_toml_baseline_file_and_moves_inline_baselines_into_it() {
     // key in a metric's own table. A metric with items takes a table of its own, one line per
     // item.
     let output = uphill_in(project.path(), &["--update"], &[]);
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
-    assert!(
-        stdout(&output).ends_with(
-            "\nWrote .uphill/report.json, .uphill/report.md, .uphill/report.html, uphill.baseline.toml, uphill.toml\n"
-        ),
-        "{}",
-        stdout(&output)
+    insta::assert_snapshot!(output.status, @"exit status: 0");
+    insta::assert_snapshot!(
+        from_line(&stdout(&output), "Wrote"),
+        @"Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html, uphill.baseline.toml, uphill.toml"
     );
-    assert_eq!(
-        fs::read_to_string(&path).unwrap(),
-        config
-            .replace("export-size.target = \"5kB\"", "export-size = {}")
-            .replace("modules = { baseline = 400 }", "modules = {}")
-            .replace(
-                "target = \"2ms\" # per item\n\n[speed.render.targets]\n\"ABI*\" = \"3ms\"\n",
-                ""
-            )
-    );
+    insta::assert_snapshot!(fs::read_to_string(&path).unwrap(), @r#"
+    [footprint]
+    run = "sh metrics/footprint.sh"
+    export-size = {} # gzipped
+    modules = {}
+
+    [speed]
+    run = "sh metrics/speed.sh"
+
+    [speed.render]
+    "#);
     let baselines = fs::read_to_string(project.path().join("uphill.baseline.toml")).unwrap();
     insta::assert_snapshot!(baselines, @r#"
     # Each measurement's `baseline`, the size, count, or check `uphill --update` accepted, and its
@@ -2649,10 +2708,10 @@ fn update_writes_a_toml_baseline_file_and_moves_inline_baselines_into_it() {
     // Without its line target, the timing keeps the target the baseline file records.
     fs::write(&speed, script).unwrap();
     let output = uphill_in(project.path(), &["--update"], &[]);
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
-    assert_eq!(
-        fs::read_to_string(project.path().join("uphill.baseline.toml")).unwrap(),
-        baselines
+    insta::assert_snapshot!(output.status, @"exit status: 0");
+    insta::assert_snapshot!(
+        fs::read_to_string(project.path().join("uphill.baseline.toml")).unwrap() == baselines,
+        @"true"
     );
 }
 
@@ -2670,7 +2729,7 @@ fn update_that_records_nothing_writes_no_baseline_file() {
     let output = uphill_in(dir.path(), &["--update"], &[]);
 
     insta::assert_snapshot!(stderr(&output), @"");
-    assert!(!dir.path().join("uphill.baseline.yaml").exists());
+    insta::assert_snapshot!(dir.path().join("uphill.baseline.yaml").exists(), @"false");
 }
 
 #[test]
@@ -2679,7 +2738,7 @@ fn unknown_category() {
 
     let output = uphill_in(project.path(), &["bench"], &[]);
 
-    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(output.status, @"exit status: 2");
     insta::assert_snapshot!(stderr(&output), @"error: unknown category 'bench'. uphill.yaml declares footprint, speed");
 }
 
@@ -2713,7 +2772,7 @@ fn rules_list_each_composed_metric_with_its_description_and_targets() {
     );
 
     let output = uphill_in(dir.path(), &["rules"], &[]);
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     insta::assert_snapshot!(stdout(&output), @"
     # Rules
 
@@ -2733,7 +2792,7 @@ fn rules_list_each_composed_metric_with_its_description_and_targets() {
     ");
 
     let output = uphill_in(dir.path(), &["rules", "style"], &[]);
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     insta::assert_snapshot!(stdout(&output), @"
     # Rules
 
@@ -2746,7 +2805,7 @@ fn rules_list_each_composed_metric_with_its_description_and_targets() {
     ");
 
     let output = uphill_in(dir.path(), &["rules", "docs"], &[]);
-    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(output.status, @"exit status: 2");
     insta::assert_snapshot!(stderr(&output), @"error: unknown category 'docs'. uphill.yaml declares speed, style");
 }
 
@@ -2759,7 +2818,7 @@ fn rules_write_a_file_that_agents_md_mentions_and_check_fails_when_it_is_stale()
 
     // The mention goes under the title, above the project's own guidance.
     let output = uphill_in(dir, &["rules", "--write"], &[]);
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     insta::assert_snapshot!(stdout(&output), @"Wrote .agents/uphill/rules.md, AGENTS.md");
     insta::assert_snapshot!(fs::read_to_string(&agents).unwrap(), @"
     # Project
@@ -2768,20 +2827,21 @@ fn rules_write_a_file_that_agents_md_mentions_and_check_fails_when_it_is_stale()
 
     Run `make test`.
     ");
-    assert_eq!(
-        fs::read_to_string(dir.join(".agents/uphill/rules.md")).unwrap(),
-        stdout(&uphill_in(dir, &["rules"], &[]))
+    insta::assert_snapshot!(
+        fs::read_to_string(dir.join(".agents/uphill/rules.md")).unwrap()
+            == stdout(&uphill_in(dir, &["rules"], &[])),
+        @"true"
     );
 
     // A second write changes nothing, and the mention stays single.
     let output = uphill_in(dir, &["rules", "--write"], &[]);
     insta::assert_snapshot!(stdout(&output), @".agents/uphill/rules.md is up to date");
-    assert_eq!(
+    insta::assert_snapshot!(
         fs::read_to_string(&agents)
             .unwrap()
             .matches("@.agents")
             .count(),
-        1
+        @"1"
     );
 
     // A new description makes the file stale, which fails `uphill check` until the next write.
@@ -2792,7 +2852,7 @@ fn rules_write_a_file_that_agents_md_mentions_and_check_fails_when_it_is_stale()
     )
     .unwrap();
     let output = check(dir, &[]);
-    assert_eq!(output.status.code(), Some(1));
+    insta::assert_snapshot!(output.status, @"exit status: 1");
     insta::assert_snapshot!(stdout(&output), @"
     ✓ footprint  4 metrics
     ✓ speed      2 metrics
@@ -2801,10 +2861,10 @@ fn rules_write_a_file_that_agents_md_mentions_and_check_fails_when_it_is_stale()
     2 passed, 1 failed
     ");
     uphill_in(dir, &["rules", "--write"], &[]);
-    assert_eq!(check(dir, &[]).status.code(), Some(0));
+    insta::assert_snapshot!(check(dir, &[]).status, @"exit status: 0");
 
     let output = uphill_in(dir, &["rules", "--write", "speed"], &[]);
-    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(output.status, @"exit status: 2");
     insta::assert_snapshot!(stderr(&output), @"error: --write writes the rules of every category, so it takes no category");
 }
 
@@ -2814,7 +2874,7 @@ fn check_passes_from_a_subdirectory() {
 
     let output = check(&project.path().join("metrics"), &[]);
 
-    assert_eq!(output.status.code(), Some(0));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     insta::assert_snapshot!(stdout(&output), @"
     ✓ footprint  2 metrics
     ✓ speed      1 metric
@@ -2830,7 +2890,7 @@ fn check_reports_failed_scripts_with_the_end_of_stderr() {
 
     let output = check(project.path(), &[]);
 
-    assert_eq!(output.status.code(), Some(1));
+    insta::assert_snapshot!(output.status, @"exit status: 1");
     insta::assert_snapshot!(stdout(&output), @"
     ✓ footprint  1 metric
     ✗ build      script exited with status 3
@@ -2866,7 +2926,7 @@ fn check_reports_a_malformed_line() {
 
     let output = check(project.path(), &[]);
 
-    assert_eq!(output.status.code(), Some(1));
+    insta::assert_snapshot!(output.status, @"exit status: 1");
     insta::assert_snapshot!(stdout(&output), @r#"
     ✗ footprint  invalid metric line
         error[unknown-unit] footprint metrics:2:29: unknown unit `kb`, expected one of `B`, `kB`, `MB`, `GB`, `ns`, `µs`, `us`, `ms`, `s`
@@ -2883,7 +2943,7 @@ fn check_reports_missing_and_unconfigured_metrics() {
 
     let output = check(project.path(), &[]);
 
-    assert_eq!(output.status.code(), Some(1));
+    insta::assert_snapshot!(output.status, @"exit status: 1");
     insta::assert_snapshot!(stdout(&output), @"
     ✗ footprint  2 metrics, 1 error, 1 warning
         error[metric-missing] uphill.yaml:5:3: metric `modules` is configured, but the script did not write it
@@ -2930,8 +2990,8 @@ fn check_kills_a_script_that_times_out() {
 
     let output = check(project.path(), &[("UPHILL_TEST_PID", &pid_file)]);
 
-    assert_eq!(output.status.code(), Some(1));
-    assert!(started.elapsed() < Duration::from_secs(10));
+    insta::assert_snapshot!(output.status, @"exit status: 1");
+    insta::assert_snapshot!(started.elapsed() < Duration::from_secs(10), @"true");
     insta::assert_snapshot!(stdout(&output), @"
     ✗ speed  script timed out after 300ms
 
@@ -2941,6 +3001,7 @@ fn check_kills_a_script_that_times_out() {
     let pid = fs::read_to_string(&pid_file).unwrap();
     let pid = pid.trim();
     let deadline = Instant::now() + Duration::from_secs(5);
+    // Each `ps` run paces the loop, and the deadline bounds it.
     let alive = loop {
         // `ps` prints nothing for a process that is gone, and `Z` for one that awaits its parent.
         let ps = Command::new("ps")
@@ -2951,12 +3012,8 @@ fn check_kills_a_script_that_times_out() {
         if state.is_empty() || state.starts_with('Z') || Instant::now() > deadline {
             break !(state.is_empty() || state.starts_with('Z'));
         }
-        std::thread::sleep(Duration::from_millis(50));
     };
-    assert!(
-        !alive,
-        "the script's background process {pid} is still running"
-    );
+    insta::assert_snapshot!(alive, @"false");
 }
 
 #[test]
@@ -2973,7 +3030,7 @@ fn check_passes_every_example() {
             .map(|handle| handle.join().unwrap())
     });
 
-    assert_eq!(typescript_library.status.code(), Some(0));
+    insta::assert_snapshot!(typescript_library.status, @"exit status: 0");
     insta::assert_snapshot!(stdout(&typescript_library), @"
     ✓ footprint      6 metrics
     ✓ speed          2 metrics
@@ -2987,7 +3044,7 @@ fn check_passes_every_example() {
     8 passed
     ");
 
-    assert_eq!(web_app.status.code(), Some(0));
+    insta::assert_snapshot!(web_app.status, @"exit status: 0");
     insta::assert_snapshot!(stdout(&web_app), @"
     ✓ performance     7 metrics
     ✓ seo             1 metric
@@ -2997,7 +3054,7 @@ fn check_passes_every_example() {
     4 passed
     ");
 
-    assert_eq!(rust_api.status.code(), Some(0));
+    insta::assert_snapshot!(rust_api.status, @"exit status: 0");
     insta::assert_snapshot!(stdout(&rust_api), @"
     ✓ footprint      2 metrics
     ✓ latency        3 metrics
@@ -3019,7 +3076,7 @@ fn check_without_a_config() {
 
     let output = check(dir.path(), &[]);
 
-    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(output.status, @"exit status: 2");
     insta::assert_snapshot!(stderr(&output), @"error: no uphill.yaml or uphill.toml, at the root, in .agents, or in .agents/uphill, in this directory or any parent directory");
 }
 
@@ -3036,7 +3093,7 @@ fn check_with_an_invalid_config_names_it_relative_to_the_current_directory() {
 
     let output = check(&dir.path().join("src"), &[]);
 
-    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(output.status, @"exit status: 2");
     insta::assert_snapshot!(stderr(&output), @"
     error[unknown-unit] ../.agents/uphill.yaml:3:21: unknown unit `kb`, expected one of `B`, `kB`, `MB`, `GB`, `ns`, `µs`, `us`, `ms`, `s`
       3 |   size: { target: 50kb }
@@ -3064,7 +3121,7 @@ fn agents_config_runs_from_the_project_root_and_moves_inline_targets_beside_it()
 
     // Started inside `.agents`, Uphill still runs from the directory above it.
     let output = uphill_in(&dir.path().join(".agents"), &["--update"], &[]);
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     insta::assert_snapshot!(stdout(&output), @"
     ●  99  footprint
       ●  99  manifests  1  target 2
@@ -3086,7 +3143,7 @@ fn agents_config_runs_from_the_project_root_and_moves_inline_targets_beside_it()
     footprint:
       manifests: { baseline: 1, target: 2 }
     ");
-    assert!(dir.path().join(".uphill/report.html").exists());
+    insta::assert_snapshot!(dir.path().join(".uphill/report.html").exists(), @"true");
 
     fs::write(
         dir.path().join("uphill.yaml"),
@@ -3094,7 +3151,7 @@ fn agents_config_runs_from_the_project_root_and_moves_inline_targets_beside_it()
     )
     .unwrap();
     let output = check(dir.path(), &[]);
-    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(output.status, @"exit status: 2");
     insta::assert_snapshot!(stderr(&output), @"error: uphill.yaml and .agents/uphill.yaml both exist. Keep one");
 }
 
@@ -3118,7 +3175,7 @@ fn agents_uphill_config_runs_from_the_project_root_with_its_baseline_beside_it()
 
     // Started two levels inside `.agents`, Uphill still runs from the directory above it.
     let output = uphill_in(&uphill.join("metrics"), &["--update", "--compact"], &[]);
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    insta::assert_snapshot!(output.status, @"exit status: 0");
     insta::assert_snapshot!(stdout(&output), @"
     footprint –
 
@@ -3143,6 +3200,6 @@ fn agents_uphill_config_runs_from_the_project_root_with_its_baseline_beside_it()
     )
     .unwrap();
     let output = check(dir.path(), &[]);
-    assert_eq!(output.status.code(), Some(2));
+    insta::assert_snapshot!(output.status, @"exit status: 2");
     insta::assert_snapshot!(stderr(&output), @"error: .agents/uphill.yaml and .agents/uphill/uphill.yaml both exist. Keep one");
 }

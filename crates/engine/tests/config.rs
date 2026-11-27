@@ -1,10 +1,8 @@
 //! Integration tests for parsing `uphill.yaml` and `uphill.toml`: typed categories with defaults, and every
 //! configuration error rendered with its file, line, and column.
 
-use engine::baseline::{Baseline, Record};
 use engine::config::{self, Config, Format};
 use engine::error::Location;
-use engine::value::Value;
 
 /// Parses `source` as TOML and renders the error it must produce, prefixed with its code.
 fn toml_error(source: &str) -> String {
@@ -549,33 +547,17 @@ modules = { baseline = 412 }
 "#;
 
     let parsed = config::parse(yaml, Format::Yaml).unwrap();
-    assert_eq!(
-        without_locations(config::parse(toml, Format::Toml).unwrap()),
-        without_locations(parsed.clone()),
+    insta::assert_snapshot!(
+        without_locations(config::parse(toml, Format::Toml).unwrap())
+            == without_locations(parsed.clone()),
+        @"true"
     );
 
     // A baseline maps subjects to items, and each record keeps its line target in base units.
-    let record = |value, target| Baseline::Record(Record { target, value });
-    let item = |value, target| Baseline::Map(vec![(".".to_owned(), record(value, target))]);
     let footprint = &parsed.categories[1].metrics;
-    assert_eq!(
-        footprint[0].baseline,
-        Some(Baseline::Map(vec![
-            (
-                "zc".to_owned(),
-                item(Some(Value::Size(2500.0)), Some(Value::Size(3000.0)))
-            ),
-            ("ts".to_owned(), item(Some(Value::Size(3000.0)), None)),
-        ])),
-    );
-    assert_eq!(
-        footprint[1].baseline,
-        Some(record(None, Some(Value::Size(20e6))))
-    );
-    assert_eq!(
-        footprint[2].baseline,
-        Some(record(Some(Value::Count(412.0)), None))
-    );
+    insta::assert_snapshot!(format!("{:?}", footprint[0].baseline), @r#"Some(Map([("zc", Map([(".", Record(Record { target: Some(Size(3000.0)), value: Some(Size(2500.0)) }))])), ("ts", Map([(".", Record(Record { target: None, value: Some(Size(3000.0)) }))]))]))"#);
+    insta::assert_snapshot!(format!("{:?}", footprint[1].baseline), @"Some(Record(Record { target: Some(Size(20000000.0)), value: None }))");
+    insta::assert_snapshot!(format!("{:?}", footprint[2].baseline), @"Some(Record(Record { target: None, value: Some(Count(412.0)) }))");
 }
 
 #[test]

@@ -54,13 +54,16 @@ fn curve_matches_lighthouse_and_zepto() {
         (30.0, 3000.0, 2.381_428_387_820_961e-13),
     ];
 
-    for (target, value, expected) in cases {
-        let actual = score::curve(target, 2.0 * target, value);
-        assert!(
-            (actual - expected).abs() < 1e-12,
-            "curve({target}, {value}) = {actual}, expected {expected}"
-        );
-    }
+    // Each case that differs from Lighthouse by 1e-12 or more, which should be none.
+    let differ: Vec<String> = cases
+        .into_iter()
+        .filter_map(|(target, value, expected)| {
+            let actual = score::curve(target, 2.0 * target, value);
+            ((actual - expected).abs() >= 1e-12)
+                .then(|| format!("curve({target}, {value}) = {actual}, expected {expected}"))
+        })
+        .collect();
+    insta::assert_snapshot!(differ.join("\n"), @"");
 }
 
 #[test]
@@ -285,7 +288,7 @@ fn takes_timing_medians_across_rounds_and_exact_values_from_the_first() {
     // The median of `parse` is 5 ms, and the p90 of two items is the larger, 5 ms, which
     // Lighthouse scores 33 against a 2 ms target. Throughput keeps the first round's 2588, which
     // scores 96 against a target of 2000. With weight 2 on throughput, the category is 75.
-    assert_eq!(scored.rounds, 5);
+    insta::assert_snapshot!(scored.rounds, @"5");
     insta::assert_snapshot!(summary(&scored), @"
     category Some(75)
     render 5000000 Some(33)
