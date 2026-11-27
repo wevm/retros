@@ -93,11 +93,14 @@ jobs:
 
   # Each run on main keeps Uphill's own scores and values as a Git note on its commit, which the
   # trends in report.html and `uphill log` read. The workflow's concurrency runs one at a time.
+  # The action also publishes the report to GitHub Pages, where the README's badges read it.
   note:
     name: Note
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      deployments: write
+      pages: write
 
     steps:
       - name: Clone repository
@@ -113,14 +116,27 @@ jobs:
         with:
           bun-version: 1.4.4
 
-      - name: Note this run
+      - name: Build Uphill
         run: |
-          # The pattern matches refs/notes/uphill and refs/notes/uphill-report.
+          cargo build --release --locked -p uphill
+          echo "$PWD/target/release" >> "$GITHUB_PATH"
+
+      # The pattern matches refs/notes/uphill and refs/notes/uphill-report.
+      - name: Fetch notes
+        run: |
           git fetch origin 'refs/notes/uphill*:refs/notes/uphill*'
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          cargo run --release --locked --quiet -p uphill -- --note
-          git push origin 'refs/notes/uphill*:refs/notes/uphill*'
+
+      - name: Note this run
+        uses: ./
+        with:
+          args: --note
+          publish: true
+          version: none
+
+      - name: Push notes
+        run: git push origin 'refs/notes/uphill*:refs/notes/uphill*'
 
   # Creates the GitHub Release with the archives, and publishes the same binaries to npm. Each
   # part skips work that a cancelled or failed run already finished, so a later run resumes it.

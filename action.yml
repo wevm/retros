@@ -185,13 +185,14 @@ runs:
           mkdir -p "$path/badges"
           cp "$HTML" "$path/index.html"
 
-          # Each category gets a Shields endpoint badge, colored by its score band.
+          # Each category gets a Shields endpoint badge, colored by its score band. A category
+          # without a score failed when it has an error, and otherwise has no metric with a target.
           if [ -f "$json" ]; then
             cp "$json" "$path/report.json"
             jq -r '.categories[] | [([.name, .subject] | map(select(.)) | join("-")), ({
               color: (if .score == null then "lightgrey" elif .score >= 90 then "0c6" elif .score >= 50 then "fa3" else "f33" end),
               label: (.title + (if .subject then " (\(.subject))" else "" end)),
-              message: (if .score == null then "failed" else "\(.score)" end),
+              message: (if .error then "failed" elif .score == null then "–" else "\(.score)" end),
               schemaVersion: 1
             } | tojson)] | @tsv' "$json" | while IFS=$'\t' read -r file badge; do
               printf '%s\n' "$badge" > "$path/badges/$file.json"
