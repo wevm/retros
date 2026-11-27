@@ -17,6 +17,8 @@ use std::process::{Command, Stdio};
 use engine::pack::{self, Remote, TreeEntry};
 use tempfile::TempDir;
 
+use crate::error::Error;
+
 /// A file of a fetched pack.
 pub(crate) struct File {
     /// The file's contents.
@@ -44,12 +46,13 @@ pub(crate) struct Repository {
 ///
 /// Returns a message for the terminal when the entry has no commit, when the cache has no place,
 /// when Git cannot fetch the commit, or when a check fails.
-pub(crate) fn pack(remote: &Remote) -> Result<PathBuf, String> {
+pub(crate) fn pack(remote: &Remote) -> Result<PathBuf, Error> {
     let Some(commit) = remote.reference.as_deref().filter(|r| pack::is_commit(r)) else {
         return Err(format!(
             "error: pack `{}` is not pinned to a full commit",
             remote.name()
-        ));
+        )
+        .into());
     };
     let dir = cached(remote, commit)?;
     if dir.is_dir() {
@@ -67,7 +70,7 @@ pub(crate) fn pack(remote: &Remote) -> Result<PathBuf, String> {
 /// # Errors
 ///
 /// Returns a message for the terminal when neither `XDG_CACHE_HOME` nor `HOME` is set.
-fn cached(remote: &Remote, commit: &str) -> Result<PathBuf, String> {
+fn cached(remote: &Remote, commit: &str) -> Result<PathBuf, Error> {
     let root = std::env::var_os("XDG_CACHE_HOME")
         .filter(|dir| !dir.is_empty())
         .map(PathBuf::from)
@@ -95,7 +98,7 @@ fn cached(remote: &Remote, commit: &str) -> Result<PathBuf, String> {
 /// # Errors
 ///
 /// Returns a message for the terminal when a file cannot be written.
-pub(crate) fn store(remote: &Remote, commit: &str, files: &[File]) -> Result<PathBuf, String> {
+pub(crate) fn store(remote: &Remote, commit: &str, files: &[File]) -> Result<PathBuf, Error> {
     use std::os::unix::fs::PermissionsExt as _;
 
     let target = cached(remote, commit)?;
@@ -128,10 +131,7 @@ pub(crate) fn store(remote: &Remote, commit: &str, files: &[File]) -> Result<Pat
     if let Err(error) = std::fs::rename(&kept, &target) {
         let _ = std::fs::remove_dir_all(&kept);
         if !target.is_dir() {
-            return Err(format!(
-                "error: could not write {}: {error}",
-                target.display()
-            ));
+            return Err(format!("error: could not write {}: {error}", target.display()).into());
         }
     }
     Ok(target)
@@ -142,7 +142,7 @@ pub(crate) fn store(remote: &Remote, commit: &str, files: &[File]) -> Result<Pat
 /// # Errors
 ///
 /// Returns a message for the terminal when Git cannot run or cannot reach the remote.
-pub(crate) fn open(remote: &Remote) -> Result<Repository, String> {
+pub(crate) fn open(remote: &Remote) -> Result<Repository, Error> {
     let dir = tempfile::tempdir()
         .map_err(|error| format!("error: could not create a temporary directory: {error}"))?;
     let repository = Repository {
@@ -177,11 +177,11 @@ impl Repository {
     /// # Errors
     ///
     /// Returns a message when the ref names nothing, or names both a branch and a tag.
-    pub(crate) fn resolve(&self, reference: Option<&str>) -> Result<String, String> {
+    pub(crate) fn resolve(&self, reference: Option<&str>) -> Result<String, Error> {
         let Some(reference) = reference else {
             return self
                 .commit("HEAD")
-                .ok_or_else(|| format!("error: {} has no default branch", self.source));
+                .ok_or_else(|| format!("error: {} has no default branch", self.source).into());
         };
         if pack::is_commit(reference) {
             return Ok(reference.to_owned());
@@ -193,12 +193,12 @@ impl Repository {
             (Some(_), Some(_)) => Err(format!(
                 "error: `{reference}` names both a branch and a tag in {}. Name a full commit instead",
                 self.source
-            )),
+            ).into()),
             (Some(commit), None) | (None, Some(commit)) => Ok(commit),
             (None, None) => Err(format!(
                 "error: {} has no branch or tag `{reference}`. Name a branch, a tag, or a full commit",
                 self.source
-            )),
+            ).into()),
         }
     }
 
@@ -216,7 +216,7 @@ impl Repository {
     /// # Errors
     ///
     /// Returns a message when no branch or tag reaches the commit.
-    pub(crate) fn reachable(&self, commit: &str) -> Result<(), String> {
+    pub(crate) fn reachable(&self, commit: &str) -> Result<(), Error> {
         let tip = self.refs.iter().any(|(name, other)| {
             other == commit && (name.starts_with("refs/heads/") || name.starts_with("refs/tags/"))
         });
@@ -248,7 +248,7 @@ impl Repository {
             return Err(format!(
                 "error: no branch or tag of {} contains the commit {commit}. It may come from a fork",
                 self.source
-            ));
+            ).into());
         }
         Ok(())
     }
@@ -259,7 +259,7 @@ impl Repository {
     /// # Errors
     ///
     /// Returns a message when Git cannot fetch the commit.
-    pub(crate) fn history(&self, commit: &str) -> Result<(), String> {
+    pub(crate) fn history(&self, commit: &str) -> Result<(), Error> {
         self.git(&[
             "fetch",
             "--quiet",
@@ -283,7 +283,7 @@ impl Repository {
     /// # Errors
     ///
     /// Returns a message when Git cannot read the commits.
-    pub(crate) fn dates(&self, commit: &str) -> Result<(i64, Option<i64>), String> {
+    pub(crate) fn dates(&self, commit: &str) -> Result<(i64, Option<i64>), Error> {
         let read = |commit: &str| {
             let text = self.git(&["log", "-1", "--format=%ct %P", commit])?;
             let mut parts = text.split(' ');
@@ -291,7 +291,7 @@ impl Repository {
                 .next()
                 .and_then(|time| time.parse::<i64>().ok())
                 .ok_or_else(|| format!("error: could not read the date of {commit}"))?;
-            Ok::<_, String>((time, parts.map(str::to_owned).collect::<Vec<_>>()))
+            Ok::<_, Error>((time, parts.map(str::to_owned).collect::<Vec<_>>()))
         };
         let (time, parents) = read(commit)?;
         let mut latest = None;
@@ -310,7 +310,7 @@ impl Repository {
     ///
     /// Returns a message when Git cannot fetch the commit, when the commit has no directory at
     /// `path`, and when the tree fails a check.
-    pub(crate) fn files(&self, commit: &str, path: &str) -> Result<Vec<File>, String> {
+    pub(crate) fn files(&self, commit: &str, path: &str) -> Result<Vec<File>, Error> {
         // `--refetch` fetches the commit's trees and files even when its history is here. Files
         // over the limit stay behind, and their size reads as missing.
         let limit = format!("--filter=blob:limit={}", pack::MAX_FILE + 1);
@@ -334,7 +334,8 @@ impl Repository {
             return Err(format!(
                 "error: {} has no directory `{path}` at {commit}",
                 self.source
-            ));
+            )
+            .into());
         }
 
         let listed = self.git_bytes(&["ls-tree", "-r", "-z", &tree], b"")?;
@@ -372,8 +373,11 @@ impl Repository {
                 _ => None,
             };
         }
-        let executable = pack::validate(&entries).map_err(|message| {
-            format!("error: {} at {commit} is unsafe: {message}", self.source)
+        let executable = pack::validate(&entries).map_err(|error| {
+            format!(
+                "error: {} at {commit} is unsafe: {}",
+                self.source, error.message
+            )
         })?;
 
         let contents = self.git_bytes(&["cat-file", "--batch"], input.as_bytes())?;
@@ -403,13 +407,13 @@ impl Repository {
     }
 
     /// Runs Git in the repository and returns its standard output without the trailing newline.
-    fn git(&self, args: &[&str]) -> Result<String, String> {
+    fn git(&self, args: &[&str]) -> Result<String, Error> {
         let bytes = self.git_bytes(args, b"")?;
         Ok(String::from_utf8_lossy(&bytes).trim_end().to_owned())
     }
 
     /// Runs Git in the repository with `input` on standard input, and returns its standard output.
-    fn git_bytes(&self, args: &[&str], input: &[u8]) -> Result<Vec<u8>, String> {
+    fn git_bytes(&self, args: &[&str], input: &[u8]) -> Result<Vec<u8>, Error> {
         let mut child = command(self.dir.path())
             .args(args)
             .stdin(Stdio::piped())
@@ -441,7 +445,8 @@ impl Repository {
                 "error: could not fetch {}: `git {}` failed: {stderr}",
                 self.source,
                 args.first().unwrap_or(&"")
-            ));
+            )
+            .into());
         }
         Ok(stdout)
     }

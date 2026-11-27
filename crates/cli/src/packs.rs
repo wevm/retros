@@ -17,6 +17,7 @@ use engine::config;
 use engine::pack::{self, Entry, Source};
 use engine::scan;
 
+use crate::error::Error;
 use crate::fetch::{self, File};
 use crate::project::{self, Configuration, PLACES};
 use crate::rules;
@@ -39,9 +40,9 @@ pub(crate) struct Flags {
 ///
 /// Returns a message for the terminal when the source is invalid or already listed, when a check
 /// fails, when the user declines, or when a file cannot be written.
-pub(crate) fn add(source: &str, categories: &[String], flags: Flags) -> Result<ExitCode, String> {
+pub(crate) fn add(source: &str, categories: &[String], flags: Flags) -> Result<ExitCode, Error> {
     let found = configuration()?;
-    let parsed = pack::source(source).map_err(|message| format!("error: {message}"))?;
+    let parsed = pack::source(source).map_err(|error| format!("error: {}", error.message))?;
     let entries = entries(&found)?;
 
     let Source::Remote(remote) = parsed else {
@@ -49,7 +50,7 @@ pub(crate) fn add(source: &str, categories: &[String], flags: Flags) -> Result<E
         if !PLACES.iter().any(|(place, _)| dir.join(place).is_file()) {
             return Err(format!(
                 "error: {source} has no uphill.yaml or uphill.toml, at its root, in .agents, or in .agents/uphill"
-            ));
+            ).into());
         }
         let text = edit(
             pack::add(&found.source, found.format, source, categories, false, None),
@@ -68,7 +69,8 @@ pub(crate) fn add(source: &str, categories: &[String], flags: Flags) -> Result<E
         return Err(format!(
             "error: pack `{name}` matches no pattern of `allowed-packs` in {}",
             found.name
-        ));
+        )
+        .into());
     }
     if let Some(entry) = entries
         .iter()
@@ -79,7 +81,8 @@ pub(crate) fn add(source: &str, categories: &[String], flags: Flags) -> Result<E
             found.name,
             entry.name,
             entry.directory()
-        ));
+        )
+        .into());
     }
 
     let repository = fetch::open(&remote)?;
@@ -93,7 +96,7 @@ pub(crate) fn add(source: &str, categories: &[String], flags: Flags) -> Result<E
         .iter()
         .find(|wanted| !pack_categories.contains(wanted))
     {
-        return Err(format!("error: pack `{name}` has no category `{missing}`"));
+        return Err(format!("error: pack `{name}` has no category `{missing}`").into());
     }
 
     let follow = remote
@@ -152,7 +155,7 @@ pub(crate) fn add(source: &str, categories: &[String], flags: Flags) -> Result<E
 ///
 /// Returns a message for the terminal when a name lists no pack, when a check fails, when the user
 /// declines, or when a file cannot be written.
-pub(crate) fn update(names: &[String], flags: Flags) -> Result<ExitCode, String> {
+pub(crate) fn update(names: &[String], flags: Flags) -> Result<ExitCode, Error> {
     let found = configuration()?;
     let entries = select(&found, names)?;
     let mut text = found.source.clone();
@@ -180,7 +183,7 @@ pub(crate) fn update(names: &[String], flags: Flags) -> Result<ExitCode, String>
                 short(&commit),
                 short(&pinned),
                 entry.directory()
-            ));
+            ).into());
         }
         let age = age(&repository, &commit, flags.allow_fresh)?;
         let files = repository.files(&commit, &remote.path)?;
@@ -232,11 +235,11 @@ pub(crate) fn update(names: &[String], flags: Flags) -> Result<ExitCode, String>
 /// # Errors
 ///
 /// Returns a message for the terminal when the name lists no pack, or a file cannot be written.
-pub(crate) fn remove(name: &str) -> Result<ExitCode, String> {
+pub(crate) fn remove(name: &str) -> Result<ExitCode, Error> {
     let found = configuration()?;
     let entries = select(&found, &[name.to_owned()])?;
     let Some(entry) = entries.first() else {
-        return Err(format!("error: {} lists no pack `{name}`", found.name));
+        return Err(format!("error: {} lists no pack `{name}`", found.name).into());
     };
 
     let text = edit(pack::remove(&found.source, found.format, entry), &found)?;
@@ -247,27 +250,27 @@ pub(crate) fn remove(name: &str) -> Result<ExitCode, String> {
 }
 
 /// Finds the project's configuration from the current directory.
-fn configuration() -> Result<Configuration, String> {
+fn configuration() -> Result<Configuration, Error> {
     let cwd = std::env::current_dir()
         .map_err(|error| format!("error: could not read the current directory: {error}"))?;
     project::configuration(&cwd)
 }
 
 /// Returns the entries of the project's `packs` key.
-fn entries(found: &Configuration) -> Result<Vec<Entry>, String> {
+fn entries(found: &Configuration) -> Result<Vec<Entry>, Error> {
     pack::entries(&found.source, found.format)
-        .map_err(|error| crate::diagnostic("error", &error, &found.name, &found.source))
+        .map_err(|error| crate::diagnostic("error", &error, &found.name, &found.source).into())
 }
 
 /// Returns the entries that `names` lists by directory or source, or every entry without names.
-fn select(found: &Configuration, names: &[String]) -> Result<Vec<Entry>, String> {
+fn select(found: &Configuration, names: &[String]) -> Result<Vec<Entry>, Error> {
     let entries = entries(found)?;
     if let Some(name) = names.iter().find(|name| {
         !entries
             .iter()
             .any(|entry| entry.directory() == name.as_str() || entry.name == name.as_str())
     }) {
-        return Err(format!("error: {} lists no pack `{name}`", found.name));
+        return Err(format!("error: {} lists no pack `{name}`", found.name).into());
     }
     Ok(entries
         .into_iter()
@@ -281,13 +284,14 @@ fn select(found: &Configuration, names: &[String]) -> Result<Vec<Entry>, String>
 }
 
 /// Checks the commit's age and returns how old it is, such as `3 days old`.
-fn age(repository: &fetch::Repository, commit: &str, allow_fresh: bool) -> Result<String, String> {
+fn age(repository: &fetch::Repository, commit: &str, allow_fresh: bool) -> Result<String, Error> {
     let (time, parent) = repository.dates(commit)?;
     if parent.is_some_and(|parent| time < parent) {
         return Err(format!(
             "error: the commit {} is dated before its parent, so its date cannot be trusted",
             short(commit)
-        ));
+        )
+        .into());
     }
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -299,7 +303,7 @@ fn age(repository: &fetch::Repository, commit: &str, allow_fresh: bool) -> Resul
         return Err(format!(
             "error: the commit {} is less than a day old. Wait for review of the change, or run again with --allow-fresh",
             short(commit)
-        ));
+        ).into());
     }
     Ok(match seconds / MIN_AGE {
         0 => "less than a day old".to_owned(),
@@ -317,7 +321,7 @@ fn detail(follow: Option<&str>, age: &str) -> String {
 }
 
 /// Parses a fetched pack's configuration and returns its category names.
-fn read_pack(files: &[File], name: &str) -> Result<Vec<String>, String> {
+fn read_pack(files: &[File], name: &str) -> Result<Vec<String>, Error> {
     let Some((place, format, file)) = PLACES.iter().find_map(|(place, format)| {
         files
             .iter()
@@ -326,7 +330,7 @@ fn read_pack(files: &[File], name: &str) -> Result<Vec<String>, String> {
     }) else {
         return Err(format!(
             "error: pack `{name}` has no uphill.yaml or uphill.toml, at its root, in .agents, or in .agents/uphill"
-        ));
+        ).into());
     };
     let source = String::from_utf8_lossy(&file.bytes);
     let shown = format!("{name}/{place}");
@@ -335,7 +339,7 @@ fn read_pack(files: &[File], name: &str) -> Result<Vec<String>, String> {
     if !nested.is_empty() {
         return Err(format!(
             "error: {shown} lists packs. A pack's own `packs` are not read, so list them in the project"
-        ));
+        ).into());
     }
     let config = config::parse(&source, format)
         .map_err(|error| crate::diagnostic("error", &error, &shown, &source))?;
@@ -359,15 +363,12 @@ fn views(files: &[File]) -> Vec<scan::File<'_>> {
 }
 
 /// Asks the user to confirm, unless `yes`. Without a terminal on standard input, it requires `yes`.
-fn confirm(yes: bool, question: &str) -> Result<bool, String> {
+fn confirm(yes: bool, question: &str) -> Result<bool, Error> {
     if yes {
         return Ok(true);
     }
     if !io::stdin().is_terminal() {
-        return Err(
-            "error: standard input is not a terminal, so nothing was written. Review the summary above, then run again with --yes"
-                .to_owned(),
-        );
+        return Err("error: standard input is not a terminal, so nothing was written. Review the summary above, then run again with --yes".into());
     }
     print(&format!("\n{question} [y/N] "));
     let mut answer = String::new();
@@ -382,17 +383,17 @@ fn confirm(yes: bool, question: &str) -> Result<bool, String> {
 fn edit(
     result: Result<String, engine::error::Error>,
     found: &Configuration,
-) -> Result<String, String> {
-    result.map_err(|error| crate::diagnostic("error", &error, &found.name, &found.source))
+) -> Result<String, Error> {
+    result.map_err(|error| crate::diagnostic("error", &error, &found.name, &found.source).into())
 }
 
 /// Writes a file and the directories above it.
-fn write(path: &Path, contents: &[u8]) -> Result<(), String> {
+fn write(path: &Path, contents: &[u8]) -> Result<(), Error> {
     path.parent()
         .map(std::fs::create_dir_all)
         .transpose()
         .and_then(|_| std::fs::write(path, contents))
-        .map_err(|error| format!("error: could not write {}: {error}", path.display()))
+        .map_err(|error| format!("error: could not write {}: {error}", path.display()).into())
 }
 
 /// Writes `text` to standard output and flushes it.

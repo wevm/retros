@@ -13,6 +13,7 @@ use engine::lines::Line;
 use engine::report::Failure;
 use engine::value::Kind;
 
+use crate::error::Error;
 use crate::project::Project;
 use crate::script::{self, Outcome};
 
@@ -27,13 +28,32 @@ pub(crate) struct Measured {
     pub(crate) warnings: Vec<String>,
 }
 
-/// What one unit measured at `HEAD`, and in another revision when it ran there, with the
-/// position of its group and its position in the group.
-pub(crate) struct Ran {
+/// What one unit measured at `HEAD`, and in another revision when it ran there, with its group
+/// and its position in the group.
+pub(crate) struct Ran<'g> {
     pub(crate) base: Option<Result<Measured, Failure>>,
-    pub(crate) group: usize,
+    pub(crate) group: &'g [&'g Category],
     pub(crate) index: usize,
     pub(crate) result: Result<Measured, Failure>,
+}
+
+impl Ran<'_> {
+    /// Returns what the unit measured in one checkout, `measured`, with its group and position.
+    pub(crate) fn part<'a>(&'a self, measured: &'a Measured) -> Part<'a> {
+        Part {
+            group: self.group,
+            index: self.index,
+            measured,
+        }
+    }
+}
+
+/// What one unit of a category measured in one checkout, with its group and its position in the
+/// group.
+pub(crate) struct Part<'a> {
+    pub(crate) group: &'a [&'a Category],
+    pub(crate) index: usize,
+    pub(crate) measured: &'a Measured,
 }
 
 /// Returns the units of every category, in the order of the categories and their scripts.
@@ -51,12 +71,12 @@ pub(crate) fn units(categories: &[Category]) -> Vec<Category> {
 /// already ruled out.
 pub(crate) fn merged<'s>(
     category: &Category,
-    parts: &[(&[&Category], usize, &'s Measured)],
-) -> Result<Result<Vec<Vec<Line<'s>>>, Failure>, String> {
+    parts: &[Part<'s>],
+) -> Result<Result<Vec<Vec<Line<'s>>>, Failure>, Error> {
     let rounds = parts
         .iter()
-        .map(|(group, index, measured)| crate::score::rounds(group, *index, &measured.sources))
-        .collect::<Result<Vec<_>, String>>()?;
+        .map(|part| crate::score::rounds(part.group, part.index, &part.measured.sources))
+        .collect::<Result<Vec<_>, Error>>()?;
     Ok(
         engine::check::merge(category, &rounds).map_err(|error| Failure {
             details: String::new(),
@@ -95,7 +115,7 @@ pub(crate) fn group(
     root: &Path,
     group: &[&Category],
     repeat: bool,
-) -> Result<Vec<Result<Measured, Failure>>, String> {
+) -> Result<Vec<Result<Measured, Failure>>, Error> {
     let mut run = Run::new(project, root, group);
     run.round()?;
     if repeat && run.timed {
@@ -123,7 +143,7 @@ pub(crate) fn pairs(
     group: &[&Category],
     base_group: &[&Category],
     exact: bool,
-) -> Result<Compared, String> {
+) -> Result<Compared, Error> {
     let mut head = Run::new(project, head, group);
     head.round()?;
     if !head.timed && !exact {
@@ -199,7 +219,7 @@ impl<'a> Run<'a> {
     }
 
     /// Runs the script once more and checks its lines, unless it already failed.
-    fn round(&mut self) -> Result<(), String> {
+    fn round(&mut self) -> Result<(), Error> {
         self.rounds += 1;
         let (Some(first), false) = (self.group.first(), self.stopped) else {
             return Ok(());

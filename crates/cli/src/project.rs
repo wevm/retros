@@ -10,6 +10,8 @@ use engine::baseline;
 use engine::config::{self, Category, Config, Format};
 use engine::pack::{self, Entry, Pack, Source};
 
+use crate::error::Error;
+
 /// Where a project or a pack keeps its configuration, relative to its root, and the format of each
 /// file.
 pub(crate) const PLACES: [(&str, Format); 6] = [
@@ -60,7 +62,7 @@ impl Project {
     ///
     /// Returns a message for the terminal that lists the declared categories when none has the
     /// name.
-    pub(crate) fn category(&self, name: &str) -> Result<&Category, String> {
+    pub(crate) fn category(&self, name: &str) -> Result<&Category, Error> {
         let categories = &self.config.categories;
         categories
             .iter()
@@ -72,6 +74,7 @@ impl Project {
                     self.name,
                     names.join(", ")
                 )
+                .into()
             })
     }
 }
@@ -84,7 +87,7 @@ impl Project {
 /// Returns a message for the terminal when no directory has a configuration, when one directory
 /// has more than one, when a file cannot be read, or when it is invalid. An error names the file
 /// relative to `cwd`, such as `../.agents/uphill.yaml`, with its line and column.
-pub(crate) fn find(cwd: &Path) -> Result<Project, String> {
+pub(crate) fn find(cwd: &Path) -> Result<Project, Error> {
     let Configuration {
         format,
         name,
@@ -105,7 +108,7 @@ pub(crate) fn find(cwd: &Path) -> Result<Project, String> {
         Ok(source) => Some(source),
         Err(error) if error.kind() == io::ErrorKind::NotFound => None,
         Err(error) => {
-            return Err(format!("error: could not read {baselines_name}: {error}"));
+            return Err(format!("error: could not read {baselines_name}: {error}").into());
         }
     };
     let config = match &baselines_source {
@@ -155,7 +158,7 @@ pub(crate) struct Configuration {
 ///
 /// Returns a message for the terminal when no directory has a configuration, when one directory
 /// has more than one, or when a file cannot be read.
-pub(crate) fn configuration(cwd: &Path) -> Result<Configuration, String> {
+pub(crate) fn configuration(cwd: &Path) -> Result<Configuration, Error> {
     for (depth, root) in cwd.ancestors().enumerate() {
         // A configuration in `.agents` or `.agents/uphill` belongs to the directory above
         // `.agents`, so scripts run from the project root even when Uphill starts inside either.
@@ -168,41 +171,39 @@ pub(crate) fn configuration(cwd: &Path) -> Result<Configuration, String> {
         }
 
         let prefix = "../".repeat(depth);
-        let mut found: Option<(&str, Format, String)> = None;
+        let mut found: Option<Configuration> = None;
 
         for (place, format) in PLACES {
             let source = match std::fs::read_to_string(root.join(place)) {
                 Ok(source) => source,
                 Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
                 Err(error) => {
-                    return Err(format!("error: could not read {prefix}{place}: {error}"));
+                    return Err(format!("error: could not read {prefix}{place}: {error}").into());
                 }
             };
-            if let Some((other, _, _)) = found {
+            if let Some(other) = &found {
                 return Err(format!(
-                    "error: {prefix}{other} and {prefix}{place} both exist. Keep one"
-                ));
+                    "error: {prefix}{} and {prefix}{place} both exist. Keep one",
+                    other.place
+                )
+                .into());
             }
-            found = Some((place, format, source));
+            found = Some(Configuration {
+                format,
+                name: format!("{prefix}{place}"),
+                place,
+                prefix: prefix.clone(),
+                root: root.to_owned(),
+                source,
+            });
         }
 
-        let Some((place, format, source)) = found else {
-            continue;
-        };
-        return Ok(Configuration {
-            format,
-            name: format!("{prefix}{place}"),
-            place,
-            prefix,
-            root: root.to_owned(),
-            source,
-        });
+        if let Some(found) = found {
+            return Ok(found);
+        }
     }
 
-    Err(
-        "error: no uphill.yaml or uphill.toml, at the root, in .agents, or in .agents/uphill, in this directory or any parent directory"
-            .to_owned(),
-    )
+    Err("error: no uphill.yaml or uphill.toml, at the root, in .agents, or in .agents/uphill, in this directory or any parent directory".into())
 }
 
 /// Returns the path of the baseline file beside the configuration at `place`, such as
@@ -248,7 +249,7 @@ fn packs(
     source: &str,
     format: Format,
     name: &str,
-) -> Result<(Vec<Pack>, Vec<PathBuf>), String> {
+) -> Result<(Vec<Pack>, Vec<PathBuf>), Error> {
     let entries = pack::entries(source, format)
         .map_err(|error| crate::diagnostic("error", &error, name, source))?;
 
@@ -278,7 +279,7 @@ fn packs(
 
 /// Reads and parses the pack in `dir`, which `entry` names. `shown` is the directory as `run`
 /// commands and messages name it: relative to the project root for a local pack, or absolute.
-fn read(dir: &Path, shown: &str, entry: Entry) -> Result<Pack, String> {
+fn read(dir: &Path, shown: &str, entry: Entry) -> Result<Pack, Error> {
     let Some((place, format, source)) = PLACES.iter().find_map(|(place, format)| {
         std::fs::read_to_string(dir.join(place))
             .ok()
@@ -287,7 +288,7 @@ fn read(dir: &Path, shown: &str, entry: Entry) -> Result<Pack, String> {
         return Err(format!(
             "error: pack `{}` at {shown} has no uphill.yaml or uphill.toml, at its root, in .agents, or in .agents/uphill",
             entry.name
-        ));
+        ).into());
     };
     let file = format!("{shown}/{place}");
 
@@ -297,10 +298,11 @@ fn read(dir: &Path, shown: &str, entry: Entry) -> Result<Pack, String> {
         if !nested.is_empty() {
             return Err(format!(
                 "error: {file} lists packs. A pack's own `packs` are not read, so list them in the project"
-            ));
+            )
+            .into());
         }
         config::parse(source, format)
-            .map_err(|error| crate::diagnostic("error", &error, &file, source))
+            .map_err(|error| Error::from(crate::diagnostic("error", &error, &file, source)))
     };
     let mut config = parse(&source)?;
 
@@ -366,9 +368,9 @@ fn relative(path: &Path, root: &Path) -> String {
 }
 
 #[cold]
-fn missing(entry: &Entry, name: &str) -> String {
+fn missing(entry: &Entry, name: &str) -> Error {
     let at = format!("{name}:{}:{}", entry.location.line, entry.location.column);
-    format!("error: {at}: pack `{}` is not a directory", entry.name)
+    format!("error: {at}: pack `{}` is not a directory", entry.name).into()
 }
 
 /// Installs the dependencies of each pack in `installs`, relative to `root` or absolute, that has no
@@ -377,7 +379,7 @@ fn missing(entry: &Entry, name: &str) -> String {
 /// # Errors
 ///
 /// Returns a message for the terminal when a pack has no lockfile, or its install fails.
-pub(crate) fn install(root: &Path, installs: &[PathBuf]) -> Result<(), String> {
+pub(crate) fn install(root: &Path, installs: &[PathBuf]) -> Result<(), Error> {
     for relative in installs {
         let dir = root.join(relative);
         if !dir.join("package.json").is_file() || dir.join("node_modules").is_dir() {
@@ -400,7 +402,7 @@ pub(crate) fn install(root: &Path, installs: &[PathBuf]) -> Result<(), String> {
         } else {
             return Err(format!(
                 "error: pack {shown} has a package.json without a lockfile, so Uphill does not install it"
-            ));
+            ).into());
         };
 
         let output = std::process::Command::new(command.first().unwrap_or(&"bun"))
@@ -420,7 +422,8 @@ pub(crate) fn install(root: &Path, installs: &[PathBuf]) -> Result<(), String> {
                 "error: `{}` failed in {shown}\n{}",
                 command.join(" "),
                 stderr.trim_end()
-            ));
+            )
+            .into());
         }
     }
     Ok(())

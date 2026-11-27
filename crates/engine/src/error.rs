@@ -80,6 +80,9 @@ pub enum Code {
     Unpinned,
     /// A unit that is not a size, time, or check unit.
     UnknownUnit,
+    /// A fetched pack with a file that Uphill does not write, such as a symbolic link, an unsafe path,
+    /// or a file over the size limits.
+    UnsafePack,
     /// YAML in `uphill.yaml` that does not parse, or that Uphill does not accept, such as a
     /// duplicate key or a tag.
     Yaml,
@@ -112,6 +115,7 @@ impl Code {
             Self::UnmatchedPattern => "unmatched-pattern",
             Self::Unpinned => "unpinned",
             Self::UnknownUnit => "unknown-unit",
+            Self::UnsafePack => "unsafe-pack",
             Self::Yaml => "yaml",
         }
     }
@@ -137,6 +141,14 @@ impl Error {
             location: Some(Location::of(source, offset)),
             message,
         }
+    }
+
+    /// Returns this error with the message of the error that caused it appended after a colon.
+    #[cold]
+    #[must_use]
+    pub fn because(mut self, cause: &Error) -> Self {
+        self.message = format!("{}: {}", self.message, cause.message);
+        self
     }
 
     /// Renders the error as `name:line:column: message`, followed by the source line and a caret

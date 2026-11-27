@@ -24,6 +24,7 @@ use engine::history::Run;
 use engine::lines::Line;
 use engine::value::{Kind, Value};
 
+use crate::error::Error;
 use crate::project::{self, Project};
 use crate::worktree::{self, Worktree};
 use crate::{measure, score};
@@ -77,7 +78,7 @@ impl Selector {
     ///
     /// Returns a message for the terminal when the configuration declares no such category, or
     /// when the category configures no such metric.
-    fn category<'p>(&self, project: &'p Project) -> Result<&'p Category, String> {
+    fn category<'p>(&self, project: &'p Project) -> Result<&'p Category, Error> {
         let category = project.category(&self.category)?;
         if !category.metrics.iter().any(|m| m.name == self.metric) {
             let names: Vec<&str> = category.metrics.iter().map(|m| m.name.as_str()).collect();
@@ -86,7 +87,8 @@ impl Selector {
                 self.metric,
                 category.name,
                 names.join(", ")
-            ));
+            )
+            .into());
         }
         Ok(category)
     }
@@ -134,7 +136,7 @@ struct Point {
 /// # Errors
 ///
 /// Returns a message for the terminal when the metric is unknown or Git fails.
-pub(crate) fn log(project: &Project, selector: &Selector) -> Result<ExitCode, String> {
+pub(crate) fn log(project: &Project, selector: &Selector) -> Result<ExitCode, Error> {
     let category = selector.category(project)?;
     let points = points(project, selector)?;
     let name = selector.name();
@@ -192,7 +194,7 @@ pub(crate) fn blame(
     project: &Project,
     selector: &Selector,
     since: Option<&str>,
-) -> Result<ExitCode, String> {
+) -> Result<ExitCode, Error> {
     let category = selector.category(project)?;
     let name = selector.name();
 
@@ -233,7 +235,7 @@ pub(crate) fn blame(
 /// # Errors
 ///
 /// Returns a message for the terminal when the project is not in a Git repository or Git fails.
-fn points(project: &Project, selector: &Selector) -> Result<Vec<Point>, String> {
+fn points(project: &Project, selector: &Selector) -> Result<Vec<Point>, Error> {
     worktree::repository(&project.root)?;
     let relative = |path: &Path| {
         path.strip_prefix(&project.root)
@@ -355,10 +357,10 @@ pub(crate) fn runs(root: &Path, limit: usize, skip_head: bool) -> Vec<Run> {
 ///
 /// Returns a message for the terminal when the project is not in a Git repository, has no commit,
 /// or has changes to tracked files.
-pub(crate) fn clean(project: &Project) -> Result<(), String> {
+pub(crate) fn clean(project: &Project) -> Result<(), Error> {
     worktree::repository(&project.root)?;
-    worktree::git(&project.root, &["rev-parse", "--verify", "--quiet", "HEAD"])
-        .map_err(|_| "error: --note needs a commit to write the note on".to_owned())?;
+    worktree::query(&project.root, &["rev-parse", "--verify", "--quiet", "HEAD"])?
+        .ok_or_else(|| Error::from("error: --note needs a commit to write the note on"))?;
     let status = worktree::git(
         &project.root,
         &["status", "--porcelain", "--untracked-files=no"],
@@ -366,7 +368,7 @@ pub(crate) fn clean(project: &Project) -> Result<(), String> {
     if status.is_empty() {
         Ok(())
     } else {
-        Err("error: --note needs tracked files that match HEAD, so the note describes that commit. Commit or stash the changes first".to_owned())
+        Err("error: --note needs tracked files that match HEAD, so the note describes that commit. Commit or stash the changes first".into())
     }
 }
 
@@ -376,8 +378,10 @@ pub(crate) fn clean(project: &Project) -> Result<(), String> {
 /// # Errors
 ///
 /// Returns a message for the terminal when Git cannot write the note.
-pub(crate) fn note(project: &Project, reference: &str, note: &str) -> Result<String, String> {
-    let failed = |error: &dyn std::fmt::Display| format!("error: could not write a note: {error}");
+pub(crate) fn note(project: &Project, reference: &str, note: &str) -> Result<String, Error> {
+    let failed = |error: &dyn std::fmt::Display| {
+        Error::from(format!("error: could not write a note: {error}"))
+    };
     let mut child = Command::new("git")
         .args([
             "notes", "--ref", reference, "add", "--force", "--file", "-", "HEAD",
@@ -468,7 +472,7 @@ impl Bisect<'_> {
     /// # Errors
     ///
     /// Returns a message for the terminal when Uphill cannot run the script at all.
-    fn probe(&self, commit: &Commit) -> Result<Probe, String> {
+    fn probe(&self, commit: &Commit) -> Result<Probe, Error> {
         let (group, index) = (&self.group, self.index);
         let checkout = checkout(self.project, &commit.hash);
         let own = checkout
@@ -477,7 +481,14 @@ impl Bisect<'_> {
             .unwrap_or_default();
         let own: Vec<&Category> = own.iter().collect();
         let probe = match checkout {
-            Err(message) => Probe::missing(message.lines().next().unwrap_or_default().to_owned()),
+            Err(message) => Probe::missing(
+                message
+                    .message()
+                    .lines()
+                    .next()
+                    .unwrap_or_default()
+                    .to_owned(),
+            ),
             Ok(checkout) if self.timed => {
                 let (here, there) = measure::pairs(
                     self.project,
@@ -587,7 +598,7 @@ fn bisect(
     category: &Category,
     selector: &Selector,
     since: Option<&str>,
-) -> Result<String, String> {
+) -> Result<String, Error> {
     let name = selector.name();
     let range = since.map_or_else(|| "HEAD".to_owned(), |since| format!("{since}..HEAD"));
     let mut commits = Commit::parse(&worktree::git(
@@ -743,7 +754,7 @@ fn median(selector: &Selector, rounds: &[Vec<Line<'_>>]) -> Option<Value> {
 /// # Errors
 ///
 /// Returns a message for the terminal when the worktree cannot be created or `setup` fails.
-fn checkout(project: &Project, reference: &str) -> Result<Worktree, String> {
+fn checkout(project: &Project, reference: &str) -> Result<Worktree, Error> {
     let worktree = worktree::add(&project.root, reference)?;
     score::setup(project, &worktree)?;
     Ok(worktree)

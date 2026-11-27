@@ -297,7 +297,8 @@ pub fn curve(target: f64, poor: f64, value: f64) -> f64 {
     const MAX_AVERAGE: f64 = 0.899_999_999_999_999_9;
     const MAX_POOR: f64 = 0.499_999_999_999_999_94;
 
-    debug_assert!(target > 0.0 && target < poor);
+    debug_assert!(target > 0.0);
+    debug_assert!(target < poor);
 
     let median = poor;
 

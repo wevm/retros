@@ -13,6 +13,7 @@ use std::process::ExitCode;
 use engine::config::Category;
 use engine::report::Failure;
 
+use crate::error::Error;
 use crate::measure::{self, Ran, count};
 use crate::project::Project;
 
@@ -22,7 +23,7 @@ use crate::project::Project;
 ///
 /// Returns a message for the terminal when Uphill cannot run a script at all, such as when `sh`
 /// is missing. A script that fails is reported in the output, not returned.
-pub(crate) fn run(project: &Project) -> Result<ExitCode, String> {
+pub(crate) fn run(project: &Project) -> Result<ExitCode, Error> {
     crate::project::install(&project.root, &project.installs)?;
     let width = project
         .config
@@ -42,13 +43,17 @@ pub(crate) fn run(project: &Project) -> Result<ExitCode, String> {
     let mut ran: Vec<Option<Ran>> = all.iter().map(|_| None).collect();
     let mut done: Vec<bool> = project.config.categories.iter().map(|_| false).collect();
 
-    for (number, group) in groups.iter().enumerate() {
+    for group in &groups {
         let results = measure::group(project, &project.root, group, false)?;
         for (index, (unit, result)) in group.iter().zip(results).enumerate() {
-            if let Some(at) = all.iter().position(|other| std::ptr::eq(*other, *unit)) {
-                ran[at] = Some(Ran {
+            if let Some(slot) = all
+                .iter()
+                .position(|other| std::ptr::eq(*other, *unit))
+                .and_then(|at| ran.get_mut(at))
+            {
+                *slot = Some(Ran {
                     base: None,
-                    group: number,
+                    group,
                     index,
                     result,
                 });
@@ -75,11 +80,7 @@ pub(crate) fn run(project: &Project) -> Result<ExitCode, String> {
             let name = &category.name;
             let head: Result<Vec<_>, &Failure> = parts
                 .iter()
-                .map(|ran| {
-                    ran.result
-                        .as_ref()
-                        .map(|measured| (groups[ran.group].as_slice(), ran.index, measured))
-                })
+                .map(|ran| ran.result.as_ref().map(|measured| ran.part(measured)))
                 .collect();
             let result = match head {
                 Err(failure) => Err(failure.clone()),
@@ -93,7 +94,7 @@ pub(crate) fn run(project: &Project) -> Result<ExitCode, String> {
                     }
                     let warnings: Vec<String> = head
                         .iter()
-                        .flat_map(|(_, _, measured)| measured.warnings.iter().cloned())
+                        .flat_map(|part| part.measured.warnings.iter().cloned())
                         .collect();
                     (metrics.len(), warnings)
                 }),

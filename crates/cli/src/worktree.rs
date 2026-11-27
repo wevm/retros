@@ -3,9 +3,11 @@
 //! failed.
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Output};
 
 use tempfile::TempDir;
+
+use crate::error::Error;
 
 /// A checkout of another revision of the project's repository.
 pub(crate) struct Worktree {
@@ -27,12 +29,12 @@ pub(crate) struct Worktree {
 ///
 /// Returns a message for the terminal when `root` is not in a Git repository, when `reference`
 /// names no commit, or when Git cannot create the worktree.
-pub(crate) fn add(root: &Path, reference: &str) -> Result<Worktree, String> {
+pub(crate) fn add(root: &Path, reference: &str) -> Result<Worktree, Error> {
     let root = root
         .canonicalize()
         .map_err(|error| format!("error: could not read {}: {error}", root.display()))?;
     let repository = PathBuf::from(repository(&root)?);
-    let commit = git(
+    let commit = query(
         &root,
         &[
             "rev-parse",
@@ -40,8 +42,8 @@ pub(crate) fn add(root: &Path, reference: &str) -> Result<Worktree, String> {
             "--quiet",
             &format!("{reference}^{{commit}}"),
         ],
-    )
-    .map_err(|_| format!("error: unknown revision '{reference}'"))?;
+    )?
+    .ok_or_else(|| format!("error: unknown revision '{reference}'"))?;
     let short = git(&root, &["rev-parse", "--short", &commit])?;
 
     let dir = tempfile::tempdir()
@@ -83,9 +85,9 @@ impl Drop for Worktree {
 /// # Errors
 ///
 /// Returns a message for the terminal when `root` is not in a Git repository.
-pub(crate) fn repository(root: &Path) -> Result<String, String> {
-    git(root, &["rev-parse", "--show-toplevel"])
-        .map_err(|_| format!("error: {} is not in a Git repository", root.display()))
+pub(crate) fn repository(root: &Path) -> Result<String, Error> {
+    query(root, &["rev-parse", "--show-toplevel"])?
+        .ok_or_else(|| format!("error: {} is not in a Git repository", root.display()).into())
 }
 
 /// Runs Git in `dir` and returns its standard output without the trailing newline.
@@ -93,25 +95,47 @@ pub(crate) fn repository(root: &Path) -> Result<String, String> {
 /// # Errors
 ///
 /// Returns a message for the terminal when Git cannot run or fails.
-pub(crate) fn git(dir: &Path, args: &[&str]) -> Result<String, String> {
-    let output = Command::new("git")
-        .args(args)
-        .current_dir(dir)
-        .output()
-        .map_err(|error| format!("error: could not run git: {error}"))?;
+pub(crate) fn git(dir: &Path, args: &[&str]) -> Result<String, Error> {
+    let output = run(dir, args)?;
     if !output.status.success() {
         return Err(failed(args, &output.stderr));
     }
-    Ok(String::from_utf8_lossy(&output.stdout)
+    Ok(stdout(&output))
+}
+
+/// Runs Git in `dir` and returns its standard output without the trailing newline, or `None` when
+/// Git exits with a failure status, such as for a revision that names no commit.
+///
+/// # Errors
+///
+/// Returns a message for the terminal when Git cannot run.
+pub(crate) fn query(dir: &Path, args: &[&str]) -> Result<Option<String>, Error> {
+    let output = run(dir, args)?;
+    Ok(output.status.success().then(|| stdout(&output)))
+}
+
+/// Runs Git in `dir` and returns its output and status.
+fn run(dir: &Path, args: &[&str]) -> Result<Output, Error> {
+    Ok(Command::new("git")
+        .args(args)
+        .current_dir(dir)
+        .output()
+        .map_err(|error| format!("error: could not run git: {error}"))?)
+}
+
+/// Returns Git's standard output without the trailing newline.
+fn stdout(output: &Output) -> String {
+    String::from_utf8_lossy(&output.stdout)
         .trim_end()
-        .to_owned())
+        .to_owned()
 }
 
 #[cold]
-fn failed(args: &[&str], stderr: &[u8]) -> String {
+fn failed(args: &[&str], stderr: &[u8]) -> Error {
     format!(
         "error: `git {}` failed: {}",
         args.join(" "),
         String::from_utf8_lossy(stderr).trim()
     )
+    .into()
 }

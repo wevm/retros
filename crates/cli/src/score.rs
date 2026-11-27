@@ -29,6 +29,7 @@ use engine::lines::Line;
 use engine::report::{CategoryReport, Failure, Report};
 use incur::Parser;
 
+use crate::error::Error;
 use crate::measure::Ran;
 use crate::project::Project;
 use crate::script::{self, Outcome};
@@ -74,7 +75,7 @@ pub(crate) struct Options {
 /// Returns a message for the terminal when the category is unknown, when Uphill cannot run a
 /// script at all, when it cannot check out or set up the revision to compare with, when it cannot
 /// move an older configuration's baselines into the baseline file, or when it cannot write a file.
-pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, String> {
+pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Error> {
     crate::project::install(&project.root, &project.installs)?;
     let prefix = &project.prefix;
 
@@ -121,7 +122,7 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
     let mut ran: Vec<Option<Ran>> = all.iter().map(|_| None).collect();
     let mut scored: Vec<bool> = categories.iter().map(|_| false).collect();
 
-    for (number, group) in groups.iter().enumerate() {
+    for group in &groups {
         if !group.iter().any(|unit| chosen(&unit.name)) {
             continue;
         }
@@ -135,10 +136,14 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
         let mut base = base.map(Vec::into_iter);
         for (index, (unit, result)) in group.iter().zip(results).enumerate() {
             let base = base.as_mut().and_then(Iterator::next);
-            if let Some(at) = all.iter().position(|other| std::ptr::eq(*other, *unit)) {
-                ran[at] = Some(Ran {
+            if let Some(slot) = all
+                .iter()
+                .position(|other| std::ptr::eq(*other, *unit))
+                .and_then(|at| ran.get_mut(at))
+            {
+                *slot = Some(Ran {
                     base,
-                    group: number,
+                    group,
                     index,
                     result,
                 });
@@ -170,7 +175,6 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
                 subject,
                 title: category.title(),
             };
-            let unit = |ran: &Ran, measured| (groups[ran.group].as_slice(), ran.index, measured);
 
             let mut warnings = Vec::new();
             let base_failure = parts.iter().find_map(|ran| match &ran.base {
@@ -190,7 +194,7 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
 
             let head: Result<Vec<_>, &Failure> = parts
                 .iter()
-                .map(|ran| ran.result.as_ref().map(|measured| unit(ran, measured)))
+                .map(|ran| ran.result.as_ref().map(|measured| ran.part(measured)))
                 .collect();
             let rounds = match head {
                 Err(failure) => Err(failure.clone()),
@@ -200,7 +204,7 @@ pub(crate) fn run(project: &Project, options: &Options) -> Result<ExitCode, Stri
             let base: Option<Vec<_>> = parts
                 .iter()
                 .map(|ran| match &ran.base {
-                    Some(Ok(measured)) => Some(unit(ran, measured)),
+                    Some(Ok(measured)) => Some(ran.part(measured)),
                     _ => None,
                 })
                 .collect();
@@ -436,7 +440,7 @@ fn prepare(
     project: &Project,
     worktree: &Worktree,
     categories: &[&Category],
-) -> Result<Option<Config>, String> {
+) -> Result<Option<Config>, Error> {
     let label = &worktree.label;
     let mut out = format!("Comparing with {label}\n");
 
@@ -504,7 +508,7 @@ fn prepare(
 /// # Errors
 ///
 /// Returns a message for the terminal when `setup` cannot run or fails, or an install fails.
-pub(crate) fn setup(project: &Project, worktree: &Worktree) -> Result<(), String> {
+pub(crate) fn setup(project: &Project, worktree: &Worktree) -> Result<(), Error> {
     crate::project::install(&worktree.root, &project.installs)?;
     let Some(setup) = &project.config.setup else {
         return Ok(());
@@ -525,7 +529,7 @@ pub(crate) fn setup(project: &Project, worktree: &Worktree) -> Result<(), String
         worktree.label, run.stderr
     )
     .trim_end()
-    .to_owned())
+    .into())
 }
 
 /// Returns the lines of one category of a group from each round's metric text.
@@ -538,7 +542,7 @@ pub(crate) fn rounds<'s>(
     group: &[&Category],
     index: usize,
     sources: &'s [String],
-) -> Result<Vec<Vec<Line<'s>>>, String> {
+) -> Result<Vec<Vec<Line<'s>>>, Error> {
     sources
         .iter()
         .map(|source| {
@@ -546,5 +550,5 @@ pub(crate) fn rounds<'s>(
             Ok(engine::check::route(group, &lines).swap_remove(index))
         })
         .collect::<Result<Vec<_>, engine::error::Error>>()
-        .map_err(|error| format!("error: {}", error.message))
+        .map_err(|error| format!("error: {}", error.message).into())
 }

@@ -59,42 +59,59 @@ pub struct Finding {
     pub severity: Severity,
 }
 
+/// Text that names a capability, with the capability and how much it matters.
+struct Pattern {
+    capability: &'static str,
+    severity: Severity,
+    text: &'static str,
+}
+
+impl Pattern {
+    const fn new(text: &'static str, capability: &'static str, severity: Severity) -> Self {
+        Self {
+            capability,
+            severity,
+            text,
+        }
+    }
+}
+
 /// Patterns in TypeScript and JavaScript, each with its capability and severity.
-const CODE: &[(&str, &str, Severity)] = &[
-    ("Bun.$", "process", Severity::Info),
-    ("Bun.connect", "network", Severity::Info),
-    ("Bun.listen", "network", Severity::Info),
-    ("Bun.serve", "network", Severity::Info),
-    ("Bun.spawn", "process", Severity::Info),
-    ("EventSource", "network", Severity::Info),
-    ("WebAssembly.", "dynamic code", Severity::High),
-    ("WebSocket", "network", Severity::Info),
-    ("XMLHttpRequest", "network", Severity::Info),
-    ("bun:ffi", "dynamic code", Severity::High),
-    ("child_process", "process", Severity::Info),
-    ("eval(", "dynamic code", Severity::High),
-    ("execa", "process", Severity::Info),
-    ("fetch(", "network", Severity::Info),
-    ("new Function", "dynamic code", Severity::High),
-    ("node:dgram", "network", Severity::Info),
-    ("node:dns", "network", Severity::Info),
-    ("node:http", "network", Severity::Info),
-    ("node:net", "network", Severity::Info),
-    ("node:tls", "network", Severity::Info),
-    ("node:vm", "dynamic code", Severity::High),
-    ("process.binding", "dynamic code", Severity::High),
-    ("process.dlopen", "dynamic code", Severity::High),
-    ("sendBeacon", "network", Severity::Info),
+const CODE: &[Pattern] = &[
+    Pattern::new("Bun.$", "process", Severity::Info),
+    Pattern::new("Bun.connect", "network", Severity::Info),
+    Pattern::new("Bun.listen", "network", Severity::Info),
+    Pattern::new("Bun.serve", "network", Severity::Info),
+    Pattern::new("Bun.spawn", "process", Severity::Info),
+    Pattern::new("EventSource", "network", Severity::Info),
+    Pattern::new("WebAssembly.", "dynamic code", Severity::High),
+    Pattern::new("WebSocket", "network", Severity::Info),
+    Pattern::new("XMLHttpRequest", "network", Severity::Info),
+    Pattern::new("bun:ffi", "dynamic code", Severity::High),
+    Pattern::new("child_process", "process", Severity::Info),
+    Pattern::new("eval(", "dynamic code", Severity::High),
+    Pattern::new("execa", "process", Severity::Info),
+    Pattern::new("fetch(", "network", Severity::Info),
+    Pattern::new("new Function", "dynamic code", Severity::High),
+    Pattern::new("node:dgram", "network", Severity::Info),
+    Pattern::new("node:dns", "network", Severity::Info),
+    Pattern::new("node:http", "network", Severity::Info),
+    Pattern::new("node:net", "network", Severity::Info),
+    Pattern::new("node:tls", "network", Severity::Info),
+    Pattern::new("node:vm", "dynamic code", Severity::High),
+    Pattern::new("process.binding", "dynamic code", Severity::High),
+    Pattern::new("process.dlopen", "dynamic code", Severity::High),
+    Pattern::new("sendBeacon", "network", Severity::Info),
 ];
 
 /// Words in any source file that run code from the network, or fetch over it.
-const WORDS: &[(&str, &str, Severity)] = &[
-    ("bunx", "remote code", Severity::High),
-    ("curl", "network", Severity::Info),
-    ("dlx", "remote code", Severity::High),
-    ("npx", "remote code", Severity::High),
-    ("uvx", "remote code", Severity::High),
-    ("wget", "network", Severity::Info),
+const WORDS: &[Pattern] = &[
+    Pattern::new("bunx", "remote code", Severity::High),
+    Pattern::new("curl", "network", Severity::Info),
+    Pattern::new("dlx", "remote code", Severity::High),
+    Pattern::new("npx", "remote code", Severity::High),
+    Pattern::new("uvx", "remote code", Severity::High),
+    Pattern::new("wget", "network", Severity::Info),
 ];
 
 /// Paths that hold credentials.
@@ -229,9 +246,9 @@ fn scan_file(file: &File<'_>, findings: &mut Vec<Finding>) {
         }
 
         if script {
-            for (pattern, capability, severity) in CODE {
-                if line.contains(pattern) {
-                    add(capability, pattern, number, *severity);
+            for pattern in CODE {
+                if line.contains(pattern.text) {
+                    add(pattern.capability, pattern.text, number, pattern.severity);
                 }
             }
             for call in ["import(", "require("] {
@@ -252,9 +269,9 @@ fn scan_file(file: &File<'_>, findings: &mut Vec<Finding>) {
         if (shell || config) && piped_to_shell(line) {
             add("remote code", "pipe into a shell", number, Severity::High);
         }
-        for (word, capability, severity) in WORDS {
-            if has_word(line, word) {
-                add(capability, word, number, *severity);
+        for word in WORDS {
+            if has_word(line, word.text) {
+                add(word.capability, word.text, number, word.severity);
             }
         }
         for secret in SECRET_PATHS {

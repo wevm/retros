@@ -52,7 +52,7 @@ use yaml_rust2::Yaml;
 
 use crate::check::Source;
 use crate::config::{self, Better, Config, Format, Metric, Pattern, without_locations};
-use crate::document::{self, Kind as NodeKind, Node};
+use crate::document::{self, Node};
 use crate::edit;
 use crate::error::{Code, Error, Location};
 use crate::format::{SIZES, TIMES};
@@ -251,10 +251,18 @@ pub fn compare(config: &Config, report: &Report) -> Vec<Change> {
                     before.as_ref().unwrap_or(&none),
                     after.as_ref().unwrap_or(&none),
                 );
-                for (item, before, after) in records {
+                for Paired {
+                    after,
+                    before,
+                    item,
+                } in records
+                {
                     let (before, after) = (before.unwrap_or_default(), after.unwrap_or_default());
-                    if let Some((before, after, direction)) =
-                        target_change(&metric.metric, item, before.target, after.target)
+                    if let Some(TargetChange {
+                        after,
+                        before,
+                        direction,
+                    }) = target_change(&metric.metric, item, before.target, after.target)
                     {
                         push(name, item, before, after, direction);
                     }
@@ -271,7 +279,12 @@ pub fn compare(config: &Config, report: &Report) -> Vec<Change> {
                 continue;
             }
 
-            for (item, before, after) in pair(&before, &after) {
+            for Paired {
+                after,
+                before,
+                item,
+            } in pair(&before, &after)
+            {
                 match (before, after) {
                     (Some(before), Some(after)) => {
                         // A record with only a target has no accepted value yet.
@@ -284,10 +297,10 @@ pub fn compare(config: &Config, report: &Report) -> Vec<Change> {
                             (None, Some(new)) => push(name, item, None, Some(new), Direction::New),
                             _ => {}
                         }
-                        if let Some((old, new, direction)) =
+                        if let Some(change) =
                             target_change(&metric.metric, item, before.target, after.target)
                         {
-                            push(name, item, old, new, direction);
+                            push(name, item, change.before, change.after, change.direction);
                         }
                     }
                     (None, Some(after)) => push(name, item, None, after.value, Direction::New),
@@ -363,12 +376,12 @@ pub fn read(mut config: Config, source: &str, format: Format) -> Result<Config, 
     let Some(document) = document::parse(source, format)? else {
         return Ok(config);
     };
-    let NodeKind::Mapping(categories) = &document.kind else {
+    let document::Kind::Mapping(categories) = &document.kind else {
         return Err(not_mapping(source, document.offset));
     };
 
     for (key, value) in categories {
-        let NodeKind::Mapping(metrics) = &value.kind else {
+        let document::Kind::Mapping(metrics) = &value.kind else {
             return Err(not_mapping(source, value.offset));
         };
         let mut category = config
@@ -376,7 +389,11 @@ pub fn read(mut config: Config, source: &str, format: Format) -> Result<Config, 
             .iter_mut()
             .find(|category| Some(category.name.as_str()) == key.text());
         for (key, value) in metrics {
-            let (baseline, default, patterns) = targets(source, value)?;
+            let Targets {
+                baseline,
+                default,
+                patterns,
+            } = targets(source, value)?;
             let metric = category.as_deref_mut().and_then(|category| {
                 category
                     .metrics
@@ -399,7 +416,11 @@ pub fn read(mut config: Config, source: &str, format: Format) -> Result<Config, 
 }
 
 /// One metric of the baseline file: its baseline, its default target, and its patterns.
-type Targets = (Option<Baseline>, Option<Value>, Vec<Pattern>);
+struct Targets {
+    baseline: Option<Baseline>,
+    default: Option<Value>,
+    patterns: Vec<Pattern>,
+}
 
 /// Parses one metric of the baseline file into its baseline, its default target, and its
 /// patterns. A record without items sets the default too, so `bundle: { target: 5kB }` targets a
@@ -407,9 +428,13 @@ type Targets = (Option<Baseline>, Option<Value>, Vec<Pattern>);
 fn targets(source: &str, node: &Node) -> Result<Targets, Error> {
     if let Some(record) = record(source, node) {
         let record = record?;
-        return Ok((Some(Baseline::Record(record)), record.target, Vec::new()));
+        return Ok(Targets {
+            baseline: Some(Baseline::Record(record)),
+            default: record.target,
+            patterns: Vec::new(),
+        });
     }
-    let NodeKind::Mapping(pairs) = &node.kind else {
+    let document::Kind::Mapping(pairs) = &node.kind else {
         return Err(invalid(source, node.offset));
     };
 
@@ -444,11 +469,11 @@ fn targets(source: &str, node: &Node) -> Result<Targets, Error> {
         }
     }
 
-    Ok((
-        (!entries.is_empty()).then_some(Baseline::Map(entries)),
+    Ok(Targets {
+        baseline: (!entries.is_empty()).then_some(Baseline::Map(entries)),
         default,
         patterns,
-    ))
+    })
 }
 
 /// Returns the baseline file with each metric's targets, and this run's sizes, counts, and checks
@@ -733,7 +758,11 @@ pub fn accepted(config: &Config, report: &Report) -> Config {
 }
 
 /// A metric's new baseline, by category and metric name.
-type Update<'c> = (&'c str, &'c str, Option<Baseline>);
+struct Update<'c> {
+    baseline: Option<Baseline>,
+    category: &'c str,
+    metric: &'c str,
+}
 
 /// Returns each metric whose baseline differs from what the run records, with its new baseline.
 /// A category that did not run or failed keeps its baselines. With `compact`, the items of a
@@ -773,7 +802,11 @@ fn updates<'c>(config: &'c Config, report: &Report, compact: bool) -> Vec<Update
             };
 
             if baseline != metric.baseline {
-                changes.push((category.name.as_str(), metric.name.as_str(), baseline));
+                changes.push(Update {
+                    baseline,
+                    category: category.name.as_str(),
+                    metric: metric.name.as_str(),
+                });
             }
         }
     }
@@ -788,9 +821,9 @@ fn apply(config: &Config, changes: &[Update<'_>]) -> Config {
         for metric in &mut category.metrics {
             let change = changes
                 .iter()
-                .find(|(c, m, _)| *c == category.name && *m == metric.name);
-            if let Some((_, _, baseline)) = change {
-                metric.baseline.clone_from(baseline);
+                .find(|change| change.category == category.name && change.metric == metric.name);
+            if let Some(change) = change {
+                metric.baseline.clone_from(&change.baseline);
             }
         }
     }
@@ -861,7 +894,7 @@ fn parse_at(source: &str, node: &Node, depth: usize) -> Result<Baseline, Error> 
         return record.map(Baseline::Record);
     }
     match &node.kind {
-        NodeKind::Mapping(pairs) if depth < 2 && !pairs.is_empty() => pairs
+        document::Kind::Mapping(pairs) if depth < 2 && !pairs.is_empty() => pairs
             .iter()
             .map(|(key, value)| {
                 let key = key.text().ok_or_else(|| invalid(source, key.offset))?;
@@ -941,15 +974,23 @@ fn recorded_entry(metric: &Metric, subject: Option<&str>) -> Option<Entry> {
     }
 }
 
+/// One item's records in two entries, as [`pair`] returns them.
+struct Paired<'a> {
+    after: Option<Record>,
+    before: Option<Record>,
+    item: Option<&'a str>,
+}
+
 /// Pairs the records of two entries by item: each item in either, with its record on each side.
 /// An item without a record before takes the default record, if `before` has one. Two entries
 /// without items pair as one record with no item.
-fn pair<'a>(
-    before: &'a Entry,
-    after: &'a Entry,
-) -> Vec<(Option<&'a str>, Option<Record>, Option<Record>)> {
+fn pair<'a>(before: &'a Entry, after: &'a Entry) -> Vec<Paired<'a>> {
     match (before, after) {
-        (Entry::Single(before), Entry::Single(after)) => vec![(None, Some(*before), Some(*after))],
+        (Entry::Single(before), Entry::Single(after)) => vec![Paired {
+            after: Some(*after),
+            before: Some(*before),
+            item: None,
+        }],
         (Entry::Items(before), Entry::Items(after)) => {
             let find = |items: &[(String, Record)], name: &str| {
                 items.iter().find(|(item, _)| item == name).map(|(_, r)| *r)
@@ -959,19 +1000,35 @@ fn pair<'a>(
                 .iter()
                 .map(|(item, record)| {
                     let recorded = find(before, item).or(default);
-                    (Some(item.as_str()), recorded, Some(*record))
+                    Paired {
+                        after: Some(*record),
+                        before: recorded,
+                        item: Some(item.as_str()),
+                    }
                 })
                 .collect();
             pairs.extend(
                 before
                     .iter()
                     .filter(|(item, _)| item != DEFAULT && find(after, item).is_none())
-                    .map(|(item, record)| (Some(item.as_str()), Some(*record), None)),
+                    .map(|(item, record)| Paired {
+                        after: None,
+                        before: Some(*record),
+                        item: Some(item.as_str()),
+                    }),
             );
             pairs
         }
-        (Entry::Single(before), Entry::Items(_)) => vec![(None, Some(*before), None)],
-        (Entry::Items(_), Entry::Single(after)) => vec![(None, None, Some(*after))],
+        (Entry::Single(before), Entry::Items(_)) => vec![Paired {
+            after: None,
+            before: Some(*before),
+            item: None,
+        }],
+        (Entry::Items(_), Entry::Single(after)) => vec![Paired {
+            after: Some(*after),
+            before: None,
+            item: None,
+        }],
     }
 }
 
@@ -1055,6 +1112,13 @@ fn direction(before: Value, after: Value, better: Better) -> Option<Direction> {
     })
 }
 
+/// A line target's change: the targets an item scores against before and after, and the direction.
+struct TargetChange {
+    after: Option<Value>,
+    before: Option<Value>,
+    direction: Direction,
+}
+
 /// Returns the change between a recorded line target and this run's, as the targets the item is
 /// scored against. Without a line target, an item falls back to the first matching pattern in
 /// `targets`, then the metric's `target`, so removing a line target that equals its fallback
@@ -1064,7 +1128,7 @@ fn target_change(
     item: Option<&str>,
     before: Option<Value>,
     after: Option<Value>,
-) -> Option<(Option<Value>, Option<Value>, Direction)> {
+) -> Option<TargetChange> {
     if before == after {
         return None;
     }
@@ -1096,7 +1160,11 @@ fn target_change(
         (None, None) => return None,
     };
 
-    Some((before, after, direction))
+    Some(TargetChange {
+        after,
+        before,
+        direction,
+    })
 }
 
 /// Returns whether two amounts are equal within rounding.
@@ -1109,13 +1177,13 @@ fn same(a: f64, b: f64) -> bool {
 /// `61kB target 80kB`. Returns `None` for a node of another form, such as a mapping of items.
 fn record(source: &str, node: &Node) -> Option<Result<Record, Error>> {
     let pairs = match &node.kind {
-        NodeKind::Scalar { text, .. } if !node.is_null() => {
+        document::Kind::Scalar { text, .. } if !node.is_null() => {
             return Some(short(text).ok_or_else(|| invalid(source, node.offset)));
         }
-        NodeKind::Mapping(pairs)
+        document::Kind::Mapping(pairs)
             if pairs
                 .iter()
-                .all(|(_, value)| matches!(value.kind, NodeKind::Scalar { .. }))
+                .all(|(_, value)| matches!(value.kind, document::Kind::Scalar { .. }))
                 && pairs
                     .iter()
                     .any(|(key, _)| matches!(key.text(), Some("baseline" | "target"))) =>

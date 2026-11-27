@@ -309,6 +309,14 @@ fn check_group(category: &Category, name: &str, group: &[&Line<'_>], report: &mu
     }
 }
 
+/// A line that one script of a category wrote, by its subject, metric, and item.
+#[derive(Eq, Ord, PartialEq, PartialOrd)]
+struct Written<'a> {
+    item: &'a str,
+    metric: &'a str,
+    subject: &'a str,
+}
+
 /// Combines the rounds that each script of a category wrote, in the order of its scripts, into
 /// the category's rounds. A script that ran fewer rounds repeats its last one, which holds the
 /// same sizes, counts, and checks.
@@ -321,15 +329,15 @@ pub fn merge<'a>(
     category: &Category,
     parts: &[Vec<Vec<Line<'a>>>],
 ) -> Result<Vec<Vec<Line<'a>>>, Error> {
-    let mut written: BTreeSet<(&str, &str, &str)> = BTreeSet::new();
+    let mut written: BTreeSet<Written<'_>> = BTreeSet::new();
     for part in parts {
         let mut own = BTreeSet::new();
         for line in part.first().into_iter().flatten() {
-            let key = (
-                line.subject.unwrap_or_default(),
-                line.metric,
-                line.item.as_deref().unwrap_or_default(),
-            );
+            let key = Written {
+                item: line.item.as_deref().unwrap_or_default(),
+                metric: line.metric,
+                subject: line.subject.unwrap_or_default(),
+            };
             if written.contains(&key) {
                 let thing = match line.item.as_deref() {
                     Some(item) => format!("item `{item}` of metric `{}`", line.metric),

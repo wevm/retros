@@ -9,6 +9,7 @@ use std::process::ExitCode;
 use engine::config::Category;
 use engine::rules;
 
+use crate::error::Error;
 use crate::project::Project;
 
 /// Guidance files that can hold the mention, in the order agents read them. Without either,
@@ -25,12 +26,11 @@ pub(crate) fn run(
     project: &Project,
     category: Option<&str>,
     write: bool,
-) -> Result<ExitCode, String> {
+) -> Result<ExitCode, Error> {
     if write {
         if category.is_some() {
             return Err(
-                "error: --write writes the rules of every category, so it takes no category"
-                    .to_owned(),
+                "error: --write writes the rules of every category, so it takes no category".into(),
             );
         }
         let wrote = self::write(project)?;
@@ -58,7 +58,7 @@ pub(crate) fn run(
 /// # Errors
 ///
 /// Returns a message for the terminal when a file cannot be read or written.
-pub(crate) fn write(project: &Project) -> Result<Vec<&'static str>, String> {
+pub(crate) fn write(project: &Project) -> Result<Vec<&'static str>, Error> {
     let mut wrote = Vec::new();
 
     let text = markdown(project);
@@ -80,7 +80,7 @@ pub(crate) fn write(project: &Project) -> Result<Vec<&'static str>, String> {
     let current = match std::fs::read_to_string(&path) {
         Ok(text) => text,
         Err(error) if error.kind() == io::ErrorKind::NotFound => String::new(),
-        Err(error) => return Err(format!("error: could not read {guidance}: {error}")),
+        Err(error) => return Err(format!("error: could not read {guidance}: {error}").into()),
     };
     if let Some(text) = rules::mention(&current) {
         std::fs::write(&path, text)
@@ -102,7 +102,7 @@ pub(crate) fn stale(project: &Project) -> bool {
 /// succeeded.
 pub(crate) fn refresh() {
     let result = std::env::current_dir()
-        .map_err(|error| format!("could not read the current directory: {error}"))
+        .map_err(|error| Error::from(format!("could not read the current directory: {error}")))
         .and_then(|cwd| crate::project::find(&cwd))
         .and_then(|project| write(&project).map(|wrote| wrote_message(&project, &wrote)));
 
@@ -113,7 +113,7 @@ pub(crate) fn refresh() {
             io::stderr(),
             "warning: {} is out of date: {}",
             rules::FILE,
-            message.trim_start_matches("error: ")
+            message.message().trim_start_matches("error: ")
         ),
     };
 }

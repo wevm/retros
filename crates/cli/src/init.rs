@@ -35,7 +35,7 @@ pub(crate) fn run() -> ExitCode {
     let cwd = std::env::current_dir().unwrap_or_default();
 
     let mut example = match closest(&cwd) {
-        Some((name, kind, pack)) => format!(
+        Some(Example { kind, name, pack }) => format!(
             "The closest example is {kind}: {EXAMPLES}/{name}. Read its `.agents/uphill/uphill.yaml` and `.agents/uphill/metrics/` before writing anything. `uphill add wevm/uphill/packs/{pack}@main` adds the `{pack}` pack of conventions, pinned to a commit."
         ),
         None => format!(
@@ -64,19 +64,38 @@ pub(crate) fn run() -> ExitCode {
     ExitCode::SUCCESS
 }
 
-/// Returns the name and kind of the example closest to the project at `dir`, and the pack for its
-/// language, or `None` when it is neither a Cargo project nor a package.
-fn closest(dir: &Path) -> Option<(&'static str, &'static str, &'static str)> {
+/// An example project: its kind, its directory name, and the pack for its language.
+struct Example {
+    kind: &'static str,
+    name: &'static str,
+    pack: &'static str,
+}
+
+/// Returns the example closest to the project at `dir`, or `None` when it is neither a Cargo
+/// project nor a package.
+fn closest(dir: &Path) -> Option<Example> {
     if dir.join("Cargo.toml").is_file() {
-        return Some(("rust-api", "a Rust API", "rust"));
+        return Some(Example {
+            kind: "a Rust API",
+            name: "rust-api",
+            pack: "rust",
+        });
     }
     let package = std::fs::read_to_string(dir.join("package.json")).ok()?;
     let web = WEB.iter().any(|name| package.contains(name))
         || dir.join("index.html").is_file()
         || dir.join("pages").is_dir();
     Some(if web {
-        ("web-app", "a website", "web")
+        Example {
+            kind: "a website",
+            name: "web-app",
+            pack: "web",
+        }
     } else {
-        ("typescript-library", "a TypeScript library", "typescript")
+        Example {
+            kind: "a TypeScript library",
+            name: "typescript-library",
+            pack: "typescript",
+        }
     })
 }

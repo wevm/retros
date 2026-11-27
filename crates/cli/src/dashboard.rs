@@ -10,6 +10,7 @@ use std::process::ExitCode;
 
 use engine::dashboard::Repository;
 
+use crate::error::Error;
 use crate::history::{self, REPORTS};
 use crate::score::TRENDS;
 use crate::worktree;
@@ -20,7 +21,7 @@ use crate::worktree;
 ///
 /// Returns a message for the terminal when Git cannot fetch a repository or the dashboard cannot
 /// be written.
-pub(crate) fn run(names: &[String]) -> Result<ExitCode, String> {
+pub(crate) fn run(names: &[String]) -> Result<ExitCode, Error> {
     let repositories = names
         .iter()
         .map(|name| read(name))
@@ -40,14 +41,15 @@ pub(crate) fn run(names: &[String]) -> Result<ExitCode, String> {
 }
 
 /// Fetches one repository into a temporary bare repository and reads its noted runs.
-fn read(name: &str) -> Result<Repository, String> {
+fn read(name: &str) -> Result<Repository, Error> {
     let url = url(name)?;
     let dir = tempfile::tempdir()
         .map_err(|error| format!("error: could not create a temporary directory: {error}"))?;
     let git = |args: &[&str]| worktree::git(dir.path(), args);
-    let fetched = |result: Result<String, String>| {
+    let fetched = |result: Result<String, Error>| {
         result.map_err(|error| {
-            let error = error.strip_prefix("error: ").unwrap_or(&error);
+            let error = error.message();
+            let error = error.strip_prefix("error: ").unwrap_or(error);
             format!("error: could not fetch {name}: {error}")
         })
     };
@@ -86,13 +88,13 @@ fn read(name: &str) -> Result<Repository, String> {
 
 /// Returns what Git fetches for a repository: a local path as an absolute path, `owner/name` as
 /// its GitHub URL, and anything else, such as a URL, as it is.
-pub(crate) fn url(name: &str) -> Result<String, String> {
+pub(crate) fn url(name: &str) -> Result<String, Error> {
     let path = Path::new(name);
     if path.exists() {
-        return path
+        return Ok(path
             .canonicalize()
             .map(|path| path.to_string_lossy().into_owned())
-            .map_err(|error| format!("error: could not read {name}: {error}"));
+            .map_err(|error| format!("error: could not read {name}: {error}"))?);
     }
     let github = name.split_once('/').is_some_and(|(owner, repository)| {
         // GitHub names never start with a dot, so a missing path such as `./app` stays a path.

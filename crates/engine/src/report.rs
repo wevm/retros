@@ -231,6 +231,14 @@ pub fn band(score: u8) -> char {
     }
 }
 
+/// One item row of the terminal report: the item name with its target, the note when the item
+/// misses its target, and the value.
+struct Row<'a> {
+    name: String,
+    note: Option<&'a str>,
+    value: String,
+}
+
 /// Renders one category for the terminal: its score, then each metric's score, value, and
 /// target, and the worst items of each list. Checks that skip collapse into one count.
 pub fn terminal(category: &CategoryReport) -> String {
@@ -277,24 +285,25 @@ pub fn terminal(category: &CategoryReport) -> String {
             let _ = writeln!(out, "  {:5}  {:name_width$}  {note}", "", "");
         }
 
-        let items: Vec<(String, String, Option<&str>)> = worst(metric)
+        let items: Vec<Row<'_>> = worst(metric)
             .into_iter()
             .map(|item| {
                 let target = item
                     .target
                     .map(|target| format!("  target {}", format::value(target)))
                     .unwrap_or_default();
-                (
-                    format::value(item.value),
-                    format!("{}{target}", item.name),
-                    item.note
+                Row {
+                    name: format!("{}{target}", item.name),
+                    note: item
+                        .note
                         .as_deref()
                         .filter(|_| misses_target(item, metric) == Some(true)),
-                )
+                    value: format::value(item.value),
+                }
             })
             .collect();
-        let item_width = width(items.iter().map(|(value, _, _)| value.as_str()));
-        for (value, name, note) in items {
+        let item_width = width(items.iter().map(|row| row.value.as_str()));
+        for Row { name, note, value } in items {
             let _ = writeln!(
                 out,
                 "  {:5}  {:name_width$}  {value:item_width$}  {name}",

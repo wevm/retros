@@ -148,10 +148,10 @@ pub fn is_commit(text: &str) -> bool {
 /// Returns a message for a source of another form, such as an `http`, `ssh`, or `file` URL, a
 /// source or ref that starts with `-`, and a path with `..`, `.git`, or characters other than
 /// ASCII letters, digits, `.`, `_`, `+`, and `-`.
-pub fn source(text: &str) -> Result<Source, String> {
+pub fn source(text: &str) -> Result<Source, Error> {
     if text.starts_with("./") || text.starts_with("../") {
         if text.chars().any(char::is_control) {
-            return Err(format!("`{text}` holds a control character"));
+            return Err(not_source(format!("`{text}` holds a control character")));
         }
         return Ok(Source::Local(text.to_owned()));
     }
@@ -170,7 +170,9 @@ pub fn source(text: &str) -> Result<Source, String> {
             || reference.contains("..")
             || !valid
         {
-            return Err(format!("`{reference}` is not a branch, tag, or commit"));
+            return Err(not_source(format!(
+                "`{reference}` is not a branch, tag, or commit"
+            )));
         }
     }
 
@@ -183,27 +185,35 @@ pub fn source(text: &str) -> Result<Source, String> {
             || !parts.clone().all(component)
             || parts.count() == 0
         {
-            return Err(format!("`{text}` is not a pack source: {expected}"));
+            return Err(not_source(format!(
+                "`{text}` is not a pack source: {expected}"
+            )));
         }
         (format!("https://{repository}"), path)
     } else if rest.contains(':') {
-        return Err(format!("`{text}` is not a pack source: {expected}"));
+        return Err(not_source(format!(
+            "`{text}` is not a pack source: {expected}"
+        )));
     } else {
         let mut parts = rest.splitn(3, '/');
         let (Some(owner), Some(repo)) = (parts.next(), parts.next()) else {
-            return Err(format!("`{text}` is not a pack source: {expected}"));
+            return Err(not_source(format!(
+                "`{text}` is not a pack source: {expected}"
+            )));
         };
         if !component(owner) || !component(repo) {
-            return Err(format!("`{text}` is not a pack source: {expected}"));
+            return Err(not_source(format!(
+                "`{text}` is not a pack source: {expected}"
+            )));
         }
         (format!("{owner}/{repo}"), parts.next().unwrap_or_default())
     };
 
     let path = path.trim_matches('/');
     if !path.is_empty() && !path.split('/').all(component) {
-        return Err(format!(
+        return Err(not_source(format!(
             "`{path}` is not a path in a repository: {expected}"
-        ));
+        )));
     }
     Ok(Source::Remote(Remote {
         path: path.to_owned(),
@@ -455,8 +465,10 @@ fn entry(
     categories: Option<Vec<String>>,
     install: bool,
 ) -> Result<Entry, Error> {
-    let parsed = self::source(text)
-        .map_err(|message| Error::at(Code::InvalidValue, source, item.offset, message))?;
+    let parsed = self::source(text).map_err(|error| Error {
+        location: Some(Location::of(source, item.offset)),
+        ..error
+    })?;
     let name = match &parsed {
         Source::Local(path) => path.clone(),
         Source::Remote(remote) => remote.name(),
@@ -586,7 +598,7 @@ pub fn add(
     };
 
     let out = with_newline(&out);
-    let after = entries(&out, format).map_err(|_| by_hand())?;
+    let after = entries(&out, format).map_err(|error| by_hand().because(&error))?;
     let same = after.len() == before.len() + 1
         && after.iter().zip(&before).all(|(a, b)| a.name == b.name)
         && after
@@ -626,7 +638,7 @@ pub fn pin(source: &str, format: Format, entry: &Entry, commit: &str) -> Result<
         source.get(start + old.len()..).unwrap_or_default()
     );
 
-    let after = entries(&out, format).map_err(|_| by_hand())?;
+    let after = entries(&out, format).map_err(|error| by_hand().because(&error))?;
     let pinned = after.iter().any(|other| {
         other.name == entry.name
             && matches!(&other.source, Source::Remote(r) if r.reference.as_deref() == Some(commit))
@@ -665,7 +677,7 @@ pub fn remove(source: &str, format: Format, entry: &Entry) -> Result<String, Err
             entry.name
         ),
     };
-    let after = entries(&out, format).map_err(|_| by_hand())?;
+    let after = entries(&out, format).map_err(|error| by_hand().because(&error))?;
     let expected: Vec<&str> = before
         .iter()
         .filter(|other| other.offset != entry.offset)
@@ -768,12 +780,12 @@ pub struct TreeEntry {
 /// Returns a message for a symbolic link, a submodule, a path with `..`, `.git`, or characters
 /// other than ASCII letters, digits, `.`, `_`, `@`, `+`, and `-`, two paths that differ only in
 /// case, more than 1,000 files or 32 levels, a file over 1 MB, and more than 10 MB in all.
-pub fn validate(entries: &[TreeEntry]) -> Result<Vec<bool>, String> {
+pub fn validate(entries: &[TreeEntry]) -> Result<Vec<bool>, Error> {
     if entries.len() > MAX_FILES {
-        return Err(format!(
+        return Err(unsafe_pack(format!(
             "it has {} files, more than {MAX_FILES}",
             entries.len()
-        ));
+        )));
     }
 
     let mut total = 0_u64;
@@ -784,13 +796,18 @@ pub fn validate(entries: &[TreeEntry]) -> Result<Vec<bool>, String> {
         match entry.mode.as_str() {
             "100644" => executable.push(false),
             "100755" => executable.push(true),
-            "120000" => return Err(format!("{} is a symbolic link", printable(path))),
-            "160000" => return Err(format!("{} is a submodule", printable(path))),
+            "120000" => {
+                return Err(unsafe_pack(format!(
+                    "{} is a symbolic link",
+                    printable(path)
+                )));
+            }
+            "160000" => return Err(unsafe_pack(format!("{} is a submodule", printable(path)))),
             mode => {
-                return Err(format!(
+                return Err(unsafe_pack(format!(
                     "{} has the mode {mode}, not a regular file",
                     printable(path)
-                ));
+                )));
             }
         }
 
@@ -805,29 +822,34 @@ pub fn validate(entries: &[TreeEntry]) -> Result<Vec<bool>, String> {
                     .all(|byte| byte.is_ascii_alphanumeric() || b"._@+-".contains(&byte))
         });
         if !safe {
-            return Err(format!("the path {} is not allowed", printable(path)));
+            return Err(unsafe_pack(format!(
+                "the path {} is not allowed",
+                printable(path)
+            )));
         }
         if parts.len() > MAX_DEPTH {
-            return Err(format!(
+            return Err(unsafe_pack(format!(
                 "{} is more than {MAX_DEPTH} levels deep",
                 printable(path)
-            ));
+            )));
         }
 
         let folded = path.to_ascii_lowercase();
         if let Some(other) = seen.iter().position(|other| *other == folded) {
             let other = entries.get(other).map_or("", |other| other.path.as_str());
-            return Err(format!("{other} and {path} differ only in case"));
+            return Err(unsafe_pack(format!(
+                "{other} and {path} differ only in case"
+            )));
         }
         seen.push(folded);
 
         let size = entry
             .size
             .filter(|size| *size <= MAX_FILE)
-            .ok_or_else(|| format!("{path} is larger than 1 MB"))?;
+            .ok_or_else(|| unsafe_pack(format!("{path} is larger than 1 MB")))?;
         total += size;
         if total > MAX_TOTAL {
-            return Err("its files hold more than 10 MB".to_owned());
+            return Err(unsafe_pack("its files hold more than 10 MB".to_owned()));
         }
     }
     Ok(executable)
@@ -857,4 +879,22 @@ fn invalid(source: &str, node: &Node, format: Format) -> Error {
             "`packs` must list pack sources, such as `packs = [\"owner/repo/path@<commit>\", { pack = \"./packs/api\", categories = [\"latency\"] }]`".to_owned(),
         ),
     )
+}
+
+#[cold]
+fn not_source(message: String) -> Error {
+    Error {
+        code: Code::InvalidValue,
+        location: None,
+        message,
+    }
+}
+
+#[cold]
+fn unsafe_pack(message: String) -> Error {
+    Error {
+        code: Code::UnsafePack,
+        location: None,
+        message,
+    }
 }

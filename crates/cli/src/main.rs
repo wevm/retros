@@ -8,6 +8,7 @@
 
 mod check;
 mod dashboard;
+mod error;
 mod fetch;
 mod history;
 mod init;
@@ -238,7 +239,7 @@ fn run(command: Command) -> ExitCode {
 }
 
 /// Returns a command's exit code, or writes its message to standard error with exit status 2.
-fn report(result: Result<ExitCode, String>) -> ExitCode {
+fn report(result: Result<ExitCode, error::Error>) -> ExitCode {
     result.unwrap_or_else(|message| {
         let _ = writeln!(std::io::stderr(), "{message}");
         ExitCode::from(2)
@@ -247,9 +248,15 @@ fn report(result: Result<ExitCode, String>) -> ExitCode {
 
 /// Finds the project and runs `command` on it. A message from either goes to standard error with
 /// exit status 2.
-fn with_project(command: impl FnOnce(&project::Project) -> Result<ExitCode, String>) -> ExitCode {
+fn with_project(
+    command: impl FnOnce(&project::Project) -> Result<ExitCode, error::Error>,
+) -> ExitCode {
     let result = std::env::current_dir()
-        .map_err(|error| format!("error: could not read the current directory: {error}"))
+        .map_err(|error| {
+            error::Error::from(format!(
+                "error: could not read the current directory: {error}"
+            ))
+        })
         .and_then(|cwd| project::find(&cwd))
         .and_then(|project| command(&project));
 
