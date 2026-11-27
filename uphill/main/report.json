@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "score": 85,
+  "score": 86,
   "categories": [
     {
       "name": "footprint",
@@ -102,7 +102,7 @@
       "title": "Speed",
       "subject": null,
       "description": null,
-      "score": 97,
+      "score": 100,
       "rounds": 5,
       "metrics": [
         {
@@ -111,9 +111,9 @@
           "description": null,
           "kind": "time",
           "unit": "ns",
-          "value": 840000,
+          "value": 606000,
           "item": null,
-          "score": 94,
+          "score": 99,
           "target": 1000000,
           "default": 1000000,
           "note": null,
@@ -128,7 +128,7 @@
           "description": null,
           "kind": "time",
           "unit": "ns",
-          "value": 1836000,
+          "value": 1587000,
           "item": null,
           "score": 100,
           "target": 5000000,
@@ -20501,7 +20501,7 @@
               "name": "docs/guides/github-actions.md",
               "value": false,
               "target": null,
-              "note": "line 159: \"it is\" is wordy or unneeded (and 2 more)"
+              "note": "line 159: \"it is\" is wordy or unneeded (and 3 more)"
             },
             {
               "name": "docs/guides/scripts.md",
@@ -24948,7 +24948,7 @@
       "title": "Commits",
       "subject": null,
       "description": null,
-      "score": 98,
+      "score": 97,
       "rounds": 1,
       "metrics": [
         {
@@ -24967,6 +24967,12 @@
           "weight": 1,
           "rollup": null,
           "items": [
+            {
+              "name": "020e0dd",
+              "value": true,
+              "target": null,
+              "note": null
+            },
             {
               "name": "2fe0857",
               "value": true,
@@ -25257,12 +25263,6 @@
             },
             {
               "name": "a04d518",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "34a88b7",
               "value": true,
               "target": null,
               "note": null
@@ -25286,6 +25286,12 @@
           "rollup": null,
           "items": [
             {
+              "name": "020e0dd",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "2fe0857",
               "value": true,
               "target": null,
@@ -25575,12 +25581,6 @@
             },
             {
               "name": "a04d518",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "34a88b7",
               "value": true,
               "target": null,
               "note": null
@@ -25604,6 +25604,12 @@
           "rollup": null,
           "items": [
             {
+              "name": "020e0dd",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "2fe0857",
               "value": true,
               "target": null,
@@ -25893,12 +25899,6 @@
             },
             {
               "name": "a04d518",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "34a88b7",
               "value": true,
               "target": null,
               "note": null
@@ -25940,6 +25940,12 @@
               "note": "header must not be longer than 100 characters, current length is 104: docs: rename the devising-metrics skill to creating-metrics and add Quick Prompt and Packs to the README"
             },
             {
+              "name": "020e0dd",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "2fe0857",
               "value": true,
               "target": null,
@@ -26211,12 +26217,6 @@
             },
             {
               "name": "a04d518",
-              "value": true,
-              "target": null,
-              "note": null
-            },
-            {
-              "name": "34a88b7",
               "value": true,
               "target": null,
               "note": null
@@ -26258,6 +26258,12 @@
               "note": "body's lines must not be longer than 100 characters: feat: add the devising-metrics skill and end the `uphill init` brief with it"
             },
             {
+              "name": "020e0dd",
+              "value": true,
+              "target": null,
+              "note": null
+            },
+            {
               "name": "2fe0857",
               "value": true,
               "target": null,
@@ -26532,12 +26538,6 @@
               "value": true,
               "target": null,
               "note": null
-            },
-            {
-              "name": "34a88b7",
-              "value": true,
-              "target": null,
-              "note": null
             }
           ]
         },
@@ -26557,6 +26557,12 @@
           "weight": 1,
           "rollup": null,
           "items": [
+            {
+              "name": "020e0dd",
+              "value": true,
+              "target": null,
+              "note": null
+            },
             {
               "name": "2fe0857",
               "value": true,
@@ -26850,12 +26856,6 @@
               "value": true,
               "target": null,
               "note": null
-            },
-            {
-              "name": "34a88b7",
-              "value": true,
-              "target": null,
-              "note": null
             }
           ]
         },
@@ -26875,6 +26875,12 @@
           "weight": 1,
           "rollup": null,
           "items": [
+            {
+              "name": "020e0dd",
+              "value": true,
+              "target": null,
+              "note": null
+            },
             {
               "name": "2fe0857",
               "value": true,
@@ -27168,12 +27174,6 @@
               "value": null,
               "target": null,
               "note": "no known verb form for the opening word: version"
-            },
-            {
-              "name": "34a88b7",
-              "value": null,
-              "target": null,
-              "note": "no known verb form for the opening word: version"
             }
           ]
         },
@@ -27183,9 +27183,9 @@
           "description": "Add or edit a test source file in each `fix:` commit.",
           "kind": "check",
           "unit": null,
-          "value": 0.875,
+          "value": 0.7777777777777778,
           "item": null,
-          "score": 88,
+          "score": 78,
           "target": null,
           "default": null,
           "note": null,
@@ -27193,6 +27193,12 @@
           "weight": 1,
           "rollup": null,
           "items": [
+            {
+              "name": "020e0dd",
+              "value": false,
+              "target": null,
+              "note": "changes no test: fix: draw the overall score badge as score.svg on GitHub Pages and show it in the README"
+            },
             {
               "name": "ee76cd9",
               "value": false,
@@ -27711,6 +27717,16 @@
       "metric": "positional-parameters",
       "item": null,
       "items": 20,
+      "value": false,
+      "target": true,
+      "gain": 1
+    },
+    {
+      "category": "commits",
+      "subject": null,
+      "metric": "fix-tests",
+      "item": "020e0dd",
+      "items": 1,
       "value": false,
       "target": true,
       "gain": 1
