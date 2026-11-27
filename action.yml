@@ -197,6 +197,14 @@ runs:
             } | tojson)] | @tsv' "$json" | while IFS=$'\t' read -r file badge; do
               printf '%s\n' "$badge" > "$path/badges/$file.json"
             done
+
+            # The overall score gets its own badge, for a README that shows one.
+            jq -c '{
+              color: (if .score == null then "lightgrey" elif .score >= 90 then "0c6" elif .score >= 50 then "fa3" else "f33" end),
+              label: "Uphill",
+              message: (if .score == null then "–" else "\(.score)" end),
+              schemaVersion: 1
+            }' "$json" > "$path/badges/score.json"
           fi
 
           git add -A

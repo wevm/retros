@@ -559,6 +559,7 @@ pub fn json(report: &Report) -> String {
     let mut out = String::new();
     Json::Object(vec![
         ("version", Json::Number(1.0)),
+        ("score", score_json(overall(report))),
         ("categories", Json::Array(categories.collect())),
         ("opportunities", Json::Array(opportunities.collect())),
         ("changes", changes),
@@ -1215,6 +1216,27 @@ fn value_json(value: Value) -> Json {
         Value::Skip => Json::Null,
         other => Json::Number(other.amount().unwrap_or_default()),
     }
+}
+
+/// Returns the project's overall score: the mean of its category scores, with each subject of a
+/// category counting once, or `None` when no category has a score. A category that failed or has
+/// no score drops out, as a failed metric drops out of its category. Like a category's mean, it
+/// sums each score as a fraction of 1 in report order, then rounds.
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "a mean of scores from 0 to 100 stays between 0 and 100"
+)]
+fn overall(report: &Report) -> Option<u8> {
+    let scores: Vec<f64> = report
+        .categories
+        .iter()
+        .filter_map(|category| category.result.as_ref().ok()?.score)
+        .map(|score| f64::from(score) / 100.0)
+        .collect();
+
+    (!scores.is_empty())
+        .then(|| (scores.iter().sum::<f64>() / count(scores.len()) * 100.0).round() as u8)
 }
 
 fn score_json(score: Option<u8>) -> Json {

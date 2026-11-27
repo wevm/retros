@@ -1,6 +1,6 @@
 # Scoring
 
-Uphill scores each value from 0 to 100 against its target, collapses each list to one score, and averages metric scores into a category score. There is no overall score.
+Uphill scores each value from 0 to 100 against its target, collapses each list to one score, averages metric scores into a category score, and averages category scores into an overall score.
 
 ## Curve
 
@@ -88,6 +88,20 @@ A metric without a target, and a check that skips, have no score and stay out of
   ■  57  export-size  p90 9 kB (viem/op-stack)  target 5 kB
       –  modules      412
   ■  67  links        2 of 3 pass
+```
+
+## Overall Score
+
+The overall score is the mean of the category scores, rounded the same way. Each subject of a category counts once, and every category carries the same weight. A category without a score stays out of the mean, and a project where no category scores has no overall score.
+
+`report.json` holds it as the top-level `score`. The other reports show only the categories, so a poor category stays visible.
+
+```json
+{
+  "version": 1,
+  "score": 59,
+  "categories": []
+}
 ```
 
 ## Rounds

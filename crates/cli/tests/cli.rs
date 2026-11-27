@@ -281,6 +281,7 @@ fn scores_every_category_and_writes_reports() {
     insta::assert_snapshot!(json, @r#"
     {
       "version": 1,
+      "score": 59,
       "categories": [
         {
           "name": "footprint",
@@ -688,6 +689,12 @@ fn scoring_reports_failed_categories() {
 
     Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
     ");
+
+    // Failed categories drop out of the overall score instead of counting as zero, and footprint
+    // has no score, so the project has none.
+    let json = fs::read_to_string(project.path().join(".uphill/report.json")).unwrap();
+    let overall = json.lines().find(|line| line.starts_with("  \"score\""));
+    insta::assert_snapshot!(overall.unwrap(), @r#"  "score": null,"#);
 }
 
 #[test]
@@ -1105,8 +1112,12 @@ fn subjects_share_one_run_and_score_on_their_own() {
     | ● 97 | Wasm size | 250 kB | 350 kB |
     ");
 
-    // ts's peak memory is scored against its line target, and `default` keeps the metric's target.
+    // The overall score counts each subject of each category once: 100, 100, 77, and 97.
     let json = fs::read_to_string(project.path().join(".uphill/report.json")).unwrap();
+    let overall = json.lines().find(|line| line.starts_with("  \"score\""));
+    insta::assert_snapshot!(overall.unwrap(), @r#"  "score": 94,"#);
+
+    // ts's peak memory is scored against its line target, and `default` keeps the metric's target.
     let metric = json.rfind("\"name\": \"turn-rss\"").unwrap();
     let start = metric + json[metric..].find("\"target\"").unwrap();
     let end = metric + json[metric..].find("\"note\"").unwrap();

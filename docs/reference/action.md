@@ -110,7 +110,7 @@ Whether to publish `report.html` to GitHub Pages. The action commits it to `gh-p
 | Push to `main`                             | `uphill/main/`          | `uphill`              |
 | Pull request 12, `working-directory: site` | `uphill/site/pr-12/`    | `uphill-site-preview` |
 
-Each directory holds `index.html`, `report.json`, and a [Shields endpoint](https://shields.io/badges/endpoint-badge) badge per category in `badges/<category>.json`, or `badges/<category>-<subject>.json`. A new `gh-pages` branch gets a `.nojekyll` file, and an existing one keeps its other files.
+Each directory holds `index.html`, `report.json`, and [Shields endpoint](https://shields.io/badges/endpoint-badge) badges: the overall score in `badges/score.json`, and each category in `badges/<category>.json`, or `badges/<category>-<subject>.json`. A new `gh-pages` branch gets a `.nojekyll` file, and an existing one keeps its other files.
 
 The workflow token may not create a Pages site. So after the first run pushes `gh-pages`, select it under Settings, Pages, once. A token with administration access creates the site itself. A site that publishes another branch or a workflow stays as it is. After every failure, the action warns, and the comment links the artifact.
 

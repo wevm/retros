@@ -133,6 +133,7 @@ The JSON report has every value in base units: bytes for sizes and nanoseconds f
 ```json
 {
   "version": 1,
+  "score": 59,
   "categories": [],
   "opportunities": [],
   "changes": [],
@@ -145,6 +146,12 @@ The JSON report has every value in base units: bytes for sizes and nanoseconds f
 - **Type:** number
 
 The version of the JSON format, which is `1`.
+
+### `score`
+
+- **Type:** number or `null`
+
+The project's overall score from 0 to 100, the mean of the category scores (see [Scoring](scoring.md#overall-score)). It is `null` when no category has a score.
 
 ### `categories`
 

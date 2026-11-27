@@ -4,17 +4,9 @@
   Continuous metrics and hill climbing
 </p>
 
-<!-- Uphill's own scores on main, which the Main workflow publishes to GitHub Pages. -->
+<!-- Uphill's own overall score on main, which the Main workflow publishes to GitHub Pages. -->
 <p align="center">
-  <a href="https://wevm.github.io/uphill/uphill/main/"><img alt="Footprint" src="https://img.shields.io/endpoint?url=https://wevm.github.io/uphill/uphill/main/badges/footprint.json"></a>
-  <a href="https://wevm.github.io/uphill/uphill/main/"><img alt="Speed" src="https://img.shields.io/endpoint?url=https://wevm.github.io/uphill/uphill/main/badges/speed.json"></a>
-  <a href="https://wevm.github.io/uphill/uphill/main/"><img alt="Correctness" src="https://img.shields.io/endpoint?url=https://wevm.github.io/uphill/uphill/main/badges/correctness.json"></a>
-  <a href="https://wevm.github.io/uphill/uphill/main/"><img alt="Style" src="https://img.shields.io/endpoint?url=https://wevm.github.io/uphill/uphill/main/badges/style.json"></a>
-  <a href="https://wevm.github.io/uphill/uphill/main/"><img alt="Architecture" src="https://img.shields.io/endpoint?url=https://wevm.github.io/uphill/uphill/main/badges/architecture.json"></a>
-  <a href="https://wevm.github.io/uphill/uphill/main/"><img alt="Documentation" src="https://img.shields.io/endpoint?url=https://wevm.github.io/uphill/uphill/main/badges/documentation.json"></a>
-  <a href="https://wevm.github.io/uphill/uphill/main/"><img alt="Testing" src="https://img.shields.io/endpoint?url=https://wevm.github.io/uphill/uphill/main/badges/testing.json"></a>
-  <a href="https://wevm.github.io/uphill/uphill/main/"><img alt="Configuration" src="https://img.shields.io/endpoint?url=https://wevm.github.io/uphill/uphill/main/badges/configuration.json"></a>
-  <a href="https://wevm.github.io/uphill/uphill/main/"><img alt="Commits" src="https://img.shields.io/endpoint?url=https://wevm.github.io/uphill/uphill/main/badges/commits.json"></a>
+  <a href="https://wevm.github.io/uphill/uphill/main/"><img alt="Uphill score" src="https://img.shields.io/endpoint?url=https://wevm.github.io/uphill/uphill/main/badges/score.json"></a>
 </p>
 
 <p align="center">
