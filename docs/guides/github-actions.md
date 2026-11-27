@@ -218,6 +218,41 @@ A pull request's `report.html` draws the same trends when its job clones the ful
 - uses: wevm/uphill@main
 ```
 
+### Publish to Pages
+
+`publish: true` commits each `report.html` to the `gh-pages` branch and serves it with GitHub Pages, at `uphill/pr-<number>/` for a pull request. The pull request shows "View deployment" with its URL, and the comment links it. The job needs write access to contents, deployments, and Pages.
+
+```yaml title=".github/workflows/uphill.yml"
+# Publish each pull request's report, and link it from a deployment.
+name: Uphill
+on: pull_request
+
+jobs:
+  uphill:
+    permissions:
+      contents: write
+      deployments: write
+      pages: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: wevm/uphill@main
+        with:
+          publish: true
+```
+
+The first run creates the Pages site from `gh-pages`, when the repository has none. A site that GitHub serves from another source stays as it is, and the comment links the artifact instead.
+
+### Show Badges
+
+A published run on a branch also writes one badge per category to `uphill/<branch>/badges/`, in the format of Shields endpoint badges. Score pushes to `main` with `publish: true`, then add each badge to the README.
+
+```md title="README.md"
+<!-- The speed score of the last run on main, colored by its band. -->
+[![Speed](https://img.shields.io/endpoint?url=https://acme.github.io/slugify/uphill/main/badges/speed.json)](https://acme.github.io/slugify/uphill/main/)
+```
+
 ### Summary Only
 
 `comment: false` keeps the report in the job summary only. A pull request from a fork has a read-only token, so the action cannot comment there. It writes a warning instead of failing the job.

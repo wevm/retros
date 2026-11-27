@@ -17,7 +17,10 @@ inputs:
     description: The branch, tag, or commit to compare with. It defaults to the base branch on pull requests and to none elsewhere. An empty value skips the comparison.
   github-token:
     default: ${{ github.token }}
-    description: The token that writes the comment. It needs the `pull-requests` write permission.
+    description: The token that writes the comment. It needs the `pull-requests` write permission, and with `publish` also `contents`, `deployments`, and `pages` write.
+  publish:
+    default: 'false'
+    description: Publish report.html to GitHub Pages from the gh-pages branch, create a deployment with its URL, and link it from the comment.
   version:
     default: ''
     description: The Uphill release to install, such as `0.0.1`, or `latest`. It defaults to the action's own tag, or `latest` when the action is not used at a release tag. `none` uses the uphill already on PATH.
@@ -32,6 +35,9 @@ outputs:
   report:
     description: The path of report.md.
     value: ${{ steps.run.outputs.report }}
+  url:
+    description: The GitHub Pages URL of report.html, when `publish` is true and publishing succeeded.
+    value: ${{ steps.publish.outputs.url }}
 
 runs:
   using: composite
@@ -86,9 +92,9 @@ runs:
         status=${PIPESTATUS[0]}
 
         # An unzipped artifact takes its file's name, so each working directory gets its own.
+        slug=$(printf '%s' "$WORKING_DIRECTORY" | tr -cs 'A-Za-z0-9' '-' | sed 's/^-*//; s/-*$//')
         html=
         if [ -f .uphill/report.html ]; then
-          slug=$(printf '%s' "$WORKING_DIRECTORY" | tr -cs 'A-Za-z0-9' '-' | sed 's/^-*//; s/-*$//')
           html=$RUNNER_TEMP/uphill-report${slug:+-$slug}.html
           cp .uphill/report.html "$html"
         fi
@@ -99,6 +105,7 @@ runs:
           echo "html=$html"
           echo "log=$log"
           echo "report=$PWD/.uphill/report.md"
+          echo "slug=$slug"
         } >> "$GITHUB_OUTPUT"
 
     # An unzipped HTML artifact opens in the browser, so the comment links the full report.
@@ -110,6 +117,129 @@ runs:
       with:
         archive: false
         path: ${{ steps.run.outputs.html }}
+
+    # A Pages site serves each report at a stable URL, which anyone who can read the site opens.
+    # A pull request from a fork has a read-only token, so it skips this step.
+    - name: Publish report
+      id: publish
+      if: >-
+        always() && inputs.publish == 'true' && steps.run.outputs.html != '' &&
+        (!github.event.pull_request || github.event.pull_request.head.repo.full_name == github.repository)
+      continue-on-error: true
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        BRANCH: gh-pages
+        GH_TOKEN: ${{ inputs.github-token }}
+        HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        HTML: ${{ steps.run.outputs.html }}
+        NUMBER: ${{ github.event.pull_request.number }}
+        SLUG: ${{ steps.run.outputs.slug }}
+      run: |
+        # Publishing is a convenience, so a failure warns, and the comment links the artifact.
+        warn() {
+          echo "::warning::$1 The comment links the artifact instead."
+          exit 0
+        }
+
+        # Each pull request and branch keeps its own directory, so one run leaves the others.
+        if [ -n "$NUMBER" ]; then
+          name=pr-$NUMBER
+        else
+          name=$(printf '%s' "$GITHUB_REF_NAME" | tr -cs 'A-Za-z0-9._' '-' | sed 's/^-*//; s/-*$//')
+        fi
+        name=${name:-run-$GITHUB_RUN_ID}
+        path=uphill/${SLUG:+$SLUG/}$name
+        json=$PWD/.uphill/report.json
+
+        # Pages serves one source, so Uphill publishes only when that source is the branch or unset.
+        pages=$(gh api "repos/$GITHUB_REPOSITORY/pages" 2> /dev/null) || pages=
+        if [ -n "$pages" ]; then
+          source=$(jq -r 'if .build_type == "legacy" then .source.branch else "a workflow" end' <<< "$pages")
+          if [ "$source" != "$BRANCH" ]; then warn "GitHub Pages publishes $source, not $BRANCH."; fi
+        fi
+
+        # A run that pushes between this run's fetch and push rejects the push, so it fetches again.
+        site=$RUNNER_TEMP/uphill-site
+        header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')"
+        push() (
+          rm -rf "$site"
+          git init -q "$site"
+          cd "$site" || return 1
+          git config "http.$GITHUB_SERVER_URL/.extraheader" "$header"
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git config user.name 'github-actions[bot]'
+          git remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+
+          heads=$(git ls-remote --heads origin "refs/heads/$BRANCH") || return 1
+          if [ -n "$heads" ]; then
+            git fetch -q --depth=1 origin "$BRANCH" || return 1
+            git checkout -q -B "$BRANCH" FETCH_HEAD || return 1
+          else
+            # A new branch skips Jekyll. An existing one keeps its own setup.
+            git checkout -q --orphan "$BRANCH"
+            : > .nojekyll
+          fi
+
+          rm -rf "$path"
+          mkdir -p "$path/badges"
+          cp "$HTML" "$path/index.html"
+
+          # Each category gets a Shields endpoint badge, colored by its score band.
+          if [ -f "$json" ]; then
+            cp "$json" "$path/report.json"
+            jq -r '.categories[] | [([.name, .subject] | map(select(.)) | join("-")), ({
+              color: (if .score == null then "lightgrey" elif .score >= 90 then "0c6" elif .score >= 50 then "fa3" else "f33" end),
+              label: (.title + (if .subject then " (\(.subject))" else "" end)),
+              message: (if .score == null then "failed" else "\(.score)" end),
+              schemaVersion: 1
+            } | tojson)] | @tsv' "$json" | while IFS=$'\t' read -r file badge; do
+              printf '%s\n' "$badge" > "$path/badges/$file.json"
+            done
+          fi
+
+          git add -A
+          git diff --cached --quiet || git commit -qm "Publish the Uphill report for $name at ${HEAD_SHA:0:7}"
+          git push -q origin "HEAD:refs/heads/$BRANCH"
+        )
+        # A random wait keeps runs that pushed at once from colliding again.
+        for attempt in 1 2 3 4 5; do
+          if push; then break; fi
+          if [ "$attempt" = 5 ]; then warn "Uphill could not push the report to $BRANCH, which needs the contents write permission."; fi
+          sleep $((attempt + RANDOM % 4))
+        done
+
+        # A repository without Pages gets a site from the branch, when the token may create one.
+        # A push with the workflow token does not build the site, so Uphill requests a build.
+        if [ -z "$pages" ]; then
+          pages=$(gh api --method POST "repos/$GITHUB_REPOSITORY/pages" -f "source[branch]=$BRANCH" -f 'source[path]=/') ||
+            warn "Uphill pushed the report to $BRANCH, but GitHub Pages is off. Select $BRANCH in Settings, Pages."
+        elif ! gh api --method POST "repos/$GITHUB_REPOSITORY/pages/builds" > /dev/null; then
+          echo "::warning::Uphill could not request a GitHub Pages build, which needs the pages write permission."
+        fi
+
+        url=$(jq -r '.html_url' <<< "$pages")
+        url=${url%/}/$path/
+        echo "url=$url" >> "$GITHUB_OUTPUT"
+
+        # Pull requests share a preview environment, so each one's deployment stays active.
+        environment=uphill${SLUG:+-$SLUG}
+        transient=false
+        if [ -n "$NUMBER" ]; then
+          environment=$environment-preview
+          transient=true
+        fi
+        deployments=repos/$GITHUB_REPOSITORY/deployments
+        if ! id=$(jq -n --arg environment "$environment" --arg ref "$HEAD_SHA" --argjson transient "$transient" \
+          '{auto_merge: false, environment: $environment, production_environment: false, ref: $ref, required_contexts: [], transient_environment: $transient}' |
+          gh api "$deployments" --input - --jq .id); then
+          echo "::warning::Uphill could not create a deployment, which needs the deployments write permission."
+          exit 0
+        fi
+        jq -n --argjson inactive "$([ "$transient" = true ] && echo false || echo true)" --arg log "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --arg url "$url" \
+          '{auto_inactive: $inactive, environment_url: $url, log_url: $log, state: "success"}' |
+          gh api "$deployments/$id/statuses" --input - > /dev/null ||
+          echo "::warning::Uphill could not set the status of deployment $id."
 
     - name: Post report
       if: always() && steps.run.outputs.exit-code != ''
@@ -125,7 +255,7 @@ runs:
         MARKER: '<!-- uphill: ${{ inputs.working-directory }} -->'
         NUMBER: ${{ github.event.pull_request.number }}
         REPORT: ${{ steps.run.outputs.report }}
-        REPORT_URL: ${{ steps.upload.outputs.artifact-url }}
+        REPORT_URL: ${{ steps.publish.outputs.url || steps.upload.outputs.artifact-url }}
       run: |
         # Uphill writes `comment.md`: a heading and a table of score gauges for the compared revision
         # and this run.

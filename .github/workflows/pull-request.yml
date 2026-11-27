@@ -10,8 +10,11 @@ concurrency:
 jobs:
   uphill:
     name: Uphill
+    # Publishing pushes the report to gh-pages, builds the site, and adds a deployment.
     permissions:
-      contents: read
+      contents: write
+      deployments: write
+      pages: write
       pull-requests: write
     runs-on: ubuntu-latest
 
@@ -29,7 +32,7 @@ jobs:
           bun-version: 1.4.4
 
       # The action runs the uphill this pull request builds, compares it with the base branch,
-      # and keeps one comment on the pull request.
+      # keeps one comment on the pull request, and publishes the report to GitHub Pages.
       - name: Build Uphill
         run: |
           cargo build --release --locked -p uphill
@@ -38,6 +41,7 @@ jobs:
       - name: Run Uphill
         uses: ./
         with:
+          publish: true
           version: none
 
   verify:
