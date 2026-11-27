@@ -83,7 +83,7 @@ footprint:
 
 ## Agent Setup
 
-`uphill init` prints a brief that a person gives their agent. The brief asks the agent to find the project's surfaces, write a script per category with the project's own tools, and run `uphill check` until it passes. `uphill --compact` then prints the next step in a few lines.
+`uphill init` prints a brief that a person passes to their agent. The brief asks the agent to find the project's surfaces, write a script per category with the project's own tools, and run `uphill check` until it passes. `uphill --compact` then prints the next step in short form.
 
 The brief ends with the [`uphill`](../../SKILL.md) skill. It asks for deep metrics on each surface, research into language and domain patterns, and targets about 10 times better than the project is now.
 

@@ -34,9 +34,13 @@ import {
  * consumer's exported aliases, with the declared type behind it, for notes.
  */
 export type Item = {
+  /** The export's item name, such as `lib:Math.add`. */
   item: string
+  /** The entry point's specifier, which groups items that share a baseline. */
   group: string
+  /** The consumer file's text. */
   text: string
+  /** The declared type behind each of the consumer's exported aliases, by alias name. */
   forms: Record<string, string>
 }
 

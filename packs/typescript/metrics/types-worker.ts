@@ -26,18 +26,29 @@ import { consumerOptions, createHost, testOptions, ts } from './types-host.ts'
 
 /** One file to check. */
 export type Job = {
+  /** The job's ID, which the result repeats. */
   id: number
   /** `export` checks a consumer with the consumer options, `bench` a type test with the tests' options. */
   mode: 'export' | 'bench'
+  /** The virtual file's path, which the program checks. */
   file: string
+  /** The file's text to check. */
   text: string
   /** Groups jobs that share a baseline. */
   group: string
+  /** The text of the baseline file, with the same imports and nothing else. */
   baseline: string
 }
 
 /** What one check cost. */
-export type Cost = { instantiations: number; cpu: number; bytes: number }
+export type Cost = {
+  /** The type instantiations the check created. */
+  instantiations: number
+  /** The main thread's CPU time during the check, in milliseconds. */
+  cpu: number
+  /** The bytes V8 allocated on its heap during the check. */
+  bytes: number
+}
 
 /** One result line. `parts` holds the instantiations of each of a consumer's exported forms. */
 export type Result = Cost & {

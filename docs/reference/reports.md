@@ -4,7 +4,9 @@ Each run prints a summary and writes three reports to `.uphill/` in the project 
 
 ## Terminal
 
-The summary lists each category with its score, then each metric with its value and target. A list shows its 3 worst items, a failed check shows its note, and checks that skip collapse into one count, such as `– 41 skipped`. Then come the top 5 opportunities, up to 10 changes since the baselines, and the changes against `--compare`.
+The summary lists each category with its score, then each metric with its value and target.
+
+A list shows its 3 worst items, a failed check shows its note, and checks that skip collapse into one count, such as `– 41 skipped`. Then come the top 5 opportunities, up to 10 changes since the baselines, and the changes against `--compare`.
 
 ```text
 $ uphill
@@ -75,7 +77,9 @@ GitHub shows only images that it fetches by URL, so each gauge links an SVG file
 
 ## `report.html`
 
-The HTML report is one file with inline styles and scripts, so it opens from disk or from a CI artifact. Each category has a gauge and a grid of metrics, with each value on a bar against its target. Checks that skip close under a Skipped group after the grid.
+The HTML report is one file with inline styles and scripts, so it opens from disk or from a CI artifact.
+
+Each category has a gauge and a grid of metrics, with each value on a bar against its target. Checks that skip close under a Skipped group after the grid.
 
 ```sh
 # Open the report on macOS. On Linux, use xdg-open.
@@ -106,7 +110,7 @@ A metric's chart draws its target as a dashed line when the target is near its v
 
 `uphill --note` also keeps the run's `report.json`, byte for byte, as a note on the same commit under `refs/notes/uphill-report`. A dashboard or other tool reads each noted commit's full report from the repository, without a clone or CI artifacts.
 
-On GitHub, a public repository serves a note as a raw file named after its commit. A ref with many notes stores them under fan-out paths, such as `fd/268f9…`, so a reader that lists the ref's tree finds both forms.
+On GitHub, a public repository serves a note as a raw file named after its commit. Git can store the notes of a ref under fan-out paths, such as `fd/268f9…`, so a reader that lists the ref's tree finds both forms.
 
 ```sh
 # Read the report noted on HEAD, by its full SHA.
@@ -115,7 +119,7 @@ curl "https://raw.githubusercontent.com/wevm/uphill/refs/notes/uphill-report/$(g
 
 ## `dashboard.html`
 
-[`uphill dashboard`](cli.md#uphill-dashboard) writes one page from the noted runs of several repositories. Each subject of each repository is a row, with the category scores of its newest noted run, and a table compares every row.
+[`uphill dashboard`](cli.md#uphill-dashboard) writes one page from the noted runs of a list of repositories. Each subject of each repository is a row, with the category scores of its newest noted run, and a table compares every row.
 
 Each row's section charts every category across the last 99 noted runs. Its report note adds each metric's value, target, and score, and the opportunities. A run noted before report notes existed shows the values of its compact note instead.
 
@@ -151,7 +155,7 @@ The version of the JSON format, which is `1`.
 
 - **Type:** number or `null`
 
-The project's overall score from 0 to 100, the mean of the category scores (see [Scoring](scoring.md#overall-score)). It is `null` when no category has a score.
+The project score from 0 to 100, the mean of the category scores, as [Scoring](scoring.md#project-score) describes. The value is `null` when no category has a score.
 
 ### `categories`
 
@@ -166,7 +170,7 @@ One object per category and subject, in the order the configuration declares the
 | `subject`     | string or `null` | The subject, such as `node`                                                                           |
 | `description` | string or `null` | The `description` key                                                                                 |
 | `score`       | number or `null` | The category score, or `null` when it failed or no metric has a score                                 |
-| `rounds`      | number           | How many times the script ran, when the category scored                                               |
+| `rounds`      | number           | The number of times the script ran, when the category scored                                         |
 | `metrics`     | array            | The metrics, in the order the configuration declares them, when the category scored                   |
 | `error`       | object           | The `message` and `details` of a failure, such as the end of standard error, when the category failed |
 
@@ -230,7 +234,7 @@ An item's `target` is its own target, from the baseline file, a pattern, or its 
 
 - **Type:** array of objects
 
-Every opportunity with a gain of at least half a point, largest first. `items` is how many items the change covers, and `gain` is the category points it adds, rounded.
+Every opportunity with a gain of at least half a point, largest first. `items` is the number of items the change covers, and `gain` is the category points it adds, rounded.
 
 ```json
 {
@@ -267,7 +271,9 @@ The changes since the baselines, or `null` when no metric has a baseline. `chang
 
 - **Type:** object, or `null`
 
-The result of `--compare`, or `null` without it. `reference` names the revision and its commit. `scores` has each category's score in the revision, with the revision's `error` when its script failed there. `changes` has the same objects as the top-level `changes`. Each timing has `before` and `after` medians, the number of `pairs`, and how many pairs `agree`, and its `change` can be `within noise`.
+The result of `--compare`, or `null` without it. `reference` names the revision and its commit. `scores` has each category's score in the revision, with the revision's `error` when its script failed there. `changes` has the same objects as the top-level `changes`.
+
+Each timing has `before` and `after` medians, the number of `pairs`, and the count of pairs that `agree`, and its `change` can be `within noise`.
 
 ```json
 {

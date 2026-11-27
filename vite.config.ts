@@ -16,6 +16,7 @@ const ignorePatterns = [
   'target/**',
 ]
 
+/** The Vite Plus configuration for formatting and linting. */
 export default defineConfig({
   fmt: {
     ignorePatterns,

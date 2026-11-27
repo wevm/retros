@@ -94,8 +94,11 @@ export class Unreplayable extends Error {
 
 /** The recorded call that returned a value: the export's key, the raw arguments, and whether it was `new`. */
 export type Origin = {
+  /** The export's key, such as `src/Math.ts#add`. */
   key: string
+  /** The arguments the recorded call passed, before encoding. */
   args: readonly unknown[]
+  /** Whether the call constructed an instance with `new`. */
   construct?: boolean | undefined
   /** The call returned a promise, and the value is what it resolved to. */
   async?: boolean | undefined

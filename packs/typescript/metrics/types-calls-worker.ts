@@ -47,34 +47,57 @@ const ts = typesHost.ts
  * One public function, and the module its namespace is, such as `Math` for `lib:Math.add`,
  * which its own tests are named after.
  */
-export type PublicFunction = { name: string; module: string }
+export type PublicFunction = {
+  /** The function's item name, such as `lib:Math.add`. */
+  name: string
+  /** The module its namespace is, such as `Math`. */
+  module: string
+}
 /** What `functions` writes. */
-export type FunctionsResult = { functions: PublicFunction[] }
+export type FunctionsResult = {
+  /** Every public function, in the order the entry points reach them. */
+  functions: PublicFunction[]
+}
 
 /** Walks public functions' names to the declarations they resolve to. */
 export type EntriesJob = {
+  /** Selects the `entries` job. */
   kind: 'entries'
+  /** The job's ID, which the result repeats. */
   id: number
+  /** The public functions' names, such as `lib/Math:Vector.add`. */
   names: string[]
 }
+/** What an `entries` job returns. */
 export type EntriesResult = {
+  /** The ID of the job this result answers. */
   id: number
   /** Each name's declaration keys, which `scan` reports for a callee that resolves to it. */
   declarations: Record<string, string[]>
+  /** The names that resolve to no declaration. */
   missing: string[]
 }
 
 /** Lists the calls in one test file. */
-export type ScanJob = { kind: 'scan'; id: number; file: string }
+export type ScanJob = {
+  /** Selects the `scan` job. */
+  kind: 'scan'
+  /** The job's ID, which the result repeats. */
+  id: number
+  /** The test file to scan. */
+  file: string
+}
 /** One call in a test file. Positions are offsets in the file's text. */
 export type Site = {
   /** The callee's declaration key: its file, relative to the checkout, and position. */
   declaration: string
   /** The test that holds the call, such as `src/Math.test.ts > add > default`. */
   test: string
+  /** The 1-based line where the call starts. */
   line: number
   /** The call's span. */
   start: number
+  /** The end of the call's span. */
   end: number
   /** The span measured: the call, and any calls chained on its result, such as `.extend(...)`. */
   outer: number
@@ -87,19 +110,27 @@ export type Site = {
 }
 /** The sites, and the text they were found in, which `measure` copies calls from. */
 export type ScanResult = {
+  /** The ID of the job this result answers. */
   id: number
+  /** The test file the job scanned. */
   file: string
+  /** The file's text at the time of the scan. */
   text: string
+  /** The calls in the file whose callee resolves to a declaration. */
   sites: Site[]
 }
 
 /** Measures chosen calls of one test file, each in a fresh checker. */
 export type MeasureJob = {
+  /** Selects the `measure` job. */
   kind: 'measure'
+  /** The job's ID, which the result repeats. */
   id: number
+  /** The test file that holds the calls. */
   file: string
   /** The text the scan found the sites in, even if the file has changed on disk since. */
   text: string
+  /** The calls to measure, each with an index that its measurement repeats, and its spans. */
   sites: {
     site: number
     start: number
@@ -108,8 +139,11 @@ export type MeasureJob = {
     anchor: number
   }[]
 }
+/** What measuring one call reports. */
 export type Measurement = {
+  /** The index of the measured call in the job's `sites`. */
   site: number
+  /** The instantiations that checking the call alone cost. */
   instantiations: number
   /** Instantiations of each part: resolving the call, its return type and chain, awaiting it. */
   parts: { call: number; result: number; awaited: number }
@@ -117,10 +151,18 @@ export type Measurement = {
   warm: number
   /** The callee's declared parameters and return type, for notes. */
   signature: { parameters: string[]; returns: string }
+  /** The type errors in the copy of the call, which make the measurement invalid. */
   errors: { code: number; message: string }[]
 }
-export type MeasureResult = { id: number; measurements: Measurement[] }
+/** What a `measure` job returns. */
+export type MeasureResult = {
+  /** The ID of the job this result answers. */
+  id: number
+  /** One measurement per measured call. */
+  measurements: Measurement[]
+}
 
+/** Any job that the worker accepts on standard input. */
 export type Job = EntriesJob | ScanJob | MeasureJob
 
 /** The name of the declaration each measured call is copied into. */

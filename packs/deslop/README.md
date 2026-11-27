@@ -12,7 +12,7 @@ Without deslop-please, the scanner follows explicit Rust module paths and simple
 
 ## Scanner Coverage
 
-- **C, Go, and Zig:** Tree-sitter identifies quoted C includes, Go import declarations, and literal Zig file imports. The scanner does not run a preprocessor, apply Go build tags or replacements, or evaluate a Zig build script.
+- **C, Go, and Zig:** Tree-sitter identifies quoted C includes, Go import declarations, and literal Zig file imports. The scanner does not run a preprocessor, apply Go build tags or replacements, or interpret a Zig build script.
 - **Swift:** The scanner connects direct calls and named types to unique top-level declarations in the same directory. It does not resolve overloaded calls, dynamic dispatch, or Swift package targets.
 - **TypeScript:** The pack's TypeScript checker resolves imports, field receivers, and called declarations, including aliases. It uses one bundler-resolution source program, not the project's build configuration.
 

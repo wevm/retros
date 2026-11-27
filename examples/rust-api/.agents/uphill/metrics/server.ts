@@ -11,8 +11,11 @@ import * as fs from 'node:fs'
 export type Server = {
   /** The base URL, such as `http://127.0.0.1:50123`. */
   url: string
+  /** The address the server listens on, such as `127.0.0.1`. */
   host: string
+  /** The port the operating system assigned to the server. */
   port: number
+  /** Kills the server process. */
   stop: () => void
 }
 

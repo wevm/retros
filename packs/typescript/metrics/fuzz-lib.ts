@@ -88,12 +88,19 @@ export type Properties = {
 
 /** One structured property: an arbitrary, a check, and the public functions it exercises. */
 export type Property = {
+  /** The fast-check arbitrary that generates each input for `check`. */
   arb: fc.Arbitrary<unknown>
+  /** Whether `check` returns a promise, which the worker awaits with a timeout. */
   async?: boolean | undefined
+  /** Throws, or rejects, when an input breaks the property. */
   check: (input: Any) => void | Promise<void>
+  /** The public functions the property exercises, by item name, such as `lib:Math.add`. */
   covers: string[]
+  /** The property's name, which seeds its runs and labels its failures. */
   id: string
+  /** The kind of oracle the property applies, which failures report. */
   oracle: 'round trip' | 'differential' | 'consistency' | 'crash'
+  /** The number of inputs fast-check generates for the property. */
   runs: number
 }
 
@@ -114,6 +121,8 @@ export function prng(seed: number) {
       values[Math.floor(next() * values.length)]!,
   }
 }
+
+/** The generator that `prng` returns, with `next`, `int`, and `pick`. */
 export type Prng = ReturnType<typeof prng>
 
 /** A 32-bit FNV-1a hash of a string, for per-function seeds. */
@@ -136,7 +145,15 @@ const programmerErrors = new Set<unknown>([
   URIError,
 ])
 
-export type Crash = { kind: string; message: string; site?: string | undefined }
+/** A thrown value that `classify` reports as a bug. */
+export type Crash = {
+  /** The kind of bug, such as `stack overflow` or the error's class name. */
+  kind: string
+  /** The first line of the error message, shortened. */
+  message: string
+  /** The `file:line` of the throw that `site` reports, when the stack names one. */
+  site?: string | undefined
+}
 
 /**
  * Whether a thrown value is a bug: anything not an `Error`, a stack overflow on a small input, or,
@@ -329,6 +346,7 @@ export function site(error: unknown): string | undefined {
   return undefined
 }
 
+/** Returns the first line of `text` with collapsed whitespace, cut to `length` characters. */
 export function short(text: string, length = 160) {
   const line = text.split('\n')[0]!.replace(/\s+/g, ' ')
   return line.length > length ? `${line.slice(0, length - 1)}…` : line
@@ -432,6 +450,7 @@ export function sizeOf(value: unknown): number {
   return total
 }
 
+/** Returns the lowercase hex encoding of `bytes`, without a `0x` prefix. */
 export function toHex(bytes: Uint8Array): string {
   let out = ''
   for (const byte of bytes) out += byte.toString(16).padStart(2, '0')
@@ -461,7 +480,14 @@ export function markRebuilt(origins: Map<object, unknown>) {
 }
 
 /** One mutated input: the arguments, whether they keep their types, and what changed. */
-export type Mutant = { args: unknown[]; typed: boolean; changes: string[] }
+export type Mutant = {
+  /** The mutated arguments. */
+  args: unknown[]
+  /** Whether every argument keeps its TypeScript type. */
+  typed: boolean
+  /** One note per mutation, such as `arg0.nonce = 0n`. */
+  changes: string[]
+}
 
 type Slot = {
   path: (string | number)[]

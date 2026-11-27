@@ -108,6 +108,7 @@ const entry = library.entries().find((entry) => entry.name === library.name)
 const build = `${library.build}/`
 const sources = `${library.sources}/`
 
+/** The vitest configuration that runs the recording projects with the wrapping transform. */
 export default {
   root,
   plugins: [...(base.plugins ?? []), project(), record()],

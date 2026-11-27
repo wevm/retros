@@ -1,12 +1,12 @@
 # Targets
 
-A target is a requirement the project must meet. Uphill scores each item against its own target, and opportunities name the changes that raise a score most.
+A target is a value the project must meet. Uphill scores each item against its own target, and opportunities name the changes that raise a score most.
 
 ## Overview
 
-A value at its target scores 90, twice the target scores 50, and four times the target scores 10. The `poor` key moves the value that scores 50. Smaller values approach 100. Targets live in the baseline file beside the configuration, `uphill.baseline.yaml`.
+A value scores 90 at its target, 50 at twice the target, and 10 at four times the target. The `poor` key sets which value scores 50 instead of twice the target. Smaller values approach a score of 100. Targets live in the baseline file beside the configuration, `uphill.baseline.yaml`.
 
-Items can need different targets. A script that knows an item needs a larger or smaller target writes it on the line. A pattern in the baseline file overrides the script, and an item's own target in the file has the final say.
+Items can need different targets. A script that detects that an item needs a larger or smaller target writes it on the line. A pattern in the baseline file overrides the script, and an item's own target in the file has the final say.
 
 ```yaml title=".agents/uphill/uphill.baseline.yaml"
 # Each entry point scores against 5 kB, except chains, which scores against 8 kB.
@@ -18,11 +18,11 @@ footprint:
 
 ## Walkthrough
 
-This walkthrough scores the gzipped size of three entry points: `index`, `utils`, and `chains`. The `chains` entry bundles every chain, so it is larger than the others by design.
+This walkthrough scores the gzipped size of three entry points: `index`, `utils`, and `chains`. The `chains` entry bundles every chain, so its size exceeds the others by design.
 
 ### Set a Default
 
-A record with only a target gives every item the same target. The list collapses to its p90 item, and `chains` is the worst item, so it decides the score.
+A record with only a target sets the same target for every item. The list collapses to its p90 item, and `chains` is the worst item, so it decides the score.
 
 ```yaml title=".agents/uphill/uphill.yaml"
 # The configuration names the metric and the script that writes it.
@@ -58,7 +58,7 @@ Opportunities
 
 ### Target One Item
 
-The script knows that `chains` holds every chain, so it writes a 15 kB target on that line. Items rank by value against their own target, so `index`, at 1.2 times its target, is now the worst item.
+The `chains` entry holds every chain, so the script writes a 15 kB target on that line. Items rank by value against their own target, so `index`, at 1.2 times its target, is now the worst item.
 
 ```sh title=".agents/uphill/metrics/footprint.sh"
 # The chains entry bundles every chain, so its line sets a larger target.
@@ -120,9 +120,9 @@ footprint:
 
 ### Read Opportunities
 
-An opportunity is one change and the category points it adds. The change is one item that meets its target, one metric that meets its target, or a whole list when no single item moves the score.
+An opportunity is one change and the category points it adds. The change is one item or one metric that meets its target. When no single item moves the score, the change is a whole list.
 
-The terminal shows the top 5 opportunities across all categories, and `report.md` shows the top 10. Gains under half a point are left out. A project with two categories lists them together:
+The terminal shows the top 5 opportunities across all categories, and `report.md` shows the top 10. Both leave out gains under half a point. A project with two categories lists them together:
 
 ```text
 Opportunities
@@ -167,7 +167,7 @@ $ uphill
 
 ### Change the Roll-Up
 
-The `score` key picks how a list collapses: `p90`, `p10`, `median`, `max`, `min`, or `sum`. A `sum` scores the total of the values against the total of the targets, so each item with the default target adds that target to the total.
+The `score` key picks how a list collapses: `p90`, `p10`, `median`, `max`, `min`, or `sum`. A `sum` scores the total of the values against the total of the targets. Each item with the default target adds that target to the total.
 
 ```yaml title=".agents/uphill/uphill.yaml"
 # Score the total size of every chunk. Two chunks at `target 25kB` give a total of 50 kB.

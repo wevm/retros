@@ -189,7 +189,7 @@ fn help() {
 
     Commands:
       add        Pin a pack to a commit and list it in the configuration: owner/repo/path on GitHub, an https URL followed by //path, or a local ./path, with an optional @ref
-      blame      Name the commit that last moved a metric: from its baselines, or by measuring commits since <ref>, or every commit, in temporary checkouts and bisecting
+      blame      Name the commit that last moved a metric: from its baselines, or by measuring commits since a revision, or every commit, in temporary checkouts and bisecting
       check      Run each script once and check the metric lines it writes
       dashboard  Write .uphill/dashboard.html from the latest noted runs of each repository: a Git URL, a local path, or owner/name on GitHub
       init       Print a brief for an agent to set up Uphill in this project
@@ -690,11 +690,11 @@ fn scoring_reports_failed_categories() {
     Wrote .uphill/report.json, .uphill/report.md, .uphill/report.html
     ");
 
-    // Failed categories drop out of the overall score instead of counting as zero, and footprint
+    // Failed categories drop out of the project score instead of counting as zero, and footprint
     // has no score, so the project has none.
     let json = fs::read_to_string(project.path().join(".uphill/report.json")).unwrap();
-    let overall = json.lines().find(|line| line.starts_with("  \"score\""));
-    insta::assert_snapshot!(overall.unwrap(), @r#"  "score": null,"#);
+    let score = json.lines().find(|line| line.starts_with("  \"score\""));
+    insta::assert_snapshot!(score.unwrap(), @r#"  "score": null,"#);
 }
 
 #[test]
@@ -1112,10 +1112,10 @@ fn subjects_share_one_run_and_score_on_their_own() {
     | ● 97 | Wasm size | 250 kB | 350 kB |
     ");
 
-    // The overall score counts each subject of each category once: 100, 100, 77, and 97.
+    // The project score counts each subject of each category once: 100, 100, 77, and 97.
     let json = fs::read_to_string(project.path().join(".uphill/report.json")).unwrap();
-    let overall = json.lines().find(|line| line.starts_with("  \"score\""));
-    insta::assert_snapshot!(overall.unwrap(), @r#"  "score": 94,"#);
+    let score = json.lines().find(|line| line.starts_with("  \"score\""));
+    insta::assert_snapshot!(score.unwrap(), @r#"  "score": 94,"#);
 
     // ts's peak memory is scored against its line target, and `default` keeps the metric's target.
     let metric = json.rfind("\"name\": \"turn-rss\"").unwrap();
@@ -1920,10 +1920,10 @@ fn init_ends_the_brief_with_the_uphill_skill() {
         .collect();
     insta::assert_debug_snapshot!(headings, @r###"
     [
-        "# Set up Uphill in this project",
+        "# Set up Uphill",
         "## Steps",
         "## Configuration",
-        "## Metric lines",
+        "## Metric Lines",
         "# Uphill",
         "## Process",
         "## Ambitious Targets",

@@ -123,6 +123,7 @@ export type Host = TS.CompilerHost & {
 
 const sourceFiles = new Map<string, TS.SourceFile>()
 
+/** Returns a compiler host for `options` that serves virtual files and caches parsed files. */
 export function createHost(options: TS.CompilerOptions): Host {
   const base = ts.createCompilerHost(options)
   const cache = ts.createModuleResolutionCache(

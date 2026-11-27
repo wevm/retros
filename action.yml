@@ -198,7 +198,7 @@ runs:
               printf '%s\n' "$badge" > "$path/badges/$file.json"
             done
 
-            # The overall score gets its own badge, for a README that shows one. score.svg needs no
+            # The project score gets its own badge, for a README that shows one. score.svg needs no
             # badge service, whose slow responses make GitHub's image proxy cache a broken image.
             jq -c '{
               color: (if .score == null then "lightgrey" elif .score >= 90 then "0c6" elif .score >= 50 then "fa3" else "f33" end),

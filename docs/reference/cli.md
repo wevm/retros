@@ -1,6 +1,6 @@
 # CLI
 
-The `uphill` binary runs a project's scripts, scores the metrics, and writes reports. Its other commands check scripts, brief an agent, print the rules agents follow, add and update packs, read the noted runs of several repositories, and trace a metric through the Git history.
+The `uphill` binary runs a project's scripts, scores the metrics, and writes reports. Its other commands check scripts, brief an agent, and print the rules agents follow. They also add and update packs, read the noted runs of other repositories, and trace a metric through the Git history.
 
 ## Usage
 
@@ -42,7 +42,9 @@ uphill
 
 Pins a pack to a full commit, fetches its files into the cache of packs, and adds its entry to the configuration's `packs` key. A remote pack is `owner/repo/path` on GitHub or an `https` URL followed by `//path`, with an optional `@ref`. A local pack starts with `./` or `../`.
 
-Names after the pack limit the entry to those categories. After it writes, `uphill add` rewrites the [rules file](#uphill-rules), as `uphill update` and `uphill remove` do. Before it writes, `uphill add` prints the pack's files and capabilities and asks for confirmation. `--yes` writes without asking, and a run without a terminal needs it. `--allow-fresh` takes a commit less than a day old.
+Names after the pack limit the entry to those categories. After it writes, `uphill add` rewrites the [rules file](#uphill-rules), as `uphill update` and `uphill remove` do.
+
+Before it writes, `uphill add` prints the pack's files and capabilities and asks for confirmation. `--yes` writes without asking, and a run without a terminal needs it. `--allow-fresh` takes a commit less than a day old.
 
 The [Packs](../guides/packs.md) guide lists each check.
 
@@ -53,7 +55,7 @@ uphill add wevm/uphill/packs/typescript@main
 
 ### `uphill update`
 
-Moves each remote pack, or each pack it names, to the newest commit of the ref that its entry's comment names, or of the default branch. It refuses a commit that does not descend from the pinned one, and asks for confirmation as `uphill add` does.
+Moves each remote pack, or each pack it names, to the newest commit of a ref. The ref is the one its entry's comment names, or else the default branch. It refuses a commit that does not descend from the pinned one, and asks for confirmation as `uphill add` does.
 
 ```sh
 # Review and take the newest commit of each remote pack.
@@ -84,7 +86,7 @@ $ uphill check
 
 Reads the newest runs that [`--note`](#--note) kept in each repository, prints their scores, and writes [`dashboard.html`](reports.md#dashboardhtml) to `.uphill/` in the current directory. A repository is a Git URL, a local path, or `owner/name` on GitHub.
 
-Uphill fetches the default branch as commits only, and both notes refs, into a temporary repository with Git's own credentials, so private repositories need no other token. It exits with status 2 when Git cannot fetch a repository.
+Uphill fetches the default branch as commits only, and both notes refs, into a temporary repository. It uses Git's own credentials, so private repositories need no other token. It exits with status 2 when Git cannot fetch a repository.
 
 ```text
 $ uphill dashboard wevm/uphill
@@ -97,9 +99,9 @@ Wrote .uphill/dashboard.html
 
 ### `uphill init`
 
-Prints a brief that a person gives their agent to set up Uphill in the project. The brief lists the steps, the configuration keys, and the metric line format. It ends with the [`uphill`](../../SKILL.md) skill, which sets out how to choose metrics and ambitious targets.
+Prints a brief that a person passes to their agent to set up Uphill in the project. The brief lists the steps, the configuration keys, and the metric line format. It ends with the [`uphill`](../../SKILL.md) skill, which sets out how to choose metrics and ambitious targets.
 
-The brief links the closest example: a Rust API for a Cargo project, a website for a package with pages or a web framework, and a TypeScript library for other packages.
+The brief links the closest example. A Cargo project links a Rust API, and a package with pages or a web framework links a website. Other packages link a TypeScript library.
 
 ```text
 $ uphill init
@@ -130,7 +132,7 @@ Uphill writes these rules from each metric's `description`. Write code that meet
 
 #### The Rules File
 
-`--write` writes every rule to `.agents/uphill/rules.md`. It also puts one line at the top of AGENTS.md, under its title, that @-mentions the file, so agents load the rules with the rest of their guidance. Without AGENTS.md, the line goes in CLAUDE.md, or else in a new AGENTS.md.
+`--write` writes every rule to `.agents/uphill/rules.md`. It also puts one line under the title of AGENTS.md that @-mentions the file. Agents then load the rules with the rest of their guidance. Without AGENTS.md, the line goes in CLAUDE.md, or else in a new AGENTS.md.
 
 `uphill add`, `uphill update`, and `uphill remove` rewrite the file. After an edit to a description or a target, run `uphill rules --write` again, because `uphill check` fails while the file is out of date.
 
@@ -295,7 +297,7 @@ uphill --compare main
 
 ### `--update`
 
-Writes this run's sizes, counts, and checks to the baseline file beside the configuration, `uphill.baseline.yaml` or `uphill.baseline.toml`, each beside the target it scored against. It also moves the `target`, `targets`, and `baseline` keys of an older configuration into that file, and keeps the rest of the configuration as it was.
+Writes this run's sizes, counts, and checks to the baseline file beside the configuration, `uphill.baseline.yaml` or `uphill.baseline.toml`, each beside the target it scored against. It also moves the `target`, `targets`, and `baseline` keys of an older configuration into that file, and leaves the rest of the configuration unchanged.
 
 ```sh
 # Accept this run as the baseline.
@@ -304,7 +306,7 @@ uphill --update
 
 ### `--write`
 
-With `uphill rules`, writes every rule to `.agents/uphill/rules.md` and @-mentions the file at the top of AGENTS.md (see [The Rules File](#the-rules-file)). It takes no category.
+With `uphill rules`, writes every rule to `.agents/uphill/rules.md` and @-mentions the file at the top of AGENTS.md, as [The Rules File](#the-rules-file) describes. It takes no category.
 
 ```sh
 # Rewrite the rules file after an edit to a description or a target.
@@ -372,7 +374,7 @@ eval "$(uphill completions zsh)"
 
 ### `skills`
 
-Writes agent skills generated from the commands and their help, one per command. `skills add` installs them in `~/.agents/skills`, and `skills list` lists them and shows which are installed.
+Writes agent skills generated from the commands and their help, one per command. `skills add` installs them in `~/.agents/skills`, and `skills list` lists them and marks the ones it finds there.
 
 ```sh
 # Install the Uphill skills for local agents.

@@ -1,6 +1,8 @@
-# Set up Uphill in this project
+# Set up Uphill
 
-Uphill scores a project against its targets the way Lighthouse scores a page. Scripts in the project measure it and append metric lines to the file at `$UPHILL_METRICS`. Uphill runs the scripts, scores each measurement against its target, and lists the changes that would raise each score most. Use the Uphill skill at the end of this brief to create the metrics and their targets.
+Uphill scores a project against its targets the way Lighthouse scores a page. Scripts in the project measure it and append metric lines to the file at `$UPHILL_METRICS`. Uphill runs the scripts, scores each measurement against its target, and lists the changes that would raise each score most.
+
+Use the Uphill skill at the end of this brief to create the metrics and their targets.
 
 {example}
 
@@ -8,8 +10,8 @@ Uphill scores a project against its targets the way Lighthouse scores a page. Sc
 
 1. Find the project's surfaces: what its users import, open, call, or run, such as entry points, pages, endpoints, or commands. Then create their metrics and targets with the Uphill skill.
 2. Pick two to four categories, such as `footprint`, `speed`, and `quality`. Each category has one script, kept in `.agents/uphill/metrics/` beside `.agents/uphill/uphill.yaml`. Uphill keeps every file it reads or writes in `.agents/uphill/`.
-3. Write each script in the project's language, or in TypeScript run by Bun. Each script runs the tools the project already uses and turns what they report into metric lines. Such tools include its bundler, test runner, type checker, linter, formatter, benchmark harness, and Lighthouse. Measure a value by hand only when no tool reports it.
-4. Write `.agents/uphill/uphill.yaml` with each category's `run` command and its metrics, and give each metric a comment saying what it measures. Give each metric a `description` that states its rule as an instruction, which `uphill rules` prints for agents that write code. Write `.agents/uphill/uphill.baseline.yaml` with a target the project must meet for each size, time, and count, unless every line sets its own.
+3. Write each script in the project's language, or in TypeScript run by Bun. Each script turns the reports of the project's tools into metric lines. Such tools include its bundler, test runner, type checker, linter, formatter, benchmark harness, and Lighthouse. Write a custom measurement only when no tool reports it.
+4. Write `.agents/uphill/uphill.yaml` with each category's `run` command and its metrics. Comment each metric with what it measures. Write each metric's rule as an instruction in its `description`, which `uphill rules` prints for coding agents. Write `.agents/uphill/uphill.baseline.yaml` with a target the project must meet for each size, time, and count, unless every line sets its own.
 5. When one target does not fit every item, have the script write that item's own target on its line. A root entry point that bundles every subpath is one such item. Put the reason in a comment beside the code that sets the target.
 6. When a measurement misses, have the script write the tool's reason as its note. A failing test's message and the lint rule that fired are such reasons.
 7. Run `uphill check` and fix what it reports until it passes. Then run `uphill` and read the scores and opportunities.
@@ -44,13 +46,13 @@ quality:
     "src/legacy/*": { target: 60 }
 ```
 
-- Metric keys: `poor` (the value that scores 50, twice the target by default), `better: higher` when more is better, `varies: true` for a size or count that differs between runs, `weight` (default 1), `score` (how a list collapses: `p90` by default, or `p10` when higher is better, `median`, `max`, `min`, `sum`), `title`, and `description`.
+- Metric keys: `poor` (scores 50, twice the target by default), `better: higher` when more is better, `varies: true` for a size or count that differs between runs, `weight` (default 1), `score`, `title`, and `description`. The `score` key sets how a list collapses: `p90` by default, or `p10` when higher is better, `median`, `max`, `min`, `sum`.
 - Category keys: `run`, `timeout` (default `10m`), `title`, and `description`.
-- A check always scores the share of items that pass. A size, time, or count scores only when every item has a target, from the baseline file or from its line, and a target is greater than zero.
+- A check always scores the share of items that pass. A size, time, or count scores only when every item has a target above zero. The target comes from the baseline file or from the item's line.
 - A script whose first run writes a time, or a metric marked `varies`, runs 5 times for the median, and `timeout` applies to each run.
 - A top-level `setup` command, such as the project's install command, prepares each fresh checkout that `uphill --compare` and `uphill blame` create.
 
-## Metric lines
+## Metric Lines
 
 Each line is `metric [item] value [target <value>] [note <text>]`, appended to the file at `$UPHILL_METRICS`:
 

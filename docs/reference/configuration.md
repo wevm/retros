@@ -38,7 +38,7 @@ import-time = {}
 
 ## Names
 
-A category or metric name starts with an ASCII letter or digit, and continues with ASCII letters, digits, `-`, `_`, and `.`. `report.md` and `report.html` show a name in words unless a `title` is set, so `request-out` reads "Request out".
+A category or metric name starts with an ASCII letter or digit, and continues with ASCII letters, digits, `-`, `_`, and `.`. `report.md` and `report.html` show a name in words unless the configuration sets a `title`, so `request-out` reads "Request out".
 
 ```yaml title=".agents/uphill/uphill.yaml"
 # Valid names: footprint, entry-size, p95_latency, and v2.startup.
@@ -66,7 +66,9 @@ allowed-packs: [wevm/*]
 - **Type:** list of sources, or mappings with `pack`, `categories`, and `install`
 - **Default:** none
 
-The packs whose categories run after the project's own. Categories with the same name merge into one, and a project category merges with a pack's category of its name (see [Packs](../guides/packs.md#merge-categories)). A remote entry is pinned to a full commit, and a run fetches its files into the cache of packs. A comment at the end of the line names the ref that `uphill update` follows. `install: true` approves installing the pack's dependencies from its lockfile, without install scripts.
+The packs whose categories run after the project's own. Categories with the same name merge into one, and a project category merges with a pack's category of its name, as [Packs](../guides/packs.md#merge-categories) describes.
+
+A remote entry pins a full commit, and a run fetches its files into the cache of packs. A comment at the end of the line names the ref that `uphill update` follows. `install: true` approves installing the pack's dependencies from its lockfile, without install scripts.
 
 ```yaml title=".agents/uphill/uphill.yaml"
 packs:
@@ -198,7 +200,7 @@ footprint:
 - **Type:** a size, a time, or a number
 - **Default:** twice the target, or half the target when higher is better
 
-The value that scores 50, Lighthouse's median control point. It needs a default target in the baseline file, in the same kind of unit, and it is worse than the target. An item with its own target scales `poor` by its target over the default.
+The value that scores 50, Lighthouse's median control point. It needs a default target in the baseline file, in the same kind of unit, and `poor` must be worse than the target. An item with its own target scales `poor` by its target over the default.
 
 ```yaml title=".agents/uphill/uphill.yaml"
 # Lighthouse's mobile Largest Contentful Paint: 50 at 4 s, with a 2.5 s target in the baseline file.
@@ -282,7 +284,9 @@ page-size: { description: Keep the HTML of each page small. Inline no images. }
 
 `uphill.baseline.yaml` or `uphill.baseline.toml` sits beside the configuration, in the same format. It holds each metric's targets and the values `uphill --update` accepted, side by side. Commit both files.
 
-Categories and metrics keep the order the configuration declares. A metric with items takes one line per item, and a list of checks lists only the items that differ from its [default record](#default-record). A metric with subjects takes one entry per subject. `uphill --update` rewrites the whole file, so comments do not survive.
+Categories and metrics keep the order the configuration declares. A metric with items takes one line per item, and a list of checks lists only the items that differ from its [default record](#default-record). A metric with subjects takes one entry per subject.
+
+`uphill --update` rewrites the whole file, so comments do not survive.
 
 #### YAML
 
@@ -320,7 +324,9 @@ index = { baseline = "6112B" }
 
 - **Type:** a mapping with `baseline`, `target`, or both, such as `{ baseline: 6.9kB, target: 5kB }`
 
-A record holds one measurement. `baseline` is the size, count, or check `uphill --update` accepted, and `target` is the value that scores 90. A timing or a metric that `varies` records only its target. A record with only a target sets the target of a metric that has no accepted value yet. Uphill still reads the short form of older files, such as `6.9kB target 5kB`.
+A record holds one measurement. `baseline` is the size, count, or check `uphill --update` accepted, and `target` is the value that scores 90. A timing or a metric that `varies` records only its target.
+
+A record with only a target sets the target of a metric that has no accepted value yet. Uphill still reads the short form of older files, such as `6.9kB target 5kB`.
 
 ```yaml title=".agents/uphill/uphill.baseline.yaml"
 # A size with its target, an unscored count, and a timing's target.
@@ -336,7 +342,7 @@ speed:
 - **Type:** a size, a time, or a number, under `target`
 - **Default:** none
 
-The value that scores 90. It is greater than zero and in the same kind of unit as the metric's values. A list of checks scores the share of items that pass, so a check has no target.
+The value that scores 90. The target must be greater than zero and in the same kind of unit as the metric's values. A list of checks scores the share of items that pass, so a check has no target.
 
 An item's own target has the final say, then the first matching pattern, then the target on the item's line, then the default. `uphill --update` writes the target each item scored against as its own, unless a pattern or the default already sets it.
 
@@ -353,7 +359,9 @@ pages:
 - **Type:** a key with `*` and a record with only a `target`
 - **Default:** none
 
-Targets by item for each item without its own target. In a pattern, `*` matches any run of characters, and the first matching pattern applies. The pattern `*` alone is the default, which a line's target replaces. A record with only a target, such as `bundle-size: { target: 5kB }`, sets the default of a metric with items too.
+Targets by item for each item without its own target. In a pattern, `*` matches any run of characters, and the first matching pattern applies. The pattern `*` alone is the default, which a line's target replaces.
+
+A record with only a target, such as `bundle-size: { target: 5kB }`, sets the default of a metric with items too.
 
 ```yaml title=".agents/uphill/uphill.baseline.yaml"
 # Each chain entry point scores against 1 kB, and every other entry point against 5 kB.
@@ -370,7 +378,7 @@ footprint:
 
 The check of each item without its own record, in a list of checks. `uphill --update` writes the most common check, with a tie going to `pass`, then `skip`, then `fail`. It then lists only the items that differ.
 
-A new item that matches the default is not new. A new item that differs compares with the default, so a new failing item is worse. An item that the default covers and that is gone reports nothing. Files that list every item still read.
+A new item that matches the default is not new. A new item that differs compares with the default, so a new failing item is worse. An item that the default covers and that no longer appears reports nothing. Files that list every item still read.
 
 ```yaml title=".agents/uphill/uphill.baseline.yaml"
 # Every file passes the lint, except one that fails and one that skips.

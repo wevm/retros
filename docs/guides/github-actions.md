@@ -4,7 +4,7 @@ The Uphill action scores each pull request, compares it with its base branch, an
 
 ## Overview
 
-The action installs Uphill, runs `uphill --compare` against the base branch, and keeps one comment with a score gauge per category and a link to the HTML report. Each later run updates the same comment. The job fails when `uphill` fails.
+The action installs Uphill and runs `uphill --compare` against the base branch. It keeps one comment with a score gauge per category and a link to the HTML report. Each later run updates the same comment. The job fails when `uphill` fails.
 
 ```yaml title=".github/workflows/uphill.yml"
 # Score each pull request and compare it with its base branch.
@@ -84,7 +84,7 @@ The `args` input adds arguments to `uphill`. `--require-targets` fails the job w
 
 The comment has one row per category, with its score gauge on the base branch and on the pull request. The base branch's scores come from running its scripts once in the comparison. A category that fails shows ✗, and one that the base branch lacks shows –.
 
-The table is `comment.md`, which Uphill writes beside its reports (see [Reports](../reference/reports.md#commentmd)). "View the full report" opens `report.html`, which the action uploads as an unzipped artifact. A failed run adds its exit status, and the end of its output when Uphill wrote no report.
+The table is `comment.md`, which Uphill writes beside its reports (described in [Reports](../reference/reports.md#commentmd)). "View the full report" opens `report.html`, which the action uploads as an unzipped artifact. A failed run adds its exit status, and the end of its output when Uphill wrote no report.
 
 The last line names the command, the commit, and the workflow run. The job summary holds the comment and the whole `report.md`:
 
@@ -117,7 +117,7 @@ The last line names the command, the commit, and the workflow run. The job summa
     args: --require-baseline
 ```
 
-### Several Projects
+### Project Directories
 
 A repository with more than one project runs the action once per project with `working-directory`. Each project keeps its own comment, which the action finds by a marker that holds the directory.
 
@@ -156,7 +156,7 @@ The action installs the release that matches its own tag, such as `v0.0.1`. At a
 
 ### Score Pushes
 
-The `compare` input defaults to the base branch on pull requests, and is empty on other events. When it is empty, the action runs plain `uphill` and writes the report to the job summary. On a pull request, `compare: ''` skips the comparison.
+The `compare` input defaults to the base branch on pull requests, and is empty on other events. With an empty `compare`, the action runs plain `uphill` and writes the report to the job summary. On a pull request, `compare: ''` skips the comparison.
 
 ```yaml title=".github/workflows/uphill-main.yml"
 # Score each push to main, without a comparison or a comment.
@@ -242,14 +242,14 @@ jobs:
           publish: true
 ```
 
-The first run pushes `gh-pages` and warns that Pages is off. Select `gh-pages` under Settings, Pages, once, and later runs publish. A site that GitHub serves from another source stays as it is, and the comment links the artifact instead.
+The first run pushes `gh-pages` and warns that Pages is off. Select `gh-pages` under Settings, Pages, once, and later runs publish. A site that GitHub serves from another source does not change, and the comment links the artifact instead.
 
 ### Show Badges
 
-A published run on a branch also writes badges to `uphill/<branch>/badges/`, in the format of Shields endpoint badges: `score.json` for the [overall score](../reference/scoring.md#overall-score), and one per category. The overall score is also an image, `score.svg`, which needs no badge service. Score pushes to `main` with `publish: true`, then add the badge to the README.
+A published run on a branch also writes Shields endpoint badges to `uphill/<branch>/badges/`. `score.json` holds the [mean of the category scores](../reference/scoring.md#project-score), beside one file per category. That mean is also an image, `score.svg`, which needs no badge service. Score pushes to `main` with `publish: true`, then add the badge to the README.
 
 ```md title="README.md"
-<!-- The overall score of the last run on main, colored by its band. -->
+<!-- The project score of the last run on main, colored by its band. -->
 [![Uphill](https://acme.github.io/slugify/uphill/main/badges/score.svg)](https://acme.github.io/slugify/uphill/main/)
 ```
 
@@ -266,7 +266,7 @@ A published run on a branch also writes badges to `uphill/<branch>/badges/`, in 
 
 ### Keep the Reports
 
-The reports stay in `.uphill/` after the action runs, so a later step can upload them. `.uphill/` is a hidden directory, which the upload step skips unless `include-hidden-files` is set.
+The reports stay in `.uphill/` after the action runs, so a later step can upload them. `.uphill/` is a hidden directory, which the upload step skips unless the step sets `include-hidden-files`.
 
 ```yaml title=".github/workflows/uphill.yml"
 # Keep report.html, report.json, and report.md as a workflow artifact, also when Uphill fails.

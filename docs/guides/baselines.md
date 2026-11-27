@@ -4,7 +4,7 @@ A baseline is the last accepted value of a metric. Uphill compares every run wit
 
 ## Overview
 
-`uphill --update` writes each metric's accepted value to `uphill.baseline.yaml`, beside the configuration, next to its target. Both files are committed, so accepting a regression or loosening a target is a reviewed change, like any other line of code.
+`uphill --update` writes each metric's accepted value to `uphill.baseline.yaml`, beside the configuration, next to its target. The project commits both files, so accepting a regression or loosening a target is a reviewed change, like any other line of code.
 
 Baselines hold sizes, counts, and checks. These are the same on every machine. Timings differ between machines, so a baseline never holds them, and a timing keeps only its target. The [Comparing Revisions](./comparing.md) guide compares timings instead.
 
@@ -20,7 +20,7 @@ This walkthrough uses the `pages` category from [Writing Scripts](./scripts.md),
 
 ### Record the Values
 
-`uphill --update` runs every category and writes what it measured, beside each item's own target. A metric with items takes one line per item, so a later change to one item shows as one line in a diff. The configuration stays as it was.
+`uphill --update` runs every category and writes what it measured, beside each item's own target. A metric with items takes one line per item, so a later change to one item shows as one line in a diff. The configuration does not change.
 
 ```text
 $ uphill --update
@@ -42,11 +42,11 @@ pages:
     about.html: { baseline: fail }
 ```
 
-An item's target is left out when the pattern or default already sets it. A list of checks starts with a default record, `*`, that holds its most common check, and lists only the pages that differ.
+The baseline file leaves out an item's target when the pattern or default already sets it. A list of checks starts with a default record, `*`, that holds its most common check, and lists only the pages that differ.
 
 ### Read the Changes
 
-After a change adds a blog page, grows the pricing page, and gives the about page a title, `uphill` lists each item that differs from its baseline. Each change is worse, better, new, or gone. The blog page has a title, which matches the default record, so only its size is new.
+After a change adds a blog page, grows the pricing page, and titles the about page, `uphill` lists each item that differs from its baseline. Each change is worse, better, new, or gone. The blog page has a title, which matches the default record, so only its size is new.
 
 ```text
 $ uphill
@@ -139,7 +139,7 @@ Files from earlier versions list the check of every item. Uphill still reads the
 
 ### Baselines in TOML
 
-A project with `uphill.toml` gets `uphill.baseline.toml`. A metric with items takes a table of its own, one line per item.
+A project with `uphill.toml` uses `uphill.baseline.toml`. A metric with items takes a table of its own, one line per item.
 
 ```toml title=".agents/uphill/uphill.baseline.toml"
 # The baseline file beside uphill.toml.
@@ -151,7 +151,7 @@ index = { baseline = "6112B" }
 
 ### Move Older Keys
 
-Older configurations set `target`, `targets`, and `baseline` keys on each metric. Uphill still reads them, and `uphill --update` moves every one into the baseline file and removes the key, keeping the rest of the configuration as it was.
+Older configurations set `target`, `targets`, and `baseline` keys on each metric. Uphill still reads them, and `uphill --update` moves every one into the baseline file and removes the key. The rest of the configuration does not change.
 
 ```diff title=".agents/uphill/uphill.yaml"
  footprint:

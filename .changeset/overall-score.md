@@ -2,4 +2,4 @@
 'uphill': patch
 ---
 
-Added the overall score, the mean of the category scores, as `score` in `report.json` and as the `badges/score.json` badge that the action published.
+Added the project score, the mean of the category scores, as `score` in `report.json` and as the `badges/score.json` and `badges/score.svg` badges that the action published.

@@ -43,7 +43,7 @@ enum Command {
         /// Write without asking
         yes: bool,
     },
-    /// Name the commit that last moved a metric: from its baselines, or by measuring commits since <ref>, or every commit, in temporary checkouts and bisecting
+    /// Name the commit that last moved a metric: from its baselines, or by measuring commits since a revision, or every commit, in temporary checkouts and bisecting
     Blame {
         /// The category of the metric
         #[incur(arg)]

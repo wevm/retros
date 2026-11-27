@@ -4,7 +4,7 @@
   Continuous metrics and hill climbing
 </p>
 
-<!-- Uphill's own overall score on main, which the Main workflow publishes to GitHub Pages. -->
+<!-- Uphill's own project score on main, which the Main workflow publishes to GitHub Pages. -->
 <p align="center">
   <a href="https://wevm.github.io/uphill/uphill/main/"><img alt="Uphill score" src="https://wevm.github.io/uphill/uphill/main/badges/score.svg"></a>
 </p>
@@ -20,7 +20,7 @@
 
 ## Overview
 
-Uphill scores a project against its own targets. A metric is anything a script can measure: bundle size, page load time, request latency, memory, test coverage, lint warnings, or an eval score. Uphill runs the scripts, scores each metric from 0 to 100, and names the fixes worth the most points.
+Uphill scores a project against its own targets. A metric is anything a script can measure: bundle size, page load time, request latency, memory, test coverage, lint warnings, or an eval score. Uphill runs the scripts, scores each metric 0 to 100, and names the fixes worth the most points.
 
 ## Quick Prompt
 
@@ -32,7 +32,7 @@ Read github.com/wevm/uphill, then set up Uphill in my project. Use the SKILL.md 
 
 ## Problem
 
-Most projects track their numbers in one-off scripts and CI checks that pass or fail. A check says whether a limit broke, not how far the project is from its target or which fix would help most. Regressions slip under loose limits, and improvements fade because nothing records them.
+Most projects track their numbers in one-off scripts and CI checks that pass or fail. A check reports whether a limit broke, not how far the project is from its target or which fix would help most. Regressions slip under loose limits, and improvements fade because nothing records them.
 
 ## Solution
 
@@ -107,7 +107,7 @@ The [`packs/`](packs) directory of this repository has these packs:
 | [`web`](packs/web) | Accessibility, best practices, focus and motion styles, and asset sizes |
 | [`writing-docs`](packs/writing-docs) | Prose in Markdown: sentence and paragraph length, voice, word choice, and heading case |
 
-See [Packs](docs/guides/packs.md) to override targets, pick categories, and write a pack.
+[Packs](docs/guides/packs.md) explains how to override targets, pick categories, and write a pack.
 
 ## Usage
 

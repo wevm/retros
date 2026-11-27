@@ -12,4 +12,4 @@ npm install --save-dev uphill
 
 This package holds the `uphill` binaries for macOS and Linux on arm64 and x64, and runs the one for the machine. Linux runs the static musl build, which works with glibc and musl.
 
-See [github.com/wevm/uphill](https://github.com/wevm/uphill) for configuration and usage.
+[github.com/wevm/uphill](https://github.com/wevm/uphill) documents configuration and usage.

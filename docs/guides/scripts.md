@@ -76,7 +76,7 @@ This walkthrough measures a static site in `dist/`. One script writes the size o
 
 ### Declare the Metrics
 
-The `pages` category lists both metrics. The baseline file gives `page-size` a target, so each page scores against 20 kB. `has-title` writes checks, which need no target: a list of checks scores the share of items that pass.
+The `pages` category lists both metrics. The baseline file sets a target for `page-size`, so each page scores against 20 kB. `has-title` writes checks, which need no target: a list of checks scores the share of items that pass.
 
 ```yaml title=".agents/uphill/uphill.yaml"
 # The pages category runs one script, which writes two metrics per page.
@@ -94,7 +94,7 @@ pages:
 
 ### Write the Lines
 
-Each line names the metric, then the item, then the value. A size takes a unit, and a check is `pass` or `fail`. A line can end with a note that says why the value is what it is.
+Each line names the metric, then the item, then the value. A size takes a unit, and a check is `pass` or `fail`. A line can end with a note that explains the value.
 
 ```sh title=".agents/uphill/metrics/pages.sh"
 # Write each page's size, and whether it has a <title>.
@@ -123,7 +123,7 @@ has-title pricing.html pass
 
 ### Check the Script
 
-`uphill check` runs each script once, without scoring. It fails on a line it cannot read, a metric the configuration lists but the script does not write, and a metric written with more than one kind of unit.
+`uphill check` runs each script once, without scoring. It fails on a line it cannot read and on a metric the script writes in more than one kind of unit. It also fails on a listed metric that the script does not write.
 
 ```text
 $ uphill check
@@ -187,7 +187,7 @@ The category header names the rounds:
 
 ### Use Subjects
 
-A line that starts with a name and a colon belongs to that subject. Each subject scores on its own, which suits one script that measures several runtimes, packages, or builds. A category cannot mix lines with and without a subject.
+A line that starts with a name and a colon belongs to that subject. Each subject scores on its own, which suits one script that measures more than one runtime, package, or build. A category cannot mix lines with and without a subject.
 
 ```sh title="startup.sh"
 # Write the startup time on each runtime as its own subject.
@@ -221,7 +221,7 @@ speed:
 
 ### Fail a Run
 
-A script that exits with a non-zero status gives its category no score, which is different from a score of 0. The report names the failure and keeps the end of standard error, and `uphill` exits with status 1.
+A script that exits with a non-zero status leaves its category without a score. That differs from a score of 0. The report names the failure and keeps the end of standard error, and `uphill` exits with status 1.
 
 ```text
 $ uphill

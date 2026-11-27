@@ -4,7 +4,7 @@ A metric line is one measurement that a script appends to the file at `$UPHILL_M
 
 ## Format
 
-Each line has up to six fields, separated by spaces or tabs. Brackets mark the optional fields. Blank lines are ignored.
+Each line has up to six fields, separated by spaces or tabs. Brackets mark the optional fields. Uphill skips blank lines.
 
 ```text
 [subject:] metric [item] value [target <value>] [note <text>]
@@ -34,7 +34,7 @@ bun: startup 18ms
 
 - **Format:** a name, such as `export-size`
 
-A metric that the category lists in the configuration. A name starts with an ASCII letter or digit, and continues with ASCII letters, digits, `-`, `_`, and `.`. A metric the category does not list gives a warning in `uphill check`.
+A metric that the category lists in the configuration. A name starts with an ASCII letter or digit, and continues with ASCII letters, digits, `-`, `_`, and `.`. A metric the category does not list causes a warning in `uphill check`.
 
 ```text
 modules 412
@@ -68,7 +68,7 @@ video-caption skip
 
 - **Format:** `target` and a value, such as `target 15kB`
 
-The item's target, which replaces the default target until the baseline file holds one for the item. It is greater than zero and in the same kind of unit as the value, and a check cannot have one. A pattern in the baseline file replaces it too.
+The item's target, which replaces the default target until the baseline file holds one for the item. The target must be greater than zero and in the same kind of unit as the value, and a check cannot have one. A pattern in the baseline file replaces it too.
 
 ```text
 entry-size chains 12033B target 15kB
@@ -78,7 +78,7 @@ entry-size chains 12033B target 15kB
 
 - **Format:** `note` and text, such as `note "no <title> element"`
 
-Why the measurement is what it is. It comes after any target. Notes come from the first round, stay out of baselines, and show under their item in every report. The terminal shows a note only under an item or metric that misses its target.
+The reason for the measurement's value. It comes after any target. Notes come from the first round, stay out of baselines, and show under their item in every report. The terminal shows a note only under an item or metric that misses its target.
 
 ```text
 has-title about.html fail note "no <title> element"
@@ -96,7 +96,7 @@ heading "Say \"hello\"" fail note "C:\\site\\index.html has no heading"
 
 ## Errors
 
-A line that Uphill cannot read gives its category no score, and the other categories still run. The error names the category's metrics file, the line, and the column, and points at the field.
+A line that Uphill cannot read leaves its category without a score, and the other categories still run. The error names the category's metrics file, the line, and the column, and points at the field.
 
 ```text
 $ uphill check
@@ -108,7 +108,7 @@ $ uphill check
 0 passed, 1 failed
 ```
 
-The configuration and the lines must also agree. A metric the configuration lists but the script does not write is an error, and a metric the script writes but the configuration does not list is a warning.
+The configuration and the lines must also agree. A metric the configuration lists but the script does not write is an error. A metric the script writes but the configuration does not list is a warning.
 
 ```text
 $ uphill check

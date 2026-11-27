@@ -114,30 +114,49 @@ type Location = { url: string; line: number; column: number }
 
 /** What `plan` writes per function. */
 export type Planned = {
+  /** The function's item name, such as `lib:Math.add`. */
   name: string
+  /** The function's package. The plan skips dependency functions, so it stays `undefined`. */
   package?: string | undefined
+  /** The IDs of the structured properties that cover the function. */
   properties: string[]
+  /** The number of recorded and hand-written argument sets to mutate. */
   seeds: number
   /** Why the function has no harness. */
   reason?: string | undefined
+  /** The function's source location, which scopes its line coverage. */
   location?: Location | undefined
 }
 
 /** What `fuzz` writes per function. */
 export type Result = {
+  /** The function's item name, such as `lib:Math.add`. */
   name: string
+  /** Each harness that ran, with its oracle and its number of runs. */
   harnesses: { id: string; oracle: string; runs: number }[]
+  /** The failures the harnesses found, up to a cap and one per distinct cause. */
   failures: FailureRecord[]
+  /** The line coverage of the function's own source, when its location is known. */
   coverage?: { percent: number; lines: number; covered: number } | undefined
+  /** The wall time of the function's harnesses, in milliseconds. */
   ms: number
+  /** The number of inputs the harnesses passed to the function. */
   calls: number
 }
+
+/** One failure a harness found. */
 export type FailureRecord = {
+  /** The oracle that failed, such as `crash` or `round trip`. */
   oracle: string
+  /** The ID of the harness that found the failure. */
   harness: string
+  /** The kind of failure, such as `stack overflow` or an error's class name. */
   kind: string
+  /** The failing input, formatted for a metric note. */
   input: string
+  /** The error message, shortened. */
   message: string
+  /** The `file:line` of the throw, when the stack names one. */
   site?: string | undefined
 }
 

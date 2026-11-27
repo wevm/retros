@@ -1,12 +1,12 @@
 # Scoring
 
-Uphill scores each value from 0 to 100 against its target, collapses each list to one score, averages metric scores into a category score, and averages category scores into an overall score.
+Uphill scores each value from 0 to 100 against its target and collapses each list to one score. It averages metric scores into a category score, and category scores into a project score.
 
 ## Curve
 
-Each value scores on Lighthouse's log-normal curve with two control points: a value at its target scores 90, and a value at the metric's [`poor`](./configuration.md#poor), twice the target by default, scores 50. Smaller values approach 100 and larger values approach 0.
+Each value scores on Lighthouse's log-normal curve with two control points. A value scores 90 at its target. It scores 50 at the metric's [`poor`](./configuration.md#poor), twice the target by default. Smaller values approach 100 and larger values approach 0.
 
-Like Lighthouse, Uphill adds up to half a point to scores above 90 and then rounds down, so 89.9 scores 89. Gates compare values, not scores, so a value just past its target never passes.
+Like Lighthouse, Uphill adds up to half a point to scores above 90 and then rounds down. A score of 89.9 rounds to 89. Gates compare values, not scores, so a value just past its target never passes.
 
 | Value against a 5 kB target  | Score | Band       |
 | ---------------------------- | ----- | ---------- |
@@ -61,7 +61,7 @@ A metric with `better: higher` scores the reciprocal: half the target scores 50,
 
 ## Lists
 
-Items rank by value divided by their own target, so each item is judged by its own target. The roll-up takes the item at its nearest rank, and reports name it, such as `p90 31 kB (pricing.html)`.
+Items rank by value divided by their own target, so its own target judges each item. The roll-up takes the item at its nearest rank, and reports name it, such as `p90 31 kB (pricing.html)`.
 
 - **`p90`:** The item with at most a tenth of the list ranked above it. This is the default.
 - **`p10`:** The item with at most a tenth of the list ranked below it. This is the default when higher is better.
@@ -78,9 +78,11 @@ A list of checks scores the share of items that pass, so 2 of 3 passing scores 6
 
 ## Categories
 
-A category score is the weighted mean of its metric scores, rounded. It adds the scores in the order `uphill.yaml` declares them, as fractions of 1, like Lighthouse, so a mean of exactly half a point rounds as Lighthouse rounds it. A metric with weight 0 has a score but stays out of the mean.
+A category score is the weighted mean of its metric scores, rounded. Like Lighthouse, it adds the scores as fractions of 1 in the order `uphill.yaml` declares them. A mean of exactly half a point then rounds as Lighthouse rounds it.
 
-A metric without a target, and a check that skips, have no score and stay out of the mean. A category whose script fails, or does not write a metric that the category lists, has no score, which is different from a score of 0.
+A metric with weight 0 has a score but stays out of the mean.
+
+A metric without a target, and a check that skips, have no score and stay out of the mean. A category has no score when its script fails or does not write a metric that the category lists. No score is different from a score of 0.
 
 ```text
 ▲  42  footprint
@@ -90,9 +92,9 @@ A metric without a target, and a check that skips, have no score and stay out of
   ■  67  links        2 of 3 pass
 ```
 
-## Overall Score
+## Project Score
 
-The overall score is the mean of the category scores, rounded the same way. Each subject of a category counts once, and every category carries the same weight. A category without a score stays out of the mean, and a project where no category scores has no overall score.
+The project score is the mean of the category scores, rounded the same way. Each subject of a category counts once, and every category carries the same weight. A category without a score stays out of the mean, and a project where no category scores has no project score.
 
 `report.json` holds it as the top-level `score`. The other reports show only the categories, so a poor category stays visible.
 
@@ -114,7 +116,7 @@ When a script's first run writes a time, or a metric marked `varies`, Uphill run
 
 ## Opportunities
 
-An opportunity is a change and the category points it adds, if one item, one metric, or a whole list met its target. Gains under half a point are left out. The terminal shows the top 5, `report.md` shows the top 10, and `report.json` lists them all.
+An opportunity is a change and the category points it adds, if one item, one metric, or a whole list met its target. The list leaves out gains under half a point. The terminal shows the top 5, `report.md` shows the top 10, and `report.json` lists them all.
 
 ```text
 Opportunities

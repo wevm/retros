@@ -15,11 +15,11 @@ uphill --compare main
 
 ## Walkthrough
 
-This walkthrough times a `slugify` function in a Git repository. A branch adds accent removal, and the comparison shows how much slower each call gets.
+This walkthrough times a `slugify` function in a Git repository. A branch adds accent removal, and the comparison shows how much slower each call becomes.
 
 ### Measure the Function
 
-The script times 100,000 calls and writes the time per call. A second category writes the size of the source, and its baseline is committed on `main`.
+The script times 100,000 calls and writes the time per call. A second category writes the size of the source, and `main` holds its committed baseline.
 
 ```yaml title=".agents/uphill/uphill.yaml"
 # One category writes a size, and one writes a time.
@@ -111,7 +111,7 @@ No changes against normalize (fd268f9)
 
 ### Prepare Checkouts
 
-A new worktree has only the files Git tracks. A top-level `setup` command, such as a package install, runs once in each worktree that `--compare` or `uphill blame` creates, before any script. The current checkout is assumed ready. A failed setup stops the run with status 2.
+A new worktree has only the files Git tracks. A top-level `setup` command, such as a package install, runs once in each worktree that `--compare` or `uphill blame` creates, before any script. Uphill treats the current checkout as ready. A failed setup stops the run with status 2.
 
 ```yaml title=".agents/uphill/uphill.yaml"
 # Install packages in each worktree that Uphill creates.
@@ -149,7 +149,7 @@ warning: uphill.yaml differs in v1.2.0 (ac66366). Both revisions run the categor
 
 ### Find the Commit
 
-`uphill blame` finds the commit that moved a timing. It measures commits in temporary worktrees and bisects for the first one within noise of `HEAD` in interleaved pairs. `--since <ref>` limits the search, such as to the commits since the last release.
+`uphill blame` finds the commit that moved a timing. It measures commits in temporary worktrees and bisects for the first one within noise of `HEAD` in interleaved pairs. `--since <ref>` limits the search, for example to the commits since the last release.
 
 ```text
 $ uphill blame speed slugify-time

@@ -190,7 +190,9 @@ uphill remove typescript
 
 ### Write a Pack
 
-A pack needs only its configuration and scripts. Give each metric a `description` that states its rule as an instruction, so [`uphill rules`](../reference/cli.md#uphill-rules) prints it for agents before they write code. Keep comments for how the script measures. Write paths in `run` from the pack's directory, and Uphill rewrites them to start at the project root. Use the shared category names. Put tools in a `package.json` with a lockfile, and resolve them from the script's own directory first.
+A pack needs only its configuration and scripts. Write a `description` for each metric that states its rule as an instruction, so [`uphill rules`](../reference/cli.md#uphill-rules) prints it for agents before they write code. Keep comments for how the script measures.
+
+Write paths in `run` from the pack's directory, and Uphill rewrites them to start at the project root. Use the shared category names. Put tools in a `package.json` with a lockfile, and resolve them from the script's own directory first.
 
 ```text
 packs/lighthouse/

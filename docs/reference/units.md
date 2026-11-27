@@ -40,7 +40,7 @@ slugify-time 938ns
 
 ## Counts
 
-A count is a number without a unit. It may be negative or have a fraction, such as a coverage percentage or a change in a score.
+A count has no unit. It may be negative or have a fraction, such as a coverage percentage or a change in a score.
 
 ```text
 coverage src/parse.ts 95.5

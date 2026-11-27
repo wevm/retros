@@ -6,7 +6,7 @@ Its convention metrics go into the shared categories `correctness`, `style`, `ar
 
 ## Library Metrics
 
-A published library also gets what it costs the projects that use it, measured from the build and the entry points of package.json `exports`. Each public export, function, and entry point is an item, such as `lib:Math.add`. Without an ES module entry point, these metrics skip.
+The pack also measures what a published library costs the projects that use it, from the build and the entry points of package.json `exports`. Each public export, function, and entry point is an item, such as `lib:Math.add`. Without an ES module entry point, these metrics skip.
 
 | Category | Metrics |
 | --- | --- |
@@ -36,7 +36,7 @@ export default {
 }
 ```
 
-Other keys empty the library's caches before each measured call, pick the vitest projects to replay, prepare what the tests reach, and point the types metrics at other tsconfig files.
+Other keys empty the library's caches before each measured call and pick the vitest projects to replay. They also prepare what the tests reach and point the types metrics at other tsconfig files.
 
 ## Requirements
 
