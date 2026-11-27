@@ -246,11 +246,11 @@ The first run pushes `gh-pages` and warns that Pages is off. Select `gh-pages` u
 
 ### Show Badges
 
-A published run on a branch also writes badges to `uphill/<branch>/badges/`, in the format of Shields endpoint badges: `score.json` for the [overall score](../reference/scoring.md#overall-score), and one per category. Score pushes to `main` with `publish: true`, then add a badge to the README.
+A published run on a branch also writes badges to `uphill/<branch>/badges/`, in the format of Shields endpoint badges: `score.json` for the [overall score](../reference/scoring.md#overall-score), and one per category. The overall score is also an image, `score.svg`, which needs no badge service. Score pushes to `main` with `publish: true`, then add the badge to the README.
 
 ```md title="README.md"
 <!-- The overall score of the last run on main, colored by its band. -->
-[![Uphill](https://img.shields.io/endpoint?url=https://acme.github.io/slugify/uphill/main/badges/score.json)](https://acme.github.io/slugify/uphill/main/)
+[![Uphill](https://acme.github.io/slugify/uphill/main/badges/score.svg)](https://acme.github.io/slugify/uphill/main/)
 ```
 
 ### Summary Only

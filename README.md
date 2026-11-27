@@ -6,7 +6,7 @@
 
 <!-- Uphill's own overall score on main, which the Main workflow publishes to GitHub Pages. -->
 <p align="center">
-  <a href="https://wevm.github.io/uphill/uphill/main/"><img alt="Uphill score" src="https://img.shields.io/endpoint?url=https://wevm.github.io/uphill/uphill/main/badges/score.json"></a>
+  <a href="https://wevm.github.io/uphill/uphill/main/"><img alt="Uphill score" src="https://wevm.github.io/uphill/uphill/main/badges/score.svg"></a>
 </p>
 
 <p align="center">

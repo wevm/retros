@@ -198,13 +198,18 @@ runs:
               printf '%s\n' "$badge" > "$path/badges/$file.json"
             done
 
-            # The overall score gets its own badge, for a README that shows one.
+            # The overall score gets its own badge, for a README that shows one. score.svg needs no
+            # badge service, whose slow responses make GitHub's image proxy cache a broken image.
             jq -c '{
               color: (if .score == null then "lightgrey" elif .score >= 90 then "0c6" elif .score >= 50 then "fa3" else "f33" end),
               label: "Uphill",
               message: (if .score == null then "–" else "\(.score)" end),
               schemaVersion: 1
             }' "$json" > "$path/badges/score.json"
+            jq -r '(.color | if test("^[0-9a-f]+$") then "#" + . else "#9f9f9f" end) + "\t" + .message' "$path/badges/score.json" |
+              while IFS=$'\t' read -r color message; do
+                printf '%s' '<svg xmlns="http://www.w3.org/2000/svg" width="86" height="20" role="img" aria-label="Uphill: '"$message"'"><title>Uphill: '"$message"'</title><linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#bbb" stop-opacity=".1"/><stop offset="1" stop-opacity=".1"/></linearGradient><clipPath id="r"><rect width="86" height="20" rx="3" fill="#fff"/></clipPath><g clip-path="url(#r)"><rect width="52" height="20" fill="#555"/><rect x="52" width="34" height="20" fill="'"$color"'"/><rect width="86" height="20" fill="url(#s)"/></g><g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="11"><text x="26" y="15" fill="#010101" fill-opacity=".3">Uphill</text><text x="26" y="14">Uphill</text><text x="69" y="15" fill="#010101" fill-opacity=".3">'"$message"'</text><text x="69" y="14">'"$message"'</text></g></svg>' > "$path/badges/score.svg"
+              done
           fi
 
           git add -A
