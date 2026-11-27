@@ -19,4 +19,17 @@ packs:
   - { pack: ./packs/rust, install: true }
   - { pack: ./packs/writing-docs, install: true }
   - { pack: ./packs/git, install: true }
-  - { pack: ./packs/typescript, install: true }
+  # The npm package is a launcher with no library exports, so the categories that measure exports stay out.
+  - {
+      pack: ./packs/typescript,
+      categories:
+        [
+          correctness,
+          style,
+          architecture,
+          documentation,
+          testing,
+          configuration,
+        ],
+      install: true,
+    }

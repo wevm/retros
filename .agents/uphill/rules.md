@@ -2,23 +2,6 @@
 
 Uphill writes these rules from each metric's `description`. Write code that meets them. `uphill` scores each metric against its target, and `uphill --compare HEAD --compact` lists what a change made worse.
 
-## Footprint
-
-- Keep the gzipped bundle small for a consumer that imports one export. Do not pull unrelated modules or packages into an export. At most 10 kB.
-- Make each entry point bundle to nothing when unused. Annotate top-level calls with `/*#__PURE__*/`, and avoid runtime TypeScript namespaces and static class fields.
-- Keep the gzipped bundle of each hot item especially small. At most 10 kB.
-
-## Speed
-
-- Keep each public function fast per call, with cold and warm caches. At most 20 µs.
-- Keep the heap bytes that each call of a public function allocates small. At most 20 kB.
-- Keep each entry point fast to import. Avoid work at module scope. At most 60 ms.
-- Keep the heap that each entry point holds once imported small. At most 3.5 MB.
-- Keep each hot function especially fast per call. At most 20 µs.
-- Keep the heap bytes that each call of a hot function allocates especially small. At most 20 kB.
-- Keep each hot entry point especially fast to import. At most 60 ms.
-- Keep the heap that each hot entry point holds once imported especially small. At most 3.5 MB.
-
 ## Correctness
 
 - Fix every finding of clippy's default and pedantic lints.
@@ -149,31 +132,3 @@ Uphill writes these rules from each metric's `description`. Write code that meet
 - Add or edit a test source file in each `fix:` commit.
 - Write each changeset as one sentence that opens with a past-tense verb, such as "Added".
 - Do not commit build output, installed packages, or `.env` files.
-
-## Coverage
-
-- Call each public function in the tests with arguments that rebuild in another process, such as plain data. Make sure the call returns or resolves.
-
-## Types
-
-- Keep each public export cheap to type-check. Avoid types that need many instantiations to resolve. At most 1000.
-- Keep each public export fast to type-check. At most 5 ms.
-- Keep the heap bytes that type-checking each public export allocates small. At most 2 MB.
-- Keep the instantiations of each benchmarked type test low, within any count the test pins. At most 20000.
-- Keep each hot export especially cheap to type-check. At most 1000.
-
-## Call types
-
-- Keep each public function cheap to type-check at the call sites that the tests write. At most 1000.
-- Keep each hot function especially cheap to type-check at its call sites. At most 1000.
-
-## Type coverage
-
-- Call each public function in the runtime or type tests. Make sure the imports and fixtures of that call resolve.
-
-## Fuzz
-
-- Make sure each public function has a fuzz harness that runs.
-- Handle every input that keeps the declared types. Throw no undocumented TypeError, RangeError, or SyntaxError, and avoid stack overflows, hangs, and runaway memory. Keep each property in `fuzz.properties` true.
-- Make every line of a public function's own source reachable by fuzzing. At least 90.
-- Make sure every line of a hot item's own source runs under fuzzing. At least 100.

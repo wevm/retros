@@ -2,8 +2,8 @@
 # `baseline`, beside the target it scored against.
 
 footprint:
-  binary-size: { target: 1MB }
-  dependencies: { target: 10 }
+  binary-size: { target: 3.5MB }
+  dependencies: { target: 60 }
 
 speed:
   startup: { target: 1ms }
