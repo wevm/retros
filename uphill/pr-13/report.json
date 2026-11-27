@@ -101,7 +101,7 @@
       "title": "Speed",
       "subject": null,
       "description": null,
-      "score": 99,
+      "score": 94,
       "rounds": 8,
       "metrics": [
         {
@@ -110,9 +110,9 @@
           "description": null,
           "kind": "time",
           "unit": "ns",
-          "value": 736500,
+          "value": 1066000,
           "item": null,
-          "score": 97,
+          "score": 87,
           "target": 1000000,
           "default": 1000000,
           "note": null,
@@ -127,7 +127,7 @@
           "description": null,
           "kind": "time",
           "unit": "ns",
-          "value": 1668000,
+          "value": 2167000,
           "item": null,
           "score": 100,
           "target": 5000000,
@@ -25582,6 +25582,16 @@
       "gain": 2
     },
     {
+      "category": "speed",
+      "subject": null,
+      "metric": "startup",
+      "item": null,
+      "items": 1,
+      "value": 1066000,
+      "target": 1000000,
+      "gain": 2
+    },
+    {
       "category": "architecture",
       "subject": null,
       "metric": "module-state",
@@ -25724,7 +25734,7 @@
   ],
   "changes": null,
   "comparison": {
-    "reference": "origin/main (44307d1)",
+    "reference": "origin/main (dc34203)",
     "scores": [
       {
         "category": "footprint",
@@ -25735,7 +25745,7 @@
       {
         "category": "speed",
         "subject": null,
-        "score": 98,
+        "score": 94,
         "error": null
       },
       {
@@ -25759,7 +25769,7 @@
       {
         "category": "documentation",
         "subject": null,
-        "score": 81,
+        "score": 80,
         "error": null
       },
       {
@@ -25811,7 +25821,17 @@
         "error": null
       }
     ],
-    "changes": [],
+    "changes": [
+      {
+        "category": "documentation",
+        "subject": null,
+        "metric": "paragraph-words",
+        "item": "docs/reference/action.md",
+        "change": "better",
+        "before": false,
+        "after": true
+      }
+    ],
     "timings": [
       {
         "category": "speed",
@@ -25819,10 +25839,10 @@
         "metric": "startup",
         "item": null,
         "change": "within noise",
-        "before": 750500,
-        "after": 736500,
+        "before": 1058500,
+        "after": 1066000,
         "pairs": 8,
-        "agree": 8
+        "agree": 4
       },
       {
         "category": "speed",
@@ -25830,10 +25850,10 @@
         "metric": "check",
         "item": null,
         "change": "within noise",
-        "before": 1683500,
-        "after": 1668000,
+        "before": 2183000,
+        "after": 2167000,
         "pairs": 8,
-        "agree": 6
+        "agree": 4
       }
     ]
   }

@@ -163,7 +163,7 @@ summary.audit::after{grid-column:3;grid-row:1}
 <section class="panel">
 <nav class="gauges" aria-label="Categories">
 <a class="gauge poor" href="#s0-footprint"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="track" cx="60" cy="60" r="52"/><circle class="arc" cx="60" cy="60" r="52" pathLength="100" stroke-dasharray="13 100" transform="rotate(-90 60 60)"/></svg><span class="gauge-score">13</span><span class="gauge-label">Footprint</span></a>
-<a class="gauge good" href="#s0-speed"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="track" cx="60" cy="60" r="52"/><circle class="arc" cx="60" cy="60" r="52" pathLength="100" stroke-dasharray="99 100" transform="rotate(-90 60 60)"/></svg><span class="gauge-score">99</span><span class="gauge-label">Speed</span></a>
+<a class="gauge good" href="#s0-speed"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="track" cx="60" cy="60" r="52"/><circle class="arc" cx="60" cy="60" r="52" pathLength="100" stroke-dasharray="94 100" transform="rotate(-90 60 60)"/></svg><span class="gauge-score">94</span><span class="gauge-label">Speed</span></a>
 <a class="gauge good" href="#s0-correctness"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="track" cx="60" cy="60" r="52"/><circle class="arc" cx="60" cy="60" r="52" pathLength="100" stroke-dasharray="97 100" transform="rotate(-90 60 60)"/></svg><span class="gauge-score">97</span><span class="gauge-label">Correctness</span></a>
 <a class="gauge good" href="#s0-style"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="track" cx="60" cy="60" r="52"/><circle class="arc" cx="60" cy="60" r="52" pathLength="100" stroke-dasharray="94 100" transform="rotate(-90 60 60)"/></svg><span class="gauge-score">94</span><span class="gauge-label">Style</span></a>
 <a class="gauge good" href="#s0-architecture"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="track" cx="60" cy="60" r="52"/><circle class="arc" cx="60" cy="60" r="52" pathLength="100" stroke-dasharray="95 100" transform="rotate(-90 60 60)"/></svg><span class="gauge-score">95</span><span class="gauge-label">Architecture</span></a>
@@ -195,6 +195,7 @@ summary.audit::after{grid-column:3;grid-row:1}
 <li><span class="gain">+2</span><span class="bar-gain" aria-hidden="true"><span style="width:4%"></span></span><span class="what"><span class="muted">Documentation</span> Paragraph words, 11 items</span><span class="to">fail → pass</span></li>
 <li><span class="gain">+2</span><span class="bar-gain" aria-hidden="true"><span style="width:4%"></span></span><span class="what"><span class="muted">Documentation</span> Weasel words, 11 items</span><span class="to">fail → pass</span></li>
 <li><span class="gain">+2</span><span class="bar-gain" aria-hidden="true"><span style="width:4%"></span></span><span class="what"><span class="muted">Testing</span> Test sleeps <code>crates/cli/tests/cli.rs</code></span><span class="to">fail → pass</span></li>
+<li><span class="gain">+2</span><span class="bar-gain" aria-hidden="true"><span style="width:3%"></span></span><span class="what"><span class="muted">Speed</span> Startup</span><span class="to">1.1 ms → 1 ms</span></li>
 <li><span class="gain">+1</span><span class="bar-gain" aria-hidden="true"><span style="width:3%"></span></span><span class="what"><span class="muted">Architecture</span> Module state, 12 items</span><span class="to">fail → pass</span></li>
 <li><span class="gain">+1</span><span class="bar-gain" aria-hidden="true"><span style="width:3%"></span></span><span class="what"><span class="muted">Style</span> Positional parameters, 20 items</span><span class="to">fail → pass</span></li>
 <li><span class="gain">+1</span><span class="bar-gain" aria-hidden="true"><span style="width:2%"></span></span><span class="what"><span class="muted">Architecture</span> Dynamic imports, 8 items</span><span class="to">fail → pass</span></li>
@@ -212,8 +213,10 @@ summary.audit::after{grid-column:3;grid-row:1}
 </ul>
 </section>
 <section class="block">
-<h2>Changes against origin/main (44307d1)</h2>
-<p class="muted">No changes.</p>
+<h2>Changes against origin/main (dc34203)</h2>
+<ul class="changes">
+<li><span class="chip good">better</span><span class="what"><span class="muted">Documentation</span> Paragraph words <code>docs/reference/action.md</code></span><span class="to">fail → pass</span></li>
+</ul>
 <p class="muted">2 timings within noise.</p>
 </section>
 <section class="category" id="s0-footprint">
@@ -233,13 +236,13 @@ summary.audit::after{grid-column:3;grid-row:1}
 </details>
 </section>
 <section class="category" id="s0-speed">
-<header class="category-head"><div class="gauge large good"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="track" cx="60" cy="60" r="52"/><circle class="arc" cx="60" cy="60" r="52" pathLength="100" stroke-dasharray="99 100" transform="rotate(-90 60 60)"/></svg><span class="gauge-score">99</span></div><h2>Speed</h2>
+<header class="category-head"><div class="gauge large good"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="track" cx="60" cy="60" r="52"/><circle class="arc" cx="60" cy="60" r="52" pathLength="100" stroke-dasharray="94 100" transform="rotate(-90 60 60)"/></svg><span class="gauge-score">94</span></div><h2>Speed</h2>
 </header>
 <div class="group-head"><h3>Metrics</h3><button class="expand" type="button" aria-controls="s0-speed-metrics" aria-expanded="false">Expand view</button></div>
 <p class="note muted">Values that vary between runs are the median of 8 rounds.</p>
 <ul class="grid" id="s0-speed-metrics">
-<li class="metric"><div class="metric-head"><span class="shape good" aria-hidden="true"></span><span class="metric-title">Startup</span><span class="metric-score good">97</span></div><div class="metric-value good">736.5 µs</div><div class="bar lower" aria-hidden="true"><span class="tick" style="left:33.3%"></span><span class="marker good" style="left:24.6%"></span></div><div class="metric-foot">Target 1 ms</div></li>
-<li class="metric"><div class="metric-head"><span class="shape good" aria-hidden="true"></span><span class="metric-title">Check</span><span class="metric-score good">100</span></div><div class="metric-value good">1.7 ms</div><div class="bar lower" aria-hidden="true"><span class="tick" style="left:33.3%"></span><span class="marker good" style="left:11.1%"></span></div><div class="metric-foot">Target 5 ms</div></li>
+<li class="metric"><div class="metric-head"><span class="shape average" aria-hidden="true"></span><span class="metric-title">Startup</span><span class="metric-score average">87</span></div><div class="metric-value average">1.1 ms</div><div class="bar lower" aria-hidden="true"><span class="tick" style="left:33.3%"></span><span class="marker average" style="left:35.5%"></span></div><div class="metric-foot">Target 1 ms</div></li>
+<li class="metric"><div class="metric-head"><span class="shape good" aria-hidden="true"></span><span class="metric-title">Check</span><span class="metric-score good">100</span></div><div class="metric-value good">2.2 ms</div><div class="bar lower" aria-hidden="true"><span class="tick" style="left:33.3%"></span><span class="marker good" style="left:14.4%"></span></div><div class="metric-foot">Target 5 ms</div></li>
 </ul>
 <details class="passed"><summary>Skipped <span class="muted">(8)</span></summary>
 <ul class="skipped">
