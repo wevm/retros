@@ -112,7 +112,7 @@ Whether to publish `report.html` to GitHub Pages. The action commits it to `gh-p
 
 Each directory holds `index.html`, `report.json`, and a [Shields endpoint](https://shields.io/badges/endpoint-badge) badge per category in `badges/<category>.json`, or `badges/<category>-<subject>.json`. A new `gh-pages` branch gets a `.nojekyll` file, and an existing one keeps its other files.
 
-Without a Pages site, the action creates one from `gh-pages`, or warns when the token may not. Then select `gh-pages` under Settings, Pages. A site that publishes another branch or a workflow stays as it is. After every failure, the action warns, and the comment links the artifact.
+The workflow token may not create a Pages site. So after the first run pushes `gh-pages`, select it under Settings, Pages, once. A token with administration access creates the site itself. A site that publishes another branch or a workflow stays as it is. After every failure, the action warns, and the comment links the artifact.
 
 ```yaml
 # Publish each report to GitHub Pages with a deployment.

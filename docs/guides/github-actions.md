@@ -242,7 +242,7 @@ jobs:
           publish: true
 ```
 
-The first run creates the Pages site from `gh-pages`, when the repository has none. A site that GitHub serves from another source stays as it is, and the comment links the artifact instead.
+The first run pushes `gh-pages` and warns that Pages is off. Select `gh-pages` under Settings, Pages, once, and later runs publish. A site that GitHub serves from another source stays as it is, and the comment links the artifact instead.
 
 ### Show Badges
 

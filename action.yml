@@ -210,6 +210,7 @@ runs:
         done
 
         # A repository without Pages gets a site from the branch, when the token may create one.
+        # The workflow token may not, so its first run asks for the site in Settings.
         # A push with the workflow token does not build the site, so Uphill requests a build.
         if [ -z "$pages" ]; then
           pages=$(gh api --method POST "repos/$GITHUB_REPOSITORY/pages" -f "source[branch]=$BRANCH" -f 'source[path]=/') ||
